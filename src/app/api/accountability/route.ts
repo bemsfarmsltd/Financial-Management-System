@@ -8,15 +8,15 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const actor = await getAuthenticatedEmployee();
   if (!actor) return NextResponse.json({ error: 'Sign in to view accountability cases.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'VERIFIER', 'FINANCE', 'COO', 'HEAD_OF_ADMIN', 'STAFF'])) return NextResponse.json({ error: 'Accountability access is required.' }, { status: 403 });
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR', 'STAFF'])) return NextResponse.json({ error: 'Accountability access is required.' }, { status: 403 });
 
   // Staff can see and submit proof only for requests they own or requested.
-  const ownCasesOnly = actor.role === 'STAFF' || actor.role === 'HEAD_OF_ADMIN';
+  const ownCasesOnly = actor.role === 'STAFF';
 
   const cases = await prisma.accountabilityCase.findMany({
     where: ownCasesOnly
       ? { OR: [{ ownerUserId: actor.id }, { request: { requestedById: actor.id } }] }
-      : actor.role === 'VERIFIER' ? { OR: [{ verifierUserId: actor.id }, { verifierUserId: null }] } : undefined,
+      : undefined,
     include: {
       owner: { select: { id: true, legalName: true, workEmail: true } },
       request: { include: {
@@ -39,7 +39,7 @@ export async function GET() {
 export async function POST() {
   const actor = await getAuthenticatedEmployee();
   if (!actor) return NextResponse.json({ error: 'Sign in to initialize accountability cases.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'VERIFIER'])) return NextResponse.json({ error: 'Finance or verifier access is required.' }, { status: 403 });
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR'])) return NextResponse.json({ error: 'Admin or HR access is required.' }, { status: 403 });
   const legacyRequests = await prisma.expenditureRequest.findMany({ where: { disbursements: { some: {} }, accountabilityCase: { is: null } }, include: { disbursements: { orderBy: { paidAt: 'asc' }, take: 1 } } });
   let createdCount = 0;
   for (const request of legacyRequests) {

@@ -37,7 +37,7 @@ function bucketLabel(key: string, granularity: 'day' | 'week' | 'month') {
 export async function GET(request: Request) {
   const actor = await getAuthenticatedEmployee();
   if (!actor) return NextResponse.json({ error: 'Sign in to view group analytics.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'AUDITOR', 'COO'])) return NextResponse.json({ error: 'Executive or finance analytics access is required.' }, { status: 403 });
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR'])) return NextResponse.json({ error: 'Executive or HR analytics access is required.' }, { status: 403 });
 
   const { searchParams } = new URL(request.url);
   const period = ['30d', '90d', '12m', 'ytd'].includes(searchParams.get('period') || '') ? searchParams.get('period')! : '12m';

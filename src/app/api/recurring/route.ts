@@ -11,7 +11,7 @@ export async function GET() {
   try {
     const actor = await getAuthenticatedEmployee();
     if (!actor) return NextResponse.json({ error: 'Sign in to view recurring commitments.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'HR', 'VERIFIER'])) {
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR'])) {
       return NextResponse.json({ error: 'You do not have access to group recurring commitments.' }, { status: 403 });
     }
 

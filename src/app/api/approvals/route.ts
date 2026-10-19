@@ -15,11 +15,9 @@ export async function GET(request: Request) {
 
     // Build query conditions
     const whereCondition: any = {};
-    if (actor.role === 'STAFF' || actor.role === 'DEPT_HEAD') {
+    if (actor.role === 'STAFF') {
       whereCondition.requestedById = actor.id;
-    } else if (actor.role === 'HEAD_OF_ADMIN' || actor.role === 'COO') {
-      whereCondition.approvalSteps = { some: { OR: [{ approverId: actor.id }, { assignedRole: actor.role }] } };
-    } else if (!['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'VERIFIER', 'HR'].includes(actor.role)) {
+    } else if (!['SYSTEM_ADMIN', 'GMD', 'HR'].includes(actor.role)) {
       return NextResponse.json({ error: 'You do not have access to request records.' }, { status: 403 });
     }
     if (subsidiaryCode && subsidiaryCode !== 'ALL') {

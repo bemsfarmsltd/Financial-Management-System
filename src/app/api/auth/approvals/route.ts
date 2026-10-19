@@ -45,7 +45,9 @@ export async function POST(request: Request) {
     const body = await request.json();
     const employeeId = typeof body.employeeId === 'string' ? body.employeeId : '';
     const decision = body.decision;
-    const assignedRole = typeof body.role === 'string' && body.role ? body.role : 'STAFF';
+    const candidateRole = typeof body.role === 'string' && body.role ? body.role : 'STAFF';
+    const allowedRoles = ['GMD', 'HR', 'SYSTEM_ADMIN', 'STAFF'];
+    const assignedRole = allowedRoles.includes(candidateRole) ? candidateRole : 'STAFF';
     const subsidiaryId = typeof body.subsidiaryId === 'string' && body.subsidiaryId ? body.subsidiaryId : null;
     const departmentId = typeof body.departmentId === 'string' && body.departmentId ? body.departmentId : null;
 

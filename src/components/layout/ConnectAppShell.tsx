@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-export type SystemRole = 'GMD' | 'COO' | 'HR' | 'Auditor' | 'Staff';
+export type SystemRole = 'GMD' | 'HR' | 'SystemAdmin' | 'Staff';
 
 interface RoleProfile {
   role: SystemRole;
@@ -16,9 +16,8 @@ interface RoleProfile {
 
 export const roleProfiles: Record<SystemRole, RoleProfile> = {
   GMD: { role: 'GMD', title: 'Group Managing Director', badge: 'Super Executive', platform: 'Web (Full) & Mobile', avatarColor: '#ea580c' },
-  COO: { role: 'COO', title: 'Chief Operating Officer', badge: 'Operations Lead', platform: 'Web Dashboard', avatarColor: '#f97316' },
   HR: { role: 'HR', title: 'Human Resources Lead', badge: 'People & Payroll', platform: 'Web Dashboard', avatarColor: '#7158de' },
-  Auditor: { role: 'Auditor', title: 'Internal Auditor & Compliance', badge: 'Accountability Gate', platform: 'Web Dashboard', avatarColor: '#0d8a70' },
+  SystemAdmin: { role: 'SystemAdmin', title: 'System Administrator', badge: 'Workspace Control', platform: 'Web Dashboard', avatarColor: '#0f172a' },
   Staff: { role: 'Staff', title: 'General Staff / Requester', badge: 'Requester', platform: 'Mobile App View', avatarColor: '#a76400' },
 };
 
@@ -152,27 +151,21 @@ export function ConnectAppShell({ children }: { children: React.ReactNode }) {
     },
   ];
 
-  const cooNav = [
-    { label: 'OPERATIONS WORKSPACE', items: [['Overview', '/', '⌂'], ['Fund Requests', '/requests', '▱'], ['Request Channels', '/requests', '◎']] },
-    { label: 'APPROVALS & DISBURSEMENTS', items: [['Operational Approvals', '/approvals', '✓'], ['Budgets & Commitments', '/budgets', '◫'], ['Disbursements Desk', '/disbursements', '₦']] },
-    { label: 'PROCUREMENT', items: [['Vendors & Suppliers', '/vendors', '▦'], ['Price Benchmarks', '/vendors', '◫']] },
+  const sysAdminNav = [
+    { label: 'ADMINISTRATION & PEOPLE', items: [['Overview', '/', '⌂'], ['Staff Signup Approvals', '/staff-approvals', '✓']] },
+    { label: 'GOVERNANCE & AUDIT', items: [['Audit Trail', '/audit', '≡'], ['Approval Policies', '/approvals', '⚙'], ['Vendors & Registry', '/vendors', '▦']] },
   ];
 
   const hrNav = [
-    { label: 'PEOPLE & HR', items: [['Overview', '/', '⌂'], ['Staff Directory', '/payroll', '♙']] },
+    { label: 'PEOPLE & HR', items: [['Overview', '/', '⌂'], ['Staff Directory & Payroll', '/payroll', '♙']] },
     { label: 'PAYROLL (NO TAX)', items: [['Salary Runs (Gross = Net)', '/payroll', '⌁'], ['Intercompany Splits', '/payroll', '▥'], ['Intercompany Notes', '/intercompany', '₦']] },
   ];
 
-  const auditorNav = [
-    { label: 'AUDIT & ACCOUNTABILITY', items: [['Overview', '/', '⌂'], ['Accountability Closure', '/accountability', '◈'], ['Proof & Waybills', '/accountability', '▤'], ['Closure Clearances', '/accountability', '✓']] },
-    { label: 'COMPLIANCE', items: [['Immutable Audit Logs', '/audit', '≡'], ['Budget Variance Audit', '/budgets', '◫'], ['Vendor Price Audit', '/vendors', '◫'], ['Receipt Archive', '/disbursements', '▣']] },
-  ];
-
   const staffNav = [
-    { label: 'STAFF MOBILE EXPERIENCE', items: [['Mobile View Simulator', '/', '📱'], ['My Fund Requests', '/requests', '▱'], ['Submit New Request', '/requests/new', '＋'], ['Upload Proof / Accountability', '/accountability', '◈']] },
+    { label: 'STAFF EXPERIENCE', items: [['Mobile View Simulator', '/', '📱'], ['My Fund Requests', '/requests', '▱'], ['Submit New Request', '/requests/new', '＋'], ['Upload Proof / Accountability', '/accountability', '◈']] },
   ];
 
-  const navGroups = currentRole === 'GMD' ? gmdNav : currentRole === 'COO' ? cooNav : currentRole === 'HR' ? hrNav : currentRole === 'Auditor' ? auditorNav : staffNav;
+  const navGroups = currentRole === 'GMD' ? gmdNav : currentRole === 'HR' ? hrNav : currentRole === 'SystemAdmin' ? sysAdminNav : staffNav;
 
   return (
     <main className={`app-shell gmd-view ${collapsed ? 'collapsed' : ''}`}>

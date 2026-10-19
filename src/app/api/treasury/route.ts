@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee();
     if (!actor) return NextResponse.json({ error: 'Sign in to view treasury information.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE'])) return NextResponse.json({ error: 'Finance or executive access is required.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive access is required.' }, { status: 403 });
     // Calculate pending payout from DB
     const approvedRequests = await prisma.expenditureRequest.findMany({
       where: { approvalStatus: 'APPROVED', paymentStatus: { in: ['UNPAID', 'RECIPIENT_REPORTED_ISSUE'] } },

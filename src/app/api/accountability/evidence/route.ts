@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
   const accCase = await prisma.accountabilityCase.findUnique({ where: { id: caseId }, include: { request: { include: { channel: true, disbursements: true } }, owner: true } });
   if (!accCase) return NextResponse.json({ error: 'Accountability case not found.' }, { status: 404 });
-  const isAuthorized = hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'VERIFIER']) || actor.id === accCase.ownerUserId || actor.id === accCase.request.requestedById;
+  const isAuthorized = hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR']) || actor.id === accCase.ownerUserId || actor.id === accCase.request.requestedById;
   if (!isAuthorized) return NextResponse.json({ error: 'Only the requester, case owner, or an authorized verifier can submit evidence.' }, { status: 403 });
   if (!accCase.request.disbursements.length) return NextResponse.json({ error: 'Evidence can only be submitted for a request with a recorded payment.' }, { status: 409 });
   if (accCase.status === 'CLOSED') return NextResponse.json({ error: 'This accountability case is already closed.' }, { status: 409 });

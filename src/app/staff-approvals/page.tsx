@@ -19,12 +19,9 @@ type Dept = { id: string; name: string; code: string; organizationId: string };
 
 const ADMIN_ROLES = [
   { value: 'GMD', label: 'GMD — Group Managing Director' },
-  { value: 'COO', label: 'COO — Chief Operating Officer' },
-  { value: 'HEAD_OF_ADMIN', label: 'Head of Administration' },
-  { value: 'FINANCE', label: 'Finance & Treasury Officer' },
-  { value: 'VERIFIER', label: 'Internal Audit & Verifier' },
-  { value: 'HR', label: 'Human Resources Lead' },
-  { value: 'STAFF', label: 'General Staff' },
+  { value: 'HR', label: 'HR — Human Resources Lead' },
+  { value: 'SYSTEM_ADMIN', label: 'System Administrator' },
+  { value: 'STAFF', label: 'Staff Member' },
 ];
 
 export default function StaffApprovalsPage() {

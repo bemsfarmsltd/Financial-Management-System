@@ -18,8 +18,8 @@ export async function GET(request: Request) {
     // Build Prisma where query
     const where: any = {};
 
-    // If logged in as staff, restrict to their own requests unless privileged
-    if (actor && !hasAnyRole(actor, ["SYSTEM_ADMIN", "GMD", "COO", "HEAD_OF_ADMIN", "FINANCE", "VERIFIER"])) {
+    // If logged in as staff, restrict to their own requests unless privileged (Admin, GMD, HR)
+    if (actor && !hasAnyRole(actor, ["SYSTEM_ADMIN", "GMD", "HR"])) {
       where.requestedById = actor.id;
     }
 

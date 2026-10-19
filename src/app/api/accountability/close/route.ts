@@ -27,9 +27,9 @@ export async function POST(request: Request) {
       }
 
       // Check ownership unless privileged
-      const isPrivileged = hasAnyRole(actor, ["SYSTEM_ADMIN", "GMD", "VERIFIER", "FINANCE"]);
+      const isPrivileged = hasAnyRole(actor, ["SYSTEM_ADMIN", "GMD", "HR"]);
       if (!isPrivileged && expRequest.requestedById !== actor.id) {
-        return NextResponse.json({ error: "Only the request owner or verifier can submit retirement evidence." }, { status: 403 });
+        return NextResponse.json({ error: "Only the request owner or executive can submit retirement evidence." }, { status: 403 });
       }
 
       // Ensure accountability case exists
@@ -118,9 +118,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, caseId: accCase.id, status: "EVIDENCE_SUBMITTED" });
     }
 
-    // SCENARIO 2: Verifier closes accountability case via caseId
-    if (!hasAnyRole(actor, ["SYSTEM_ADMIN", "GMD", "VERIFIER"])) {
-      return NextResponse.json({ error: "Independent verifier access is required to close cases." }, { status: 403 });
+    // SCENARIO 2: Executive closes accountability case via caseId
+    if (!hasAnyRole(actor, ["SYSTEM_ADMIN", "GMD", "HR"])) {
+      return NextResponse.json({ error: "Executive or admin access is required to close cases." }, { status: 403 });
     }
 
     const accCase = await prisma.accountabilityCase.findUnique({

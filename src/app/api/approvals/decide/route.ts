@@ -61,7 +61,7 @@ export async function POST(request: Request) {
             id: String(disbursementAssigneeId),
             status: 'ACTIVE',
             approvalStatus: 'APPROVED',
-            role: { in: ['SYSTEM_ADMIN', 'GMD', 'FINANCE'] },
+            role: { in: ['SYSTEM_ADMIN', 'GMD', 'HR'] },
           },
           select: { id: true, legalName: true },
         });

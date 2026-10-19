@@ -6,13 +6,9 @@ export const dynamic = 'force-dynamic';
 
 const VALID_ROLES = [
   'GMD',
-  'COO',
-  'HEAD_OF_ADMIN',
-  'FINANCE',
-  'VERIFIER',
   'HR',
-  'STAFF',
   'SYSTEM_ADMIN',
+  'STAFF',
 ];
 
 export async function POST(request: Request) {

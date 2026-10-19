@@ -6,7 +6,7 @@ export async function GET(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee();
     if (!actor) return NextResponse.json({ error: 'Sign in to view budgets.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'HR'])) return NextResponse.json({ error: 'Finance access is required to view budgets.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR'])) return NextResponse.json({ error: 'Executive or HR access is required to view budgets.' }, { status: 403 });
     const { searchParams } = new URL(req.url);
     const organizationId = searchParams.get('organizationId');
 

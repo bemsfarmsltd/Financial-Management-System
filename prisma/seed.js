@@ -115,7 +115,7 @@ async function main() {
     },
   });
 
-  // 4. Approval Policies (Tiered governance)
+  // 4. Approval Policies (GMD Executive Approval Authority)
   const existingPolicies = await prisma.approvalPolicy.count();
   if (existingPolicies === 0) {
     await prisma.approvalPolicy.createMany({
@@ -124,33 +124,9 @@ async function main() {
           scopeSubsidiaryId: null,
           category: null,
           minAmountMinor: BigInt(0),
-          maxAmountMinor: BigInt(10000000), // Up to ₦100,000
-          requiredRole: "HEAD_OF_ADMIN",
+          maxAmountMinor: null,
+          requiredRole: "GMD",
           priority: 1,
-        },
-        {
-          scopeSubsidiaryId: null,
-          category: null,
-          minAmountMinor: BigInt(10000000),
-          maxAmountMinor: BigInt(100000000), // ₦100,000 to ₦1,000,000
-          requiredRole: "COO",
-          priority: 2,
-        },
-        {
-          scopeSubsidiaryId: null,
-          category: null,
-          minAmountMinor: BigInt(100000000), // Over ₦1,000,000
-          maxAmountMinor: null,
-          requiredRole: "GMD",
-          priority: 3,
-        },
-        {
-          scopeSubsidiaryId: null,
-          category: "IT_SOFTWARE",
-          minAmountMinor: BigInt(15000000), // Over ₦150,000
-          maxAmountMinor: null,
-          requiredRole: "GMD",
-          priority: 4,
         },
       ],
     });
