@@ -1085,7 +1085,7 @@ function DetailedModule({name,business,cases,onResolveCase,onAddCase,setNotice}:
   const transactionNames=['Payments','Transactions','Transfers & payments','Funding & withdrawals','Orders & fulfilment','Orders','Bookings','Appointments','Fees & payments'];
   if(transactionNames.includes(name)) return <TransactionsPage key={name} name={name} setNotice={setNotice}/>;
   if(name==='Security & compliance'||name.includes('compliance')||name.includes('Fraud')) return <SecurityCompliancePage key={name} name={name} setNotice={setNotice}/>;
-  return <GenericModulePage key={name} name={name} setNotice={setNotice}/>;
+  return <FundRequestsModule business={business} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={false}/>;
 }
 
 
@@ -1762,17 +1762,34 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     return ()=>clearTimeout(handle);
   },[search,current.id]);
   const content=useMemo(()=>{
+    const navAliases: Record<string, string> = {
+      '/requests': 'Fund requests',
+      'requests': 'Fund requests',
+      '/approvals': 'Approvals & payments',
+      'approvals': 'Approvals & payments',
+      '/disbursements': 'Disbursements desk',
+      'disbursements': 'Disbursements desk',
+      '/accountability': 'Accountability closure',
+      'accountability': 'Accountability closure',
+      '/portfolio': 'Subsidiary portfolio',
+      'portfolio': 'Subsidiary portfolio',
+      '/briefing': 'Executive briefing',
+      'briefing': 'Executive briefing',
+    };
+    const target = navAliases[active] || active;
+
     if (currentRole === 'GMD') {
-      if (active === 'Request channels') return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={path=>setActive(path==='/requests'?'Fund requests':path)}/>;
+      if (target === 'Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={false}/>;
+      if (target === 'Request channels') return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={path=>setActive(path==='/requests'?'Fund requests':path)}/>;
       // Evidence is submitted by the requester. GMDs only review staff uploads and close-out status.
-      if (active === 'Accountability closure' || active === 'Proof & deliverables' || active === 'Follow-up tasks') return <LiveAccountabilityModule setNotice={setNotice}/>;
-      if (active === 'Receipt archive') return <LiveReceiptArchiveModule setNotice={setNotice}/>;
-      if (active === 'Staff profiles') return <LiveStaffProfilesModule setNotice={setNotice}/>;
-      if (active === 'Analytics & BI') return <LiveAnalyticsBIPage/>;
-      if (active === 'Audit logs') return <LiveAuditLogsModule setNotice={setNotice}/>;
-      if (active === 'Intercompany notes') return <LiveIntercompanyModule setNotice={setNotice}/>;
-      if (active === 'Settings') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
-      if (active === 'Overview') {
+      if (target === 'Accountability closure' || target === 'Proof & deliverables' || target === 'Follow-up tasks') return <LiveAccountabilityModule setNotice={setNotice}/>;
+      if (target === 'Receipt archive') return <LiveReceiptArchiveModule setNotice={setNotice}/>;
+      if (target === 'Staff profiles') return <LiveStaffProfilesModule setNotice={setNotice}/>;
+      if (target === 'Analytics & BI') return <LiveAnalyticsBIPage/>;
+      if (target === 'Audit logs') return <LiveAuditLogsModule setNotice={setNotice}/>;
+      if (target === 'Intercompany notes') return <LiveIntercompanyModule setNotice={setNotice}/>;
+      if (target === 'Settings') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
+      if (target === 'Overview') {
         return (
           <RoleOverviewModule
             role={currentRole}
@@ -1785,10 +1802,10 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           />
         );
       }
-      if (active === 'Executive briefing') {
+      if (target === 'Executive briefing') {
         return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p) => setActive(p)} />;
       }
-      if (active === 'Subsidiary portfolio') {
+      if (target === 'Subsidiary portfolio') {
         return (
           <SubsidiaryPortfolioView
             businessName={current.name}
@@ -1798,7 +1815,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           />
         );
       }
-      if (active === 'Approvals & payments' || active === 'Approvals & Policy Hub' || active === 'Approvals desk') {
+      if (target === 'Approvals & payments' || target === 'Approvals & Policy Hub' || target === 'Approvals desk') {
         return (
           <FundFlowWorkspace
             businessName={current.name}
@@ -1808,7 +1825,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           />
         );
       }
-      if (active === 'Approval matrix') {
+      if (target === 'Approval matrix') {
         return (
           <ApprovalsHubView
             initialTab="matrix"
@@ -1819,7 +1836,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           />
         );
       }
-      if (active === 'Emergency overrides') {
+      if (target === 'Emergency overrides') {
         return (
           <ApprovalsHubView
             initialTab="emergency"
@@ -1830,7 +1847,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           />
         );
       }
-      if (active === 'Treasury & Finance Hub' || active === 'Disbursements desk' || active === 'Disbursements') {
+      if (target === 'Treasury & Finance Hub' || target === 'Disbursements desk' || target === 'Disbursements') {
         return (
           <TreasuryFinanceHubView
             initialTab="disbursements"
@@ -1841,7 +1858,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           />
         );
       }
-      if (active === 'Treasury accounts') {
+      if (target === 'Treasury accounts') {
         return (
           <TreasuryFinanceHubView
             initialTab="treasury"
@@ -1852,7 +1869,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           />
         );
       }
-      if (active === 'Budgets & commitments' || active === 'Budget variance audit') {
+      if (target === 'Budgets & commitments' || target === 'Budget variance audit') {
         return (
           <TreasuryFinanceHubView
             initialTab="budgets"
@@ -1863,7 +1880,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           />
         );
       }
-      if (active === 'Payroll sign-off' || active === 'Hybrid payroll') {
+      if (target === 'Payroll sign-off' || target === 'Hybrid payroll') {
         return (
           <TreasuryFinanceHubView
             initialTab="payroll"
@@ -1874,7 +1891,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           />
         );
       }
-      if (active === 'Intercompany & Audit Hub') {
+      if (target === 'Intercompany & Audit Hub') {
         return (
           <IntercompanyAuditHubView
             initialTab="notes"
@@ -1885,7 +1902,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           />
         );
       }
-      if (active === 'Cost allocation rules' || active === 'Settlement reconciliation') {
+      if (target === 'Cost allocation rules' || target === 'Settlement reconciliation') {
         return (
           <IntercompanyAuditHubView
             initialTab="allocation"
@@ -1896,7 +1913,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           />
         );
       }
-      if (active === 'Security & compliance' || active === 'Team & access') {
+      if (target === 'Security & compliance' || target === 'Team & access') {
         return (
           <IntercompanyAuditHubView
             initialTab="audit"
@@ -1909,43 +1926,43 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
       }
     }
 
-    if(active==='Overview') return <RoleOverviewModule role={currentRole} business={current} user={user} cases={cases} setActive={setActive} setNotice={setNotice} onRoleChange={(r) => setCurrentRole(r)}/>;
-    if(active==='Budgets & commitments'||active==='Budget variance audit') { if (typeof window !== 'undefined') window.location.href = '/budgets'; return null; }
-    if(active==='Staff mobile view') return <StaffMobileViewModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(active==='Payroll sign-off'||active==='Hybrid payroll') return <PayrollSignOffView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
-    if(active==='HR Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(active==='Executive briefing') return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p)=>setActive(p)}/>;
-    if(active==='Subsidiary portfolio') return <Businesses businesses={businesses} current={current} onSelect={selectBusiness} onAdd={onAddBusiness}/>;
-    if(active==='Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={currentRole !== 'GMD'}/>;
-    if(active==='New fund request') { if (typeof window !== 'undefined') window.location.href = '/requests/new'; return null; }
-    if(active==='Request channels') return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={(p)=>p==='/requests'?setActive('Fund requests'):window.location.href=p}/>;
-    if(active==='Draft requests') return <DraftRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(active==='Approvals desk') return <ApprovalsDeskView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
-    if(active==='Approval matrix') return <ApprovalMatrixView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
-    if(active==='Emergency overrides') return <EmergencyOverridesView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
-    if(active==='Disbursements desk'||active==='Disbursements') return <DisbursementsDeskView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
-    if(active==='Transfer verification') return <TransferVerificationModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(active==='Treasury accounts') return <TreasuryAccountsView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
-    if(active==='Receipt archive') return <LiveReceiptArchiveModule setNotice={setNotice}/>;
-    if(active==='Accountability closure') return <LiveAccountabilityModule setNotice={setNotice}/>;
-    if(active==='Proof & deliverables') return <LiveProofDeliverablesModule setNotice={setNotice}/>;
-    if(active==='Follow-up tasks') return <LiveFollowUpTasksModule setNotice={setNotice}/>;
-    if(active==='Closure clearances') return <ClosureClearancesModule business={current} setNotice={setNotice}/>;
-    if(active==='Hybrid payroll') return <PayrollModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(active==='Cost allocation rules') return <CostAllocationModule business={current} setNotice={setNotice}/>;
-    if(active==='Intercompany notes') return <LiveIntercompanyModule setNotice={setNotice}/>;
-    if(active==='Settlement reconciliation') return <SettlementReconciliationModule business={current} setNotice={setNotice}/>;
-    if(active==='Vendors & suppliers') return <VendorsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(active==='Price benchmarks') return <PriceBenchmarksModule business={current} setNotice={setNotice}/>;
-    if(active==='Recurring commitments') return <RecurringCommitmentsModule business={current} setNotice={setNotice}/>;
-    if(active==='Notification bridge') return <NotificationBridgeModule business={current} setNotice={setNotice}/>;
-    if(active==='Audit logs') return <LiveAuditLogsModule setNotice={setNotice}/>;
-    if(active==='Staff profiles') return <LiveStaffProfilesModule setNotice={setNotice}/>;
-    if(active==='Team & access') return <TeamAccessPage business={current} setNotice={setNotice}/>;
-    if(active==='Security & compliance') return <SecurityCompliancePage name="Security & compliance" setNotice={setNotice}/>;
-    if(active==='System configuration') return <ConfigurationCenter setNotice={setNotice}/>;
-    if(active==='Settings') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
-    return <DetailedModule name={active} business={current} cases={cases} onResolveCase={resolveCase} onAddCase={addCase} setNotice={setNotice}/>;
+    if(target==='Overview') return <RoleOverviewModule role={currentRole} business={current} user={user} cases={cases} setActive={setActive} setNotice={setNotice} onRoleChange={(r) => setCurrentRole(r)}/>;
+    if(target==='Budgets & commitments'||target==='Budget variance audit') { if (typeof window !== 'undefined') window.location.href = '/budgets'; return null; }
+    if(target==='Staff mobile view') return <StaffMobileViewModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
+    if(target==='Payroll sign-off'||target==='Hybrid payroll') return <PayrollSignOffView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='HR Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
+    if(target==='Executive briefing') return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p)=>setActive(p)}/>;
+    if(target==='Subsidiary portfolio') return <Businesses businesses={businesses} current={current} onSelect={selectBusiness} onAdd={onAddBusiness}/>;
+    if(target==='Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={currentRole !== 'GMD'}/>;
+    if(target==='New fund request') { if (typeof window !== 'undefined') window.location.href = '/requests/new'; return null; }
+    if(target==='Request channels') return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={(p)=>p==='/requests'?setActive('Fund requests'):window.location.href=p}/>;
+    if(target==='Draft requests') return <DraftRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
+    if(target==='Approvals desk') return <ApprovalsDeskView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Approval matrix') return <ApprovalMatrixView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Emergency overrides') return <EmergencyOverridesView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Disbursements desk'||target==='Disbursements') return <DisbursementsDeskView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Transfer verification') return <TransferVerificationModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
+    if(target==='Treasury accounts') return <TreasuryAccountsView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Receipt archive') return <LiveReceiptArchiveModule setNotice={setNotice}/>;
+    if(target==='Accountability closure') return <LiveAccountabilityModule setNotice={setNotice}/>;
+    if(target==='Proof & deliverables') return <LiveProofDeliverablesModule setNotice={setNotice}/>;
+    if(target==='Follow-up tasks') return <LiveFollowUpTasksModule setNotice={setNotice}/>;
+    if(target==='Closure clearances') return <ClosureClearancesModule business={current} setNotice={setNotice}/>;
+    if(target==='Hybrid payroll') return <PayrollModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
+    if(target==='Cost allocation rules') return <CostAllocationModule business={current} setNotice={setNotice}/>;
+    if(target==='Intercompany notes') return <LiveIntercompanyModule setNotice={setNotice}/>;
+    if(target==='Settlement reconciliation') return <SettlementReconciliationModule business={current} setNotice={setNotice}/>;
+    if(target==='Vendors & suppliers') return <VendorsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
+    if(target==='Price benchmarks') return <PriceBenchmarksModule business={current} setNotice={setNotice}/>;
+    if(target==='Recurring commitments') return <RecurringCommitmentsModule business={current} setNotice={setNotice}/>;
+    if(target==='Notification bridge') return <NotificationBridgeModule business={current} setNotice={setNotice}/>;
+    if(target==='Audit logs') return <LiveAuditLogsModule setNotice={setNotice}/>;
+    if(target==='Staff profiles') return <LiveStaffProfilesModule setNotice={setNotice}/>;
+    if(target==='Team & access') return <TeamAccessPage business={current} setNotice={setNotice}/>;
+    if(target==='Security & compliance') return <SecurityCompliancePage name="Security & compliance" setNotice={setNotice}/>;
+    if(target==='System configuration') return <ConfigurationCenter setNotice={setNotice}/>;
+    if(target==='Settings') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
+    return <DetailedModule name={target} business={current} cases={cases} onResolveCase={resolveCase} onAddCase={addCase} setNotice={setNotice}/>;
   },[active,current,currentRole,businesses,onAddBusiness,selectBusiness,onUpdateBusiness,setNotice,cases,resolveCase,addCase,user]);
 
   if(marketplaceOpen){const destination=businesses.find(b=>b.id===marketplaceBusinessId)||current;return <main className="marketplace-portal"><header><button className="marketplace-brand" onClick={()=>setMarketplaceOpen(false)}><img src="/bems-mark.png" alt=""/><div><strong>BEMS</strong><span>Fund Request Desk</span></div></button><div className="marketplace-destination"><span>IMPORT DESTINATION</span><select value={destination.id} onChange={e=>setMarketplaceBusinessId(e.target.value)}>{businesses.map(b=><option value={b.id} key={b.id}>{b.name} · {b.industry}</option>)}</select></div><div><button className="market-library">My library</button><button className="market-cart">Cart · 0</button><button className="marketplace-close" onClick={()=>setMarketplaceOpen(false)}>Return to workspace →</button></div></header><div className="marketplace-content">{notices.length>0&&<div className="marketplace-toast">✓ {notices[notices.length-1].message}<button onClick={()=>dismissNotice(notices[notices.length-1].id)}>×</button></div>}<TemplateMarketplace key={destination.id} business={destination} setNotice={setNotice}/></div></main>}

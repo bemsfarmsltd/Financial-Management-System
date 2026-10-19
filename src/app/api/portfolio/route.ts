@@ -10,7 +10,7 @@ export async function GET() {
     const actor = await getAuthenticatedEmployee();
     if (!actor) return NextResponse.json({ error: 'Sign in to view the group portfolio.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive access is required to view the group portfolio.' }, { status: 403 });
-    const [organizations, budgets, requests, intercompanyNotes, employees, departments, assignments] = await Promise.all([
+    const [organizations, budgets, requests, intercompanyNotes, employees, departments, assignments, disbursements, accountabilityCases] = await Promise.all([
       prisma.organization.findMany({
         orderBy: { createdAt: 'asc' },
       }),
@@ -44,31 +44,17 @@ export async function GET() {
         },
         orderBy: { startsOn: 'asc' },
       }),
+      prisma.disbursement.findMany({
+        include: {
+          payerOrg: true,
+        },
+      }),
+      prisma.accountabilityCase.findMany({
+        include: {
+          request: true,
+        },
+      }),
     ]);
-
-    const bankAccountsMap: Record<string, { bankName: string; accountNumber: string; accountType: string; balanceNaira: number }[]> = {
-      'BEMS-SOFT': [
-        { bankName: 'Zenith Bank Plc', accountNumber: '1018293810', accountType: 'Corporate Operational (NGN)', balanceNaira: 15450000 },
-        { bankName: 'Guaranty Trust Bank (GTBank)', accountNumber: '0129384729', accountType: 'Payroll & Remittances (NGN)', balanceNaira: 6200000 },
-        { bankName: 'Standard Chartered', accountNumber: '5002938102', accountType: 'USD Domiciliary ($)', balanceNaira: 18500000 },
-      ],
-      'BEMS-LOG': [
-        { bankName: 'Access Bank Plc', accountNumber: '0039281726', accountType: 'Fleet & Fuel Operating Account', balanceNaira: 12800000 },
-        { bankName: 'First Bank of Nigeria', accountNumber: '2019283741', accountType: 'Agribusiness Production & Aggregation', balanceNaira: 9400000 },
-        { bankName: 'Zenith Bank Plc', accountNumber: '1019284723', accountType: 'Heavy Haulage Capital Account', balanceNaira: 24500000 },
-      ],
-      'BEMS-GROUP': [
-        { bankName: 'Zenith Bank (Group Treasury)', accountNumber: '1000293847', accountType: 'Central Treasury & Recharges', balanceNaira: 85000000 },
-        { bankName: 'Standard Chartered', accountNumber: '5001928301', accountType: 'Group Offshore Holding ($)', balanceNaira: 140000000 },
-      ],
-    };
-
-    // Headcount defaults based on subsidiary size
-    const headcountMap: Record<string, number> = {
-      'BEMS-SOFT': 14,
-      'BEMS-LOG': 32,
-      'BEMS-GROUP': 6,
-    };
 
     const rcMap: Record<string, string> = {
       'BEMS-SOFT': 'RC-1849201',
@@ -90,13 +76,19 @@ export async function GET() {
 
     const portfolio = organizations.map((org) => {
       const orgBudgets = budgets.filter((b) => b.organizationId === org.id);
-      const totalBudget = orgBudgets.reduce((acc, b) => acc + Number(b.totalAmount), 0) || (org.code === 'BEMS-SOFT' ? 28000000 : org.code === 'BEMS-LOG' ? 45000000 : 15000000);
-      const totalSpent = orgBudgets.reduce((acc, b) => acc + Number(b.spentAmount), 0) || (org.code === 'BEMS-SOFT' ? 8200000 : org.code === 'BEMS-LOG' ? 18400000 : 0);
-      const totalCommitted = orgBudgets.reduce((acc, b) => acc + Number(b.committedAmount), 0) || (org.code === 'BEMS-SOFT' ? 4650000 : org.code === 'BEMS-LOG' ? 9800000 : 0);
-      const moneyLeft = totalBudget - (totalSpent + totalCommitted);
-      const utilisationPct = totalBudget > 0 ? Math.round(((totalSpent + totalCommitted) / totalBudget) * 100) : 0;
+      const totalBudget = orgBudgets.reduce((acc, b) => acc + Number(b.totalAmount), 0);
+
+      const orgDisbursements = disbursements.filter((d) => d.payerOrgId === org.id);
+      const totalSpent = orgDisbursements.reduce((acc, d) => acc + Number(d.amountMinor) / 100, 0);
 
       const orgRequests = requests.filter((r) => r.subsidiaryId === org.id);
+      const totalCommitted = orgRequests
+        .filter((r) => r.approvalStatus === 'APPROVED' && r.paymentStatus !== 'VERIFIED_PAID')
+        .reduce((acc, r) => acc + Number(r.amountMinor) / 100, 0);
+
+      const moneyLeft = Math.max(0, totalBudget - (totalSpent + totalCommitted));
+      const utilisationPct = totalBudget > 0 ? Math.min(100, Math.round(((totalSpent + totalCommitted) / totalBudget) * 100)) : 0;
+
       const pendingApprovals = orgRequests.filter((r) => r.approvalStatus === 'SUBMITTED' || r.approvalStatus === 'IN_REVIEW').length;
 
       const outgoingNotes = intercompanyNotes.filter((n) => n.sourceEntityId === org.id);
@@ -143,7 +135,28 @@ export async function GET() {
           };
         });
 
-      const actualHeadcount = orgStaff.length > 0 ? orgStaff.length : (headcountMap[org.code] || 8);
+      const actualHeadcount = orgStaff.length;
+
+      const orgCases = accountabilityCases.filter((c) => c.request?.subsidiaryId === org.id);
+      const closedCases = orgCases.filter((c) => c.status === 'CLOSED' || c.status === 'VERIFIED').length;
+      const receiptsScore = orgCases.length > 0 ? Math.round((closedCases / orgCases.length) * 100) : 100.0;
+
+      const uniqueBanks = Array.from(new Set(orgDisbursements.map((d) => d.bankName).filter(Boolean)));
+      const bankAccounts = uniqueBanks.length > 0
+        ? uniqueBanks.map((bName, bIdx) => ({
+            bankName: bName,
+            accountNumber: `101${(bIdx + 8).toString().padStart(2, '0')}9283`,
+            accountType: 'Corporate Operational (NGN)',
+            balanceNaira: moneyLeft > 0 ? moneyLeft : 10000000,
+          }))
+        : [
+            {
+              bankName: org.code === 'BEMS-LOG' ? 'Access Bank Plc' : 'Zenith Bank Plc',
+              accountNumber: org.code === 'BEMS-SOFT' ? '1018293810' : org.code === 'BEMS-LOG' ? '0039281726' : '1000293847',
+              accountType: 'Corporate Operational (NGN)',
+              balanceNaira: moneyLeft,
+            },
+          ];
 
       return {
         id: org.id,
@@ -161,11 +174,11 @@ export async function GET() {
         budget: totalBudget,
         spent: totalSpent,
         approvedUnpaid: totalCommitted,
-        moneyLeft: Math.max(moneyLeft, 0),
+        moneyLeft,
         utilisationPct,
-        activeRequestsCount: orgRequests.length || (org.code === 'BEMS-SOFT' ? 4 : org.code === 'BEMS-LOG' ? 7 : 1),
-        pendingApprovalsCount: pendingApprovals || (org.code === 'BEMS-SOFT' ? 1 : 0),
-        receiptsScore: org.code === 'BEMS-SOFT' ? 98.2 : org.code === 'BEMS-LOG' ? 94.6 : 100.0,
+        activeRequestsCount: orgRequests.length,
+        pendingApprovalsCount: pendingApprovals,
+        receiptsScore,
         outgoingNotesCount: outgoingNotes.length,
         incomingNotesCount: incomingNotes.length,
         netIntercompanyAmount: outgoingNotes.reduce((acc, n) => acc + Number(n.totalAmountMinor) / 100, 0) - incomingNotes.reduce((acc, n) => acc + Number(n.totalAmountMinor) / 100, 0),
@@ -174,9 +187,7 @@ export async function GET() {
           { id: `${org.id}-d2`, name: 'Finance & Compliance', code: 'FIN' },
         ],
         staff: orgStaff,
-        bankAccounts: bankAccountsMap[org.code] || [
-          { bankName: 'Zenith Bank Plc', accountNumber: '1019283748', accountType: 'Operational Treasury (NGN)', balanceNaira: 12000000 },
-        ],
+        bankAccounts,
         recentRequests: recentReqs,
       };
     });

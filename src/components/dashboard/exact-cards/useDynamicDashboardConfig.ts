@@ -51,26 +51,26 @@ export function useDynamicDashboardConfig({ role, businessName, subsidiaryId }: 
           value: String(reqCount),
           delta: reqCount > 0 ? `${reqCount} total recorded in system` : '0 requests across subsidiaries',
           isPrimary: true,
-          link: '/requests',
+          link: 'Fund requests',
         },
         {
           label: 'Closed & Accounted',
           value: String(closedCases),
           delta: closedCases > 0 ? `${closedCases} closed with verified proof` : '0 cases awaiting proof',
-          link: '/accountability',
+          link: 'Accountability closure',
         },
         {
           label: 'Payments Recorded',
           value: String(paidCount),
           delta: paidCount > 0 ? `${paidCount} payment transactions` : 'No payments disbursed yet',
-          link: '/disbursements',
+          link: 'Disbursements desk',
         },
         {
           label: 'Executive Review Required',
           value: String(pendingCount),
           delta: pendingCount > 0 ? `${pendingCount} awaiting authorization` : 'Review queue is all clear',
           statusBadge: pendingCount > 0 ? 'Action Needed' : undefined,
-          link: '/approvals',
+          link: 'Approvals & payments',
         },
       ];
 

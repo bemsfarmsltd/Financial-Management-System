@@ -213,15 +213,32 @@ export function ExecutiveBriefingClient({
   }, [tier3Escalations]);
 
   // Corporate bank accounts
-  const corporateTreasury = {
-    accessBank: 52800000,
-    zenithBank: 31400000,
-    totalLiquid: 84200000,
-  };
+  const corporateTreasury = useMemo(() => {
+    const totalDisb = disbList.reduce((acc, d) => acc + d.amountNaira, 0);
+    const accessBalance = Math.max(10000000, 52800000 - totalDisb);
+    const zenithBalance = 31400000;
+    return {
+      accessBank: accessBalance,
+      zenithBank: zenithBalance,
+      totalLiquid: accessBalance + zenithBalance,
+    };
+  }, [disbList]);
 
   // Runway calculation
-  const monthlyBurn = 7400000;
+  const monthlyBurn = useMemo(() => {
+    const totalDisb = disbList.reduce((acc, d) => acc + d.amountNaira, 0);
+    return totalDisb > 0 ? totalDisb : 7400000;
+  }, [disbList]);
   const runwayMonths = (corporateTreasury.totalLiquid / monthlyBurn).toFixed(1);
+
+  // Receipts and Proof Score
+  const proofScore = useMemo(() => {
+    if (filteredAccountability.length === 0) return '100.0%';
+    const verified = filteredAccountability.filter(
+      (c) => c.status === 'VERIFIED' || c.status === 'CLOSED'
+    ).length;
+    return `${((verified / filteredAccountability.length) * 100).toFixed(1)}%`;
+  }, [filteredAccountability]);
 
   // Decision submit handler
   const handleExecuteDecision = async (e: React.FormEvent) => {
@@ -284,7 +301,7 @@ export function ExecutiveBriefingClient({
       ['Awaiting Your Approval', `${tier3Escalations.length} requests (NGN ${totalEscalationsValue.toLocaleString()})`],
       ['Approved (Unpaid)', `NGN ${totalCommitted.toLocaleString()}`],
       ['Paid Out', `NGN ${totalVerifiedDisbursed.toLocaleString()}`],
-      ['Receipts & Proof Score', '96.4%'],
+      ['Receipts & Proof Score', proofScore],
       [''],
       ['REQUESTS AWAITING APPROVAL'],
       ['Request Number', 'Title', 'Company', 'Amount NGN', 'Status', 'Category'],
@@ -584,7 +601,7 @@ export function ExecutiveBriefingClient({
             <ShieldCheck size={15} color="#059669" />
           </div>
           <strong style={{ display: 'block', fontSize: '26px', margin: '6px 0 2px', fontWeight: '800', color: '#059669' }}>
-            96.4%
+            {proofScore}
           </strong>
           <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
             No overdue staff advances
@@ -830,7 +847,12 @@ export function ExecutiveBriefingClient({
             <span>BUDGET USED</span>
           </div>
 
-          {filteredBudgets.map((b) => {
+          {filteredBudgets.length === 0 ? (
+            <div style={{ padding: '28px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px' }}>
+              No active budgets configured yet for this company. All expenditure is tracked against approved requisition limits.
+            </div>
+          ) : (
+            filteredBudgets.map((b) => {
             const spent = b.spentAmount;
             const comm = b.committedAmount;
             const totalUsed = spent + comm;
@@ -904,7 +926,7 @@ export function ExecutiveBriefingClient({
                 </div>
               </div>
             );
-          })}
+          }))}
         </div>
       </div>
 

@@ -306,7 +306,147 @@ async function main() {
       });
     }
 
-    console.log("Telemetry and records synchronization complete!");
+    // Seed Key Staff Profiles
+    const staffSeeds = [
+      {
+        employeeNumber: "EMP-2026-0002",
+        legalName: "Engr. Tunde Adeleke",
+        workEmail: "tunde.adeleke@bemssoftware.com",
+        role: "COO",
+        subsidiaryId: subTech.id,
+        departmentId: itDept.id,
+        position: "Managing Director / COO - Tech",
+      },
+      {
+        employeeNumber: "EMP-2026-0003",
+        legalName: "Chinedu Eze",
+        workEmail: "chinedu.eze@bemssoftware.com",
+        role: "STAFF",
+        subsidiaryId: subTech.id,
+        departmentId: itDept.id,
+        position: "Principal Cloud Architect",
+      },
+      {
+        employeeNumber: "EMP-2026-0004",
+        legalName: "Capt. Niyi Alabi",
+        workEmail: "niyi.alabi@bemslogistics.com",
+        role: "COO",
+        subsidiaryId: subLogistics.id,
+        departmentId: logDept.id,
+        position: "Chief Operating Officer - Logistics",
+      },
+      {
+        employeeNumber: "EMP-2026-0005",
+        legalName: "Amina Yusuf",
+        workEmail: "amina.yusuf@bemslogistics.com",
+        role: "STAFF",
+        subsidiaryId: subLogistics.id,
+        departmentId: logDept.id,
+        position: "Fleet Operations & Agritech Supervisor",
+      },
+    ];
+
+    for (const s of staffSeeds) {
+      const emp = await prisma.employee.upsert({
+        where: { employeeNumber: s.employeeNumber },
+        update: {},
+        create: {
+          employeeNumber: s.employeeNumber,
+          legalName: s.legalName,
+          workEmail: s.workEmail,
+          role: s.role,
+          status: "ACTIVE",
+          approvalStatus: "APPROVED",
+        },
+      });
+
+      const assign = await prisma.employeeAssignment.findFirst({
+        where: { employeeId: emp.id },
+      });
+      if (!assign) {
+        await prisma.employeeAssignment.create({
+          data: {
+            employeeId: emp.id,
+            subsidiaryId: s.subsidiaryId,
+            departmentId: s.departmentId,
+            positionName: s.position,
+            isPrimary: true,
+            status: "ACTIVE",
+          },
+        });
+      }
+    }
+
+    // Seed Initial Entity Budgets
+    const budgetSeeds = [
+      {
+        orgId: group.id,
+        periodName: "Q4 2026 - Corporate Services",
+        totalAmount: 15000000,
+        committedAmount: 0,
+        spentAmount: 0,
+        lines: [
+          { departmentName: "Corporate Services", category: "Governance & Audit", allocatedAmount: 10000000 },
+          { departmentName: "Administration", category: "Office & Facilities", allocatedAmount: 5000000 },
+        ],
+      },
+      {
+        orgId: subTech.id,
+        periodName: "Q4 2026 - Software & Cloud",
+        totalAmount: 25000000,
+        committedAmount: 650000, // Microsoft Cloud Licenses submitted
+        spentAmount: 450000,    // Hostinger VPS paid
+        lines: [
+          { departmentName: "Engineering", category: "IT Infrastructure & Cloud", allocatedAmount: 15000000, spentAmount: 450000 },
+          { departmentName: "Product", category: "Licenses & Developer Tooling", allocatedAmount: 10000000, committedAmount: 650000 },
+        ],
+      },
+      {
+        orgId: subLogistics.id,
+        periodName: "Q4 2026 - Fleet & Agribusiness",
+        totalAmount: 40000000,
+        committedAmount: 4000000, // TotalEnergies (2.8M) + Delivery Advance (1.2M)
+        spentAmount: 0,
+        lines: [
+          { departmentName: "Logistics", category: "Bulk Diesel & Fleet Fuel", allocatedAmount: 25000000, committedAmount: 2800000 },
+          { departmentName: "Supply Chain", category: "Agritech Deliveries & Float", allocatedAmount: 15000000, committedAmount: 1200000 },
+        ],
+      },
+    ];
+
+    for (const b of budgetSeeds) {
+      const existingBudget = await prisma.budget.findFirst({
+        where: { organizationId: b.orgId, fiscalYear: 2026, fiscalPeriod: "Q4" },
+      });
+      if (!existingBudget) {
+        await prisma.budget.create({
+          data: {
+            organizationId: b.orgId,
+            fiscalYear: 2026,
+            fiscalPeriod: "Q4",
+            periodName: b.periodName,
+            totalAmount: b.totalAmount,
+            committedAmount: b.committedAmount,
+            spentAmount: b.spentAmount,
+            status: "ACTIVE",
+            warningThreshold: 80.0,
+            lines: {
+              create: b.lines.map((l) => ({
+                departmentName: l.departmentName,
+                category: l.category,
+                expenseType: "OPEX",
+                allocatedAmount: l.allocatedAmount,
+                committedAmount: l.committedAmount || 0,
+                spentAmount: l.spentAmount || 0,
+                status: "ACTIVE",
+              })),
+            },
+          },
+        });
+      }
+    }
+
+    console.log("Telemetry, staff profiles, and entity budgets synchronization complete!");
   }
 }
 

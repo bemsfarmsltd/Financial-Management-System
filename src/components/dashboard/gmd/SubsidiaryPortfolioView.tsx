@@ -1798,7 +1798,7 @@ export function SubsidiaryPortfolioView({
               {[
                 { key: 'financials', label: 'Financial Health & Budget' },
                 { key: 'staff', label: `Staff & Team Roster (${dossierSub.staff?.length || dossierSub.headcount})` },
-                { key: 'treasury', label: `Bank Accounts & Treasury (${dossierSub.bankAccounts?.length || 2})` },
+                { key: 'treasury', label: `Bank Accounts & Treasury (${dossierSub.bankAccounts?.length || 0})` },
                 { key: 'notes', label: `Intercompany Ledger (${dossierNotes.length})` },
                 { key: 'governance', label: 'Governance & Departments' },
                 { key: 'requests', label: `Recent Fund Requests (${dossierSub.recentRequests?.length || 0})` },
