@@ -37,7 +37,7 @@ function bucketLabel(key: string, granularity: 'day' | 'week' | 'month') {
 export async function GET(request: Request) {
   const actor = await getAuthenticatedEmployee();
   if (!actor) return NextResponse.json({ error: 'Sign in to view group analytics.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR'])) return NextResponse.json({ error: 'Executive or HR analytics access is required.' }, { status: 403 });
+  const isStaff = actor.role === 'STAFF';
 
   const { searchParams } = new URL(request.url);
   const period = ['30d', '90d', '12m', 'ytd'].includes(searchParams.get('period') || '') ? searchParams.get('period')! : '12m';
@@ -47,9 +47,10 @@ export async function GET(request: Request) {
   const now = new Date();
   const { start, end, previousStart, previousEnd } = periodBounds(period, now);
   const subsidiaryFilter = subsidiaryId === 'ALL' ? {} : { subsidiaryId };
-  const requestFilters = { ...subsidiaryFilter, ...(category === 'ALL' ? {} : { category }), ...(status === 'ALL' ? {} : { approvalStatus: status }) };
+  const staffFilter = isStaff ? { requestedById: actor.id } : {};
+  const requestFilters = { ...subsidiaryFilter, ...staffFilter, ...(category === 'ALL' ? {} : { category }), ...(status === 'ALL' ? {} : { approvalStatus: status }) };
   const requestWhere = (from: Date, to: Date) => ({ ...requestFilters, createdAt: { gte: from, lt: to } });
-  const paymentWhere = (from: Date, to: Date) => ({ requestId: { not: null }, paidAt: { gte: from, lt: to }, ...(subsidiaryId === 'ALL' && category === 'ALL' && status === 'ALL' ? {} : { request: { ...(subsidiaryId === 'ALL' ? {} : { subsidiaryId }), ...(category === 'ALL' ? {} : { category }), ...(status === 'ALL' ? {} : { approvalStatus: status }) } }) });
+  const paymentWhere = (from: Date, to: Date) => ({ requestId: { not: null }, paidAt: { gte: from, lt: to }, ...(subsidiaryId === 'ALL' && category === 'ALL' && status === 'ALL' && !isStaff ? {} : { request: { ...(subsidiaryId === 'ALL' ? {} : { subsidiaryId }), ...staffFilter, ...(category === 'ALL' ? {} : { category }), ...(status === 'ALL' ? {} : { approvalStatus: status }) } }) });
 
   const [requests, previousRequests, disbursements, previousDisbursements, upcomingUnpaid, recentPayments, availableSubsidiaries, availableCategories] = await Promise.all([
     prisma.expenditureRequest.findMany({
@@ -149,6 +150,7 @@ export async function GET(request: Request) {
     availableCategories: availableCategories.map(row => row.category),
     summary: {
       requestCount: requests.length, pendingCount: pending.length, approvedCount: approved.length,
+      paidCount: disbursements.length, disbursementsCount: disbursements.length,
       approvedRate: requests.length ? approved.length / requests.length : 0,
       requestedMinor, previousRequestedMinor, paidMinor, previousPaidMinor,
       awaitingConfirmationCount: disbursements.filter(row => row.status === 'AWAITING_RECIPIENT_CONFIRMATION').length,

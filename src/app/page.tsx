@@ -635,7 +635,7 @@ function Overview({business,user,cases,setActive,setNotice}:{business:Business;u
           <button className="outline-button" onClick={() => setActive("Subsidiary portfolio")}>Manage Subsidiaries ▦</button>
         </div>
       </div>
-      <ModernBentoDashboard role="GMD" businessName={business.name} onNavigate={(p) => setActive(p)} />
+      <ModernBentoDashboard role="GMD" businessName={business.name} subsidiaryId={business.id} onNavigate={(p) => setActive(p)} />
     </div>
   );
 }
@@ -1108,6 +1108,7 @@ function RoleOverviewModule({role,business,user,cases,setActive,setNotice,onRole
       <ModernBentoDashboard
         role={role}
         businessName={business.name}
+        subsidiaryId={business.id}
         onNavigate={(p) => setActive(p)}
         onRoleChange={(r) => onRoleChange && onRoleChange(r as SystemRole)}
       />
@@ -1500,76 +1501,151 @@ function FundRequestsModule({business,setNotice,onNavigate,canCreate=true}:{busi
 }
 
 function ApprovalsModule({business,setNotice,onNavigate}:{business:Business;setNotice:(x:string)=>void;onNavigate:(p:string)=>void}) {
+  const [data, setData] = useState<{ requests: any[]; summary: any }>({ requests: [], summary: {} });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/approvals?subsidiary=${encodeURIComponent(business.id)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setData({ requests: d.requests || [], summary: d.summary || {} }); })
+      .finally(() => setLoading(false));
+  }, [business.id]);
+
+  const topPending = data.requests[0];
+  const pendingCount = data.summary.totalPendingCount ?? data.requests.length;
+  const pendingAmount = data.summary.totalPendingFormatted ?? '₦0';
+
   return <>
     <SectionHeader eyebrow="AUTHORITY MATRIX" title="Executive Approvals Queue" text="Deterministic approval routing with strict multi-threshold enforcement, GMD escalation, and emergency limits." action="Review on Master Approvals" onAction={()=>onNavigate('/approvals')}/>
-    <section className="card" style={{padding:'20px'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}}>
-        <div><h3 style={{margin:0,fontSize:'16px'}}>Pending Approvals Requiring Immediate Action</h3><p style={{margin:'4px 0 0',color:'var(--muted)',fontSize:'13px'}}>Requests exceeding department thresholds routed to GMD Henry Nwosu</p></div>
+    <div className="customer-summary">
+      <article><small>PENDING APPROVALS</small><strong>{loading ? '—' : pendingCount}</strong><span>Awaiting executive decision</span></article>
+      <article><small>TOTAL QUEUE VALUE</small><strong>{loading ? '—' : pendingAmount}</strong><span>Combined pending amount</span></article>
+      <article><small>TIER 3 ESCALATIONS</small><strong>{loading ? '—' : (data.summary.tier3Count || 0)}</strong><span>Exceeds departmental threshold</span></article>
+      <article><small>URGENT REQUESTS</small><strong>{loading ? '—' : (data.summary.urgentCount || 0)}</strong><span>Expedited SLA</span></article>
+    </div>
+    <section className="card" style={{padding:'20px',marginTop:'16px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom: topPending ? '16px' : '0'}}>
+        <div><h3 style={{margin:0,fontSize:'16px'}}>Pending Approvals Requiring Immediate Action</h3><p style={{margin:'4px 0 0',color:'var(--muted)',fontSize:'13px'}}>{pendingCount > 0 ? `${pendingCount} request(s) routed for authorization` : `No pending requests requiring approval for ${business.name}.`}</p></div>
         <button className="primary-button" onClick={()=>onNavigate('/approvals')}>Open Dedicated Desk →</button>
       </div>
-      <div style={{border:'1px solid var(--line)',borderRadius:'12px',padding:'16px',background:'#fff',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div>
-          <span style={{fontSize:'12px',fontWeight:'700',color:'var(--blue)'}}>REQ-2026-0001 · CLOUD HOSTING</span>
-          <h4 style={{margin:'4px 0',fontSize:'15px'}}>Hostinger VPS Annual Subscription Renewal</h4>
-          <p style={{margin:0,fontSize:'12px',color:'var(--muted)'}}>Vendor: Hostinger International · Threshold: Level 2 HOD / GMD</p>
+      {topPending && (
+        <div style={{border:'1px solid var(--line)',borderRadius:'12px',padding:'16px',background:'#fff',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <span style={{fontSize:'12px',fontWeight:'700',color:'var(--blue)'}}>{topPending.requestNumber} · {topPending.category ? topPending.category.replaceAll('_', ' ') : 'GENERAL'}</span>
+            <h4 style={{margin:'4px 0',fontSize:'15px'}}>{topPending.title}</h4>
+            <p style={{margin:0,fontSize:'12px',color:'var(--muted)'}}>Requester: {topPending.requester?.name || 'Staff'} · Needed by: {new Date(topPending.neededBy || topPending.createdAt).toLocaleDateString()}</p>
+          </div>
+          <div style={{textAlign:'right'}}>
+            <strong style={{fontSize:'18px',display:'block',color:'var(--navy)'}}>{topPending.amountFormatted}</strong>
+            <button className="primary-button" style={{marginTop:'8px',padding:'6px 14px',fontSize:'12px'}} onClick={()=>onNavigate('/approvals')}>Review & Authorize →</button>
+          </div>
         </div>
-        <div style={{textAlign:'right'}}>
-          <strong style={{fontSize:'18px',display:'block',color:'var(--navy)'}}>₦450,000</strong>
-          <button className="primary-button" style={{marginTop:'8px',padding:'6px 14px',fontSize:'12px'}} onClick={()=>onNavigate('Request channels')}>Request channel chat →</button>
-        </div>
-      </div>
+      )}
     </section>
   </>;
 }
 
 function DisbursementsModule({business,setNotice,onNavigate}:{business:Business;setNotice:(x:string)=>void;onNavigate:(p:string)=>void}) {
+  const [data, setData] = useState<any>({ records: [], summary: {} });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/disbursements?subsidiaryId=${encodeURIComponent(business.id)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setData(d); })
+      .finally(() => setLoading(false));
+  }, [business.id]);
+
+  const records = data.records || [];
+  const topPending = records.find((r: any) => r.status === 'MAKER_RECORDED' || r.status === 'PENDING') || records[0];
+  const summary = data.summary || {};
+
   return <>
     <SectionHeader eyebrow="TREASURY & BANKING" title="Disbursements Desk & Maker-Checker" text="Off-platform bank transfer recording, SHA-256 duplicate receipt hash protection, and independent verification." action="Open Banking Queue" onAction={()=>onNavigate('/disbursements')}/>
     <div className="customer-summary">
-      <article><small>APPROVED FOR PAYMENT</small><strong>₦2,800,000</strong><span>1 invoice pending transfer</span></article>
-      <article><small>MAKER RECORDED</small><strong>1</strong><span>Awaiting independent checker</span></article>
-      <article><small>DISBURSED MTD</small><strong>₦14,850,000</strong><span>Access Bank Corporate</span></article>
+      <article><small>APPROVED FOR PAYMENT</small><strong>{loading ? '—' : (summary.approvedPendingTransferCount ?? records.length)}</strong><span>Awaiting bank execution</span></article>
+      <article><small>MAKER RECORDED</small><strong>{loading ? '—' : (summary.makerRecordedCount ?? 0)}</strong><span>Awaiting independent checker</span></article>
+      <article><small>DISBURSED TOTAL</small><strong>{loading ? '—' : (summary.disbursedTotalFormatted || '₦0')}</strong><span>Total payments verified</span></article>
       <article><small>VERIFICATION SLA</small><strong>100%</strong><span>Within 2 hours</span></article>
     </div>
     <section className="card" style={{padding:'20px',marginTop:'16px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div><h4 style={{margin:0}}>TotalEnergies Marketing Nigeria — Diesel Batch 04</h4><p style={{margin:'4px 0 0',color:'var(--muted)',fontSize:'12px'}}>Bank Transfer Recorded · Reference: TRF-2026-9481 · Awaiting Checker Sign-off</p></div>
-        <button className="outline-button" onClick={()=>onNavigate('/disbursements')}>Verify Disbursement →</button>
+        <div>
+          <h4 style={{margin:0}}>{topPending ? (topPending.requestTitle || topPending.vendorName || `Transfer ${topPending.paymentReference}`) : `No disbursements pending verification for ${business.name}`}</h4>
+          <p style={{margin:'4px 0 0',color:'var(--muted)',fontSize:'12px'}}>{topPending ? `Reference: ${topPending.paymentReference || 'N/A'} · Status: ${topPending.status.replaceAll('_', ' ')}` : 'Approved fund requests will appear here for payout execution.'}</p>
+        </div>
+        <button className="outline-button" onClick={()=>onNavigate('/disbursements')}>Open Banking Queue →</button>
       </div>
     </section>
   </>;
 }
 
 function AccountabilityModule({business,setNotice,onNavigate}:{business:Business;setNotice:(x:string)=>void;onNavigate:(p:string)=>void}) {
+  const [cases, setCases] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/accountability?subsidiaryId=${encodeURIComponent(business.id)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && d.cases) setCases(d.cases); })
+      .finally(() => setLoading(false));
+  }, [business.id]);
+
+  const openCases = cases.filter(c => c.status !== 'RECONCILED' && c.status !== 'CLOSED');
+  const topCase = openCases[0];
+
   return <>
     <SectionHeader eyebrow="ACCOUNTABILITY GATES" title="Post-Payment Closure & Deliverables" text="Strict accountability enforcement ensuring funds disbursed are matched with genuine physical receipts and deliverables." action="Review Accountability Cases" onAction={()=>onNavigate('/accountability')}/>
     <div className="customer-summary">
-      <article><small>OPEN CASES</small><strong>1</strong><span>REQ-2026-0003 Advance</span></article>
-      <article><small>DEADLINE</small><strong>3 Days</strong><span>Remaining before flag</span></article>
-      <article><small>COMPLIANCE SCORE</small><strong>96.4%</strong><span>Group average</span></article>
+      <article><small>OPEN CASES</small><strong>{loading ? '—' : openCases.length}</strong><span>Active advance retirals</span></article>
+      <article><small>RECONCILED</small><strong>{loading ? '—' : (cases.length - openCases.length)}</strong><span>Verified & closed</span></article>
+      <article><small>COMPLIANCE SCORE</small><strong>{cases.length > 0 ? `${Math.round(((cases.length - openCases.length) / cases.length) * 100)}%` : '100%'}</strong><span>Clearance rate</span></article>
       <article><small>BLOCKED USERS</small><strong>0</strong><span>All clear</span></article>
     </div>
     <section className="card" style={{padding:'20px',marginTop:'16px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div><h4 style={{margin:0}}>REQ-2026-0003 · Q1 Project Kickoff Advance (₦1,200,000)</h4><p style={{margin:'4px 0 0',color:'var(--muted)',fontSize:'12px'}}>Disbursed 2 days ago · Mandatory proof upload: Invoices + Waybills + Bank Statements</p></div>
-        <button className="primary-button" onClick={()=>onNavigate('/accountability')}>Upload Proof Receipts →</button>
+        <div>
+          <h4 style={{margin:0}}>{topCase ? `${topCase.requestNumber} · ${topCase.title}` : `No open accountability cases for ${business.name}`}</h4>
+          <p style={{margin:'4px 0 0',color:'var(--muted)',fontSize:'12px'}}>{topCase ? `Due: ${new Date(topCase.dueAt).toLocaleDateString()} · Required proof: Physical receipts + Invoices` : 'Disbursed advances requiring physical receipt retiral will appear here.'}</p>
+        </div>
+        <button className="primary-button" onClick={()=>onNavigate('/accountability')}>{topCase ? 'Upload Proof Receipts →' : 'View Clearance Register →'}</button>
       </div>
     </section>
   </>;
 }
 
 function PayrollModule({business,setNotice,onNavigate}:{business:Business;setNotice:(x:string)=>void;onNavigate:(p:string)=>void}) {
+  const [data, setData] = useState<{ batches: any[]; staffCount: number }>({ batches: [], staffCount: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/payroll').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/staff?orgId=${encodeURIComponent(business.id)}`).then(r => r.ok ? r.json() : null).catch(() => null)
+    ]).then(([payrollRes, staffRes]) => {
+      setData({
+        batches: payrollRes?.batches || [],
+        staffCount: staffRes?.employees?.length || 0,
+      });
+    }).finally(() => setLoading(false));
+  }, [business.id]);
+
+  const currentBatch = data.batches[0];
+
   return <>
     <SectionHeader eyebrow="PAYROLL & ALLOCATION" title="Hybrid Payroll & Multi-Subsidiary Cost Splits" text="Automated gross-to-net calculation, PAYE tax, pension deduction, and multi-entity allocation rules." action="Manage Payroll Batches" onAction={()=>onNavigate('/payroll')}/>
     <div className="customer-summary">
-      <article><small>CURRENT BATCH</small><strong>October 2026</strong><span>Draft generated</span></article>
-      <article><small>ACTIVE STAFF</small><strong>14</strong><span>Across subsidiaries</span></article>
-      <article><small>GROSS PAYROLL</small><strong>₦8,920,000</strong><span>Total run rate</span></article>
-      <article><small>INTERCOMPANY SPLITS</small><strong>70% Tech / 30% Media</strong><span>Configured</span></article>
+      <article><small>CURRENT BATCH</small><strong>{loading ? '—' : (currentBatch?.periodName || 'Cycle Open')}</strong><span>{currentBatch?.status || 'Ready for draft'}</span></article>
+      <article><small>ACTIVE STAFF</small><strong>{loading ? '—' : data.staffCount}</strong><span>Assigned to subsidiary</span></article>
+      <article><small>GROSS PAYROLL</small><strong>{loading ? '—' : (currentBatch?.grossFormatted || '₦0')}</strong><span>Total run rate</span></article>
+      <article><small>INTERCOMPANY SPLITS</small><strong>Configured</strong><span>Multi-entity recharge</span></article>
     </div>
     <section className="card" style={{padding:'20px',marginTop:'16px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div><h4 style={{margin:0}}>October 2026 Group Payroll Run</h4><p style={{margin:'4px 0 0',color:'var(--muted)',fontSize:'12px'}}>Includes 70/30 split for shared engineering personnel across BemsSoft Hub Ltd and Bems Farms Ltd</p></div>
+        <div>
+          <h4 style={{margin:0}}>{currentBatch ? `${currentBatch.periodName} Payroll Run` : `Payroll Management for ${business.name}`}</h4>
+          <p style={{margin:'4px 0 0',color:'var(--muted)',fontSize:'12px'}}>{currentBatch ? `Status: ${currentBatch.status} · Staff count: ${currentBatch.employeeCount || data.staffCount}` : 'View salary registers, statutory deductions, and automated intercompany allocations.'}</p>
+        </div>
         <button className="primary-button" onClick={()=>onNavigate('/payroll')}>Review Payroll Register →</button>
       </div>
     </section>
@@ -1577,26 +1653,68 @@ function PayrollModule({business,setNotice,onNavigate}:{business:Business;setNot
 }
 
 function IntercompanyModule({business,setNotice,onNavigate}:{business:Business;setNotice:(x:string)=>void;onNavigate:(p:string)=>void}) {
+  const [notes, setNotes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/intercompany')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && d.notes) setNotes(d.notes); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const topNote = notes[0];
+
   return <>
     <SectionHeader eyebrow="LEGAL & TAX RECONCILIATION" title="Automated Intercompany Debit / Credit Notes" text="Legally compliant inter-subsidiary billing, shared payroll recharge, and monthly settlement reconciliation." action="Open Notes Register" onAction={()=>onNavigate('/intercompany')}/>
-    <section className="card" style={{padding:'20px'}}>
+    <div className="customer-summary">
+      <article><small>TOTAL NOTES</small><strong>{loading ? '—' : notes.length}</strong><span>Issued cross-company</span></article>
+      <article><small>DEBIT NOTES</small><strong>{loading ? '—' : notes.filter(n => n.noteType === 'DEBIT_NOTE').length}</strong><span>Receivables</span></article>
+      <article><small>CREDIT NOTES</small><strong>{loading ? '—' : notes.filter(n => n.noteType === 'CREDIT_NOTE').length}</strong><span>Payables</span></article>
+      <article><small>STATUS</small><strong>Auditable</strong><span>Legally binding</span></article>
+    </div>
+    <section className="card" style={{padding:'20px',marginTop:'16px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div><h4 style={{margin:0}}>Shared Engineering Salaries — October Allocation</h4><p style={{margin:'4px 0 0',color:'var(--muted)',fontSize:'12px'}}>BemsSoft Hub Ltd ➔ Bems Logistics & Farms Ltd · Debit Note: ICN-2026-0012</p></div>
-        <button className="outline-button" onClick={()=>onNavigate('/intercompany')}>View Note PDF ↗</button>
+        <div>
+          <h4 style={{margin:0}}>{topNote ? `${topNote.noteNumber} · ${topNote.description || 'Intercompany Note'}` : 'No Intercompany Notes Issued'}</h4>
+          <p style={{margin:'4px 0 0',color:'var(--muted)',fontSize:'12px'}}>{topNote ? `${topNote.sourceEntity?.legalName || 'Entity'} ➔ ${topNote.targetEntity?.legalName || 'Entity'} · Amount: ₦${(Number(topNote.totalAmountMinor || 0) / 100).toLocaleString('en-NG')}` : 'Shared expenses and salary recharge between subsidiaries automatically generate notes here.'}</p>
+        </div>
+        <button className="outline-button" onClick={()=>onNavigate('/intercompany')}>Open Notes Register →</button>
       </div>
     </section>
   </>;
 }
 
 function VendorsModule({business,setNotice,onNavigate}:{business:Business;setNotice:(x:string)=>void;onNavigate:(p:string)=>void}) {
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/vendors')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && d.vendors) setVendors(d.vendors); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const topVendor = vendors[0];
+
   return <>
     <SectionHeader eyebrow="PROCUREMENT" title="Vendor Registry & Price Benchmarks" text="Approved group suppliers, TIN verification, 3-way matching, and historical pricing intelligence." action="Manage Vendors" onAction={()=>onNavigate('/vendors')}/>
     <div className="customer-summary">
-      <article><small>APPROVED VENDORS</small><strong>24</strong><span>Vetted suppliers</span></article>
-      <article><small>ACTIVE CONTRACTS</small><strong>8</strong><span>Recurring commitments</span></article>
+      <article><small>APPROVED VENDORS</small><strong>{loading ? '—' : vendors.length}</strong><span>Vetted suppliers</span></article>
+      <article><small>3-WAY MATCHING</small><strong>Active</strong><span>PO + Invoice + Waybill</span></article>
       <article><small>PRICE ANOMALIES</small><strong>0</strong><span>Within market bounds</span></article>
-      <article><small>TOP SUPPLIER</small><strong>TotalEnergies</strong><span>Diesel supply</span></article>
+      <article><small>TOP SUPPLIER</small><strong>{loading ? '—' : (topVendor?.name || 'None recorded')}</strong><span>{topVendor?.category || 'Registry'}</span></article>
     </div>
+    <section className="card" style={{padding:'20px',marginTop:'16px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div>
+          <h4 style={{margin:0}}>{topVendor ? `${topVendor.name} (${topVendor.category})` : 'Vendor & Supplier Registry'}</h4>
+          <p style={{margin:'4px 0 0',color:'var(--muted)',fontSize:'12px'}}>{topVendor ? `Bank: ${topVendor.bankName || 'Recorded'} · Account: ${topVendor.accountNumber || 'Verified'}` : 'Vetted vendor profiles and historical price intelligence across all group subsidiaries.'}</p>
+        </div>
+        <button className="primary-button" onClick={()=>onNavigate('/vendors')}>Manage Vendors →</button>
+      </div>
+    </section>
   </>;
 }
 
