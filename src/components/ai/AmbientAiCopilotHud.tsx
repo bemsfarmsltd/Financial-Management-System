@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { KineticAiOrb } from './KineticAiOrb';
-import { useAmbientTelemetry, TelemetryItem } from './useAmbientTelemetry';
+import { useAmbientTelemetry } from './useAmbientTelemetry';
 
 interface Props {
   currentPage: string;
@@ -23,29 +23,16 @@ export function AmbientAiCopilotHud({
     businessName,
   });
 
-  const getSeverityGlow = () => {
-    switch (telemetry.severity) {
-      case 'warning':
-        return 'rgba(239, 68, 68, 0.35)';
-      case 'highlight':
-        return 'rgba(249, 115, 22, 0.35)';
-      case 'success':
-        return 'rgba(16, 185, 129, 0.35)';
-      default:
-        return 'rgba(99, 102, 241, 0.25)';
-    }
-  };
-
   const getSeverityBadgeColor = () => {
     switch (telemetry.severity) {
       case 'warning':
-        return { bg: 'rgba(239, 68, 68, 0.15)', text: '#fca5a5', border: 'rgba(239, 68, 68, 0.3)' };
+        return { bg: '#fef2f2', text: '#b91c1c', border: '#fecaca', dot: '#ef4444' };
       case 'highlight':
-        return { bg: 'rgba(249, 115, 22, 0.15)', text: '#fdba74', border: 'rgba(249, 115, 22, 0.3)' };
+        return { bg: '#fff7ed', text: '#c2410c', border: '#fed7aa', dot: '#f97316' };
       case 'success':
-        return { bg: 'rgba(16, 185, 129, 0.15)', text: '#6ee7b7', border: 'rgba(16, 185, 129, 0.3)' };
+        return { bg: '#ecfdf5', text: '#047857', border: '#a7f3d0', dot: '#10b981' };
       default:
-        return { bg: 'rgba(99, 102, 241, 0.15)', text: '#a5b4fc', border: 'rgba(99, 102, 241, 0.3)' };
+        return { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe', dot: '#3b82f6' };
     }
   };
 
@@ -64,12 +51,12 @@ export function AmbientAiCopilotHud({
           alignItems: 'center',
           gap: '10px',
           padding: '6px 14px 6px 8px',
-          background: 'rgba(11, 18, 32, 0.88)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          border: '1px solid rgba(249, 115, 22, 0.35)',
+          background: 'rgba(255, 255, 255, 0.94)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(226, 232, 240, 0.9)',
           borderRadius: '9999px',
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(249, 115, 22, 0.2)',
+          boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)',
           cursor: 'pointer',
           transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
@@ -78,10 +65,10 @@ export function AmbientAiCopilotHud({
       >
         <KineticAiOrb size="compact" isTyping={false} />
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: '10px', fontWeight: 800, color: '#f97316', letterSpacing: '0.06em' }}>
+          <span style={{ fontSize: '10px', fontWeight: 800, color: '#ea580c', letterSpacing: '0.06em' }}>
             AI COPILOT ACTIVE
           </span>
-          <span style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 500 }}>
+          <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>
             {currentPage} Monitor
           </span>
         </div>
@@ -92,7 +79,7 @@ export function AmbientAiCopilotHud({
               borderRadius: '999px',
               fontSize: '10px',
               fontWeight: 800,
-              background: '#f97316',
+              background: '#ea580c',
               color: '#ffffff',
             }}
           >
@@ -118,13 +105,13 @@ export function AmbientAiCopilotHud({
         justifyContent: 'space-between',
         gap: '14px',
         padding: '8px 16px 8px 12px',
-        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.94) 0%, rgba(11, 18, 32, 0.92) 100%)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        border: `1px solid ${badgeColors.border}`,
+        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.92) 100%)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        border: '1px solid rgba(226, 232, 240, 0.9)',
         borderRadius: '16px',
-        boxShadow: `0 14px 40px rgba(0, 0, 0, 0.45), 0 0 24px ${getSeverityGlow()}`,
-        transition: 'border-color 0.4s ease, box-shadow 0.4s ease',
+        boxShadow: '0 12px 36px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(0, 0, 0, 0.03)',
+        transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
         userSelect: 'none',
       }}
     >
@@ -151,8 +138,8 @@ export function AmbientAiCopilotHud({
                 width: '10px',
                 height: '10px',
                 borderRadius: '50%',
-                background: '#f97316',
-                border: '2px solid #0f172a',
+                background: '#ea580c',
+                border: '2px solid #ffffff',
                 animation: 'pulse 2s infinite',
               }}
             />
@@ -182,22 +169,22 @@ export function AmbientAiCopilotHud({
                   width: '5px',
                   height: '5px',
                   borderRadius: '50%',
-                  background: badgeColors.text,
+                  background: badgeColors.dot,
                   display: 'inline-block',
                 }}
               />
               {telemetry.badge}
             </span>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8' }}>
               · {currentPage}
             </span>
           </div>
 
           <span
             style={{
-              fontSize: '11px',
-              fontWeight: 700,
-              color: '#e2e8f0',
+              fontSize: '11.5px',
+              fontWeight: 800,
+              color: '#0f172a',
               letterSpacing: '-0.01em',
             }}
           >
@@ -221,7 +208,8 @@ export function AmbientAiCopilotHud({
             margin: 0,
             fontSize: '12.5px',
             lineHeight: 1.45,
-            color: '#cbd5e1',
+            color: '#1e293b',
+            fontWeight: 500,
             fontFamily:
               'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             overflow: 'hidden',
@@ -239,7 +227,7 @@ export function AmbientAiCopilotHud({
                 width: '6px',
                 height: '13px',
                 marginLeft: '4px',
-                background: '#f97316',
+                background: '#ea580c',
                 borderRadius: '1px',
                 verticalAlign: 'middle',
                 animation: 'blink 0.8s infinite',
@@ -269,26 +257,27 @@ export function AmbientAiCopilotHud({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '6px 12px',
+              padding: '6px 13px',
               borderRadius: '999px',
-              background: 'linear-gradient(135deg, rgba(249, 115, 22, 0.22), rgba(234, 88, 12, 0.15))',
-              border: '1px solid rgba(249, 115, 22, 0.45)',
-              color: '#fed7aa',
+              background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+              border: '1px solid #fed7aa',
+              color: '#c2410c',
               fontSize: '11px',
-              fontWeight: 700,
+              fontWeight: 800,
               cursor: 'pointer',
               transition: 'all 0.18s ease',
               whiteSpace: 'nowrap',
+              boxShadow: '0 1px 3px rgba(234, 88, 12, 0.08)',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(249, 115, 22, 0.35), rgba(234, 88, 12, 0.25))';
+              e.currentTarget.style.background = 'linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%)';
               e.currentTarget.style.transform = 'translateY(-1px)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(249, 115, 22, 0.3)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(234, 88, 12, 0.18)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(249, 115, 22, 0.22), rgba(234, 88, 12, 0.15))';
+              e.currentTarget.style.background = 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)';
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
+              e.currentTarget.style.boxShadow = '0 1px 3px rgba(234, 88, 12, 0.08)';
             }}
           >
             <span>⚡</span>
@@ -305,9 +294,9 @@ export function AmbientAiCopilotHud({
             gap: '6px',
             padding: '6px 10px',
             borderRadius: '8px',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            color: '#94a3b8',
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            color: '#475569',
             fontSize: '11px',
             fontWeight: 600,
             cursor: 'pointer',
@@ -318,11 +307,11 @@ export function AmbientAiCopilotHud({
             style={{
               padding: '1px 5px',
               borderRadius: '4px',
-              background: 'rgba(0, 0, 0, 0.4)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
               fontSize: '9.5px',
               fontWeight: 700,
-              color: '#e2e8f0',
+              color: '#0f172a',
             }}
           >
             ⌘J
@@ -344,7 +333,7 @@ export function AmbientAiCopilotHud({
             borderRadius: '6px',
             background: 'transparent',
             border: 'none',
-            color: '#64748b',
+            color: '#94a3b8',
             fontSize: '14px',
             cursor: 'pointer',
           }}

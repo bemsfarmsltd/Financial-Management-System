@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ShieldCheck, Building2, LayoutDashboard, Lock } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 
 interface Props {
   role: string;
@@ -14,38 +14,40 @@ export function AiContextBanner({ role, userName, businessName, currentPage }: P
   return (
     <div
       style={{
-        background: 'rgba(255, 255, 255, 0.03)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-        padding: '8px 16px',
+        background: '#f8fafc',
+        borderBottom: '1px solid #e2e8f0',
+        padding: '9px 20px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         fontSize: '11px',
-        color: '#94a3b8',
+        color: '#64748b',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10b981' }}>
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
-          <strong style={{ color: '#f1f5f9' }}>{role}</strong>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#059669' }}>
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#059669', display: 'inline-block' }} />
+          <strong style={{ color: '#0f172a', fontWeight: 800 }}>{role}</strong>
         </div>
-        <span style={{ color: '#475569' }}>·</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Building2 size={12} color="#f97316" />
-          <span style={{ color: '#cbd5e1' }}>{businessName}</span>
+        <span style={{ color: '#cbd5e1' }}>·</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Building2 size={13} color="#ea580c" />
+          <span style={{ color: '#334155', fontWeight: 600 }}>{businessName}</span>
         </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ color: '#64748b' }}>Active Context:</span>
+        <span style={{ color: '#64748b', fontWeight: 500 }}>Active Context:</span>
         <span
           style={{
-            background: 'rgba(255, 255, 255, 0.08)',
-            color: '#e2e8f0',
-            padding: '2px 6px',
-            borderRadius: '4px',
-            fontSize: '10px',
+            background: '#ffffff',
+            color: '#0f172a',
+            padding: '2px 8px',
+            borderRadius: '6px',
+            fontSize: '10.5px',
             fontWeight: 700,
+            border: '1px solid #cbd5e1',
+            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
           }}
         >
           {currentPage}

@@ -19,9 +19,9 @@ export function AiQuickPrompts({ currentPage, onSelectPrompt }: Props) {
   ];
 
   return (
-    <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        <Sparkles size={11} color="#f97316" />
+    <div style={{ padding: '8px 20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <Sparkles size={11} color="#ea580c" />
         <span>Executive Quick Commands</span>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
@@ -31,32 +31,35 @@ export function AiQuickPrompts({ currentPage, onSelectPrompt }: Props) {
             type="button"
             onClick={() => onSelectPrompt(p.prompt)}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
               borderRadius: '20px',
-              padding: '4px 10px',
-              color: '#e2e8f0',
+              padding: '5px 12px',
+              color: '#334155',
               fontSize: '11px',
               fontWeight: 600,
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '4px',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
               transition: 'all 0.15s ease',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(249, 115, 22, 0.15)';
-              e.currentTarget.style.borderColor = 'rgba(249, 115, 22, 0.4)';
-              e.currentTarget.style.color = '#ffffff';
+              e.currentTarget.style.background = '#fff7ed';
+              e.currentTarget.style.borderColor = '#fdba74';
+              e.currentTarget.style.color = '#c2410c';
+              e.currentTarget.style.transform = 'translateY(-1px)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-              e.currentTarget.style.color = '#e2e8f0';
+              e.currentTarget.style.background = '#ffffff';
+              e.currentTarget.style.borderColor = '#e2e8f0';
+              e.currentTarget.style.color = '#334155';
+              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
             <span>{p.label}</span>
-            <ArrowUpRight size={10} color="#94a3b8" />
+            <ArrowUpRight size={10} color="#ea580c" />
           </button>
         ))}
       </div>
