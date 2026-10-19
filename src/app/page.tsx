@@ -29,6 +29,8 @@ import {
   StaffProfilesModule as LiveStaffProfilesModule,
   WorkspaceSettingsModule as LiveWorkspaceSettingsModule,
 } from "@/components/dashboard/gmd/BusinessModules";
+import { AiFinancialManagerDrawer } from "@/components/ai/AiFinancialManagerDrawer";
+import { AiHeaderLauncher, AiFloatingLauncher } from "@/components/ai/AiLauncherButton";
 
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -1744,6 +1746,22 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   const [topPanel,setTopPanel]=useState<'notifications'|'account'|null>(null);
   const current=businesses.find(b=>b.id===currentId) || businesses[0];
   const [currentRole, setCurrentRole] = useState<SystemRole>('GMD');
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const isAiAuthorized = currentRole === 'GMD' || (user.role as string) === 'GMD' || (user.role as string) === 'SYSTEM_ADMIN';
+
+  useEffect(() => {
+    const handleAiKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        if (isAiAuthorized) {
+          setAiDrawerOpen((prev) => !prev);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleAiKey);
+    return () => window.removeEventListener('keydown', handleAiKey);
+  }, [isAiAuthorized]);
+
   const navigation = getRoleNavigation(currentRole);
   const sectorOperations=(navigation[3] && navigation[3].items) ? navigation[3].items.map(([name])=>name) : [];
   const liveOnly=['Inbox','Customers','Campaigns','Cases & SLAs','Commerce & orders','Payments','Bookings','Loyalty & rewards','Analytics & BI'];
@@ -1976,10 +1994,35 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     </aside>
     <section className="workspace">
       <header className="topbar">
-        <div className="business-switch-wrap"><button className="business-switch" onClick={()=>{setSwitcher(!switcher);setTopPanel(null)}}><span style={{background:current.color}}>{current.initials}</span><div><strong>{current.name}</strong><small>{current.industry}</small></div><b>⌄</b></button>{switcher&&<div className="switch-menu"><p>SWITCH WORKSPACE</p>{businesses.map(b=><button className={b.id===current.id?'selected':''} key={b.id} onClick={()=>selectBusiness(b.id)}><span style={{background:b.color}}>{b.initials}</span><div><strong>{b.name}</strong><small>{b.industry} · {b.readiness}% ready</small></div>{b.id===current.id&&<b>✓</b>}</button>)}<button className="switch-add" onClick={()=>{setSwitcher(false);setActive('Settings')}}>⚙ Manage businesses in Settings</button></div>}</div><div className="global-search"><span>⌕</span><input aria-label="Search workspace" value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Search ${current.name}`}/><kbd>⌘ K</kbd>{search&&<div className="search-results">{(searchResults.length||dataResults.length)?<>{searchResults.map(name=><button key={`nav-${name}`} onClick={()=>openModule(name)}><span>{isLocked(name)?'⌾':'→'}</span><div><strong>{name}</strong><small>{isLocked(name)?'Locked in current environment':'Open in this workspace'}</small></div></button>)}{dataResults.map((r,i)=><button key={`data-${i}`} onClick={()=>openModule(r.navigate)}><span>◎</span><div><strong>{r.label}</strong><small>{r.type} · {r.sublabel}</small></div></button>)}</>:<p>No workspace results</p>}</div>}</div><div className="top-actions"><button className="templates-top" onClick={()=>{setMarketplaceBusinessId(current.id);setMarketplaceOpen(true);setTopPanel(null)}}><span>▤</span><div><strong>Fund Request Desk</strong><small>Instant multi-level flow</small></div><b>New Request ＋</b></button><div className="top-popover-wrap"><button className="top-icon notification" aria-label="Notifications" aria-expanded={topPanel==='notifications'} onClick={()=>setTopPanel(topPanel==='notifications'?null:'notifications')}>♧{!notificationsRead&&<i/>}</button>{topPanel==='notifications'&&<div className={notificationsRead?'top-popover notifications-panel read':'top-popover notifications-panel'}><header><strong>Notifications</strong><button onClick={()=>setTopPanel(null)}>×</button></header><button onClick={()=>{setActive('Setup & launch');setTopPanel(null)}}><span>!</span><div><strong>Finish channel review</strong><small>Required before your first launch</small></div></button><button onClick={()=>{setActive('Test centre');setTopPanel(null)}}><span>✓</span><div><strong>46 tests are passing</strong><small>5 checks still need attention</small></div></button><button onClick={()=>{setActive('Billing & usage');setTopPanel(null)}}><span>₦</span><div><strong>Usage is within estimate</strong><small>66% of this month’s budget</small></div></button><footer onClick={()=>{setNotificationsRead(true);setNotice('All notifications marked as read.');setTopPanel(null)}}>Mark all as read</footer></div>}</div><div className="top-popover-wrap"><button className="avatar" aria-label="Account menu" aria-expanded={topPanel==='account'} onClick={()=>setTopPanel(topPanel==='account'?null:'account')}>{initialsOf(user.fullName)}</button>{topPanel==='account'&&<div className="top-popover account-panel"><div><span>{initialsOf(user.fullName)}</span><strong>{user.fullName}</strong><small>{user.email}</small></div><button onClick={()=>{setActive('Settings');setTopPanel(null)}}>Account & business settings</button><button onClick={()=>{setActive('Team & access');setTopPanel(null)}}>Team and access</button><button onClick={()=>{setNotice('Help centre opened.');setTopPanel(null)}}>Help centre</button><button onClick={onSignOut}>Sign out</button></div>}</div></div></header>
+        <div className="business-switch-wrap"><button className="business-switch" onClick={()=>{setSwitcher(!switcher);setTopPanel(null)}}><span style={{background:current.color}}>{current.initials}</span><div><strong>{current.name}</strong><small>{current.industry}</small></div><b>⌄</b></button>{switcher&&<div className="switch-menu"><p>SWITCH WORKSPACE</p>{businesses.map(b=><button className={b.id===current.id?'selected':''} key={b.id} onClick={()=>selectBusiness(b.id)}><span style={{background:b.color}}>{b.initials}</span><div><strong>{b.name}</strong><small>{b.industry} · {b.readiness}% ready</small></div>{b.id===current.id&&<b>✓</b>}</button>)}<button className="switch-add" onClick={()=>{setSwitcher(false);setActive('Settings')}}>⚙ Manage businesses in Settings</button></div>}</div><div className="global-search"><span>⌕</span><input aria-label="Search workspace" value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Search ${current.name}`}/><kbd>⌘ K</kbd>{search&&<div className="search-results">{(searchResults.length||dataResults.length)?<>{searchResults.map(name=><button key={`nav-${name}`} onClick={()=>openModule(name)}><span>{isLocked(name)?'⌾':'→'}</span><div><strong>{name}</strong><small>{isLocked(name)?'Locked in current environment':'Open in this workspace'}</small></div></button>)}{dataResults.map((r,i)=><button key={`data-${i}`} onClick={()=>openModule(r.navigate)}><span>◎</span><div><strong>{r.label}</strong><small>{r.type} · {r.sublabel}</small></div></button>)}</>:<p>No workspace results</p>}</div>}</div>
+        <div className="top-actions">
+          {isAiAuthorized && <AiHeaderLauncher onClick={()=>setAiDrawerOpen(true)} pendingCount={1}/>}
+          <button className="templates-top" onClick={()=>{setMarketplaceBusinessId(current.id);setMarketplaceOpen(true);setTopPanel(null)}}><span>▤</span><div><strong>Fund Request Desk</strong><small>Instant multi-level flow</small></div><b>New Request ＋</b></button>
+          <div className="top-popover-wrap"><button className="top-icon notification" aria-label="Notifications" aria-expanded={topPanel==='notifications'} onClick={()=>setTopPanel(topPanel==='notifications'?null:'notifications')}>♧{!notificationsRead&&<i/>}</button>{topPanel==='notifications'&&<div className={notificationsRead?'top-popover notifications-panel read':'top-popover notifications-panel'}><header><strong>Notifications</strong><button onClick={()=>setTopPanel(null)}>×</button></header><button onClick={()=>{setActive('Setup & launch');setTopPanel(null)}}><span>!</span><div><strong>Finish channel review</strong><small>Required before your first launch</small></div></button><button onClick={()=>{setActive('Test centre');setTopPanel(null)}}><span>✓</span><div><strong>46 tests are passing</strong><small>5 checks still need attention</small></div></button><button onClick={()=>{setActive('Billing & usage');setTopPanel(null)}}><span>₦</span><div><strong>Usage is within estimate</strong><small>66% of this month’s budget</small></div></button><footer onClick={()=>{setNotificationsRead(true);setNotice('All notifications marked as read.');setTopPanel(null)}}>Mark all as read</footer></div>}</div>
+          <div className="top-popover-wrap"><button className="avatar" aria-label="Account menu" aria-expanded={topPanel==='account'} onClick={()=>setTopPanel(topPanel==='account'?null:'account')}>{initialsOf(user.fullName)}</button>{topPanel==='account'&&<div className="top-popover account-panel"><div><span>{initialsOf(user.fullName)}</span><strong>{user.fullName}</strong><small>{user.email}</small></div><button onClick={()=>{setActive('Settings');setTopPanel(null)}}>Account & business settings</button><button onClick={()=>{setActive('Team & access');setTopPanel(null)}}>Team and access</button><button onClick={()=>{setNotice('Help centre opened.');setTopPanel(null)}}>Help centre</button><button onClick={onSignOut}>Sign out</button></div>}</div>
+        </div>
+      </header>
       <div className="content">{notices.length>0&&<div className="notice-stack">{notices.map(n=><div className="notice" key={n.id}><span>i</span>{n.message}<button onClick={()=>dismissNotice(n.id)}>×</button></div>)}</div>}{content}</div>
     </section>
     {switching&&<div className="workspace-switching"><img src="/bems-mark.png" alt="BEMS Group"/><span>SWITCHING BUSINESS WORKSPACE</span><h2>{switching.name}</h2><p>Loading its channels, services, customers, team, billing and environment…</p><i/></div>}
+    {isAiAuthorized && (
+      <>
+        <AiFloatingLauncher onClick={() => setAiDrawerOpen(true)} pendingCount={1} />
+        <AiFinancialManagerDrawer
+          isOpen={aiDrawerOpen}
+          onClose={() => setAiDrawerOpen(false)}
+          userRole={currentRole}
+          userName={user.fullName}
+          businessName={current.name}
+          businessId={current.id}
+          currentPage={active}
+          onNavigate={(tab) => {
+            setActive(tab);
+            setAiDrawerOpen(false);
+          }}
+        />
+      </>
+    )}
   </main>;
 }
 
