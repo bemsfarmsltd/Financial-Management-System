@@ -32,6 +32,7 @@ interface Props {
   businessName: string;
   businessId: string;
   currentPage: string;
+  initialPrompt?: string;
   onNavigate?: (tab: string) => void;
 }
 
@@ -43,12 +44,14 @@ export function AiFinancialManagerDrawer({
   businessName,
   businessId,
   currentPage,
+  initialPrompt,
   onNavigate,
 }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [inputText, setInputText] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastPromptSentRef = useRef<string | null>(null);
 
   const { messages, isTyping, sendMessage, handleConfirmAction } = useAiFinancialManager({
     userRole,
@@ -57,6 +60,21 @@ export function AiFinancialManagerDrawer({
     businessId,
     currentPage,
   });
+
+  // If launched with an initial prompt from the ambient HUD, send it automatically
+  useEffect(() => {
+    if (isOpen && initialPrompt && initialPrompt !== lastPromptSentRef.current) {
+      lastPromptSentRef.current = initialPrompt;
+      sendMessage(initialPrompt);
+    }
+  }, [isOpen, initialPrompt, sendMessage]);
+
+  // Reset sent prompt tracker when closed
+  useEffect(() => {
+    if (!isOpen) {
+      lastPromptSentRef.current = null;
+    }
+  }, [isOpen]);
 
   // Auto-scroll on new messages
   useEffect(() => {
