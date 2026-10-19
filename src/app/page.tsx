@@ -522,6 +522,33 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
       <header className="onboarding-top"><span>{view==='login'?'Sign in':view==='signup'?'Create staff account':view==='setup'?'Initial admin setup':'Approval pending'}</span></header>
       <div className="onboarding-progress"><i style={{width: view==='pending'?'100%':'50%'}}/></div>
       {view==='login' && <form className="journey-card" onSubmit={submitLogin}>
+        {!adminExists && bootstrapAvailable && (
+          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '14px 16px', marginBottom: 20 }}>
+            <div style={{ color: '#b45309', fontWeight: 800, fontSize: 13, letterSpacing: '0.05em', marginBottom: 4 }}>
+              ⚡ INITIAL WORKSPACE SETUP
+            </div>
+            <p style={{ margin: '0 0 10px 0', fontSize: 13, color: '#78350f', lineHeight: 1.4 }}>
+              Zero accounts currently exist. As the system administrator, set up the root System Admin account to begin onboarding leadership roles.
+            </p>
+            <button
+              type="button"
+              onClick={() => { setError(''); setView('setup'); }}
+              style={{
+                display: 'inline-block',
+                background: '#d97706',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 6,
+                padding: '8px 16px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Set up First System Admin →
+            </button>
+          </div>
+        )}
         <p className="kicker">WELCOME BACK</p><h2>Sign in to BEMS Group</h2><p className="lead">Sign in with your approved BEMS Group work email.</p>
         <div className="form-grid">
           <label className="full">Email<input required type="email" value={form.email} onChange={e=>set('email',e.target.value)} placeholder="you@company.com"/></label>
