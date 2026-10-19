@@ -29,5 +29,11 @@
     "tailwindcss": "^3.4.19",
     "typescript": "^5.7.3"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "overrides": {
+    "postcss": "$postcss",
+    "deepmerge-ts": "8.0.2",
+    "postcss-selector-parser": "7.1.6",
+    "braces": "^3.0.3"
+  }
 }
