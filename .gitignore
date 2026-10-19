@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+**/node_modules/
+/.pnp
+.pnp.js
+.yarn/cache
+*.opus
+
+# Testing & Coverage
+/coverage
+
+# Next.js Build Output
+/.next/
+/out/
+build/
+dist/
+
+# Standalone build artifacts
+.next/standalone
+
+# Production environment files
+.env
+.env*.local
+.env.production
+
+# TypeScript build info
+*.tsbuildinfo
+next-env.d.ts
+
+# OS & Editor files
+.DS_Store
+*.pem
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local SQLite databases (Supabase Postgres used in production)
+prisma/dev.db
+prisma/dev.db-journal
+*.db
+*.db-journal
+scratch/
+update_script.py

@@ -1,0 +1,180 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getAuthenticatedEmployee } from "@/lib/auth";
+import { toSystemRequestId } from "@/lib/request-id";
+import { notifyApprovalRequired } from "@/lib/notifications/bridge";
+
+export async function POST(request: Request) {
+  try {
+    const actor = await getAuthenticatedEmployee();
+    if (!actor) return NextResponse.json({ error: "Sign in to submit a fund request." }, { status: 401 });
+    if (actor.role === "GMD") return NextResponse.json({ error: "The GMD reviews requests and does not submit fund requests." }, { status: 403 });
+
+    const body = await request.json();
+    let {
+      subsidiaryId,
+      vendorId,
+      requestType,
+      category,
+      amountNaira,
+      amountMinor: inputAmountMinor,
+      title,
+      justification,
+      rationale,
+      deliverable,
+      neededBy,
+      isRecurring,
+      recurringInterval,
+    } = body;
+
+    // Normalize category if human label was passed from mobile
+    if (category) {
+      const lower = category.toLowerCase();
+      if (lower.includes("software") || lower.includes("cloud") || lower.includes("infrastructure")) {
+        category = "IT_SOFTWARE";
+      } else if (lower.includes("power") || lower.includes("diesel") || lower.includes("facility")) {
+        category = "OFFICE_EXPENSE";
+      } else if (lower.includes("advance") || lower.includes("petty cash")) {
+        category = "OFFICE_EXPENSE";
+        requestType = "ADVANCE";
+      } else if (lower.includes("travel") || lower.includes("logistics")) {
+        category = "TRAVEL";
+      } else if (lower.includes("marketing")) {
+        category = "MARKETING";
+      } else if (lower.includes("asset")) {
+        category = "ASSET";
+      }
+    } else {
+      category = "OFFICE_EXPENSE";
+    }
+
+    // Resolve subsidiaryId if omitted (e.g. from mobile app)
+    if (!subsidiaryId) {
+      const assignment = await prisma.employeeAssignment.findFirst({
+        where: { employeeId: actor.id, status: "ACTIVE" },
+        orderBy: { isPrimary: "desc" },
+      });
+      if (assignment) {
+        subsidiaryId = assignment.subsidiaryId;
+      } else {
+        const defaultOrg = await prisma.organization.findFirst({
+          where: { status: "ACTIVE" },
+        });
+        subsidiaryId = defaultOrg?.id;
+      }
+    }
+
+    if (!subsidiaryId) {
+      return NextResponse.json({ error: "Could not resolve organization subsidiary for requester." }, { status: 400 });
+    }
+
+    // Resolve minor unit amount (kobo)
+    let amountMinor: bigint;
+    if (inputAmountMinor !== undefined && inputAmountMinor !== null) {
+      amountMinor = BigInt(Math.round(Number(inputAmountMinor)));
+    } else if (amountNaira !== undefined && amountNaira !== null) {
+      amountMinor = BigInt(Math.round(parseFloat(String(amountNaira)) * 100));
+    } else if (body.amount !== undefined && body.amount !== null) {
+      amountMinor = BigInt(Math.round(parseFloat(String(body.amount)) * 100));
+    } else {
+      return NextResponse.json({ error: "Specify a valid expenditure amount." }, { status: 400 });
+    }
+
+    const titleStr = typeof title === "string" ? title.trim() : "Expenditure Request";
+    const justStr = justification || rationale || "Official business operational expense.";
+    const delivStr = deliverable || "Itemized receipt and proof of delivery.";
+    const needDate = neededBy ? new Date(neededBy) : new Date(Date.now() + 7 * 24 * 3600 * 1000);
+
+    const count = await prisma.expenditureRequest.count();
+    const requestNumber = `REQ-2026-${String(count + 1).padStart(4, "0")}`;
+
+    // Determine initial approver role based on policy limits
+    let initialApproverRole = "HEAD_OF_ADMIN";
+    const amountValue = Number(amountMinor);
+
+    if (category === "IT_SOFTWARE" && amountValue > 15000000) {
+      initialApproverRole = "GMD";
+    } else if (amountValue > 100000000) {
+      initialApproverRole = "GMD";
+    } else if (amountValue > 10000000) {
+      initialApproverRole = "COO";
+    }
+
+    // Lookup group parent
+    const sub = await prisma.organization.findUnique({
+      where: { id: subsidiaryId },
+    });
+    const groupId = sub?.parentGroupId || sub?.id || "";
+
+    // Create request atomically with channel and initial approval step
+    const newRequest = await prisma.expenditureRequest.create({
+      data: {
+        requestNumber,
+        groupId,
+        subsidiaryId,
+        requestedById: actor.id,
+        vendorId: vendorId || null,
+        requestType: requestType || "ORDINARY",
+        category,
+        amountMinor,
+        currency: "NGN",
+        title: titleStr,
+        justification: justStr,
+        deliverable: delivStr,
+        neededBy: needDate,
+        approvalStatus: "IN_REVIEW",
+        paymentStatus: "UNPAID",
+        accountabilityStatus: "PENDING",
+        isRecurring: !!isRecurring,
+        recurringInterval: isRecurring ? recurringInterval : null,
+        channel: {
+          create: {
+            classification: "GENERAL",
+            messages: {
+              create: {
+                authorName: "System",
+                authorRole: "SYSTEM",
+                messageType: "AUDIT_EVENT",
+                body: `Request ${requestNumber} created and submitted. Assigned to ${initialApproverRole} for review.`,
+              },
+            },
+          },
+        },
+        approvalSteps: {
+          create: {
+            stageIndex: 1,
+            assignedRole: initialApproverRole,
+            status: "PENDING",
+          },
+        },
+      },
+    });
+
+    // Trigger multi-channel alert via WhatsApp & Slack Bridge
+    try {
+      await notifyApprovalRequired({
+        requestNumber,
+        title: titleStr,
+        amountMinor: Number(amountMinor),
+        approverRole: initialApproverRole,
+        requesterName: actor.legalName,
+      });
+    } catch (notifErr) {
+      console.error("Notification bridge error:", notifErr);
+    }
+
+    return NextResponse.json({
+      success: true,
+      id: newRequest.id,
+      systemId: toSystemRequestId(newRequest.id),
+      requestNumber,
+      amountMinor: Number(newRequest.amountMinor),
+    });
+  } catch (error: any) {
+    console.error("Failed to create request:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to create request" },
+      { status: 500 }
+    );
+  }
+}

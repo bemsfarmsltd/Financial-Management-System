@@ -1,0 +1,589 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Organization {
+  id              String   @id @default(uuid())
+  parentGroupId   String?
+  type            String   // GROUP | SUBSIDIARY
+  legalName       String
+  code            String   @unique
+  status          String   @default("ACTIVE") // ACTIVE | INACTIVE
+  defaultCurrency String   @default("NGN")
+  timezone        String   @default("Africa/Lagos")
+  createdAt       DateTime @default(now())
+  effectiveStart  DateTime @default(now())
+
+  departments          Department[]
+  employeeAssignments  EmployeeAssignment[]
+  expenditureRequests  ExpenditureRequest[]
+  disbursements        Disbursement[]
+  sourceNotes          IntercompanyNote[]   @relation("SourceEntity")
+  targetNotes          IntercompanyNote[]   @relation("TargetEntity")
+  budgets              Budget[]
+  payrollAllocations   PayrollItemAllocation[]
+  settings             WorkspaceSetting[]
+}
+
+model WorkspaceSetting {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  key            String
+  value          String
+  updatedById    String
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, key])
+  @@index([organizationId, updatedAt])
+}
+
+model Department {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  code           String
+
+  employeeAssignments EmployeeAssignment[]
+}
+
+model Employee {
+  id             String   @id @default(uuid())
+  employeeNumber String   @unique
+  legalName      String
+  workEmail      String   @unique
+  phone          String?
+  role           String   // SYSTEM_ADMIN | GMD | COO | HEAD_OF_ADMIN | FINANCE | VERIFIER | DEPT_HEAD | STAFF
+  status         String   @default("ACTIVE") // ACTIVE | ON_LEAVE | TERMINATED
+  approvalStatus String   @default("APPROVED") // PENDING_APPROVAL | APPROVED | REJECTED
+  passwordHash   String?
+  avatarUrl      String?
+  createdAt      DateTime @default(now())
+
+  authSessions   AuthSession[]
+  notifications  SystemNotification[]
+  paymentConfirmations RecipientPaymentConfirmation[]
+
+  assignments           EmployeeAssignment[]
+  employmentAgreements  EmploymentAgreement[]
+  expenditureRequests   ExpenditureRequest[]
+  disbursementAssignments ExpenditureRequest[] @relation("DisbursementAssignee")
+  approvalSteps         ApprovalStep[]
+  disbursementsRecorded Disbursement[]       @relation("RecordedBy")
+  verificationsDone     PaymentVerification[]
+  accountabilityOwned   AccountabilityCase[]  @relation("CaseOwner")
+  accountabilityVerified AccountabilityCase[] @relation("CaseVerifier")
+  tasksAssigned         FollowupTask[]
+  payrollItems          PayrollItem[]
+  payrollBatchesAssigned PayrollBatch[] @relation("PayrollDisbursementAssignee")
+  payrollPaymentsReceived Disbursement[] @relation("PayrollBeneficiary")
+  goodsReceiptsReceived GoodsReceiptNote[]
+}
+
+model AuthSession {
+  id        String   @id @default(uuid())
+  employeeId String
+  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([employeeId, expiresAt])
+}
+
+model SystemNotification {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  kind       String
+  title      String
+  body       String
+  readAt     DateTime?
+  linkUrl    String?
+  createdAt  DateTime @default(now())
+
+  @@index([employeeId, readAt, createdAt])
+}
+
+model EmployeeAssignment {
+  id           String       @id @default(uuid())
+  employeeId   String
+  employee     Employee     @relation(fields: [employeeId], references: [id])
+  subsidiaryId String
+  subsidiary   Organization @relation(fields: [subsidiaryId], references: [id])
+  departmentId String?
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  positionName String
+  startsOn     DateTime     @default(now())
+  endsOn       DateTime?
+  isPrimary    Boolean      @default(true)
+  status       String       @default("ACTIVE")
+}
+
+model EmploymentAgreement {
+  id               String                  @id @default(uuid())
+  employeeId       String
+  employee         Employee                @relation(fields: [employeeId], references: [id])
+  employerEntityId String
+  agreementType    String                  @default("PERMANENT") // PERMANENT | CONTRACT | CONSULTANT
+  startDate        DateTime                @default(now())
+  endDate          DateTime?
+  paymentModel     String                  @default("GROUP_PAID") // GROUP_PAID | ENTITY_PAID
+  status           String                  @default("ACTIVE")
+
+  compensations    CompensationAgreement[]
+  payrollItems     PayrollItem[]
+}
+
+model CompensationAgreement {
+  id                      String              @id @default(uuid())
+  employmentAgreementId   String
+  employmentAgreement     EmploymentAgreement @relation(fields: [employmentAgreementId], references: [id])
+  grossMinor              BigInt              // in kobo (1 NGN = 100 kobo)
+  currency                String              @default("NGN")
+  recurrence              String              @default("MONTHLY")
+  effectiveFrom           DateTime            @default(now())
+  effectiveTo             DateTime?
+  version                 Int                 @default(1)
+  approvedBy              String?
+  changeType              String?
+  changeReason            String?
+
+  costAllocations         CostAllocation[]
+}
+
+model CostAllocation {
+  id                      String                @id @default(uuid())
+  compensationAgreementId String
+  compensationAgreement   CompensationAgreement @relation(fields: [compensationAgreementId], references: [id])
+  subsidiaryId            String
+  percentage              Float                 // e.g. 60.0, 40.0 (sum should be 100.0)
+  effectiveFrom           DateTime              @default(now())
+  effectiveTo             DateTime?
+  chargeBasis             String                @default("PAYROLL_COST")
+}
+
+model Vendor {
+  id            String   @id @default(uuid())
+  name          String
+  code          String   @unique
+  category      String   // IT_SERVICES | LOGISTICS | FACILITIES | LEGAL | GENERAL
+  taxId         String?
+  contactEmail  String?
+  contactPhone  String?
+  bankName      String?
+  accountNumber String?
+  accountName   String?
+  rating        Int      @default(5)
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  requests      ExpenditureRequest[]
+  invoices      VendorInvoice[]
+}
+
+model ExpenditureRequest {
+  id                   String        @id @default(uuid())
+  requestNumber        String        @unique // e.g. REQ-2026-0001
+  groupId              String
+  subsidiaryId         String
+  subsidiary           Organization  @relation(fields: [subsidiaryId], references: [id])
+  requestedById        String
+  requester            Employee      @relation(fields: [requestedById], references: [id])
+  vendorId             String?
+  vendor               Vendor?       @relation(fields: [vendorId], references: [id])
+  requestType          String        @default("ORDINARY") // ORDINARY | ADVANCE | REIMBURSEMENT
+  category             String        // IT_SOFTWARE | OFFICE_EXPENSE | TRAVEL | LOGISTICS | MARKETING | ASSET
+  amountMinor          BigInt        // In minor units (kobo)
+  currency             String        @default("NGN")
+  title                String
+  justification        String
+  deliverable          String
+  neededBy             DateTime
+  requestVersion       Int           @default(1)
+  
+  // Independent Status Axes (Section 39)
+  approvalStatus       String        @default("SUBMITTED") // DRAFT | SUBMITTED | IN_REVIEW | CLARIFICATION_REQUESTED | APPROVED | REJECTED
+  paymentStatus        String        @default("UNPAID")    // UNPAID | AWAITING_RECIPIENT_CONFIRMATION | RECIPIENT_CONFIRMED | RECIPIENT_REPORTED_ISSUE
+  accountabilityStatus String        @default("PENDING")   // PENDING | EVIDENCE_SUBMITTED | VERIFIED | CLOSED
+
+  isRecurring          Boolean       @default(false)
+  recurringInterval    String?       // MONTHLY | QUARTERLY | ANNUAL
+  disbursementAssigneeId String?
+  disbursementAssignee Employee?     @relation("DisbursementAssignee", fields: [disbursementAssigneeId], references: [id])
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  channel              RequestChannel?
+  approvalSteps        ApprovalStep[]
+  disbursements        Disbursement[]
+  accountabilityCase   AccountabilityCase?
+  attachments          Attachment[]
+  invoices             VendorInvoice[]
+  goodsReceipts        GoodsReceiptNote[]
+  threeWayMatch        ThreeWayMatchRecord?
+}
+
+model RequestChannel {
+  id             String           @id @default(uuid())
+  requestId      String           @unique
+  request        ExpenditureRequest @relation(fields: [requestId], references: [id])
+  classification String           @default("GENERAL") // GENERAL | CONFIDENTIAL_PAYROLL
+  openedAt       DateTime         @default(now())
+  archivedAt     DateTime?
+  active         Boolean          @default(true)
+
+  messages       ChannelMessage[]
+  tasks          FollowupTask[]
+}
+
+model ChannelMessage {
+  id             String         @id @default(uuid())
+  channelId      String
+  channel        RequestChannel @relation(fields: [channelId], references: [id])
+  authorId       String?
+  authorName     String
+  authorRole     String
+  body           String
+  visibility     String         @default("GROUP") // GROUP | PRIVATE
+  recipientId    String?
+  messageType    String         @default("USER") // USER | SYSTEM | CLARIFICATION | AUDIT_EVENT
+  attachmentUrl  String?
+  attachmentName String?
+  createdAt      DateTime       @default(now())
+}
+
+model ApprovalPolicy {
+  id                 String   @id @default(uuid())
+  scopeSubsidiaryId  String?
+  category           String?
+  minAmountMinor     BigInt   @default(0)
+  maxAmountMinor     BigInt?
+  requiredRole       String   // HEAD_OF_ADMIN | COO | GMD
+  priority           Int      @default(1)
+  active             Boolean  @default(true)
+}
+
+model ApprovalStep {
+  id             String             @id @default(uuid())
+  requestId      String
+  request        ExpenditureRequest @relation(fields: [requestId], references: [id])
+  stageIndex     Int
+  assignedRole   String             // HEAD_OF_ADMIN | COO | GMD
+  approverId     String?
+  approver       Employee?          @relation(fields: [approverId], references: [id])
+  approverName   String?
+  status         String             @default("PENDING") // PENDING | APPROVED | REJECTED | SKIPPED
+  decidedAt      DateTime?
+  decisionReason String?
+  createdAt      DateTime           @default(now())
+}
+
+model Disbursement {
+  id                 String              @id @default(uuid())
+  requestId          String?
+  request            ExpenditureRequest? @relation(fields: [requestId], references: [id])
+  payrollItemId      String?             @unique
+  payrollItem        PayrollItem?        @relation(fields: [payrollItemId], references: [id])
+  beneficiaryEmployeeId String?
+  beneficiaryEmployee Employee?          @relation("PayrollBeneficiary", fields: [beneficiaryEmployeeId], references: [id])
+  payerOrgId         String
+  payerOrg           Organization        @relation(fields: [payerOrgId], references: [id])
+  beneficiaryName    String
+  beneficiaryBank    String
+  beneficiaryAccount String
+  amountMinor        BigInt
+  currency           String              @default("NGN")
+  externalReference  String              // Bank Transfer Reference
+  bankName           String              // Bank executed through (e.g. GTBank)
+  paidAt             DateTime            @default(now())
+  recordedById       String
+  recordedBy         Employee            @relation("RecordedBy", fields: [recordedById], references: [id])
+  status             String              @default("AWAITING_RECIPIENT_CONFIRMATION") // AWAITING_RECIPIENT_CONFIRMATION | RECIPIENT_CONFIRMED | RECIPIENT_REPORTED_ISSUE
+  idempotencyKey     String              @unique
+  createdAt          DateTime            @default(now())
+
+  receipt            PaymentReceipt?
+  verification       PaymentVerification?
+  recipientConfirmation RecipientPaymentConfirmation?
+}
+
+model RecipientPaymentConfirmation {
+  id             String       @id @default(uuid())
+  disbursementId String       @unique
+  disbursement   Disbursement @relation(fields: [disbursementId], references: [id])
+  employeeId     String
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  decision       String       // RECEIVED | NOT_RECEIVED | AMOUNT_MISMATCH
+  note           String?
+  confirmedAt    DateTime     @default(now())
+}
+
+model PaymentReceipt {
+  id             String       @id @default(uuid())
+  disbursementId String       @unique
+  disbursement   Disbursement @relation(fields: [disbursementId], references: [id])
+  fileName       String
+  fileUrl        String
+  sha256         String       // Prevents duplicate receipt fraud
+  mimeType       String
+  fileData       Bytes?
+  uploadedById   String
+  uploadedAt     DateTime     @default(now())
+}
+
+model PaymentVerification {
+  id                  String       @id @default(uuid())
+  disbursementId      String       @unique
+  disbursement        Disbursement @relation(fields: [disbursementId], references: [id])
+  verifierId          String
+  verifier            Employee     @relation(fields: [verifierId], references: [id])
+  decision            String       @default("VERIFIED") // VERIFIED | REJECTED
+  supportingReference String?
+  verifiedAt          DateTime     @default(now())
+  reason              String?
+}
+
+model AccountabilityCase {
+  id                   String             @id @default(uuid())
+  requestId            String             @unique
+  request              ExpenditureRequest @relation(fields: [requestId], references: [id])
+  ownerUserId          String
+  owner                Employee           @relation("CaseOwner", fields: [ownerUserId], references: [id])
+  verifierUserId       String?
+  verifier             Employee?          @relation("CaseVerifier", fields: [verifierUserId], references: [id])
+  requiredDeliverables String
+  dueAt                DateTime
+  status               String             @default("OPEN") // OPEN | EVIDENCE_SUBMITTED | VERIFIED | CLOSED
+  verifiedAt           DateTime?
+  closureNotes         String?
+  createdAt            DateTime           @default(now())
+
+  tasks                FollowupTask[]
+}
+
+model FollowupTask {
+  id                   String              @id @default(uuid())
+  accountabilityCaseId String?
+  accountabilityCase   AccountabilityCase? @relation(fields: [accountabilityCaseId], references: [id])
+  channelId            String?
+  channel              RequestChannel?     @relation(fields: [channelId], references: [id])
+  assigneeId           String
+  assignee             Employee            @relation(fields: [assigneeId], references: [id])
+  description          String
+  dueAt                DateTime
+  status               String              @default("PENDING") // PENDING | COMPLETED | OVERDUE
+  completedAt          DateTime?
+  responseNotes        String?
+  responseAttachmentUrl String?
+}
+
+model PayrollPeriod {
+  id         String   @id @default(uuid())
+  groupId    String
+  year       Int
+  month      Int      // 1-12
+  startsOn   DateTime
+  endsOn     DateTime
+  lockStatus String   @default("OPEN") // OPEN | LOCKED | ARCHIVED
+
+  batches    PayrollBatch[]
+  notes      IntercompanyNote[]
+}
+
+model PayrollBatch {
+  id                String         @id @default(uuid())
+  periodId          String
+  period            PayrollPeriod  @relation(fields: [periodId], references: [id])
+  paymentEntityId   String?
+  payrollType       String         @default("REGULAR") // REGULAR | SUPPLEMENTAL
+  version           Int            @default(1)
+  status            String         @default("DRAFT") // DRAFT | SUBMITTED | APPROVED | DISBURSED
+  approvedAt        DateTime?
+  totalGrossMinor   BigInt         @default(0)
+  totalNetMinor     BigInt         @default(0)
+  snapshotHash      String?
+  disbursementAssigneeId String?
+  disbursementAssignee Employee? @relation("PayrollDisbursementAssignee", fields: [disbursementAssigneeId], references: [id])
+  createdAt         DateTime       @default(now())
+
+  items             PayrollItem[]
+}
+
+model PayrollItem {
+  id                       String                 @id @default(uuid())
+  batchId                  String
+  batch                    PayrollBatch           @relation(fields: [batchId], references: [id])
+  employeeId               String
+  employee                 Employee               @relation(fields: [employeeId], references: [id])
+  agreementId              String
+  agreement                EmploymentAgreement    @relation(fields: [agreementId], references: [id])
+  grossMinor               BigInt
+  employeeDeductionsMinor  BigInt                 // PAYE + Pension
+  employerCostMinor        BigInt                 // Employer Pension contribution
+  netMinor                 BigInt
+  currency                 String                 @default("NGN")
+  status                   String                 @default("CALCULATED")
+
+  allocations              PayrollItemAllocation[]
+  disbursement             Disbursement?
+}
+
+model PayrollItemAllocation {
+  id                 String      @id @default(uuid())
+  itemId             String
+  item               PayrollItem @relation(fields: [itemId], references: [id])
+  subsidiaryId       String
+  subsidiary         Organization @relation(fields: [subsidiaryId], references: [id])
+  allocableCostMinor BigInt
+  percentage         Float
+}
+
+model IntercompanyNote {
+  id               String        @id @default(uuid())
+  periodId         String?
+  period           PayrollPeriod? @relation(fields: [periodId], references: [id])
+  sourceEntityId   String
+  sourceEntity     Organization  @relation("SourceEntity", fields: [sourceEntityId], references: [id])
+  targetEntityId   String
+  targetEntity     Organization  @relation("TargetEntity", fields: [targetEntityId], references: [id])
+  noteType         String        // DEBIT_NOTE | CREDIT_NOTE
+  noteNumber       String        @unique // e.g. DN-2026-10-001
+  totalAmountMinor BigInt
+  currency         String        @default("NGN")
+  description      String
+  status           String        @default("ISSUED") // DRAFT | ISSUED | RECONCILED
+  generatedAt      DateTime      @default(now())
+}
+
+model AuditEvent {
+  id            String   @id @default(uuid())
+  actorId       String?
+  actorName     String
+  actorRole     String
+  groupId       String
+  subsidiaryId  String?
+  targetType    String   // REQUEST | DISBURSEMENT | PAYROLL | POLICY
+  targetId      String
+  action        String   // CREATED | APPROVED | REJECTED | CLARIFICATION_REQUESTED | PAID | VERIFIED | CLOSED
+  beforeHash    String?
+  afterHash     String?
+  metadata      String?  // JSON string
+  correlationId String
+  createdAt     DateTime @default(now())
+}
+
+model Attachment {
+  id           String              @id @default(uuid())
+  ownerType    String              // REQUEST | DISBURSEMENT | ACCOUNTABILITY
+  ownerId      String?
+  requestId    String?
+  request      ExpenditureRequest? @relation(fields: [requestId], references: [id])
+  fileName     String
+  fileUrl      String
+  checksum     String?
+  contentType  String
+  fileData     Bytes?
+  notes        String?
+  uploadedById String
+  uploadedAt   DateTime            @default(now())
+}
+
+model Budget {
+  id               String       @id @default(uuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  fiscalYear       Int
+  fiscalPeriod     String       // ANNUAL | Q1 | Q2 | Q3 | Q4 | MONTHLY
+  periodName       String       // e.g. "Q4 2026 - Push", "October 2026"
+  totalAmount      Float
+  committedAmount  Float        @default(0)
+  spentAmount      Float        @default(0)
+  status           String       @default("ACTIVE") // DRAFT | ACTIVE | LOCKED | CLOSED
+  warningThreshold Float        @default(80.0) // % warning
+  createdById      String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  lines            BudgetLine[]
+}
+
+model BudgetLine {
+  id              String      @id @default(uuid())
+  budgetId        String
+  budget          Budget      @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  departmentName  String      // e.g. "Cloud & Engineering", "Fleet Operations"
+  category        String      // e.g. "IT Infrastructure", "Diesel & Logistics"
+  expenseType     String      @default("OPEX") // OPEX | CAPEX
+  allocatedAmount Float
+  committedAmount Float       @default(0)
+  spentAmount     Float       @default(0)
+  status          String      @default("ACTIVE") // ACTIVE | FROZEN
+}
+
+model VendorInvoice {
+  id               String               @id @default(uuid())
+  vendorId         String
+  vendor           Vendor               @relation(fields: [vendorId], references: [id])
+  requestId        String?
+  request          ExpenditureRequest?  @relation(fields: [requestId], references: [id])
+  invoiceNumber    String
+  invoiceDate      DateTime             @default(now())
+  amountMinor      BigInt
+  taxMinor         BigInt               @default(0)
+  currency         String               @default("NGN")
+  fileAttachmentId String?
+  status           String               @default("PENDING") // PENDING | MATCHED | VARIANCE_FLAGGED | REJECTED
+  createdAt        DateTime             @default(now())
+
+  matchingRecord   ThreeWayMatchRecord?
+}
+
+model GoodsReceiptNote {
+  id              String               @id @default(uuid())
+  requestId       String
+  request         ExpenditureRequest   @relation(fields: [requestId], references: [id])
+  grnNumber       String               @unique // e.g. GRN-2026-0001
+  receivedById    String
+  receivedBy      Employee             @relation(fields: [receivedById], references: [id])
+  receivedAt      DateTime             @default(now())
+  waybillNumber   String?
+  inspectionNotes String?
+  status          String               @default("ACCEPTED") // ACCEPTED | PARTIAL | DAMAGED
+
+  matchingRecord  ThreeWayMatchRecord?
+}
+
+model ThreeWayMatchRecord {
+  id                 String             @id @default(uuid())
+  requestId          String             @unique
+  request            ExpenditureRequest @relation(fields: [requestId], references: [id])
+  invoiceId          String             @unique
+  invoice            VendorInvoice      @relation(fields: [invoiceId], references: [id])
+  grnId              String?            @unique
+  grn                GoodsReceiptNote?  @relation(fields: [grnId], references: [id])
+  poAmountMinor      BigInt
+  invoiceAmountMinor BigInt
+  varianceMinor      BigInt
+  status             String             @default("MATCH_CONFIRMED") // MATCH_CONFIRMED | PRICE_VARIANCE | MISSING_GRN
+  matchedAt          DateTime           @default(now())
+}
+
+model OutboundNotification {
+  id         String   @id @default(uuid())
+  channel    String   // SLACK | WHATSAPP
+  recipient  String   // phone or slack user/channel ID
+  eventType  String   // APPROVAL_REQUESTED | DISBURSED | RETIREMENT_WARNING
+  payload    String   // JSON string of message sent
+  status     String   // SENT | FAILED | DELIVERED
+  externalId String?  // message ts or wamid
+  createdAt  DateTime @default(now())
+}
+

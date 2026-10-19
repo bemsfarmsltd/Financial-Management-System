@@ -1,0 +1,47 @@
+name: BEMS Group CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    name: Build & Validate Fullstack App
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Typecheck Codebase
+        run: npx tsc --noEmit
+
+      - name: Build Next.js Production Bundle
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          # Dummy connection string for build-time compilation
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/postgres"
+          DIRECT_URL: "postgresql://dummy:dummy@localhost:5432/postgres"
+        run: npm run build
+
+      # Optional: Auto-trigger Hostinger Git webhook if configured
+      - name: Notify Hostinger Webhook (Optional)
+        if: ${{ env.HOSTINGER_DEPLOY_WEBHOOK != '' }}
+        env:
+          HOSTINGER_DEPLOY_WEBHOOK: ${{ secrets.HOSTINGER_DEPLOY_WEBHOOK }}
+        run: |
+          curl -X POST "$HOSTINGER_DEPLOY_WEBHOOK"
