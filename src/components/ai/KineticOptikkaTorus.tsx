@@ -6,7 +6,7 @@ interface Props {
   size?: number;
 }
 
-export function KineticOptikkaTorus({ size = 320 }: Props) {
+export function KineticOptikkaTorus({ size = 400 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -25,9 +25,9 @@ export function KineticOptikkaTorus({ size = 320 }: Props) {
 
     const centerX = size / 2;
     const centerY = size / 2;
-    const majorRadius = size * 0.28;
-    const minorRadius = size * 0.085;
-    const totalFins = 120;
+    const majorRadius = size * 0.31;
+    const minorRadius = size * 0.098;
+    const totalFins = 144;
 
     const render = () => {
       ctx.clearRect(0, 0, size, size);

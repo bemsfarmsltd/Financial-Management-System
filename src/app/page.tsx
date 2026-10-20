@@ -2083,6 +2083,7 @@ export default function Home() {
   const [currentId,setCurrentId]=useState('bsh-ltd');
   const [status,setStatus]=useState<'loading'|'ready'|'error'>('ready');
   const [showAiEntry, setShowAiEntry] = useState(true);
+  const [entryMode, setEntryMode] = useState<'login' | 'reload'>('reload');
 
   const checkAuth=()=>{
     fetch('/api/auth/session', { credentials: 'include' })
@@ -2116,7 +2117,14 @@ export default function Home() {
   useEffect(()=>{ if(authStatus==='signed-in') fetchBusinesses(); },[authStatus]);
   const retryLoad=()=>{setStatus('loading');fetchBusinesses()};
 
-  const onAuthed=(u:AuthUser)=>{ setUser(u); window.dispatchEvent(new Event('bems-session-changed')); setStatus('loading'); setAuthStatus('signed-in'); };
+  const onAuthed=(u:AuthUser)=>{
+    setUser(u);
+    setEntryMode('login');
+    setShowAiEntry(true);
+    window.dispatchEvent(new Event('bems-session-changed'));
+    setStatus('loading');
+    setAuthStatus('signed-in');
+  };
   const signOut=()=>{
     authRequest('/api/auth/logout').then(()=>{
       setUser(null); window.dispatchEvent(new Event('bems-session-changed')); setAuthStatus('signed-out'); setBusinesses([]); setCurrentId(''); setAddingBusiness(false);
@@ -2139,7 +2147,7 @@ export default function Home() {
     return updated;
   });
 
-  if (authStatus === 'checking') return <AiMotionEntryScreen onComplete={() => {}} />;
+  if (authStatus === 'checking') return <AiMotionEntryScreen onComplete={() => {}} mode="reload" />;
   if (authStatus === 'signed-out') return <AuthGate onAuthed={onAuthed} />;
   if (status === 'loading' || showAiEntry) {
     const currentBiz = businesses.find(b => b.id === currentId) || businesses[0];
@@ -2147,7 +2155,9 @@ export default function Home() {
       <AiMotionEntryScreen
         onComplete={() => setShowAiEntry(false)}
         businessName={currentBiz?.name || 'BEMS Group'}
-        userName={user?.fullName || 'Bems'}
+        userName={user?.fullName || 'Dr. Pastra'}
+        userRole={user?.role || 'GMD'}
+        mode={entryMode}
       />
     );
   }
