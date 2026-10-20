@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee();
     if (!actor) return NextResponse.json({ error: 'Sign in to manage subsidiaries.' }, { status: 401 });
-    if (actor.role !== 'SYSTEM_ADMIN') return NextResponse.json({ error: 'Only the System Admin can create subsidiaries.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Only the System Admin or GMD can create subsidiaries.' }, { status: 403 });
     const body = await req.json();
     const {
       name,

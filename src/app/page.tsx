@@ -2146,10 +2146,32 @@ export default function Home() {
     if(data.businessName){
       const words=data.businessName.trim().split(/\s+/);
       const initials=words.slice(0,2).map(x=>x[0]).join('').toUpperCase();
-      apiPost<Business>('/api/businesses',{name:data.businessName,industry:data.industry,initials:initials||'NB',status:'Setup',readiness:20,color:'#0b9478'}).then(next=>{
-        setBusinesses(old=>[...old,next]);
-        setCurrentId(next.id);
-      });
+      fetch('/api/organizations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: data.businessName,
+          industry: data.industry || 'Software & Cloud Services',
+          initialBudget: 10000000,
+        })
+      })
+      .then(r => r.json())
+      .then(res => {
+        if (res && res.organization) {
+          const next: Business = {
+            id: res.organization.id,
+            name: res.organization.name || res.organization.legalName,
+            industry: data.industry || 'General',
+            initials: initials || 'NB',
+            status: 'Live',
+            readiness: 100,
+            color: '#ea580c',
+          };
+          setBusinesses(old => [...old, next]);
+          setCurrentId(next.id);
+        }
+      })
+      .catch(err => console.error(err));
     }
     setAddingBusiness(false);
   };
