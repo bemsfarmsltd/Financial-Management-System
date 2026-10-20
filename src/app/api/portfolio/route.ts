@@ -80,9 +80,9 @@ export async function GET() {
         .filter((d) => d.organizationId === org.id)
         .map((d) => ({ id: d.id, name: d.name, code: d.code }));
 
-      const orgAssignment = assignments.find((a) => a.department.organizationId === org.id);
+      const orgAssignment = assignments.find((a) => a.department?.organizationId === org.id);
       const lead = orgAssignment
-        ? { name: orgAssignment.employee.legalName, role: orgAssignment.role, email: orgAssignment.employee.workEmail }
+        ? { name: orgAssignment.employee.legalName, role: (orgAssignment as any).role || (orgAssignment as any).positionName || 'Director', email: orgAssignment.employee.workEmail }
         : { name: actor.legalName, role: 'Corporate Lead', email: actor.workEmail };
 
       const recentReqs = orgRequests.slice(0, 5).map((r) => ({

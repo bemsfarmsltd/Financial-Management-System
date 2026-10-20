@@ -30,10 +30,9 @@ function formatNaira(amount: number): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const actor = await getAuthenticatedEmployee(req);
+    const actor = await getAuthenticatedEmployee();
     const body = await req.json().catch(() => ({}));
     const message: string = (body.message || '').trim();
-    const history: { role: string; content: string }[] = body.history || [];
 
     if (!message) {
       return NextResponse.json({ error: 'Message cannot be empty.' }, { status: 400 });
@@ -46,23 +45,23 @@ export async function POST(req: NextRequest) {
     const [bankAccounts, pendingRequests, totalActiveStaff, orgs, openCases] = await Promise.all([
       Promise.resolve(readSavedAccounts()),
       prisma.expenditureRequest.findMany({
-        where: { status: 'PENDING_APPROVAL' },
+        where: { approvalStatus: { in: ['SUBMITTED', 'IN_REVIEW'] } },
         take: 5,
         orderBy: { createdAt: 'desc' },
-        include: { submittedBy: true },
+        include: { requester: true },
       }).catch(() => []),
       prisma.employee.count({ where: { status: 'ACTIVE' } }).catch(() => 0),
       prisma.organization.findMany({ where: { status: 'ACTIVE' } }).catch(() => []),
       prisma.accountabilityCase.findMany({
         where: { status: { not: 'CLOSED' } },
         take: 5,
-        include: { caseOwner: true },
+        include: { owner: true, request: true },
       }).catch(() => []),
     ]);
 
     const totalCash = bankAccounts.reduce((sum, b) => sum + (Number(b.balance) || 0), 0);
     const pendingCount = pendingRequests.length;
-    const pendingSum = pendingRequests.reduce((sum, r) => sum + (Number(r.totalMinor) || 0) / 100, 0);
+    const pendingSum = pendingRequests.reduce((sum, r) => sum + (Number(r.amountMinor) || 0) / 100, 0);
 
     let reply = '';
     let actionCard: any = null;
@@ -106,7 +105,7 @@ export async function POST(req: NextRequest) {
         const reqLines = pendingRequests
           .map(
             (r, i) =>
-              `${i + 1}. **${r.requestNumber}** — ${r.title} by ${r.submittedBy?.legalName || 'Staff'} (**${formatNaira(r.totalMinor / 100)}**)`
+              `${i + 1}. **${r.requestNumber}** — ${r.title} by ${r.requester?.legalName || 'Staff'} (**${formatNaira(Number(r.amountMinor) / 100)}**)`
           )
           .join('\n');
         reply = `**Executive Review Required:** You have **${pendingCount} pending request${pendingCount > 1 ? 's' : ''}** totaling **${formatNaira(pendingSum)}** requiring GMD authorization:\n\n${reqLines}\n\nYou can authorize or decline directly from your **Approvals & payments** desk.`;
@@ -118,8 +117,8 @@ export async function POST(req: NextRequest) {
           requests: pendingRequests.map((r) => ({
             number: r.requestNumber,
             title: r.title,
-            amount: formatNaira(r.totalMinor / 100),
-            by: r.submittedBy?.legalName || 'Staff',
+            amount: formatNaira(Number(r.amountMinor) / 100),
+            by: r.requester?.legalName || 'Staff',
           })),
         };
       }
@@ -156,7 +155,7 @@ export async function POST(req: NextRequest) {
         const caseLines = openCases
           .map(
             (c, i) =>
-              `${i + 1}. **${c.caseNumber}** — ${c.caseOwner?.legalName || 'Requester'} (${c.status})`
+              `${i + 1}. **${c.request?.requestNumber || 'ADV'}** — ${c.owner?.legalName || 'Requester'} (${c.status})`
           )
           .join('\n');
         reply = `**Open Accountability Cases:** There are **${openCases.length} active cases** pending evidence clearance:\n\n${caseLines}\n\nStaff must submit receipts within the mandatory 72-hour SLA window before new funds can be requisitioned.`;
@@ -165,8 +164,8 @@ export async function POST(req: NextRequest) {
           title: 'Accountability Cases',
           count: openCases.length,
           cases: openCases.map((c) => ({
-            number: c.caseNumber,
-            owner: c.caseOwner?.legalName || 'Staff',
+            number: c.request?.requestNumber || 'ADV',
+            owner: c.owner?.legalName || 'Staff',
             status: c.status,
           })),
         };
