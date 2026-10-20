@@ -127,7 +127,7 @@ export function EmergencyOverridesView({
           title,
           amount: numAmount,
           justification,
-          declarerEmail: 'edwin@bemsfarms.com'
+          declarerEmail: 'edwin@bemsgroup.com'
         })
       });
       const result = await res.json();

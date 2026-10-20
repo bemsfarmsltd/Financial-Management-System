@@ -2028,8 +2028,10 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     {switching && (
       <AiMotionEntryScreen
         onComplete={() => setSwitching(null)}
-        businessName={switching.name}
+        businessName="BEMS Group"
         userName={user.fullName}
+        userRole={user.role}
+        mode="reload"
       />
     )}
     {isAiAuthorized && (
@@ -2158,14 +2160,13 @@ export default function Home() {
 
   // 1. Immediately show AI Dynamic Motion Screen on reload or login
   if (showAiEntry) {
-    const currentBiz = businesses.find(b => b.id === currentId) || businesses[0];
     return (
       <AiMotionEntryScreen
         key={`ai-entry-${entryMode}-${user?.id || 'active'}`}
         onComplete={() => setShowAiEntry(false)}
-        businessName={currentBiz?.name || 'BEMS Group'}
-        userName={user?.fullName || 'Dr. Pastra'}
-        userRole={user?.role || 'GMD'}
+        businessName="BEMS Group"
+        userName={user?.fullName || ''}
+        userRole={user?.role || ''}
         mode={entryMode}
       />
     );

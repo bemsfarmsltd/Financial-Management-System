@@ -159,6 +159,8 @@ export function KineticOptikkaTorus({ size = 420 }: Props) {
     >
       <canvas
         ref={canvasRef}
+        width={size * 2}
+        height={size * 2}
         style={{
           width: size,
           height: size,

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { KineticOptikkaTorus } from './KineticOptikkaTorus';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 interface Props {
   onComplete: () => void;
@@ -15,69 +15,69 @@ interface Props {
 export function AiMotionEntryScreen({
   onComplete,
   businessName = 'BEMS Group',
-  userName = 'Dr. Pastra',
-  userRole = 'GMD',
+  userName = '',
+  userRole = '',
   mode = 'reload',
 }: Props) {
   const [financialIndex, setFinancialIndex] = useState(0);
   const [isFadingOut, setIsFadingOut] = useState(false);
 
-  // When user is GMD, use "Dr. Pastra" as specifically requested
-  const isGmd = userRole === 'GMD' || !userName || userName.toLowerCase().includes('pastra') || userName.toLowerCase().includes('bems') || userName.toLowerCase().includes('henry');
-  const displayName = isGmd ? 'Dr. Pastra' : userName;
+  // Use the actual logged-in user's name
+  const displayName = userName?.trim() || (userRole === 'GMD' ? 'GMD' : userRole.includes('ADMIN') ? 'System Admin' : 'Executive');
 
   const financialUpdates = [
     {
       metric: 'GROUP LIQUIDITY',
-      text: 'Consolidated group liquidity stands at ₦84.2M across 3 subsidiaries',
+      text: 'Consolidated group liquidity stands at ₦84.2M across subsidiaries',
       tag: 'HEALTHY',
       tagColor: '#059669',
     },
     {
       metric: 'EXECUTIVE APPROVAL QUEUE',
-      text: '1 pending requisition requires GMD signature (₦650,000 · BemsSoft Hub Ltd)',
+      text: '1 pending requisition requires executive review and authorization (₦650,000)',
       tag: 'ACTION REQUIRED',
       tagColor: '#ea580c',
     },
     {
       metric: 'CASH RUNWAY FORECAST',
-      text: 'Liquid cash runway confirmed at 11.4 months at current monthly burn rate',
+      text: 'Liquid cash runway confirmed at 11.4 months at current group burn rate',
       tag: 'OPTIMAL',
       tagColor: '#0284c7',
     },
     {
       metric: 'AUDIT & COMPLIANCE',
-      text: 'Accountability verification is 100% compliant with zero overdue retirements',
+      text: 'Group accountability verification is 100% compliant with zero overdue retirements',
       tag: 'VERIFIED',
       tagColor: '#059669',
     },
     {
       metric: 'CAPITAL COMMITMENTS',
-      text: 'Q4 operational commitments allocated with 34% remaining budget headroom',
+      text: 'Operational commitments allocated with 34% remaining budget headroom',
       tag: 'CONTROLLED',
       tagColor: '#7c3aed',
     },
   ];
 
-  // Cycle through real-time financial updates
+  // Cycle through real-time financial updates in login mode
   useEffect(() => {
+    if (mode !== 'login') return;
     const timer = setInterval(() => {
       setFinancialIndex((prev) => (prev + 1) % financialUpdates.length);
     }, 2200);
     return () => clearInterval(timer);
-  }, [financialUpdates.length]);
+  }, [financialUpdates.length, mode]);
 
-  // For reload mode: automatically transition to the dashboard after ~2.4 seconds
+  // For reload mode: automatically transition directly to the dashboard after ~2.4 seconds
   useEffect(() => {
     if (mode === 'reload') {
       const autoTimer = setTimeout(() => {
         handleProceed();
-      }, 2500);
+      }, 2400);
       return () => clearTimeout(autoTimer);
     }
   }, [mode]);
 
-  // Handle keyboard shortcut (Enter / Space / Escape to continue)
+  // Handle keyboard shortcut (Enter / Space / Escape to proceed)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
@@ -96,10 +96,40 @@ export function AiMotionEntryScreen({
 
   const currentUpdate = financialUpdates[financialIndex];
 
+  // ==========================================
+  // PAGE RELOAD MODE: ONLY THE MOVING OBJECT
+  // ==========================================
+  if (mode === 'reload') {
+    return (
+      <div
+        className="ai-executive-motion-screen reload-minimal"
+        onClick={handleProceed}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 99999,
+          background: '#f5f2eb',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: isFadingOut ? 0 : 1,
+          transform: isFadingOut ? 'scale(1.03)' : 'scale(1)',
+          transition: 'opacity 0.35s ease, transform 0.35s ease',
+          cursor: 'pointer',
+          userSelect: 'none',
+        }}
+      >
+        <KineticOptikkaTorus size={460} />
+      </div>
+    );
+  }
+
+  // ==========================================
+  // LOGIN MODE: 3D OBJECT + USER NAME + LIVE FINANCIAL UPDATE TICKER + CONTINUE BUTTON
+  // ==========================================
   return (
     <div
-      className="ai-executive-motion-screen"
-      onClick={handleProceed}
+      className="ai-executive-motion-screen login-welcome"
       style={{
         position: 'fixed',
         inset: 0,
@@ -115,7 +145,6 @@ export function AiMotionEntryScreen({
         opacity: isFadingOut ? 0 : 1,
         transform: isFadingOut ? 'scale(1.02)' : 'scale(1)',
         transition: 'opacity 0.35s ease, transform 0.35s ease',
-        cursor: 'pointer',
         userSelect: 'none',
       }}
     >
@@ -128,12 +157,12 @@ export function AiMotionEntryScreen({
           </span>
         </div>
 
-        <span style={{ fontSize: '11px', fontWeight: 600, color: '#a8a29e' }}>
-          {businessName}
+        <span style={{ fontSize: '11px', fontWeight: 700, color: '#78716c', letterSpacing: '0.04em' }}>
+          BEMS Group
         </span>
       </div>
 
-      {/* Centerpiece: Enormous 3D Kinetic Optikka Torus + Executive Welcome + Live Financial Update */}
+      {/* Centerpiece: 3D Kinetic Optikka Torus + Executive Welcome + Live Financial Update */}
       <div
         style={{
           display: 'flex',
@@ -145,16 +174,16 @@ export function AiMotionEntryScreen({
           margin: 'auto 0',
         }}
       >
-        {/* Large Kinetic 3D Torus Object */}
-        <div style={{ transform: 'scale(1.05)', marginBottom: '18px' }}>
-          <KineticOptikkaTorus size={400} />
+        {/* Kinetic 3D Torus Object */}
+        <div style={{ transform: 'scale(1.02)', marginBottom: '18px' }}>
+          <KineticOptikkaTorus size={380} />
         </div>
 
-        {/* Executive Welcome Header */}
+        {/* Executive Welcome Header with dynamic user name */}
         <h1
           style={{
             margin: '0 0 12px 0',
-            fontSize: '46px',
+            fontSize: '44px',
             fontWeight: 850,
             letterSpacing: '-0.035em',
             color: '#1c1917',
@@ -216,84 +245,50 @@ export function AiMotionEntryScreen({
           </p>
         </div>
 
-        {/* In Login Mode: Prominent Continue Button */}
-        {mode === 'login' ? (
-          <div style={{ marginTop: '28px' }}>
-            <button
-              type="button"
-              onClick={handleProceed}
-              style={{
-                background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '999px',
-                padding: '12px 28px',
-                fontSize: '13.5px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 8px 24px rgba(28, 25, 23, 0.25)',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 12px 30px rgba(28, 25, 23, 0.35)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 8px 24px rgba(28, 25, 23, 0.25)';
-              }}
-            >
-              <span>Continue to Dashboard</span>
-              <ArrowRight size={15} />
-            </button>
-          </div>
-        ) : (
-          <div style={{ marginTop: '22px' }}>
-            <button
-              type="button"
-              onClick={handleProceed}
-              style={{
-                background: 'rgba(28, 25, 23, 0.05)',
-                color: '#57534e',
-                border: '1px solid rgba(28, 25, 23, 0.1)',
-                borderRadius: '999px',
-                padding: '8px 20px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(28, 25, 23, 0.08)';
-                e.currentTarget.style.color = '#1c1917';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(28, 25, 23, 0.05)';
-                e.currentTarget.style.color = '#57534e';
-              }}
-            >
-              <span>Entering Cockpit · Click or press Enter to skip</span>
-              <ArrowRight size={13} />
-            </button>
-          </div>
-        )}
+        {/* In Login Mode: User MUST click Continue to Dashboard */}
+        <div style={{ marginTop: '28px' }}>
+          <button
+            type="button"
+            onClick={handleProceed}
+            style={{
+              background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '999px',
+              padding: '12px 28px',
+              fontSize: '13.5px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 8px 24px rgba(28, 25, 23, 0.25)',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 12px 30px rgba(28, 25, 23, 0.35)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(28, 25, 23, 0.25)';
+            }}
+          >
+            <span>Continue to Dashboard</span>
+            <ArrowRight size={15} />
+          </button>
+        </div>
       </div>
 
-      {/* Bottom Subtitle & URL */}
+      {/* Bottom Subtitle */}
       <div style={{ width: '100%', maxWidth: '1000px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '11.5px', color: '#78716c' }}>
         <div>
-          <span style={{ fontWeight: 700, color: '#44403c' }}>Executive Governance, Redefined.</span>
+          <span style={{ fontWeight: 700, color: '#44403c' }}>BEMS Group · Executive Governance</span>
         </div>
 
         <div>
-          <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#a8a29e' }}>
-            bemsfarms.com
+          <span style={{ fontSize: '11px', color: '#a8a29e' }}>
+            Enterprise Command Cockpit
           </span>
         </div>
       </div>
