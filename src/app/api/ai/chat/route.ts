@@ -296,6 +296,118 @@ export async function POST(req: NextRequest) {
         };
       }
     } else if (
+      normalized.includes('approve staff') ||
+      normalized.includes('approve onboarding') ||
+      normalized.includes('approve registration')
+    ) {
+      const pendingStaff = await prisma.employee.findFirst({
+        where: { approvalStatus: 'PENDING_APPROVAL' },
+        include: { assignments: { include: { subsidiary: true, department: true } } },
+      });
+
+      if (pendingStaff && actor) {
+        const sub = pendingStaff.assignments?.[0]?.subsidiary;
+        const dept = pendingStaff.assignments?.[0]?.department;
+
+        const staged = await stageAction({
+          userId: actor.id,
+          actionType: 'staff_approval',
+          materialPayload: {
+            employee_id: pendingStaff.id,
+            employee_number: pendingStaff.employeeNumber,
+            name: pendingStaff.legalName,
+            subsidiary: sub?.legalName || 'BEMS Group',
+          },
+          summary: `Authorize corporate onboarding for ${pendingStaff.legalName} (${pendingStaff.employeeNumber})`,
+          preview: {
+            staff_id: pendingStaff.employeeNumber,
+            full_name: pendingStaff.legalName,
+            work_email: pendingStaff.workEmail,
+            role_assigned: pendingStaff.role,
+            subsidiary: sub?.legalName || 'BEMS Group',
+            department: dept?.name || 'General Operations',
+            disbursement_bank: `${pendingStaff.bankName || 'Recorded'} · ${pendingStaff.accountNumber || 'Verified'}`,
+          },
+        });
+
+        reply = `I have staged the corporate onboarding authorization for **${pendingStaff.legalName}** (${pendingStaff.employeeNumber}).\n\nPlease review their dossier below and click **Authorize & Execute Action** to grant active enterprise system credentials.`;
+        actionCard = {
+          type: 'STAGED_ACTION',
+          ...staged,
+        };
+      } else {
+        reply = `All staff self-registration dossiers have already been reviewed and approved! The onboarding queue is clear.`;
+      }
+    } else if (
+      normalized.includes('clear case') ||
+      normalized.includes('clear advance') ||
+      normalized.includes('clear accountability')
+    ) {
+      const targetCase = openCases[0];
+
+      if (targetCase && actor) {
+        const staged = await stageAction({
+          userId: actor.id,
+          actionType: 'accountability_clearance',
+          materialPayload: {
+            case_id: targetCase.id,
+            request_number: targetCase.request?.requestNumber || 'ADV',
+            clearance_notes: 'Physical receipts inspected and reconciled by GMD via Executive AI',
+          },
+          summary: `Grant final retiral clearance for case ${targetCase.request?.requestNumber || 'ADV'} (${targetCase.owner?.legalName || 'Requester'})`,
+          preview: {
+            request_number: targetCase.request?.requestNumber || 'ADV',
+            requester: targetCase.owner?.legalName || 'Staff',
+            current_status: targetCase.status,
+            reconciled_action: 'RECONCILED & CLOSED',
+            reconciliation_officer: actor.legalName,
+          },
+        });
+
+        reply = `I have staged the retiral clearance for **${targetCase.request?.requestNumber || 'ADV'}** belonging to **${targetCase.owner?.legalName || 'Staff'}**.\n\nPlease review the retiral card below and click **Authorize & Execute Action** to reconcile the ledger and lift any requisition restrictions.`;
+        actionCard = {
+          type: 'STAGED_ACTION',
+          ...staged,
+        };
+      } else {
+        reply = `There are currently no open advance cases requiring retiral clearance. All accounts are 100% reconciled!`;
+      }
+    } else if (
+      normalized.includes('emergency override') ||
+      normalized.includes('emergency approval')
+    ) {
+      const targetReq = pendingRequests[0];
+
+      if (targetReq && actor) {
+        const staged = await stageAction({
+          userId: actor.id,
+          actionType: 'emergency_override',
+          materialPayload: {
+            request_id: targetReq.id,
+            request_number: targetReq.requestNumber,
+            justification: 'GMD Emergency Operational Continuity Override',
+            amount: Number(targetReq.amountMinor) / 100,
+          },
+          summary: `GMD Emergency Override: Authorize immediate payout for ${targetReq.requestNumber} (₦${(Number(targetReq.amountMinor) / 100).toLocaleString()})`,
+          preview: {
+            request_number: targetReq.requestNumber,
+            title: targetReq.title,
+            amount: `₦${(Number(targetReq.amountMinor) / 100).toLocaleString()}`,
+            requester: targetReq.requester?.legalName || 'Staff',
+            override_authority: 'Group Managing Director',
+            action: 'BYPASS_MATRIX_DIRECT_APPROVAL',
+          },
+        });
+
+        reply = `I have staged a **GMD Emergency Override** for **${targetReq.requestNumber}** (**₦${(Number(targetReq.amountMinor) / 100).toLocaleString()}**).\n\nThis will bypass intermediate matrix stages and mark the requisition immediately approved for direct treasury disbursement.`;
+        actionCard = {
+          type: 'STAGED_ACTION',
+          ...staged,
+        };
+      } else {
+        reply = `There are currently no requisitions pending review to apply an emergency override to.`;
+      }
+    } else if (
       normalized.includes('subsidiary') ||
       normalized.includes('entities') ||
       normalized.includes('company') ||
