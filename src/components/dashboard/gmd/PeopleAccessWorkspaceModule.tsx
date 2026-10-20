@@ -25,7 +25,6 @@ const ADMIN_ROLES = [
   { value: 'VERIFIER', label: 'Internal Auditor & Compliance Verifier' },
   { value: 'DEPT_HEAD', label: 'Department Head' },
   { value: 'HR', label: 'HR — Human Resources Lead' },
-  { value: 'STAFF', label: 'Staff Member' },
 ];
 
 export function PeopleAccessWorkspaceModule({
@@ -380,6 +379,10 @@ export function PeopleAccessWorkspaceModule({
               >
                 <X size={20} />
               </button>
+            </div>
+
+            <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', marginBottom: 14, fontSize: 12, lineHeight: 1.4 }}>
+              <strong>Notice:</strong> General staff members self-register via the sign-up portal and appear in the <em>Pending Staff Signups</em> review queue below. Use this form exclusively for executive and administrative role provisioning.
             </div>
 
             {onboardError && (

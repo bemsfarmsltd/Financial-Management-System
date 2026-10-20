@@ -36,6 +36,7 @@ import { useAiFinancialManager } from "@/components/ai/useAiFinancialManager";
 import { AiMotionEntryScreen } from "@/components/ai/AiMotionEntryScreen";
 import { PeopleAccessWorkspaceModule } from "@/components/dashboard/gmd/PeopleAccessWorkspaceModule";
 import { GmdExecutiveAiApp } from "@/components/ai/GmdExecutiveAiApp";
+import { StaffWorkspaceModule } from "@/components/dashboard/staff/StaffWorkspaceModule";
 
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -135,7 +136,7 @@ const goalPresets: Record<string, string[]> = {
 const defaultGoals = ['Answer customer questions', 'Collect information', 'Process payments', 'Book appointments', 'Send notifications', 'Handle support cases'];
 
 
-type SystemRole = 'GMD' | 'SYSTEM_ADMIN';
+type SystemRole = 'GMD' | 'SYSTEM_ADMIN' | 'STAFF';
 
 interface RoleProfile {
   role: SystemRole;
@@ -148,7 +149,33 @@ interface RoleProfile {
 const roleProfiles: Record<SystemRole, RoleProfile> = {
   GMD: { role: 'GMD', title: 'Group Managing Director', badge: 'Super Executive', platform: 'Executive Command Center', avatarColor: '#ea580c' },
   SYSTEM_ADMIN: { role: 'SYSTEM_ADMIN', title: 'System Administrator', badge: 'Super Executive', platform: 'Executive Command Center', avatarColor: '#ea580c' },
+  STAFF: { role: 'STAFF', title: 'Staff Member', badge: 'Self-Service', platform: 'Staff Requisition & Accountability Portal', avatarColor: '#2563eb' },
 };
+
+const staffNavGroups = [
+  {
+    label: 'MY REQUISITIONS',
+    items: [
+      ['Overview', '⌂'],
+      ['New fund request', '＋'],
+      ['My requests', '▱'],
+    ]
+  },
+  {
+    label: 'ACCOUNTABILITY & EVIDENCE',
+    items: [
+      ['72h Evidence Vault', '▣'],
+      ['Receipt archive', '▤'],
+    ]
+  },
+  {
+    label: 'SUPPORT & ACCESS',
+    items: [
+      ['Request channels', '◎'],
+      ['Settings & Profile', '⚙'],
+    ]
+  },
+];
 
 const gmdNavGroups = [
   {
@@ -185,7 +212,10 @@ const gmdNavGroups = [
   },
 ];
 
-function getRoleNavigation(_role?: SystemRole) {
+function getRoleNavigation(role?: string) {
+  if (role === 'STAFF') {
+    return staffNavGroups;
+  }
   return gmdNavGroups;
 }
 
@@ -1524,6 +1554,7 @@ function VendorsModule({business,setNotice,onNavigate}:{business:Business;setNot
 
 function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurrentId,onUpdateBusiness}:{user:AuthUser;onSignOut:()=>void;onAddBusiness:()=>void;businesses:Business[];currentId:string;setCurrentId:(value:string)=>void;onUpdateBusiness:(id:string,patch:Partial<Business>)=>Promise<Business>}) {
   const safeUser: AuthUser = user || { id: 'auth-user', fullName: 'Authorized User', email: '', role: 'GMD' };
+  const isStaff = safeUser.role === 'STAFF';
   const [active,setActive]=useState('Overview');
   const [collapsed,setCollapsed]=useState(false);
   useEffect(() => {
@@ -1555,10 +1586,10 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   const [marketplaceBusinessId,setMarketplaceBusinessId]=useState(currentId);
   const [topPanel,setTopPanel]=useState<'notifications'|'account'|null>(null);
   const current=businesses.find(b=>b.id===currentId) || businesses[0];
-  const [currentRole, setCurrentRole] = useState<SystemRole>('GMD');
+  const [currentRole, setCurrentRole] = useState<SystemRole>((safeUser.role as SystemRole) || 'GMD');
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [activeAiPrompt, setActiveAiPrompt] = useState<string | undefined>(undefined);
-  const isAiAuthorized = currentRole === 'GMD' || (safeUser.role as string) === 'GMD' || (safeUser.role as string) === 'SYSTEM_ADMIN';
+  const isAiAuthorized = !isStaff && (currentRole === 'GMD' || (safeUser.role as string) === 'GMD' || (safeUser.role as string) === 'SYSTEM_ADMIN');
 
   const aiManager = useAiFinancialManager({
     userRole: currentRole,
@@ -1588,7 +1619,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     return () => window.removeEventListener('keydown', handleAiKey);
   }, [isAiAuthorized]);
 
-  const navigation = getRoleNavigation(currentRole);
+  const navigation = getRoleNavigation(safeUser.role);
   const sectorOperations=(navigation[3] && navigation[3].items) ? navigation[3].items.map(([name])=>name) : [];
   const liveOnly=['Inbox','Customers','Campaigns','Cases & SLAs','Commerce & orders','Payments','Bookings','Loyalty & rewards','Analytics & BI'];
   const incompleteLocked=['Inbox','Customers','Campaigns','Cases & SLAs','Commerce & orders','Payments','Bookings','Loyalty & rewards','Analytics & BI','Quality & experiments','Audit logs'];
@@ -1621,6 +1652,46 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
       'briefing': 'Executive briefing',
     };
     const target = navAliases[active] || active;
+
+    if (isStaff) {
+      if (target === 'Overview') {
+        return (
+          <StaffWorkspaceModule
+            user={safeUser}
+            businessName={current.name}
+            onNavigate={setActive}
+            setNotice={setNotice}
+          />
+        );
+      }
+      if (target === 'New fund request') {
+        if (typeof window !== 'undefined') window.location.href = '/requests/new';
+        return null;
+      }
+      if (target === 'My requests' || target === 'Fund requests') {
+        return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={true}/>;
+      }
+      if (target === '72h Evidence Vault' || target === 'Accountability closure' || target === 'Proof & deliverables') {
+        return <LiveAccountabilityModule setNotice={setNotice}/>;
+      }
+      if (target === 'Receipt archive') {
+        return <LiveReceiptArchiveModule setNotice={setNotice}/>;
+      }
+      if (target === 'Request channels') {
+        return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={(p)=>p==='/requests'?setActive('My requests'):window.location.href=p}/>;
+      }
+      if (target === 'Settings & Profile' || target === 'Settings') {
+        return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
+      }
+      return (
+        <StaffWorkspaceModule
+          user={safeUser}
+          businessName={current.name}
+          onNavigate={setActive}
+          setNotice={setNotice}
+        />
+      );
+    }
 
     if (currentRole === 'GMD') {
       if (target === 'Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={false}/>;
@@ -1811,7 +1882,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   },[active,current,currentRole,businesses,onAddBusiness,selectBusiness,onUpdateBusiness,setNotice,cases,resolveCase,addCase,user]);
 
   if(marketplaceOpen){const destination=businesses.find(b=>b.id===marketplaceBusinessId)||current;return <main className="marketplace-portal"><header><button className="marketplace-brand" onClick={()=>setMarketplaceOpen(false)}><img src="/bems-mark.png" alt=""/><div><strong>BEMS</strong><span>Fund Request Desk</span></div></button><div className="marketplace-destination"><span>IMPORT DESTINATION</span><select value={destination.id} onChange={e=>setMarketplaceBusinessId(e.target.value)}>{businesses.map(b=><option value={b.id} key={b.id}>{b.name} · {b.industry}</option>)}</select></div><div><button className="market-library">My library</button><button className="market-cart">Cart · 0</button><button className="marketplace-close" onClick={()=>setMarketplaceOpen(false)}>Return to workspace →</button></div></header><div className="marketplace-content">{notices.length>0&&<div className="marketplace-toast">✓ {notices[notices.length-1].message}<button onClick={()=>dismissNotice(notices[notices.length-1].id)}>×</button></div>}<TemplateMarketplace key={destination.id} business={destination} setNotice={setNotice}/></div></main>}
-  const shellClass=`app-shell ${collapsed?'collapsed ':''}${currentRole === 'GMD' ? 'gmd-view' : ''}`;
+  const shellClass=`app-shell ${collapsed?'collapsed ':''}${isStaff ? 'staff-view ' : currentRole === 'GMD' ? 'gmd-view' : ''}`;
   return <main className={shellClass}>
     <aside className="sidebar">
       <div className="sidebar-circuit" aria-hidden="true"><i/><i/><i/><i/><i/><i/></div>
@@ -1823,7 +1894,24 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
       <header className="topbar">
         <div className="business-switch-wrap"><button className="business-switch" onClick={()=>{setSwitcher(!switcher);setTopPanel(null)}}><span style={{background:current.color}}>{current.initials}</span><div><strong>{current.name}</strong><small>{current.industry}</small></div><b>⌄</b></button>{switcher&&<div className="switch-menu"><p>SWITCH WORKSPACE</p>{businesses.map(b=><button className={b.id===current.id?'selected':''} key={b.id} onClick={()=>selectBusiness(b.id)}><span style={{background:b.color}}>{b.initials}</span><div><strong>{b.name}</strong><small>{b.industry} · {b.readiness}% ready</small></div>{b.id===current.id&&<b>✓</b>}</button>)}<button className="switch-add" onClick={()=>{setSwitcher(false);setActive('Settings')}}>⚙ Manage businesses in Settings</button></div>}</div><div className="global-search"><span>⌕</span><input aria-label="Search workspace" value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Search ${current.name}`}/><kbd>⌘ K</kbd>{search&&<div className="search-results">{(searchResults.length||dataResults.length)?<>{searchResults.map(name=><button key={`nav-${name}`} onClick={()=>openModule(name)}><span>{isLocked(name)?'⌾':'→'}</span><div><strong>{name}</strong><small>{isLocked(name)?'Locked in current environment':'Open in this workspace'}</small></div></button>)}{dataResults.map((r,i)=><button key={`data-${i}`} onClick={()=>openModule(r.navigate)}><span>◎</span><div><strong>{r.label}</strong><small>{r.type} · {r.sublabel}</small></div></button>)}</>:<p>No workspace results</p>}</div>}</div>
         <div className="top-actions">
-          <button className="templates-top" onClick={()=>{setMarketplaceBusinessId(current.id);setMarketplaceOpen(true);setTopPanel(null)}}><span>▤</span><div><strong>Fund Request Desk</strong><small>Instant multi-level flow</small></div><b>New Request ＋</b></button>
+          {isStaff ? (
+            <button
+              className="templates-top"
+              onClick={() => {
+                if (typeof window !== 'undefined') window.location.href = '/requests/new';
+              }}
+              style={{ background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)', color: '#fff', border: 'none' }}
+            >
+              <span>＋</span>
+              <div>
+                <strong>New Fund Request</strong>
+                <small>Submit for approval</small>
+              </div>
+              <b>Create ＋</b>
+            </button>
+          ) : (
+            <button className="templates-top" onClick={()=>{setMarketplaceBusinessId(current.id);setMarketplaceOpen(true);setTopPanel(null)}}><span>▤</span><div><strong>Fund Request Desk</strong><small>Instant multi-level flow</small></div><b>New Request ＋</b></button>
+          )}
           <div className="top-popover-wrap"><button className="top-icon notification" aria-label="Notifications" aria-expanded={topPanel==='notifications'} onClick={()=>setTopPanel(topPanel==='notifications'?null:'notifications')}>♧{!notificationsRead&&<i/>}</button>{topPanel==='notifications'&&<div className={notificationsRead?'top-popover notifications-panel read':'top-popover notifications-panel'}><header><strong>Notifications</strong><button onClick={()=>setTopPanel(null)}>×</button></header><button onClick={()=>{setActive('Setup & launch');setTopPanel(null)}}><span>!</span><div><strong>Finish channel review</strong><small>Required before your first launch</small></div></button><button onClick={()=>{setActive('Test centre');setTopPanel(null)}}><span>✓</span><div><strong>46 tests are passing</strong><small>5 checks still need attention</small></div></button><button onClick={()=>{setActive('Billing & usage');setTopPanel(null)}}><span>₦</span><div><strong>Usage is within estimate</strong><small>66% of this month’s budget</small></div></button><footer onClick={()=>{setNotificationsRead(true);setNotice('All notifications marked as read.');setTopPanel(null)}}>Mark all as read</footer></div>}</div>
           <div className="top-popover-wrap"><button className="avatar" aria-label="Account menu" aria-expanded={topPanel==='account'} onClick={()=>setTopPanel(topPanel==='account'?null:'account')}>{initialsOf(safeUser.fullName)}</button>{topPanel==='account'&&<div className="top-popover account-panel"><div><span>{initialsOf(safeUser.fullName)}</span><strong>{safeUser.fullName}</strong><small>{safeUser.email}</small></div><button onClick={()=>{setActive('Settings');setTopPanel(null)}}>Account & business settings</button><button onClick={()=>{setActive('Team & access');setTopPanel(null)}}>Team and access</button><button onClick={()=>{setNotice('Help centre opened.');setTopPanel(null)}}>Help centre</button><button onClick={onSignOut}>Sign out</button></div>}</div>
         </div>
