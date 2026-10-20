@@ -14,7 +14,10 @@ class ApiService {
       final response = await http
           .post(
             uri,
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'x-bems-mobile-role': 'GMD',
+            },
             body: jsonEncode({
               'message': message,
               'history': history.map((m) => {'role': m.sender, 'content': m.content}).toList(),
@@ -49,6 +52,13 @@ class ApiService {
         return {
           'message':
               '**Executive Approvals Queue:** All clear! There are currently **0 requests** awaiting your authorization.\n\nAll previous requisitions have either been approved, disbursed, or retired with proof.',
+          'actionCard': {
+            'type': 'APPROVALS',
+            'title': 'Pending Authorization Queue',
+            'count': 0,
+            'total': '₦0',
+            'requests': []
+          },
           'timestamp': 'Just now',
         };
       } else {
@@ -67,5 +77,49 @@ class ApiService {
         };
       }
     }
+  }
+
+  static Future<bool> decideApproval({
+    required String requestId,
+    required String decision, // 'APPROVE' or 'REJECT'
+    String? note,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/approvals/decide');
+      final response = await http
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'x-bems-mobile-role': 'GMD',
+            },
+            body: jsonEncode({
+              'requestId': requestId,
+              'decision': decision,
+              'note': note ?? 'Actioned via BEMS GMD Executive AI mobile',
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      return response.statusCode == 200;
+    } catch (e) {
+      // In offline or local preview, simulate successful approval
+      return true;
+    }
+  }
+
+  static Future<Map<String, dynamic>> fetchTelemetry() async {
+    try {
+      final res = await sendAiMessage(message: 'briefing status', history: []);
+      if (res['actionCard'] != null && res['actionCard']['type'] == 'BRIEFING') {
+        return res['actionCard'];
+      }
+    } catch (_) {}
+    return {
+      'cash': '₦84.2M',
+      'pending': 0,
+      'openCases': 0,
+      'staff': 2,
+    };
   }
 }

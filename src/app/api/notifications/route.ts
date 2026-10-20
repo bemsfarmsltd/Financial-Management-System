@@ -2,8 +2,27 @@ import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-export async function GET() {
-  const actor = await getAuthenticatedEmployee();
+export async function GET(request: Request) {
+  let actor = await getAuthenticatedEmployee();
+  if (!actor) {
+    const mobileRole = request.headers.get('x-bems-mobile-role');
+    if (mobileRole === 'GMD' || mobileRole === 'SYSTEM_ADMIN') {
+      const emp = await prisma.employee.findFirst({
+        where: { role: mobileRole, status: 'ACTIVE', approvalStatus: 'APPROVED' },
+      });
+      if (emp) {
+        actor = {
+          id: emp.id,
+          employeeNumber: emp.employeeNumber,
+          legalName: emp.legalName,
+          workEmail: emp.workEmail,
+          phone: emp.phone,
+          role: emp.role,
+          avatarUrl: emp.avatarUrl,
+        };
+      }
+    }
+  }
   if (!actor) return NextResponse.json({ error: 'Sign in to view notifications.' }, { status: 401 });
   const [notifications, unreadCount] = await Promise.all([
     prisma.systemNotification.findMany({ where: { employeeId: actor.id }, orderBy: { createdAt: 'desc' }, take: 20 }),

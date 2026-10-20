@@ -340,7 +340,7 @@ export function ExactForestBentoCards({ config, onNavigate, businessName = 'BEMS
               {config.teamTitle}
             </h3>
             <button
-              onClick={() => onNavigate && onNavigate('Staff onboarding')}
+              onClick={() => onNavigate('Staff onboarding')}
               style={{
                 border: '1px solid #cbd5e1',
                 background: '#ffffff',

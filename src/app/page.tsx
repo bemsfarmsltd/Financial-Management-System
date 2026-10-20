@@ -29,7 +29,13 @@ import {
   StaffProfilesModule as LiveStaffProfilesModule,
   WorkspaceSettingsModule as LiveWorkspaceSettingsModule,
 } from "@/components/dashboard/gmd/BusinessModules";
+import { AiFinancialManagerDrawer } from "@/components/ai/AiFinancialManagerDrawer";
+import { AmbientBottomAiBar } from "@/components/ai/AmbientBottomAiBar";
+import { AiScreenEdgeGlow, notifyAiInteraction } from "@/components/ai/AiScreenEdgeGlow";
+import { useAiFinancialManager } from "@/components/ai/useAiFinancialManager";
+import { AiMotionEntryScreen } from "@/components/ai/AiMotionEntryScreen";
 import { PeopleAccessWorkspaceModule } from "@/components/dashboard/gmd/PeopleAccessWorkspaceModule";
+import { GmdExecutiveAiApp } from "@/components/ai/GmdExecutiveAiApp";
 
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -149,6 +155,7 @@ const gmdNavGroups = [
     label: 'EXECUTIVE',
     items: [
       ['Overview', '⌂'],
+      ['Executive AI Copilot', '✦'],
       ['Subsidiary portfolio', '▦'],
       ['Executive briefing', '✦'],
     ]
@@ -957,7 +964,8 @@ function RoleOverviewModule({role,business,user,cases,setActive,setNotice,onRole
           <p>Real-time expenditure pipeline, cash run-rate, and accountability governance across {business.name}.</p>
         </div>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <button className="primary-button" onClick={() => setActive("Subsidiary portfolio")}>Manage Subsidiaries ▦</button>
+          <button className="outline-button" onClick={() => setActive("Subsidiary portfolio")}>Manage Subsidiaries ▦</button>
+          <button className="primary-button" style={{ background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)', border: 'none', boxShadow: '0 2px 10px rgba(234,88,12,0.3)' }} onClick={() => setActive("Executive AI Copilot")}>✦ Executive AI Copilot</button>
         </div>
       </div>
       <ModernBentoDashboard
@@ -1548,6 +1556,37 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   const [topPanel,setTopPanel]=useState<'notifications'|'account'|null>(null);
   const current=businesses.find(b=>b.id===currentId) || businesses[0];
   const [currentRole, setCurrentRole] = useState<SystemRole>('GMD');
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const [activeAiPrompt, setActiveAiPrompt] = useState<string | undefined>(undefined);
+  const isAiAuthorized = currentRole === 'GMD' || (safeUser.role as string) === 'GMD' || (safeUser.role as string) === 'SYSTEM_ADMIN';
+
+  const aiManager = useAiFinancialManager({
+    userRole: currentRole,
+    userName: safeUser.fullName,
+    businessName: current.name,
+    businessId: current.id,
+    currentPage: active,
+  });
+
+  const handleOpenAiDrawer = (prompt?: string) => {
+    notifyAiInteraction();
+    setActiveAiPrompt(prompt);
+    setAiDrawerOpen(true);
+  };
+
+  useEffect(() => {
+    const handleAiKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        if (isAiAuthorized) {
+          notifyAiInteraction();
+          setAiDrawerOpen((prev) => !prev);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleAiKey);
+    return () => window.removeEventListener('keydown', handleAiKey);
+  }, [isAiAuthorized]);
 
   const navigation = getRoleNavigation(currentRole);
   const sectorOperations=(navigation[3] && navigation[3].items) ? navigation[3].items.map(([name])=>name) : [];
@@ -1735,6 +1774,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     if(target==='Budgets & commitments'||target==='Budget variance audit') { if (typeof window !== 'undefined') window.location.href = '/budgets'; return null; }
     if(target==='Payroll sign-off'||target==='Hybrid payroll') return <PayrollSignOffView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='HR Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
+    if(target==='Executive AI Copilot'||target==='Executive AI') return <GmdExecutiveAiApp userName={safeUser.fullName} businessName={current.name} onNavigate={setActive}/>;
     if(target==='Executive briefing') return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p)=>setActive(p)}/>;
     if(target==='Subsidiary portfolio') return <Businesses businesses={businesses} current={current} onSelect={selectBusiness} onAdd={onAddBusiness}/>;
     if(target==='Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={currentRole !== 'GMD'}/>;
@@ -1793,6 +1833,55 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
         {content}
       </div>
     </section>
+    {switching && (
+      <AiMotionEntryScreen
+        onComplete={() => setSwitching(null)}
+        businessName="BEMS Group"
+        userName={safeUser.fullName}
+        userRole={safeUser.role}
+        mode="reload"
+      />
+    )}
+    {isAiAuthorized && (
+      <>
+        <AiScreenEdgeGlow isActive={true} isProcessing={aiManager.isTyping} />
+        <AmbientBottomAiBar
+          currentPage={active}
+          businessName={current.name}
+          userName={safeUser.fullName}
+          userRole={currentRole}
+          messages={aiManager.messages}
+          isTyping={aiManager.isTyping}
+          onSendMessage={aiManager.sendMessage}
+          onConfirmAction={aiManager.handleConfirmAction}
+          onOpenFullCockpit={handleOpenAiDrawer}
+          onNavigate={(tab) => {
+            openModule(tab);
+          }}
+        />
+        <AiFinancialManagerDrawer
+          isOpen={aiDrawerOpen}
+          onClose={() => {
+            setAiDrawerOpen(false);
+            setActiveAiPrompt(undefined);
+          }}
+          userRole={currentRole}
+          userName={safeUser.fullName}
+          businessName={current.name}
+          businessId={current.id}
+          currentPage={active}
+          initialPrompt={activeAiPrompt}
+          onNavigate={(tab) => {
+            openModule(tab);
+            setAiDrawerOpen(false);
+          }}
+          sharedMessages={aiManager.messages}
+          sharedIsTyping={aiManager.isTyping}
+          onSendMessage={aiManager.sendMessage}
+          onConfirmAction={aiManager.handleConfirmAction}
+        />
+      </>
+    )}
   </main>;
 }
 
@@ -1803,6 +1892,8 @@ export default function Home() {
   const [businesses,setBusinesses]=useState<Business[]>(defaultBemsBusinesses);
   const [currentId,setCurrentId]=useState('bems-group-hq');
   const [status,setStatus]=useState<'loading'|'ready'|'error'>('ready');
+  const [showAiEntry, setShowAiEntry] = useState(true);
+  const [entryMode, setEntryMode] = useState<'login' | 'reload'>('reload');
 
   const checkAuth=()=>{
     fetch('/api/auth/session', { credentials: 'include' })
@@ -1842,6 +1933,8 @@ export default function Home() {
 
   const onAuthed=(u:AuthUser)=>{
     setUser(u);
+    setEntryMode('login');
+    setShowAiEntry(true);
     window.dispatchEvent(new Event('bems-session-changed'));
     setStatus('ready');
     setAuthStatus('signed-in');
@@ -1854,6 +1947,8 @@ export default function Home() {
       setBusinesses([]);
       setCurrentId('');
       setAddingBusiness(false);
+      setShowAiEntry(true);
+      setEntryMode('login');
     });
   };
 
@@ -1881,7 +1976,6 @@ export default function Home() {
             status: 'Live',
             readiness: 100,
             color: '#ea580c',
-            aiEnabled: true,
           };
           setBusinesses(old => [...old, next]);
           setCurrentId(next.id);
@@ -1896,7 +1990,21 @@ export default function Home() {
     return updated;
   });
 
-  // Auth gating
+  // 1. Immediately show AI Dynamic Motion Screen on reload or login
+  if (showAiEntry) {
+    return (
+      <AiMotionEntryScreen
+        key={`ai-entry-${entryMode}-${user?.id || 'active'}`}
+        onComplete={() => setShowAiEntry(false)}
+        businessName="BEMS Group"
+        userName={user?.fullName || ''}
+        userRole={user?.role || ''}
+        mode={entryMode}
+      />
+    );
+  }
+
+  // 2. Auth gating once dynamic motion screen completes or is dismissed
   if (authStatus === 'checking') {
     return (
       <main className="app-loading" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b1220' }}>

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'theme/bems_theme.dart';
-import 'screens/executive_home_screen.dart';
+import 'screens/studio_showcase_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,10 +25,7 @@ class BemsExecutiveAiApp extends StatelessWidget {
       title: 'BEMS Executive AI',
       debugShowCheckedModeBanner: false,
       theme: BemsTheme.darkTheme,
-      home: const ExecutiveHomeScreen(
-        userName: 'Dr Pastra',
-        businessName: 'BEMS Group',
-      ),
+      home: const StudioShowcaseScreen(),
     );
   }
 }
