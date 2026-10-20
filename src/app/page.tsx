@@ -2171,23 +2171,10 @@ export default function Home() {
     );
   }
 
-  // 2. Auth gating once AI motion screen finishes or is dismissed
+  // 2. Auth gating once dynamic motion screen completes or is dismissed
   if (authStatus === 'signed-out') return <AuthGate onAuthed={onAuthed} />;
-  if (authStatus === 'checking' || status === 'loading') {
-    const currentBiz = businesses.find(b => b.id === currentId) || businesses[0];
-    return (
-      <AiMotionEntryScreen
-        key="ai-entry-checking"
-        onComplete={() => {}}
-        businessName={currentBiz?.name || 'BEMS Group'}
-        userName={user?.fullName || 'Dr. Pastra'}
-        userRole={user?.role || 'GMD'}
-        mode="reload"
-      />
-    );
-  }
   if (status === 'error') return <main className="app-loading error"><img src="/bems-mark.png" alt="BEMS Group"/><p>Could not reach the BEMS Group API. Confirm the backend is running on port 4001.</p><button onClick={retryLoad}>Retry →</button></main>;
-  if(addingBusiness) return <Onboarding onCancel={businesses.length?()=>setAddingBusiness(false):undefined} onComplete={complete}/>;
-  if(businesses.length===0) return <Onboarding onComplete={complete}/>;
+  if (addingBusiness) return <Onboarding onCancel={businesses.length?()=>setAddingBusiness(false):undefined} onComplete={complete}/>;
+  if (businesses.length === 0 && authStatus === 'signed-in') return <Onboarding onComplete={complete}/>;
   return <AppWorkspace user={user as AuthUser} onSignOut={signOut} onAddBusiness={()=>setAddingBusiness(true)} businesses={businesses} currentId={currentId||businesses[0].id} setCurrentId={setCurrentId} onUpdateBusiness={updateBusiness}/>;
 }

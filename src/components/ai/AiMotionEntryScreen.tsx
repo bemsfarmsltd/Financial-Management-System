@@ -99,6 +99,7 @@ export function AiMotionEntryScreen({
   return (
     <div
       className="ai-executive-motion-screen"
+      onClick={handleProceed}
       style={{
         position: 'fixed',
         inset: 0,
@@ -114,6 +115,7 @@ export function AiMotionEntryScreen({
         opacity: isFadingOut ? 0 : 1,
         transform: isFadingOut ? 'scale(1.02)' : 'scale(1)',
         transition: 'opacity 0.35s ease, transform 0.35s ease',
+        cursor: 'pointer',
         userSelect: 'none',
       }}
     >
@@ -249,10 +251,36 @@ export function AiMotionEntryScreen({
             </button>
           </div>
         ) : (
-          <div style={{ marginTop: '20px' }}>
-            <span style={{ fontSize: '11px', color: '#a8a29e', fontWeight: 500 }}>
-              Entering cockpit... click anywhere or press Enter to skip
-            </span>
+          <div style={{ marginTop: '22px' }}>
+            <button
+              type="button"
+              onClick={handleProceed}
+              style={{
+                background: 'rgba(28, 25, 23, 0.05)',
+                color: '#57534e',
+                border: '1px solid rgba(28, 25, 23, 0.1)',
+                borderRadius: '999px',
+                padding: '8px 20px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(28, 25, 23, 0.08)';
+                e.currentTarget.style.color = '#1c1917';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(28, 25, 23, 0.05)';
+                e.currentTarget.style.color = '#57534e';
+              }}
+            >
+              <span>Entering Cockpit · Click or press Enter to skip</span>
+              <ArrowRight size={13} />
+            </button>
           </div>
         )}
       </div>
