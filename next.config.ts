@@ -12,6 +12,14 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  async rewrites() {
+    return [
+      { source: '/api/v1/fund-requests', destination: '/api/requests' },
+      { source: '/api/v1/fund-requests/:id', destination: '/api/requests/:id' },
+      { source: '/api/v1/approvals/pending', destination: '/api/approvals' },
+      { source: '/api/v1/:path*', destination: '/api/:path*' },
+    ];
+  },
 };
 
 export default nextConfig;

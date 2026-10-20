@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee } from '@/lib/auth';
+import { stageAction } from '@/lib/staged-actions';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -111,6 +112,45 @@ export async function POST(req: NextRequest) {
             balance: formatNaira(b.balance),
           })),
         };
+      }
+    } else if (
+      normalized.startsWith('approve') ||
+      normalized.includes('stage approval') ||
+      normalized.includes('authorize request')
+    ) {
+      const matched = pendingRequests.find((r) =>
+        normalized.includes(r.requestNumber.toLowerCase()) || normalized.includes(r.id.toLowerCase())
+      ) || pendingRequests[0];
+
+      if (matched && actor) {
+        const staged = await stageAction({
+          userId: actor.id,
+          actionType: 'approval_decision',
+          materialPayload: {
+            request_id: matched.id,
+            request_number: matched.requestNumber,
+            decision: 'APPROVE',
+            reason: 'Authorized via AI Copilot',
+            amount_minor: Number(matched.amountMinor),
+          },
+          summary: `Authorize disbursement for ${matched.requestNumber} (${matched.title}) — ₦${(Number(matched.amountMinor) / 100).toLocaleString()}`,
+          preview: {
+            request_number: matched.requestNumber,
+            title: matched.title,
+            amount: `₦${(Number(matched.amountMinor) / 100).toLocaleString()}`,
+            requester: matched.requester?.legalName || 'Staff',
+            decision_to_apply: 'APPROVE',
+            reason: 'Executive authorization',
+          },
+        });
+
+        reply = `I have staged the executive authorization for **${matched.requestNumber}** (**₦${(Number(matched.amountMinor) / 100).toLocaleString()}**). In accordance with the BEMS Staged-Action security policy, no write has been committed yet.\n\nPlease review the cryptographic preview card below and click **Authorize & Execute Action** to commit the decision to the ledger.`;
+        actionCard = {
+          type: 'STAGED_ACTION',
+          ...staged,
+        };
+      } else {
+        reply = `There are currently no pending requests requiring approval. The queue is all clear!`;
       }
     } else if (
       normalized.includes('approval') ||

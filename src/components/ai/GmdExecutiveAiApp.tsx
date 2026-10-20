@@ -27,6 +27,7 @@ interface ChatMessage {
   content: string;
   timestamp: string;
   actionCard?: any;
+  stagedAction?: any;
 }
 
 interface ChatSession {
@@ -65,7 +66,66 @@ export function GmdExecutiveAiApp({
   const [inputPrompt, setInputPrompt] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [actionResults, setActionResults] = useState<Record<string, { status: 'EXECUTED' | 'CANCELLED' | 'ERROR'; message: string; recordId?: string }>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleConfirmStagedAction = async (action: any) => {
+    const actionId = action.id || action.staged_action_id;
+    setConfirmingId(actionId);
+    try {
+      const res = await fetch(`/api/ai/staged-actions/${actionId}/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation_hash: action.confirmation_hash }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setActionResults((prev) => ({
+          ...prev,
+          [actionId]: {
+            status: 'EXECUTED',
+            message: `Committed to ledger. Audit ID: ${data.audit_event_id}`,
+            recordId: data.record_id,
+          },
+        }));
+      } else {
+        setActionResults((prev) => ({
+          ...prev,
+          [actionId]: {
+            status: 'ERROR',
+            message: data.message || 'Confirmation failed.',
+          },
+        }));
+      }
+    } catch (err: any) {
+      setActionResults((prev) => ({
+        ...prev,
+        [actionId]: {
+          status: 'ERROR',
+          message: err.message || 'Execution network error.',
+        },
+      }));
+    } finally {
+      setConfirmingId(null);
+    }
+  };
+
+  const handleCancelStagedAction = async (action: any) => {
+    const actionId = action.id || action.staged_action_id;
+    try {
+      await fetch(`/api/ai/staged-actions/${actionId}/cancel`, { method: 'POST' });
+      setActionResults((prev) => ({
+        ...prev,
+        [actionId]: {
+          status: 'CANCELLED',
+          message: 'This staged action was safely discarded.',
+        },
+      }));
+    } catch {
+      // continue
+    }
+  };
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0];
 
@@ -145,6 +205,7 @@ export function GmdExecutiveAiApp({
         content: data.message,
         timestamp: data.timestamp || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
         actionCard: data.actionCard,
+        stagedAction: data.staged_action || (data.actionCard?.type === 'STAGED_ACTION' ? data.actionCard : undefined),
       };
 
       setSessions((prev) =>
@@ -528,6 +589,119 @@ export function GmdExecutiveAiApp({
                           </div>
                         </div>
                       )}
+
+                      {(msg.stagedAction || msg.actionCard?.type === 'STAGED_ACTION') && (() => {
+                        const staged = msg.stagedAction || msg.actionCard;
+                        const actionId = staged.id || staged.staged_action_id;
+                        const result = actionResults[actionId];
+                        const isExecuting = confirmingId === actionId;
+
+                        return (
+                          <div
+                            style={{
+                              background: 'linear-gradient(135deg, #18181b 0%, #09090b 100%)',
+                              border: '1px solid rgba(249, 115, 22, 0.45)',
+                              borderRadius: '12px',
+                              padding: '16px',
+                              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <ShieldCheck size={16} color="#f97316" />
+                                <small style={{ color: '#f97316', fontWeight: 800, letterSpacing: '0.05em' }}>EXECUTIVE STAGED ACTION (UNCOMMITTED)</small>
+                              </div>
+                              <span style={{ fontSize: '10px', fontFamily: 'monospace', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px' }}>
+                                {actionId}
+                              </span>
+                            </div>
+
+                            <h4 style={{ margin: '0 0 10px', color: '#f8fafc', fontSize: '15px', fontWeight: 700 }}>
+                              {staged.summary}
+                            </h4>
+
+                            {staged.warnings && staged.warnings.length > 0 && (
+                              <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '8px', padding: '8px 12px', marginBottom: '12px', fontSize: '12px', color: '#f59e0b' }}>
+                                ⚠️ {staged.warnings.join(' ')}
+                              </div>
+                            )}
+
+                            {staged.preview && (
+                              <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '10px 12px', marginBottom: '14px', border: '1px solid rgba(255,255,255,0.05)', fontSize: '12px' }}>
+                                <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 700, marginBottom: '6px' }}>BEFORE / AFTER PREVIEW:</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                                  {Object.entries(staged.preview).map(([k, v]) => (
+                                    typeof v !== 'object' && (
+                                      <div key={k}>
+                                        <span style={{ color: '#64748b', fontSize: '10px', textTransform: 'uppercase' }}>{k.replace(/_/g, ' ')}</span>
+                                        <div style={{ color: '#f8fafc', fontWeight: 600 }}>{String(v)}</div>
+                                      </div>
+                                    )
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {result?.status === 'EXECUTED' ? (
+                              <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontSize: '13px', fontWeight: 700 }}>
+                                <CheckCircle2 size={16} />
+                                <span>Action executed & audited successfully ({result.recordId || actionId}).</span>
+                              </div>
+                            ) : result?.status === 'CANCELLED' ? (
+                              <div style={{ color: '#94a3b8', fontSize: '12px', fontStyle: 'italic' }}>
+                                ✕ This staged action was discarded.
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                <button
+                                  onClick={() => handleConfirmStagedAction(staged)}
+                                  disabled={isExecuting}
+                                  style={{
+                                    flex: 1,
+                                    padding: '10px 16px',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    color: '#ffffff',
+                                    fontSize: '13px',
+                                    fontWeight: 800,
+                                    cursor: isExecuting ? 'not-allowed' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                                  }}
+                                >
+                                  <CheckCircle2 size={15} />
+                                  <span>{isExecuting ? 'Verifying & Executing...' : 'Authorize & Execute Action'}</span>
+                                </button>
+                                <button
+                                  onClick={() => handleCancelStagedAction(staged)}
+                                  disabled={isExecuting}
+                                  style={{
+                                    padding: '10px 16px',
+                                    borderRadius: '8px',
+                                    border: '1px solid rgba(255,255,255,0.15)',
+                                    background: 'rgba(255,255,255,0.04)',
+                                    color: '#94a3b8',
+                                    fontSize: '13px',
+                                    cursor: isExecuting ? 'not-allowed' : 'pointer',
+                                  }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
+
+                            {result?.status === 'ERROR' && (
+                              <div style={{ marginTop: '8px', color: '#ef4444', fontSize: '12px' }}>
+                                ⚠️ {result.message}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

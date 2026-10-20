@@ -607,3 +607,26 @@ model OutboundNotification {
   createdAt  DateTime @default(now())
 }
 
+model StagedAction {
+  id               String    @id // sa_[uuid]
+  userId           String    // ID of GMD or SYSTEM_ADMIN
+  actionType       String    // budget | approval_decision | payment_record | salary_change | payment_recorder
+  confirmationHash String    // sha256:...
+  payload          String    // JSON string of material input parameters
+  summary          String
+  previewJson      String    // JSON string of before-and-after preview
+  warnings         String?   // JSON array of strings
+  blockingErrors   String?   // JSON array of strings
+  status           String    @default("PENDING") // PENDING | EXECUTED | CANCELLED | EXPIRED
+  expiresAt        DateTime  // CreatedAt + 15 minutes
+  executedAt       DateTime?
+  idempotencyKey   String?   // X-Correlation-Id / Idempotency-Key
+  resultJson       String?   // JSON string of committed record read-back
+  auditEventId     String?
+  createdAt        DateTime  @default(now())
+
+  @@index([userId, status])
+  @@index([expiresAt])
+  @@index([idempotencyKey])
+}
+
