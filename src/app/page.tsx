@@ -1940,16 +1940,14 @@ export default function Home() {
     setAuthStatus('signed-in');
   };
   const signOut=()=>{
-    authRequest('/api/auth/logout').then(()=>{
-      setUser(null);
-      window.dispatchEvent(new Event('bems-session-changed'));
-      setAuthStatus('signed-out');
-      setBusinesses([]);
-      setCurrentId('');
-      setAddingBusiness(false);
-      setShowAiEntry(true);
-      setEntryMode('login');
-    });
+    setShowAiEntry(false);
+    setUser(null);
+    setAuthStatus('signed-out');
+    setBusinesses([]);
+    setCurrentId('');
+    setAddingBusiness(false);
+    window.dispatchEvent(new Event('bems-session-changed'));
+    authRequest('/api/auth/logout').catch(err => console.error('Logout error:', err));
   };
 
   const complete=(data:OnboardingData)=>{
@@ -1990,7 +1988,12 @@ export default function Home() {
     return updated;
   });
 
-  // 1. Immediately show AI Dynamic Motion Screen on reload or login
+  // 1. If signed out, take user directly to Login Page (AuthGate) without any animation
+  if (authStatus === 'signed-out' || (!user && authStatus !== 'checking' && !showAiEntry)) {
+    return <AuthGate onAuthed={onAuthed} />;
+  }
+
+  // 2. Show AI Dynamic Motion Screen on reload or fresh login
   if (showAiEntry) {
     return (
       <AiMotionEntryScreen
@@ -2004,7 +2007,7 @@ export default function Home() {
     );
   }
 
-  // 2. Auth gating once dynamic motion screen completes or is dismissed
+  // 3. Auth checking indicator
   if (authStatus === 'checking') {
     return (
       <main className="app-loading" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b1220' }}>
@@ -2012,7 +2015,7 @@ export default function Home() {
       </main>
     );
   }
-  if (authStatus === 'signed-out' || !user) return <AuthGate onAuthed={onAuthed} />;
+  if (!user) return <AuthGate onAuthed={onAuthed} />;
   if (status === 'error') return <main className="app-loading error"><img src="/bems-mark.png" alt="BEMS Group"/><p>Could not reach the BEMS Group API. Confirm the backend is running on port 4001.</p><button onClick={retryLoad}>Retry →</button></main>;
   if (addingBusiness) return <Onboarding onCancel={businesses.length?()=>setAddingBusiness(false):undefined} onComplete={complete}/>;
   if (businesses.length === 0 && authStatus === 'signed-in') return <Onboarding onComplete={complete}/>;
