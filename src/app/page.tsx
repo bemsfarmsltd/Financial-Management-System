@@ -2095,7 +2095,9 @@ export default function Home() {
       })
       .catch(() => { setUser(null); setAuthStatus('signed-out'); });
   };
-  useEffect(checkAuth,[]);
+  useEffect(() => {
+    checkAuth();
+  }, []);
 
   const fetchBusinesses=()=>{
     fetch('/api/organizations')
@@ -2122,12 +2124,19 @@ export default function Home() {
     setEntryMode('login');
     setShowAiEntry(true);
     window.dispatchEvent(new Event('bems-session-changed'));
-    setStatus('loading');
+    setStatus('ready');
     setAuthStatus('signed-in');
   };
   const signOut=()=>{
     authRequest('/api/auth/logout').then(()=>{
-      setUser(null); window.dispatchEvent(new Event('bems-session-changed')); setAuthStatus('signed-out'); setBusinesses([]); setCurrentId(''); setAddingBusiness(false);
+      setUser(null);
+      window.dispatchEvent(new Event('bems-session-changed'));
+      setAuthStatus('signed-out');
+      setBusinesses([]);
+      setCurrentId('');
+      setAddingBusiness(false);
+      setShowAiEntry(true);
+      setEntryMode('login');
     });
   };
 
@@ -2147,17 +2156,58 @@ export default function Home() {
     return updated;
   });
 
-  if (authStatus === 'checking') return <AiMotionEntryScreen onComplete={() => {}} mode="reload" />;
+  if (authStatus === 'checking') {
+    return (
+      <main
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#f5f2eb',
+          fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
+          color: '#1c1917',
+        }}
+      >
+        <img
+          src="/bems-mark.png"
+          alt="BEMS Group"
+          style={{ width: 44, height: 44, marginBottom: 14, objectFit: 'contain' }}
+        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ea580c', display: 'inline-block' }} />
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#78716c' }}>
+            BEMS GROUP · INITIALIZING COCKPIT
+          </span>
+        </div>
+      </main>
+    );
+  }
   if (authStatus === 'signed-out') return <AuthGate onAuthed={onAuthed} />;
-  if (status === 'loading' || showAiEntry) {
+  if (showAiEntry) {
     const currentBiz = businesses.find(b => b.id === currentId) || businesses[0];
     return (
       <AiMotionEntryScreen
+        key={`ai-entry-${entryMode}-${user?.id || 'user'}`}
         onComplete={() => setShowAiEntry(false)}
         businessName={currentBiz?.name || 'BEMS Group'}
         userName={user?.fullName || 'Dr. Pastra'}
         userRole={user?.role || 'GMD'}
         mode={entryMode}
+      />
+    );
+  }
+  if (status === 'loading') {
+    const currentBiz = businesses.find(b => b.id === currentId) || businesses[0];
+    return (
+      <AiMotionEntryScreen
+        key="ai-entry-loading"
+        onComplete={() => setStatus('ready')}
+        businessName={currentBiz?.name || 'BEMS Group'}
+        userName={user?.fullName || 'Dr. Pastra'}
+        userRole={user?.role || 'GMD'}
+        mode="reload"
       />
     );
   }

@@ -15,7 +15,7 @@ interface Props {
 export function AiMotionEntryScreen({
   onComplete,
   businessName = 'BEMS Group',
-  userName = 'Bems',
+  userName = 'Dr. Pastra',
   userRole = 'GMD',
   mode = 'reload',
 }: Props) {
@@ -23,7 +23,7 @@ export function AiMotionEntryScreen({
   const [isFadingOut, setIsFadingOut] = useState(false);
 
   // When user is GMD, use "Dr. Pastra" as specifically requested
-  const isGmd = userRole === 'GMD' || (userName && userName.toLowerCase().includes('pastra'));
+  const isGmd = userRole === 'GMD' || !userName || userName.toLowerCase().includes('pastra') || userName.toLowerCase().includes('bems') || userName.toLowerCase().includes('henry');
   const displayName = isGmd ? 'Dr. Pastra' : userName;
 
   const financialUpdates = [
