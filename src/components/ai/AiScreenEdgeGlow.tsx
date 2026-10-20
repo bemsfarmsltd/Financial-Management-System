@@ -8,7 +8,7 @@ interface Props {
   lastActivityTime?: number;
 }
 
-export const AI_INACTIVITY_LIMIT_MS = 30 * 1000; // 30 seconds of inactivity
+export const AI_INACTIVITY_LIMIT_MS = 5 * 1000; // 5 seconds of inactivity
 
 /**
  * Utility to notify the screen edge glow that an AI interaction occurred
@@ -50,7 +50,7 @@ export function AiScreenEdgeGlow({ isActive = true, isProcessing = false, lastAc
     return () => window.removeEventListener('bems-ai-interaction', handleInteraction);
   }, []);
 
-  // Check 30-second inactivity countdown
+  // Check 5-second inactivity countdown
   useEffect(() => {
     if (!isActive) return;
 
@@ -67,7 +67,7 @@ export function AiScreenEdgeGlow({ isActive = true, isProcessing = false, lastAc
       }
     };
 
-    const interval = setInterval(checkTimer, 500);
+    const interval = setInterval(checkTimer, 250);
     return () => clearInterval(interval);
   }, [isActive, isProcessing, lastActive]);
 
