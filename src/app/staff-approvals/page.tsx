@@ -19,6 +19,11 @@ type Dept = { id: string; name: string; code: string; organizationId: string };
 
 const ADMIN_ROLES = [
   { value: 'GMD', label: 'GMD — Group Managing Director' },
+  { value: 'COO', label: 'COO — Chief Operating Officer' },
+  { value: 'HEAD_OF_ADMIN', label: 'Head of Administration' },
+  { value: 'FINANCE', label: 'Finance & Treasury Lead' },
+  { value: 'VERIFIER', label: 'Internal Auditor & Compliance Verifier' },
+  { value: 'DEPT_HEAD', label: 'Department Head' },
   { value: 'HR', label: 'HR — Human Resources Lead' },
   { value: 'SYSTEM_ADMIN', label: 'System Administrator' },
   { value: 'STAFF', label: 'Staff Member' },

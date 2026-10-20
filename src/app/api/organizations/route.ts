@@ -17,9 +17,9 @@ export async function GET() {
         code: o.code,
         type: o.type,
         status: o.status === 'ACTIVE' ? 'Live' : 'Setup',
-        industry: o.code === 'BEMS-SOFT' ? 'Software & Cloud Services' : o.code === 'BEMS-LOG' ? 'Logistics & Agribusiness' : 'Group Holding',
-        initials: o.code.replace('BEMS-', '').slice(0, 2) || 'BM',
-        color: o.code === 'BEMS-SOFT' ? '#ea580c' : o.code === 'BEMS-LOG' ? '#0d8a70' : '#0b1220',
+        industry: 'Subsidiary Entity',
+        initials: o.code.replace(/^BEMS-?/, '').slice(0, 2) || o.legalName.slice(0, 2).toUpperCase(),
+        color: '#0d8a70',
         readiness: 100,
       }))
     });

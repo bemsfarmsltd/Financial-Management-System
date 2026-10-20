@@ -5,17 +5,22 @@ import { prisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 const VALID_ROLES = [
-  'GMD',
-  'HR',
   'SYSTEM_ADMIN',
+  'GMD',
+  'COO',
+  'HEAD_OF_ADMIN',
+  'FINANCE',
+  'VERIFIER',
+  'DEPT_HEAD',
+  'HR',
   'STAFF',
 ];
 
 export async function POST(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee();
-    if (!actor || actor.role !== 'SYSTEM_ADMIN') {
-      return NextResponse.json({ error: 'System Admin authorization is required to onboard roles.' }, { status: 403 });
+    if (!actor || !['SYSTEM_ADMIN', 'GMD', 'HR'].includes(actor.role)) {
+      return NextResponse.json({ error: 'Administrative or HR authorization is required to onboard roles.' }, { status: 403 });
     }
 
     const body = await request.json();
