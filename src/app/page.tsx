@@ -103,29 +103,9 @@ type AuthUser = { id: string; email: string; fullName: string; phone: string; em
 
 const defaultBemsBusinesses: Business[] = [
   {
-    id: "bsh-ltd",
-    name: "BemsSoft Hub Ltd",
-    industry: "Financial services",
-    initials: "BS",
-    status: "Live",
-    readiness: 100,
-    color: "#ea580c",
-    aiEnabled: true,
-  },
-  {
-    id: "bems-farms",
-    name: "Bems Farms & Logistics Ltd",
-    industry: "Logistics & delivery",
-    initials: "BF",
-    status: "Live",
-    readiness: 100,
-    color: "#0d8a70",
-    aiEnabled: false,
-  },
-  {
-    id: "bems-group",
-    name: "BEMS Group Holdings Ltd",
-    industry: "Professional services",
+    id: "bems-group-hq",
+    name: "BEMS Group",
+    industry: "Conglomerate & Holding HQ",
     initials: "BG",
     status: "Live",
     readiness: 100,
@@ -651,28 +631,19 @@ function OldOverview({business,user,cases,setActive,setNotice}:{business:Busines
     <div className="welcome-row"><div><p className="kicker">MONDAY, 31 AUGUST</p><h1>Good afternoon, {user.fullName.split(' ')[0]}.</h1><p>Here is what is happening across {business.name}.</p></div><button className="outline-button" onClick={()=>setNotice('Customer preview opened in Test mode.')}>Preview customer experience ↗</button></div>
     <section className="launch-hero"><div><span className="hero-label">ACTIVE SUBSIDIARY · {business.status.toUpperCase()}</span><h2>Financial telemetry & expenditure pipeline</h2><p>Fund requests move through multi-level approval, payment recording with receipt, staff confirmation, and accountability across {business.name}.</p><div className="hero-progress"><i style={{width:'100%'}}/></div><div className="hero-meta"><span>Compliance rate: 100%</span><button onClick={()=>setActive('Fund requests')}>Submit fund request ＋</button></div></div><div className="network-orbit"><i/><i/><i/><strong><img src="/bems-mark.png" alt="BEMS Group"/></strong></div></section>
     <section className="metric-grid">
-      <article style={{cursor:'pointer'}} onClick={()=>setActive('Disbursements')}><span className="metric-symbol blue">₦</span><div><small>DISBURSED MTD</small><strong>₦14,850,000</strong><p>Across 18 approved requests</p></div></article>
-      <article style={{cursor:'pointer'}} onClick={()=>setActive('Approvals desk')}><span className="metric-symbol amber">✓</span><div><small>AWAITING APPROVAL</small><strong>₦4,250,000</strong><p>3 requests pending GMD review</p></div></article>
-      <article style={{cursor:'pointer'}} onClick={()=>setActive('Accountability closure')}><span className="metric-symbol green">◈</span><div><small>ACCOUNTABILITY RATE</small><strong>96.4%</strong><p className="up">↑ 4.2% compliant receipts</p></div></article>
-      <article style={{cursor:'pointer'}} onClick={()=>setActive('Hybrid payroll')}><span className="metric-symbol purple">⌁</span><div><small>PAYROLL RUN-RATE</small><strong className="bill">₦8,920,000</strong><p>70% Tech / 30% Media split</p></div></article>
+      <article style={{cursor:'pointer'}} onClick={()=>setActive('Disbursements')}><span className="metric-symbol blue">₦</span><div><small>DISBURSED MTD</small><strong>₦0</strong><p>0 approved disbursements</p></div></article>
+      <article style={{cursor:'pointer'}} onClick={()=>setActive('Approvals desk')}><span className="metric-symbol amber">✓</span><div><small>AWAITING APPROVAL</small><strong>₦0</strong><p>0 requests pending review</p></div></article>
+      <article style={{cursor:'pointer'}} onClick={()=>setActive('Accountability closure')}><span className="metric-symbol green">◈</span><div><small>ACCOUNTABILITY RATE</small><strong>100%</strong><p className="up">All records clear</p></div></article>
+      <article style={{cursor:'pointer'}} onClick={()=>setActive('Hybrid payroll')}><span className="metric-symbol purple">⌁</span><div><small>PAYROLL RUN-RATE</small><strong className="bill">₦0</strong><p>No active payroll batches</p></div></article>
     </section>
     <div className="overview-grid">
       <section className="card launch-card">
         <div className="card-title"><div><p className="kicker">EXECUTIVE ACTIONS</p><h3>Pending decisions & tasks</h3></div><button onClick={()=>setActive('Approvals desk')}>View all</button></div>
-        {[
-          ['Approve Cloud VPS Hosting (Hostinger)','₦450,000 · Submitted by Henry Nwosu · REQ-2026-0001','Approvals desk'],
-          ['Disbursement Verification: Diesel Supply','₦2,800,000 · TotalEnergies · Transfer reference attached','Disbursements'],
-          ['Accountability Receipt Due: Project Advance','₦1,200,000 · 3 days remaining before closure gate deadline','Accountability closure']
-        ].map((x,i)=><button className="action-row" key={x[0]} onClick={()=>setActive(x[2])}><i>{i+1}</i><div><strong>{x[0]}</strong><span>{x[1]}</span></div><b>→</b></button>)}
+        <div style={{padding:'24px',textAlign:'center',color:'#64748b',fontSize:'12px'}}>No pending executive actions in queue. All pipelines are clear.</div>
       </section>
       <section className="card outcome-card">
-        <div className="card-title"><div><p className="kicker">EXPENDITURE BREAKDOWN</p><h3>MTN Outflows by Category</h3></div><button onClick={()=>setActive('Analytics & BI')}>Analytics</button></div>
-        {[
-          ['Cloud Infrastructure & SaaS','₦6,420,000','43.2%'],
-          ['Diesel & Power Operations','₦4,800,000','32.3%'],
-          ['Vendor & Supplier Invoices','₦2,430,000','16.4%'],
-          ['Employee Petty Cash Advances','₦1,200,000','8.1%']
-        ].map(x=><div className="outcome-row" key={x[0]}><div><strong>{x[0]}</strong><i><b style={{width:x[2]}}/></i></div><span><strong>{x[1]}</strong><small>{x[2]}</small></span></div>)}
+        <div className="card-title"><div><p className="kicker">EXPENDITURE BREAKDOWN</p><h3>Outflows by Category</h3></div><button onClick={()=>setActive('Analytics & BI')}>Analytics</button></div>
+        <div style={{padding:'24px',textAlign:'center',color:'#64748b',fontSize:'12px'}}>No expenditure categorized yet. Categories calculate dynamically as requests are disbursed.</div>
       </section>
     </div>
     <section className="card insight-strip"><span>✦</span><div><p className="kicker">{business.aiEnabled?'AI-ASSISTED INSIGHT':'BEMS GROUP INSIGHT'}</p><strong>Add an investment onboarding service</strong><p>{business.aiEnabled?'Generated by AI from your recent activity. Your selected industry can reduce drop-off by combining identity, document upload, payment and adviser handoff in one journey.':'Your selected industry can reduce drop-off by combining identity, document upload, payment and adviser handoff in one journey.'}</p></div><button onClick={()=>setNotice('Open Templates from the top bar to find, purchase and import this workflow.')}>Available in Templates →</button></section>
@@ -949,13 +920,7 @@ function AuditLogsPage({business,setNotice}:{business:Business;setNotice:(x:stri
 
 type CaseRecord = { id:string; customerName:string; initials:string; channel:string; subject:string; status:'Within SLA'|'At risk'|'Escalated'|'Resolved'; owner:string; slaTarget:string; time:string };
 
-const seedCases:CaseRecord[] = [
-  {id:'HC-4821',customerName:'Amina Okafor',initials:'AO',channel:'WhatsApp',subject:'Payment not confirmed',status:'Within SLA',owner:'Operations',slaTarget:'4 hours',time:'12m'},
-  {id:'HC-4818',customerName:'Bola Ibrahim',initials:'BI',channel:'Web chat',subject:'Card blocked incorrectly',status:'At risk',owner:'Risk team',slaTarget:'4 hours',time:'38m'},
-  {id:'HC-4809',customerName:'Tunde Martins',initials:'TM',channel:'SMS',subject:'Statement request',status:'Within SLA',owner:'Operations',slaTarget:'24 hours',time:'1h'},
-  {id:'HC-4790',customerName:'Nnenna Eze',initials:'NE',channel:'Voice',subject:'Dispute: duplicate charge',status:'Escalated',owner:'Risk team',slaTarget:'2 hours',time:'3h'},
-  {id:'HC-4772',customerName:'Chidi Okoro',initials:'CO',channel:'WhatsApp',subject:'Account reactivation',status:'Resolved',owner:'Operations',slaTarget:'—',time:'Yesterday'},
-];
+const seedCases:CaseRecord[] = [];
 
 type CaseHandlers = { cases:CaseRecord[]; onResolveCase:(id:string)=>void; onAddCase:(input:{customerName:string;subject:string})=>void };
 
@@ -963,7 +928,7 @@ function InboxPage({business,cases,onResolveCase,onAddCase,setNotice}:{business:
   const [activeId,setActiveId]=useState(cases[0]?.id||'');
   const [creating,setCreating]=useState(false);
   const active=cases.find(c=>c.id===activeId)||cases[0];
-  return <><SectionHeader eyebrow="UNIFIED INBOX" title="Customer conversations" text="Handle every channel, assignment, SLA and customer context from one operational desk. Resolving a conversation here also resolves it in Cases & SLAs." action="New conversation" onAction={()=>setCreating(true)}/><div className="detail-inbox"><aside><div className="detail-search">⌕ Search conversations</div>{cases.map(c=><button className={active&&c.id===active.id?'active':''} onClick={()=>setActiveId(c.id)} key={c.id}><span>{c.initials}</span><div><strong>{c.customerName}</strong><p>{c.subject}</p></div><time>{c.time}</time></button>)}</aside><section>{active&&<><header><div><strong>{active.customerName}</strong><span>{active.channel} · Verified customer · Case {active.id}</span></div><button>Assign to me</button><button>•••</button></header><div className="conversation-canvas"><span>TODAY</span><p className="customer-message">{active.subject}</p><p className="agent-message">I found the related transaction. It was successful, and I can resend the receipt now.</p>{active.status==='Resolved'?<div className="context-action off"><b>✓ Case resolved</b><p>This conversation is closed.</p></div>:business.aiEnabled?<div className="context-action"><b>✦ AI-suggested action</b><p>Resend the signed receipt and close case {active.id}.</p><button onClick={()=>{onResolveCase(active.id);setNotice(`${active.id} resolved — also updated in Cases & SLAs.`)}}>Resolve case</button></div>:<div className="context-action off"><b>AI is off for {business.name}</b><p>Enable AI in the AI control centre to get suggested replies and actions here.</p><button onClick={()=>{onResolveCase(active.id);setNotice(`${active.id} resolved — also updated in Cases & SLAs.`)}}>Mark resolved</button></div>}</div><footer><input placeholder="Write a reply or use an approved action…"/><button>Send</button></footer></>}</section><aside className="customer-context">{active&&<><p className="kicker">CUSTOMER CONTEXT</p><div className="profile-dot">{active.initials}</div><h3>{active.customerName}</h3><span>Identity verified</span><dl><dt>Case</dt><dd>{active.id}</dd><dt>Status</dt><dd>{active.status}</dd><dt>Owner</dt><dd>{active.owner}</dd><dt>SLA target</dt><dd>{active.slaTarget}</dd></dl><button>Open full profile</button></>}</aside></div>
+  return <><SectionHeader eyebrow="UNIFIED INBOX" title="Customer conversations" text="Handle every channel, assignment, SLA and customer context from one operational desk. Resolving a conversation here also resolves it in Cases & SLAs." action="New conversation" onAction={()=>setCreating(true)}/><div className="detail-inbox"><aside><div className="detail-search">⌕ Search conversations</div>{cases.length===0?<p style={{padding:'20px',fontSize:'12px',color:'#64748b',textAlign:'center'}}>No conversations recorded yet</p>:cases.map(c=><button className={active&&c.id===active.id?'active':''} onClick={()=>setActiveId(c.id)} key={c.id}><span>{c.initials}</span><div><strong>{c.customerName}</strong><p>{c.subject}</p></div><time>{c.time}</time></button>)}</aside><section>{active?<><header><div><strong>{active.customerName}</strong><span>{active.channel} · Verified customer · Case {active.id}</span></div><button>Assign to me</button><button>•••</button></header><div className="conversation-canvas"><span>TODAY</span><p className="customer-message">{active.subject}</p><p className="agent-message">I found the related transaction. It was successful, and I can resend the receipt now.</p>{active.status==='Resolved'?<div className="context-action off"><b>✓ Case resolved</b><p>This conversation is closed.</p></div>:business.aiEnabled?<div className="context-action"><b>✦ AI-suggested action</b><p>Resend the signed receipt and close case {active.id}.</p><button onClick={()=>{onResolveCase(active.id);setNotice(`${active.id} resolved — also updated in Cases & SLAs.`)}}>Resolve case</button></div>:<div className="context-action off"><b>AI is off for {business.name}</b><p>Enable AI in the AI control centre to get suggested replies and actions here.</p><button onClick={()=>{onResolveCase(active.id);setNotice(`${active.id} resolved — also updated in Cases & SLAs.`)}}>Mark resolved</button></div>}</div><footer><input placeholder="Write a reply or use an approved action…"/><button>Send</button></footer></>:<div style={{display:'grid',placeItems:'center',height:'240px',color:'#64748b',fontSize:'13px'}}>No conversation selected. Click New conversation to begin.</div>}</section><aside className="customer-context">{active?<><p className="kicker">CUSTOMER CONTEXT</p><div className="profile-dot">{active.initials}</div><h3>{active.customerName}</h3><span>Identity verified</span><dl><dt>Case</dt><dd>{active.id}</dd><dt>Status</dt><dd>{active.status}</dd><dt>Owner</dt><dd>{active.owner}</dd><dt>SLA target</dt><dd>{active.slaTarget}</dd></dl><button>Open full profile</button></>:<div style={{padding:'20px',color:'#64748b',fontSize:'12px',textAlign:'center'}}>No active customer selected</div>}</aside></div>
     {creating&&<CreateModal title="Start a new conversation" fields={[{key:'name',label:'Customer name',placeholder:'e.g. Grace Bello'},{key:'message',label:'Opening message',type:'textarea',placeholder:'What would you like to say?'}]} onCancel={()=>setCreating(false)} onSubmit={v=>{onAddCase({customerName:v.name,subject:v.message||'New conversation started'});setCreating(false);setNotice(`Conversation with ${v.name} started — also visible in Cases & SLAs.`)}}/>}
   </>;
 }
@@ -976,24 +941,24 @@ function CasesPage({cases,onResolveCase,onAddCase,setNotice}:{setNotice:(x:strin
   return <>
     <SectionHeader eyebrow="SERVICE OPERATIONS" title="Resolve every issue on time" text="The same cases your team sees in Inbox — resolving one here marks that conversation resolved too." action="Create case" onAction={()=>setCreating(true)}/>
     <div className="module-metrics"><article><span className="metric-symbol blue">◉</span><div><small>OPEN CASES</small><strong>{openCount}</strong><p>Live from Inbox</p></div></article><article><span className="metric-symbol green">↗</span><div><small>WITHIN SLA</small><strong>{withinSlaPct}%</strong><p>Target is 95%</p></div></article><article><span className="metric-symbol purple">◇</span><div><small>ESCALATED</small><strong>{cases.filter(c=>c.status==='Escalated').length}</strong><p>Needs risk team review</p></div></article></div>
-    <section className="card data-register"><div className="table-tools"><div>⌕ Search cases</div><button>Status ⌄</button><button>Export</button></div><div className="register-head"><span>CASE</span><span>STATUS</span><span>OWNER</span><span>SLA TARGET</span><span>TIME</span><span/></div>{cases.map(c=><button className="register-row" key={c.id} onClick={()=>{if(c.status!=='Resolved'){onResolveCase(c.id);setNotice(`${c.id} resolved — also updated in Inbox.`)}}}><span><i>{c.status==='Resolved'?'✓':'!'}</i><strong>{c.id} — {c.subject}</strong><small>{c.customerName} · {c.channel}</small></span><b className={statusClass(c.status)}>{c.status}</b><span>{c.owner}</span><span>{c.slaTarget}</span><span>{c.time}</span><em>{c.status!=='Resolved'?'Resolve →':'✓'}</em></button>)}</section>
+    <section className="card data-register"><div className="table-tools"><div>⌕ Search cases</div><button>Status ⌄</button><button>Export</button></div><div className="register-head"><span>CASE</span><span>STATUS</span><span>OWNER</span><span>SLA TARGET</span><span>TIME</span><span/></div>{cases.length===0?<p style={{padding:'24px',textAlign:'center',color:'#64748b',fontSize:'12px'}}>No service cases recorded yet. Click "Create case" to record an issue.</p>:cases.map(c=><button className="register-row" key={c.id} onClick={()=>{if(c.status!=='Resolved'){onResolveCase(c.id);setNotice(`${c.id} resolved — also updated in Inbox.`)}}}><span><i>{c.status==='Resolved'?'✓':'!'}</i><strong>{c.id} — {c.subject}</strong><small>{c.customerName} · {c.channel}</small></span><b className={statusClass(c.status)}>{c.status}</b><span>{c.owner}</span><span>{c.slaTarget}</span><span>{c.time}</span><em>{c.status!=='Resolved'?'Resolve →':'✓'}</em></button>)}</section>
     {creating&&<CreateModal title="Create case" fields={[{key:'name',label:'Customer name',placeholder:'e.g. Grace Bello'},{key:'subject',label:'Issue',placeholder:'e.g. Refund request'}]} onCancel={()=>setCreating(false)} onSubmit={v=>{onAddCase({customerName:v.name,subject:v.subject||'New case'});setCreating(false);setNotice(`Case created for ${v.name} — also visible in Inbox.`)}}/>}
   </>;
 }
 
 function WorkflowsPage({setNotice}:{setNotice:(x:string)=>void}) {
-  const [rows,setRows]=useState([['Customer payment','v8','WhatsApp · Web','Testing','94%','Henry A.'],['Account enquiries','v12','Web · USSD','Live','99.2%','Chidinma O.'],['Investment onboarding','v3','WhatsApp · Mobile','Draft','—','Henry A.'],['Dispute resolution','v6','All channels','Review','91%','Risk team']]);
+  const [rows,setRows]=useState<string[][]>([]);
   const [creating,setCreating]=useState(false);
-  return <><SectionHeader eyebrow="WORKFLOW ORCHESTRATION" title="Build, govern and publish customer journeys" text="Every workflow has versions, owners, channel coverage, tests, dependencies and approval history." action="Create workflow" onAction={()=>setCreating(true)}/><div className="workflow-detail-grid"><section className="card workflow-register"><div className="table-tools"><div>⌕ Search workflows</div><button>All statuses ⌄</button><button>All owners ⌄</button></div>{rows.map((x,i)=><button className="workflow-record" key={x[0]+i}><span>{['₦','?','↗','◇'][i%4]}</span><div><strong>{x[0]}</strong><small>{x[1]} · Owner: {x[5]}</small></div><p>{x[2]}</p><b className={x[3].toLowerCase()}>{x[3]}</b><em>{x[4]}</em><i>→</i></button>)}</section><aside className="workflow-inspector"><p className="kicker">SELECTED WORKFLOW</p><h3>{rows[0][0]}</h3><p>Collect, verify and confirm a licensed-provider payment.</p><div className="mini-flow"><span>Start</span><i>→</i><span>Identify</span><i>→</i><span>Pay</span><i>→</i><span>Confirm</span></div><dl><dt>Required integrations</dt><dd>Paystack, Customer API</dd><dt>Test coverage</dt><dd>18 of 19 scenarios</dd><dt>Last approval</dt><dd>Chidinma O. · 2 days ago</dd></dl><button>Edit in visual builder</button><button>Run test suite</button></aside></div>
+  return <><SectionHeader eyebrow="WORKFLOW ORCHESTRATION" title="Build, govern and publish customer journeys" text="Every workflow has versions, owners, channel coverage, tests, dependencies and approval history." action="Create workflow" onAction={()=>setCreating(true)}/><div className="workflow-detail-grid"><section className="card workflow-register"><div className="table-tools"><div>⌕ Search workflows</div><button>All statuses ⌄</button><button>All owners ⌄</button></div>{rows.length===0?<p style={{padding:'24px',textAlign:'center',color:'#64748b',fontSize:'12px'}}>No workflows published yet. Click "Create workflow" to build your first flow.</p>:rows.map((x,i)=><button className="workflow-record" key={x[0]+i}><span>{['₦','?','↗','◇'][i%4]}</span><div><strong>{x[0]}</strong><small>{x[1]} · Owner: {x[5]}</small></div><p>{x[2]}</p><b className={x[3].toLowerCase()}>{x[3]}</b><em>{x[4]}</em><i>→</i></button>)}</section><aside className="workflow-inspector"><p className="kicker">SELECTED WORKFLOW</p><h3>{rows[0]?.[0] || 'No workflow selected'}</h3><p>Collect, verify and confirm operations.</p><div className="mini-flow"><span>Start</span><i>→</i><span>Identify</span><i>→</i><span>Pay</span><i>→</i><span>Confirm</span></div><dl><dt>Required integrations</dt><dd>Payment API</dd><dt>Test coverage</dt><dd>0 scenarios</dd><dt>Last approval</dt><dd>—</dd></dl><button onClick={()=>setCreating(true)}>Create workflow</button></aside></div>
     {creating&&<CreateModal title="Create workflow" fields={[{key:'name',label:'Workflow name',placeholder:'e.g. Account closure'},{key:'channels',label:'Channel coverage',placeholder:'e.g. WhatsApp · Web'}]} onCancel={()=>setCreating(false)} onSubmit={v=>{setRows(old=>[[v.name,'v1',v.channels||'Not yet configured','Draft','—','You'],...old]);setCreating(false);setNotice(`${v.name} created as a draft workflow.`)}}/>}
   </>;
 }
 
 function CustomerRecordsPage({name,setNotice}:{name:string;setNotice:(x:string)=>void}) {
-  const [rows,setRows]=useState([['AO','Amina Okafor','Verified','Payment completed','High value','2 min'],['TM','Tunde Martins','Verified','Statement received','Retail','18 min'],['NE','Nnenna Eze','Review','Documents submitted','New customer','31 min'],['BI','Bola Ibrahim','Verified','Appointment changed','Returning','1 hour'],['CO','Chidi Okoro','Expired','Support case opened','At risk','Yesterday']]);
+  const [rows,setRows]=useState<string[][]>([]);
   const [creating,setCreating]=useState(false);
   const noun=name==='Customers'?'customer':'record';
-  return <><SectionHeader eyebrow="CUSTOMER RECORDS" title={name==='Customers'?'Customer directory':name} text="Search verified profiles, consent, activity, segments and open service needs without leaving this business." action={`Add ${noun}`} onAction={()=>setCreating(true)}/><div className="customer-summary"><article><small>TOTAL RECORDS</small><strong>{(12406+rows.length-5).toLocaleString()}</strong><span>↑ 8.4% this quarter</span></article><article><small>VERIFIED</small><strong>8,219</strong><span>66.2% of records</span></article><article><small>ACTIVE THIS MONTH</small><strong>6,841</strong><span>Across 4 channels</span></article><article><small>NEEDS ATTENTION</small><strong>73</strong><span>Reviews or expired consent</span></article></div><section className="card data-register"><div className="table-tools"><div>⌕ Search name, phone or ID</div><button>Segments ⌄</button><button>Verification ⌄</button><button>Export</button></div><div className="register-head"><span>{noun==='customer'?'Customer':'Record'}</span><span>Verification</span><span>Last outcome</span><span>Segment</span><span>Last active</span><span/></div>{rows.map((x,i)=><button className="register-row" key={x[1]+i}><span><i>{x[0]}</i><strong>{x[1]}</strong><small>HC-{['028491','038217','047592','052184','068431'][i%5]}</small></span><b className={x[2].toLowerCase()}>{x[2]}</b><span>{x[3]}</span><span>{x[4]}</span><span>{x[5]}</span><em>→</em></button>)}</section>
+  return <><SectionHeader eyebrow="CUSTOMER RECORDS" title={name==='Customers'?'Customer directory':name} text="Search verified profiles, consent, activity, segments and open service needs without leaving this business." action={`Add ${noun}`} onAction={()=>setCreating(true)}/><div className="customer-summary"><article><small>TOTAL RECORDS</small><strong>{rows.length}</strong><span>Active directory</span></article><article><small>VERIFIED</small><strong>{rows.filter(r=>r[2]==='Verified').length}</strong><span>Verified profiles</span></article><article><small>ACTIVE THIS MONTH</small><strong>{rows.length}</strong><span>Operational records</span></article><article><small>NEEDS ATTENTION</small><strong>0</strong><span>Reviews clear</span></article></div><section className="card data-register"><div className="table-tools"><div>⌕ Search name, phone or ID</div><button>Segments ⌄</button><button>Verification ⌄</button><button>Export</button></div><div className="register-head"><span>{noun==='customer'?'Customer':'Record'}</span><span>Verification</span><span>Last outcome</span><span>Segment</span><span>Last active</span><span/></div>{rows.length===0?<p style={{padding:'24px',textAlign:'center',color:'#64748b',fontSize:'12px'}}>No {noun}s recorded in directory yet. Click "Add {noun}" to register your first record.</p>:rows.map((x,i)=><button className="register-row" key={x[1]+i}><span><i>{x[0]}</i><strong>{x[1]}</strong><small>HC-{['028491','038217','047592','052184','068431'][i%5]}</small></span><b className={x[2].toLowerCase()}>{x[2]}</b><span>{x[3]}</span><span>{x[4]}</span><span>{x[5]}</span><em>→</em></button>)}</section>
     {creating&&<CreateModal title={`Add ${noun}`} fields={[{key:'name',label:'Full name',placeholder:'e.g. Grace Bello'},{key:'segment',label:'Segment',placeholder:'e.g. New customer'}]} onCancel={()=>setCreating(false)} onSubmit={v=>{setRows(old=>[[initialsOf(v.name),v.name,'Review','Just added',v.segment||'New customer','Just now'],...old]);setCreating(false);setNotice(`${v.name} added to ${name==='Customers'?'the customer directory':name.toLowerCase()}.`)}}/>}
   </>;
 }
@@ -1129,7 +1094,7 @@ function StaffMobileViewModule({business,setNotice,onNavigate}:{business:Busines
         <div style={{background:'linear-gradient(135deg, #0b1220 0%, #1e293b 100%)',padding:'18px 20px 14px',color:'#fff',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div>
             <span style={{fontSize:'10px',letterSpacing:'0.1em',color:'rgba(255,255,255,0.7)'}}>{business.name.toUpperCase()}</span>
-            <h4 style={{margin:0,fontSize:'16px'}}>Staff App · Henry Nwosu</h4>
+            <h4 style={{margin:0,fontSize:'16px'}}>Staff App Simulator</h4>
           </div>
           <button style={{background:'rgba(255,255,255,0.15)',border:0,color:'#fff',borderRadius:'8px',padding:'4px 8px',fontSize:'11px'}} onClick={()=>onNavigate('/requests/new')}>＋ New</button>
         </div>
@@ -1137,36 +1102,17 @@ function StaffMobileViewModule({business,setNotice,onNavigate}:{business:Busines
         <div style={{padding:'16px',flex:1,overflowY:'auto',background:'#f6f8fb'}}>
           <div style={{background:'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',color:'#fff',padding:'16px',borderRadius:'16px',marginBottom:'14px',boxShadow:'0 10px 20px rgba(234,88,12,0.2)'}}>
             <span style={{fontSize:'11px',opacity:0.9,color:'#fed7aa'}}>PENDING ACCOUNTABILITY</span>
-            <h3 style={{margin:'4px 0',fontSize:'20px'}}>₦1,200,000</h3>
-            <p style={{margin:0,fontSize:'11px',opacity:0.9,color:'#ffedd5'}}>REQ-2026-0003 Project Advance · 3 days left</p>
-            <button style={{marginTop:'10px',background:'#fff',color:'#ea580c',border:0,borderRadius:'8px',padding:'6px 12px',fontSize:'11px',fontWeight:'700',width:'100%'}} onClick={()=>onNavigate('/accountability')}>Upload Proof Receipt ↗</button>
+            <h3 style={{margin:'4px 0',fontSize:'20px'}}>₦0</h3>
+            <p style={{margin:0,fontSize:'11px',opacity:0.9,color:'#ffedd5'}}>0 pending advances awaiting proof</p>
+            <button style={{marginTop:'10px',background:'#fff',color:'#ea580c',border:0,borderRadius:'8px',padding:'6px 12px',fontSize:'11px',fontWeight:'700',width:'100%'}} onClick={()=>onNavigate('/accountability')}>Go to Accountability Desk ↗</button>
           </div>
 
           <h5 style={{margin:'0 0 10px',fontSize:'13px',color:'var(--navy)'}}>My Active Requests</h5>
           
           <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
-            <div style={{background:'#fff',padding:'12px',borderRadius:'12px',border:'1px solid var(--line)',cursor:'pointer'}} onClick={()=>onNavigate('/requests/REQ-2026-0001')}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <strong style={{fontSize:'12px'}}>Hostinger VPS Renewal</strong>
-                <span style={{fontSize:'10px',padding:'2px 6px',borderRadius:'6px',background:'#fff7ed',color:'#ea580c',fontWeight:'700'}}>SUBMITTED</span>
-              </div>
-              <p style={{margin:'4px 0',fontSize:'11px',color:'var(--muted)'}}>REQ-2026-0001 · ₦450,000</p>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'6px',fontSize:'10px',color:'var(--blue)'}}>
-                <span>💬 4 messages in chat</span>
-                <span>Open channel →</span>
-              </div>
-            </div>
-
-            <div style={{background:'#fff',padding:'12px',borderRadius:'12px',border:'1px solid var(--line)',cursor:'pointer'}} onClick={()=>onNavigate('/requests/REQ-2026-0002')}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <strong style={{fontSize:'12px'}}>Bulk Diesel Supply</strong>
-                <span style={{fontSize:'10px',padding:'2px 6px',borderRadius:'6px',background:'#e7f8ef',color:'#0d8a70',fontWeight:'700'}}>APPROVED</span>
-              </div>
-              <p style={{margin:'4px 0',fontSize:'11px',color:'var(--muted)'}}>REQ-2026-0002 · ₦2,800,000</p>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'6px',fontSize:'10px',color:'var(--blue)'}}>
-                <span>💬 6 messages in chat</span>
-                <span>Open channel →</span>
-              </div>
+            <div style={{background:'#fff',padding:'24px 16px',borderRadius:'12px',border:'1px dashed var(--line)',textAlign:'center'}}>
+              <p style={{margin:0,fontSize:'12px',color:'var(--muted)'}}>No active fund requests submitted yet.</p>
+              <button style={{marginTop:'10px',background:'var(--blue)',color:'#fff',border:0,borderRadius:'6px',padding:'6px 12px',fontSize:'11px',fontWeight:'700'}} onClick={()=>onNavigate('/requests/new')}>＋ Submit First Request</button>
             </div>
           </div>
         </div>
@@ -2082,7 +2028,7 @@ export default function Home() {
   const [user,setUser]=useState<AuthUser|null>(null);
   const [addingBusiness,setAddingBusiness]=useState(false);
   const [businesses,setBusinesses]=useState<Business[]>(defaultBemsBusinesses);
-  const [currentId,setCurrentId]=useState('bsh-ltd');
+  const [currentId,setCurrentId]=useState('bems-group-hq');
   const [status,setStatus]=useState<'loading'|'ready'|'error'>('ready');
   const [showAiEntry, setShowAiEntry] = useState(true);
   const [entryMode, setEntryMode] = useState<'login' | 'reload'>('reload');
@@ -2107,14 +2053,16 @@ export default function Home() {
       .then(d => {
         if (d && d.organizations && d.organizations.length > 0) {
           setBusinesses(d.organizations);
-          const bsh = d.organizations.find((o: any) => o.code === "BEMS-SOFT" || o.name.includes("BemsSoft"));
-          setCurrentId(bsh ? bsh.id : d.organizations[0].id);
+          setCurrentId(d.organizations[0].id);
+        } else {
+          setBusinesses(defaultBemsBusinesses);
+          setCurrentId('bems-group-hq');
         }
         setStatus('ready');
       })
       .catch(() => {
         setBusinesses(defaultBemsBusinesses);
-        setCurrentId('bsh-ltd');
+        setCurrentId('bems-group-hq');
         setStatus('ready');
       });
   };

@@ -31,60 +31,46 @@ export async function GET(req: NextRequest) {
       select: { amountMinor: true }
     });
     const disbursedMinor = disbursed.reduce((acc, d) => acc + Number(d.amountMinor), 0);
-    const mtdOutflow = (disbursedMinor / 100) || 14850000;
+    const mtdOutflow = disbursedMinor / 100;
 
-    const accounts = [
-      {
-        id: 'acc-access-corp',
-        bankName: 'Access Bank PLC',
-        accountName: 'BEMS Group Holdings Ltd · Corporate Main',
-        accountNumber: '0029481029',
-        currency: 'NGN',
-        accountType: 'Corporate Operational',
-        balance: 52400000,
-        balanceFormatted: formatNaira(52400000),
-        status: 'Active',
-        assignedSubsidiary: 'BEMS Group Holdings (HQ)',
-        tier: 'Primary Maker-Checker',
-        dailyLimit: 25000000,
-        dailyLimitFormatted: formatNaira(25000000)
-      },
-      {
-        id: 'acc-zenith-reserve',
-        bankName: 'Zenith Bank PLC',
-        accountName: 'BemsSoft Hub Ltd · Tech & Cloud Reserve',
-        accountNumber: '1018492048',
-        currency: 'NGN',
-        accountType: 'Operating Reserve',
-        balance: 31800000,
-        balanceFormatted: formatNaira(31800000),
-        status: 'Active',
-        assignedSubsidiary: 'BemsSoft Hub Ltd',
-        tier: 'Secondary Operational',
-        dailyLimit: 15000000,
-        dailyLimitFormatted: formatNaira(15000000)
-      },
-      {
-        id: 'acc-providus-settle',
-        bankName: 'Providus Bank PLC',
-        accountName: 'Bems Farms & Logistics Ltd · Logistics Clearing',
-        accountNumber: '5400192837',
-        currency: 'NGN',
-        accountType: 'Settlement & Payroll',
-        balance: 18250000,
-        balanceFormatted: formatNaira(18250000),
-        status: 'Active',
-        assignedSubsidiary: 'Bems Farms & Logistics Ltd',
-        tier: 'Intercompany Clearing',
-        dailyLimit: 20000000,
-        dailyLimitFormatted: formatNaira(20000000)
-      }
-    ];
+    const orgs = await prisma.organization.findMany();
+    const accounts = orgs.length > 0
+      ? orgs.map((o, idx) => ({
+          id: `acc-${o.id}`,
+          bankName: idx === 0 ? 'Access Bank PLC' : 'Zenith Bank PLC',
+          accountName: `${o.legalName} · Corporate Treasury`,
+          accountNumber: `10${String(idx + 1).padStart(2, '0')}82910${idx}`,
+          currency: 'NGN',
+          accountType: 'Corporate Operational',
+          balance: 0,
+          balanceFormatted: formatNaira(0),
+          status: 'Active',
+          assignedSubsidiary: o.legalName,
+          tier: 'Primary Maker-Checker',
+          dailyLimit: 25000000,
+          dailyLimitFormatted: formatNaira(25000000),
+        }))
+      : [
+          {
+            id: 'acc-bems-group',
+            bankName: 'Access Bank PLC',
+            accountName: 'BEMS Group · Group Treasury Float',
+            accountNumber: '0029481029',
+            currency: 'NGN',
+            accountType: 'Corporate Operational',
+            balance: 0,
+            balanceFormatted: formatNaira(0),
+            status: 'Active',
+            assignedSubsidiary: 'BEMS Group (Holding HQ)',
+            tier: 'Primary Maker-Checker',
+            dailyLimit: 25000000,
+            dailyLimitFormatted: formatNaira(25000000),
+          }
+        ];
 
     const totalLiquidReserves = accounts.reduce((acc, a) => acc + a.balance, 0);
-    const uncommittedReserves = totalLiquidReserves - pendingPipeline;
-    const monthlyBurn = mtdOutflow || 15000000;
-    const runwayMonths = (totalLiquidReserves / monthlyBurn).toFixed(1);
+    const uncommittedReserves = Math.max(0, totalLiquidReserves - pendingPipeline);
+    const runwayMonths = totalLiquidReserves > 0 && mtdOutflow > 0 ? (totalLiquidReserves / mtdOutflow).toFixed(1) : '12.0';
 
     return NextResponse.json({
       accounts,
@@ -95,7 +81,7 @@ export async function GET(req: NextRequest) {
         pendingPipelineFormatted: formatNaira(pendingPipeline),
         mtdOutflowFormatted: formatNaira(mtdOutflow),
         runwayMonths: `${runwayMonths} Months`,
-        liquidityHealth: 'Optimal (Tier 1 Buffer)'
+        liquidityHealth: 'Optimal (Clean Slate)'
       }
     });
   } catch (error: any) {

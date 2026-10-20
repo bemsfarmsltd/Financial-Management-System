@@ -41,9 +41,7 @@ interface AppNotification {
 }
 
 const defaultSubsidiaries: Subsidiary[] = [
-  { id: 'bsh-ltd', name: 'BemsSoft Hub Ltd', code: 'BEMS-SOFT', industry: 'Software & Cloud Services', initials: 'BS', color: '#ea580c', status: 'Live' },
-  { id: 'bems-farms', name: 'Bems Farms & Logistics Ltd', code: 'BEMS-LOG', industry: 'Logistics & Agribusiness', initials: 'BF', color: '#0d8a70', status: 'Live' },
-  { id: 'bems-group', name: 'BEMS Group Holdings Ltd', code: 'BEMS-GROUP', industry: 'Group Holding & Management', initials: 'BG', color: '#0b1220', status: 'Live' },
+  { id: 'bems-group-hq', name: 'BEMS Group', code: 'BEMS-GROUP', industry: 'Conglomerate & Holding HQ', initials: 'BG', color: '#0b1220', status: 'Live' },
 ];
 
 export function ConnectAppShell({ children }: { children: React.ReactNode }) {
@@ -51,7 +49,7 @@ export function ConnectAppShell({ children }: { children: React.ReactNode }) {
   const [currentRole] = useState<SystemRole>('GMD');
   const [collapsed, setCollapsed] = useState(false);
   const [subsidiaries, setSubsidiaries] = useState<Subsidiary[]>(defaultSubsidiaries);
-  const [currentSubId, setCurrentSubId] = useState('bsh-ltd');
+  const [currentSubId, setCurrentSubId] = useState('bems-group-hq');
   const [subSwitcherOpen, setSubSwitcherOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -69,8 +67,10 @@ export function ConnectAppShell({ children }: { children: React.ReactNode }) {
       .then(d => {
         if (d && d.organizations && d.organizations.length > 0) {
           setSubsidiaries(d.organizations);
-          const bsh = d.organizations.find((o: any) => o.code === 'BEMS-SOFT' || o.name.includes('BemsSoft'));
-          if (bsh) setCurrentSubId(bsh.id);
+          setCurrentSubId(d.organizations[0].id);
+        } else {
+          setSubsidiaries(defaultSubsidiaries);
+          setCurrentSubId('bems-group-hq');
         }
       })
       .catch(() => {});

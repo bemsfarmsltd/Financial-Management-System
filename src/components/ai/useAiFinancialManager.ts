@@ -43,30 +43,20 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
         if (normalized.includes('brief') || normalized.includes('morning') || normalized.includes('attention') || normalized.includes('what do you have')) {
           const briefingData: BriefingCardData = {
             asOf: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-            totalPendingApprovals: 1,
-            totalPendingMinor: 65000000,
-            unrecordedPayments: 1,
-            unrecordedMinor: 400000000,
+            totalPendingApprovals: 0,
+            totalPendingMinor: 0,
+            unrecordedPayments: 0,
+            unrecordedMinor: 0,
             overdueCasesCount: 0,
-            cashRunwayMonths: '11.4 Months',
-            urgentItems: [
-              {
-                id: 'req-0004',
-                requestNumber: 'REQ-2026-0004',
-                title: 'Microsoft Cloud Developer Licenses Q4',
-                amountNaira: 650000,
-                subsidiaryName: 'BemsSoft Hub Ltd',
-                urgency: 'HIGH',
-                dueInHours: 24,
-              },
-            ],
+            cashRunwayMonths: 'Healthy',
+            urgentItems: [],
           };
 
           const aiReply: AiMessage = {
             id: `ai-${Date.now()}`,
             sender: 'assistant',
             timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-            content: `Here is your executive financial briefing across ${businessName}. There is **1 high-priority requisition** awaiting your sign-off, and all accountability cases currently remain on schedule.`,
+            content: `Here is your executive financial briefing across ${businessName}. All approval queues and accountability cases are currently up-to-date with **0 pending items**.`,
             actionCard: {
               type: 'briefing',
               data: briefingData,
@@ -79,38 +69,11 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
 
         // 2. Request Review / Decision Gate Command
         if (normalized.includes('req-2026') || normalized.includes('approval') || normalized.includes('decide') || normalized.includes('microsoft')) {
-          const decisionData: ApprovalDecisionCardData = {
-            requestId: 'req-2026-0004',
-            requestNumber: 'REQ-2026-0004',
-            title: 'Microsoft Cloud Developer Licenses Q4',
-            subsidiaryName: 'BemsSoft Hub Ltd',
-            requesterName: 'Bems system Admin',
-            category: 'IT_SOFTWARE',
-            amountNaira: 650000,
-            currency: 'NGN',
-            justification: 'Subscription extension for engineering IDEs and cloud telemetry tools required for DevOps deployment.',
-            budgetImpact: {
-              budgetTotal: 25000000,
-              currentSpent: 450000,
-              newTotalAfterApproval: 1100000,
-              headroomPercentage: 95,
-            },
-            policyChecks: [
-              { check: 'Within Tier 2 Financial Authority Cap', passed: true, note: 'Threshold <= ₦2,000,000' },
-              { check: 'Allocated Departmental Budget Available', passed: true, note: '₦23.9M headroom remaining' },
-              { check: 'Approved Corporate Vendor on File', passed: true, note: 'Vendor verified' },
-            ],
-          };
-
           const aiReply: AiMessage = {
             id: `ai-${Date.now()}`,
             sender: 'assistant',
             timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-            content: `I have pulled the complete dossier for **REQ-2026-0004**. The requisition is fully compliant with departmental budget headroom. Please review the preview card below and authorize or clarify as desired:`,
-            actionCard: {
-              type: 'approval_decision',
-              data: decisionData,
-            },
+            content: `There are currently no requisitions pending executive authorization across ${businessName}. When employees submit requests, you will be able to review, approve, or clarify them right here.`,
           };
           setMessages((prev) => [...prev, aiReply]);
           setIsTyping(false);

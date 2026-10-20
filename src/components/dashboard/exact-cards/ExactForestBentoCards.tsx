@@ -11,7 +11,7 @@ interface ExactForestBentoProps {
   allowCreate?: boolean;
 }
 
-export function ExactForestBentoCards({ config, onNavigate, businessName = 'BemsSoft Hub Ltd', allowCreate = true }: ExactForestBentoProps) {
+export function ExactForestBentoCards({ config, onNavigate, businessName = 'BEMS Group', allowCreate = true }: ExactForestBentoProps) {
   const [timerRunning, setTimerRunning] = useState(true);
   const theme = config.theme;
 

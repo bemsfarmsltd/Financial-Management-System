@@ -206,6 +206,9 @@ export function useDynamicDashboardConfig({ role, businessName, subsidiaryId }: 
       const timerValue = oldestPending ? `${String(Math.max(1, 24 - (oldestPending.ageDays * 24))).padStart(2, '0')}:00:00` : '00:00:00';
       const timerSubtitle = oldestPending ? `Action queue: ${oldestPending.requestNumber}` : 'All requests within SLA';
 
+      const transactionsAmount = paidCount > 0 ? String(paidCount) : '0';
+      const transactionsDelta = paidCount > 0 ? `+${paidCount}` : '0';
+
       setConfig({
         ...baseConfig,
         bentoPills,
@@ -219,6 +222,8 @@ export function useDynamicDashboardConfig({ role, businessName, subsidiaryId }: 
         arcSubtitle: `${closedCases} of ${paidCount || reqCount || 0} Cleared`,
         timerValue,
         timerSubtitle,
+        transactionsAmount,
+        transactionsDelta,
       });
     } catch (err) {
       console.error('Error loading live telemetry:', err);

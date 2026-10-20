@@ -56,24 +56,6 @@ export async function GET() {
       }),
     ]);
 
-    const rcMap: Record<string, string> = {
-      'BEMS-SOFT': 'RC-1849201',
-      'BEMS-LOG': 'RC-1729482',
-      'BEMS-GROUP': 'RC-1002938',
-    };
-
-    const locationMap: Record<string, string> = {
-      'BEMS-SOFT': 'Victoria Island, Lagos',
-      'BEMS-LOG': 'Ikeja & Ogun Agribusiness, Lagos',
-      'BEMS-GROUP': 'Ikoyi, Lagos (Group HQ)',
-    };
-
-    const leadMap: Record<string, { name: string; role: string; email: string }> = {
-      'BEMS-SOFT': { name: 'Engr. Tunde Adeleke', role: 'Managing Director / COO - Tech', email: 'tunde.adeleke@bemssoftware.com' },
-      'BEMS-LOG': { name: 'Capt. Niyi Alabi', role: 'Chief Operating Officer - Logistics', email: 'niyi.alabi@bemslogistics.com' },
-      'BEMS-GROUP': { name: 'Henry N. (GMD)', role: 'Group Managing Director & CEO', email: 'gmd@bemsgroup.com' },
-    };
-
     const portfolio = organizations.map((org) => {
       const orgBudgets = budgets.filter((b) => b.organizationId === org.id);
       const totalBudget = orgBudgets.reduce((acc, b) => acc + Number(b.totalAmount), 0);
@@ -97,6 +79,11 @@ export async function GET() {
       const orgDepts = departments
         .filter((d) => d.organizationId === org.id)
         .map((d) => ({ id: d.id, name: d.name, code: d.code }));
+
+      const orgAssignment = assignments.find((a) => a.department.organizationId === org.id);
+      const lead = orgAssignment
+        ? { name: orgAssignment.employee.legalName, role: orgAssignment.role, email: orgAssignment.employee.workEmail }
+        : { name: actor.legalName, role: 'Corporate Lead', email: actor.workEmail };
 
       const recentReqs = orgRequests.slice(0, 5).map((r) => ({
         id: r.id,
@@ -164,12 +151,12 @@ export async function GET() {
         code: org.code,
         type: org.type,
         status: org.status === 'ACTIVE' ? 'Live' : 'Setup',
-        industry: org.code === 'BEMS-SOFT' ? 'Software & Cloud Services' : org.code === 'BEMS-LOG' ? 'Logistics & Agribusiness' : 'Group Holding & Management',
+        industry: org.code.includes('LOG') ? 'Logistics & Agribusiness' : org.code.includes('SOFT') ? 'Software & Cloud Services' : 'Corporate Group Operations',
         initials: org.code.replace('BEMS-', '').slice(0, 2) || 'BM',
-        color: org.code === 'BEMS-SOFT' ? '#ea580c' : org.code === 'BEMS-LOG' ? '#0d8a70' : '#0b1220',
-        rcNumber: rcMap[org.code] || `RC-${Math.floor(1000000 + Math.random() * 9000000)}`,
-        headquarters: locationMap[org.code] || 'Lagos, Nigeria',
-        lead: leadMap[org.code] || { name: 'Subsidiary Director', role: 'Business Unit Head', email: `lead@${org.code.toLowerCase()}.bemsgroup.com` },
+        color: '#ea580c',
+        rcNumber: 'RC-REGISTERED',
+        headquarters: 'Lagos, Nigeria',
+        lead,
         headcount: actualHeadcount,
         budget: totalBudget,
         spent: totalSpent,

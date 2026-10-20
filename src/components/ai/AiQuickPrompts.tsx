@@ -11,11 +11,11 @@ interface Props {
 export function AiQuickPrompts({ currentPage, onSelectPrompt }: Props) {
   const defaultPrompts = [
     { label: 'Executive Daily Brief', prompt: 'Good morning, what needs my financial attention today?' },
-    { label: 'Review REQ-2026-0004', prompt: 'Review and decide on REQ-2026-0004 (Microsoft Cloud Licenses)' },
+    { label: 'Pending Approvals Check', prompt: 'Check all pending fund requests and approval queues' },
     { label: 'Simulate Cash Runway', prompt: 'Run a what-if scenario on our liquid reserves and monthly burn rate' },
-    { label: 'Draft Q1 Tech Budget', prompt: 'Draft a ₦25 million Q1 2027 operational budget for BemsSoft Hub Ltd' },
+    { label: 'Simulate Operational Budget', prompt: 'Draft a proposed operational budget for group subsidiaries' },
     { label: 'Audit Accountability', prompt: 'Check all open accountability cases and highlight overdue receipts' },
-    { label: 'Adjust Staff Salary', prompt: 'Prepare a proposed salary adjustment for Engr. Tunde Adeleke' },
+    { label: 'Audit Staff Compensation', prompt: 'Review group staff compensation and dual-entity allocation' },
   ];
 
   return (

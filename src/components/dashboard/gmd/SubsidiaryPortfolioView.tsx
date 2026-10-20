@@ -499,7 +499,7 @@ export function SubsidiaryPortfolioView({
               color: '#334155',
             }}
           >
-            <option value="ALL">All Companies ({data?.portfolio.length || 3} Entities)</option>
+            <option value="ALL">All Companies ({data?.portfolio?.length || 0} Entities)</option>
             {data?.portfolio.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -576,8 +576,8 @@ export function SubsidiaryPortfolioView({
           <div style={{ fontSize: '19px', fontWeight: '800', color: '#0f172a', marginBottom: '2px', letterSpacing: '-0.02em' }}>
             {summary.totalCompanies} Active
           </div>
-          <div style={{ fontSize: '10px', color: '#10b981', fontWeight: '600' }}>
-            ● 100% Operations Live
+          <div style={{ fontSize: '10px', color: summary.totalCompanies > 0 ? '#10b981' : '#64748b', fontWeight: '600' }}>
+            ● {summary.totalCompanies > 0 ? '100% Operations Live' : 'No subsidiaries added'}
           </div>
         </div>
 
@@ -601,7 +601,7 @@ export function SubsidiaryPortfolioView({
             {summary.totalGroupHeadcount} Employees
           </div>
           <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '500' }}>
-            Software (14) · Logistics (32) · HQ (6)
+            {summary.totalGroupHeadcount > 0 ? `${summary.totalGroupHeadcount} Registered Staff` : 'No staff profiles registered yet'}
           </div>
         </div>
 
@@ -670,10 +670,67 @@ export function SubsidiaryPortfolioView({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))',
+            gridTemplateColumns: filteredPortfolio.length > 0 ? 'repeat(auto-fit, minmax(310px, 1fr))' : '1fr',
             gap: '14px',
           }}
         >
+          {filteredPortfolio.length === 0 && (
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '14px',
+                border: '2px dashed #cbd5e1',
+                padding: '48px 24px',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+              }}
+            >
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  background: '#fff7ed',
+                  color: '#ea580c',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: '22px',
+                }}
+              >
+                ▦
+              </div>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '750', color: '#0f172a' }}>
+                No Subsidiaries in Portfolio Yet
+              </h3>
+              <p style={{ margin: 0, fontSize: '13px', color: '#64748b', maxWidth: '420px', lineHeight: 1.5 }}>
+                Register your first company or upload your entity records to start managing budgets, fund requests, and intercompany notes.
+              </p>
+              <button
+                onClick={() => setAddModalOpen(true)}
+                style={{
+                  marginTop: '6px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 18px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(234,88,12,0.3)',
+                }}
+              >
+                <Plus size={14} /> Add First Subsidiary
+              </button>
+            </div>
+          )}
           {filteredPortfolio.map((sub) => {
             return (
               <div
@@ -986,6 +1043,13 @@ export function SubsidiaryPortfolioView({
               </tr>
             </thead>
             <tbody>
+              {filteredPortfolio.length === 0 && (
+                <tr>
+                  <td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                    No companies in portfolio yet. Click "Add Subsidiary" to begin.
+                  </td>
+                </tr>
+              )}
               {filteredPortfolio.map((p) => (
                 <tr
                   key={p.id}
