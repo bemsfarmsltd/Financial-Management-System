@@ -111,9 +111,9 @@ export function AiFinancialManagerDrawer({
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        background: 'rgba(15, 23, 42, 0.28)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
+        background: 'rgba(15, 23, 42, 0.32)',
+        backdropFilter: 'blur(3px)',
+        WebkitBackdropFilter: 'blur(3px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -130,12 +130,12 @@ export function AiFinancialManagerDrawer({
           maxWidth: 'calc(100vw - 32px)',
           height: modalHeight,
           maxHeight: '880px',
-          background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.97) 0%, rgba(248, 250, 252, 0.95) 100%)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          border: '1px solid rgba(226, 232, 240, 0.95)',
+          background: 'rgba(255, 255, 255, 0.52)',
+          backdropFilter: 'blur(28px) saturate(190%)',
+          WebkitBackdropFilter: 'blur(28px) saturate(190%)',
+          border: '1px solid rgba(255, 255, 255, 0.75)',
           borderRadius: '24px',
-          boxShadow: '0 25px 60px rgba(15, 23, 42, 0.14), 0 0 40px rgba(249, 115, 22, 0.06)',
+          boxShadow: '0 30px 90px rgba(0, 0, 0, 0.22), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), 0 0 50px rgba(249, 115, 22, 0.10)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -149,13 +149,13 @@ export function AiFinancialManagerDrawer({
         <div
           style={{
             padding: '16px 22px',
-            background: 'rgba(255, 255, 255, 0.94)',
-            borderBottom: '1px solid #e2e8f0',
+            background: 'rgba(255, 255, 255, 0.35)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.50)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -167,13 +167,13 @@ export function AiFinancialManagerDrawer({
                 </strong>
                 <span
                   style={{
-                    background: '#ecfdf5',
+                    background: 'rgba(16, 185, 129, 0.15)',
                     color: '#047857',
                     fontSize: '9.5px',
                     fontWeight: 800,
                     padding: '2px 8px',
                     borderRadius: '999px',
-                    border: '1px solid #a7f3d0',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
                     textTransform: 'uppercase',
                     letterSpacing: '0.04em',
                   }}
@@ -181,7 +181,7 @@ export function AiFinancialManagerDrawer({
                   Autonomous Active
                 </span>
               </div>
-              <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+              <span style={{ fontSize: '11.5px', color: '#475569', fontWeight: 500 }}>
                 Executive Intelligence, Real-Time Requisition Auditing & Decision Autopilot
               </span>
             </div>
@@ -193,12 +193,13 @@ export function AiFinancialManagerDrawer({
               title={soundEnabled ? 'Mute AI Audio' : 'Enable AI Audio Feedback'}
               onClick={() => setSoundEnabled(!soundEnabled)}
               style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                color: soundEnabled ? '#ea580c' : '#64748b',
+                background: 'rgba(255, 255, 255, 0.55)',
+                border: '1px solid rgba(255, 255, 255, 0.7)',
+                color: soundEnabled ? '#ea580c' : '#475569',
                 padding: '7px',
                 cursor: 'pointer',
                 borderRadius: '8px',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
               }}
             >
               {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
@@ -209,12 +210,13 @@ export function AiFinancialManagerDrawer({
               title={isExpanded ? 'Collapse Cockpit View' : 'Expand to Cockpit View'}
               onClick={() => setIsExpanded(!isExpanded)}
               style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                color: '#475569',
+                background: 'rgba(255, 255, 255, 0.55)',
+                border: '1px solid rgba(255, 255, 255, 0.7)',
+                color: '#334155',
                 padding: '7px',
                 cursor: 'pointer',
                 borderRadius: '8px',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
               }}
             >
               {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
@@ -225,12 +227,13 @@ export function AiFinancialManagerDrawer({
               title="Close Modal (Esc)"
               onClick={onClose}
               style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                color: '#475569',
+                background: 'rgba(255, 255, 255, 0.55)',
+                border: '1px solid rgba(255, 255, 255, 0.7)',
+                color: '#334155',
                 padding: '7px',
                 cursor: 'pointer',
                 borderRadius: '8px',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
               }}
             >
               <X size={16} />
@@ -289,15 +292,17 @@ export function AiFinancialManagerDrawer({
 
                 <div
                   style={{
-                    background: isUser ? 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)' : '#ffffff',
-                    border: isUser ? 'none' : '1px solid #e2e8f0',
+                    background: isUser ? 'linear-gradient(135deg, rgba(234, 88, 12, 0.90) 0%, rgba(249, 115, 22, 0.90) 100%)' : 'rgba(255, 255, 255, 0.60)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    border: isUser ? 'none' : '1px solid rgba(255, 255, 255, 0.85)',
                     borderRadius: isUser ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
                     padding: '12px 16px',
-                    color: isUser ? '#ffffff' : '#1e293b',
+                    color: isUser ? '#ffffff' : '#0f172a',
                     fontSize: '13px',
                     lineHeight: 1.5,
                     maxWidth: isExpanded ? '85%' : '95%',
-                    boxShadow: isUser ? '0 4px 14px rgba(234, 88, 12, 0.25)' : '0 2px 8px rgba(15, 23, 42, 0.04)',
+                    boxShadow: isUser ? '0 4px 14px rgba(234, 88, 12, 0.25)' : '0 4px 16px rgba(15, 23, 42, 0.05)',
                     whiteSpace: 'pre-wrap',
                   }}
                 >
@@ -422,8 +427,8 @@ export function AiFinancialManagerDrawer({
           onSubmit={handleSend}
           style={{
             padding: '14px 18px',
-            background: 'rgba(255, 255, 255, 0.94)',
-            borderTop: '1px solid #e2e8f0',
+            background: 'rgba(255, 255, 255, 0.35)',
+            borderTop: '1px solid rgba(255, 255, 255, 0.50)',
             display: 'flex',
             gap: '10px',
             alignItems: 'center',
@@ -438,14 +443,16 @@ export function AiFinancialManagerDrawer({
             onChange={(e) => setInputText(e.target.value)}
             style={{
               flex: 1,
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
+              background: 'rgba(255, 255, 255, 0.60)',
+              border: '1px solid rgba(255, 255, 255, 0.80)',
               borderRadius: '12px',
               padding: '11px 16px',
               color: '#0f172a',
               fontSize: '13px',
               outline: 'none',
               boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.04)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
             }}
           />
 

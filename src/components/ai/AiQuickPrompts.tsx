@@ -31,30 +31,32 @@ export function AiQuickPrompts({ currentPage, onSelectPrompt }: Props) {
             type="button"
             onClick={() => onSelectPrompt(p.prompt)}
             style={{
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
+              background: 'rgba(255, 255, 255, 0.50)',
+              border: '1px solid rgba(255, 255, 255, 0.70)',
               borderRadius: '20px',
               padding: '5px 12px',
-              color: '#334155',
+              color: '#1e293b',
               fontSize: '11px',
               fontWeight: 600,
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '4px',
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
               transition: 'all 0.15s ease',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#fff7ed';
+              e.currentTarget.style.background = 'rgba(255, 247, 237, 0.85)';
               e.currentTarget.style.borderColor = '#fdba74';
               e.currentTarget.style.color = '#c2410c';
               e.currentTarget.style.transform = 'translateY(-1px)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#ffffff';
-              e.currentTarget.style.borderColor = '#e2e8f0';
-              e.currentTarget.style.color = '#334155';
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.50)';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.70)';
+              e.currentTarget.style.color = '#1e293b';
               e.currentTarget.style.transform = 'translateY(0)';
             }}
           >

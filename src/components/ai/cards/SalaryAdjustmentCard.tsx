@@ -54,11 +54,13 @@ export function SalaryAdjustmentCard({ data, confirmed, cancelled, resultMessage
   return (
     <div
       style={{
-        background: '#ffffff',
-        border: '1px solid #e2e8f0',
+        background: 'rgba(255, 255, 255, 0.65)',
+        border: '1px solid rgba(255, 255, 255, 0.85)',
         borderRadius: '14px',
         padding: '16px',
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.06)',
+        boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
         marginTop: '8px',
         fontSize: '12px',
         color: '#0f172a',

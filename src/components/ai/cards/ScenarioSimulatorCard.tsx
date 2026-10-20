@@ -32,12 +32,14 @@ export function ScenarioSimulatorCard({ data, onApplyRecommendation }: Props) {
   return (
     <div
       style={{
-        background: '#ffffff',
+        background: 'rgba(255, 255, 255, 0.65)',
         borderRadius: '16px',
         padding: '18px',
         color: '#0f172a',
-        border: '1px solid #e2e8f0',
-        boxShadow: '0 4px 20px rgba(15, 23, 42, 0.06)',
+        border: '1px solid rgba(255, 255, 255, 0.85)',
+        boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
         marginTop: '10px',
         fontSize: '12px',
       }}

@@ -22,12 +22,14 @@ export function BriefingActionCard({ data, onNavigate, onSelectAction }: Props) 
   return (
     <div
       style={{
-        background: '#ffffff',
+        background: 'rgba(255, 255, 255, 0.65)',
         borderRadius: '16px',
         padding: '18px',
         color: '#0f172a',
-        border: '1px solid #e2e8f0',
-        boxShadow: '0 4px 20px rgba(15, 23, 42, 0.06)',
+        border: '1px solid rgba(255, 255, 255, 0.85)',
+        boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
         marginTop: '10px',
         fontSize: '12px',
       }}
@@ -59,19 +61,19 @@ export function BriefingActionCard({ data, onNavigate, onSelectAction }: Props) 
 
       {/* Metric Tiles */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '14px' }}>
-        <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '10px', border: '1px solid #e2e8f0' }}>
+        <div style={{ background: 'rgba(255, 255, 255, 0.50)', borderRadius: '10px', padding: '10px', border: '1px solid rgba(255, 255, 255, 0.70)' }}>
           <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Pending Approvals</span>
           <strong style={{ fontSize: '16px', color: '#ea580c', display: 'block', margin: '2px 0' }}>{data.totalPendingApprovals}</strong>
           <small style={{ fontSize: '10px', color: '#64748b' }}>{formatNaira(data.totalPendingMinor / 100)}</small>
         </div>
 
-        <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '10px', border: '1px solid #e2e8f0' }}>
+        <div style={{ background: 'rgba(255, 255, 255, 0.50)', borderRadius: '10px', padding: '10px', border: '1px solid rgba(255, 255, 255, 0.70)' }}>
           <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Unrecorded Payments</span>
           <strong style={{ fontSize: '16px', color: '#0284c7', display: 'block', margin: '2px 0' }}>{data.unrecordedPayments}</strong>
           <small style={{ fontSize: '10px', color: '#64748b' }}>{formatNaira(data.unrecordedMinor / 100)}</small>
         </div>
 
-        <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '10px', border: '1px solid #e2e8f0' }}>
+        <div style={{ background: 'rgba(255, 255, 255, 0.50)', borderRadius: '10px', padding: '10px', border: '1px solid rgba(255, 255, 255, 0.70)' }}>
           <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Accountability</span>
           <strong style={{ fontSize: '16px', color: data.overdueCasesCount > 0 ? '#dc2626' : '#059669', display: 'block', margin: '2px 0' }}>
             {data.overdueCasesCount > 0 ? `${data.overdueCasesCount} Overdue` : 'All Clear'}
@@ -90,8 +92,8 @@ export function BriefingActionCard({ data, onNavigate, onSelectAction }: Props) 
           <div
             key={item.id}
             style={{
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
+              background: 'rgba(255, 255, 255, 0.50)',
+              border: '1px solid rgba(255, 255, 255, 0.70)',
               borderRadius: '10px',
               padding: '10px 12px',
               display: 'flex',
