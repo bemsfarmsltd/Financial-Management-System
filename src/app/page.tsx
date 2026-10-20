@@ -1670,6 +1670,7 @@ function VendorsModule({business,setNotice,onNavigate}:{business:Business;setNot
 }
 
 function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurrentId,onUpdateBusiness}:{user:AuthUser;onSignOut:()=>void;onAddBusiness:()=>void;businesses:Business[];currentId:string;setCurrentId:(value:string)=>void;onUpdateBusiness:(id:string,patch:Partial<Business>)=>Promise<Business>}) {
+  const safeUser: AuthUser = user || { id: 'auth-user', fullName: 'Authorized User', email: '', role: 'GMD' };
   const [active,setActive]=useState('Overview');
   const [collapsed,setCollapsed]=useState(false);
   const [switcher,setSwitcher]=useState(false);
@@ -1697,11 +1698,11 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   const [currentRole, setCurrentRole] = useState<SystemRole>('GMD');
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [activeAiPrompt, setActiveAiPrompt] = useState<string | undefined>(undefined);
-  const isAiAuthorized = currentRole === 'GMD' || (user.role as string) === 'GMD' || (user.role as string) === 'SYSTEM_ADMIN';
+  const isAiAuthorized = currentRole === 'GMD' || (safeUser.role as string) === 'GMD' || (safeUser.role as string) === 'SYSTEM_ADMIN';
 
   const aiManager = useAiFinancialManager({
     userRole: currentRole,
-    userName: user.fullName,
+    userName: safeUser.fullName,
     businessName: current.name,
     businessId: current.id,
     currentPage: active,
@@ -1792,7 +1793,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
         return (
           <SubsidiaryPortfolioView
             businessName={current.name}
-            userName={user.fullName}
+            userName={safeUser.fullName}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -1802,7 +1803,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
         return (
           <FundFlowWorkspace
             businessName={current.name}
-            userName={user.fullName}
+            userName={safeUser.fullName}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -1813,7 +1814,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           <ApprovalsHubView
             initialTab="matrix"
             businessName={current.name}
-            userName={user.fullName}
+            userName={safeUser.fullName}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -1824,7 +1825,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           <ApprovalsHubView
             initialTab="emergency"
             businessName={current.name}
-            userName={user.fullName}
+            userName={safeUser.fullName}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -1835,7 +1836,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           <TreasuryFinanceHubView
             initialTab="disbursements"
             businessName={current.name}
-            userName={user.fullName}
+            userName={safeUser.fullName}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -1846,7 +1847,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           <TreasuryFinanceHubView
             initialTab="treasury"
             businessName={current.name}
-            userName={user.fullName}
+            userName={safeUser.fullName}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -1857,7 +1858,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           <TreasuryFinanceHubView
             initialTab="budgets"
             businessName={current.name}
-            userName={user.fullName}
+            userName={safeUser.fullName}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -1868,7 +1869,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           <TreasuryFinanceHubView
             initialTab="payroll"
             businessName={current.name}
-            userName={user.fullName}
+            userName={safeUser.fullName}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -1879,7 +1880,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           <IntercompanyAuditHubView
             initialTab="notes"
             businessName={current.name}
-            userName={user.fullName}
+            userName={safeUser.fullName}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -1890,7 +1891,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           <IntercompanyAuditHubView
             initialTab="allocation"
             businessName={current.name}
-            userName={user.fullName}
+            userName={safeUser.fullName}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -1901,7 +1902,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           <IntercompanyAuditHubView
             initialTab="audit"
             businessName={current.name}
-            userName={user.fullName}
+            userName={safeUser.fullName}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -1909,10 +1910,10 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
       }
     }
 
-    if(target==='Overview') return <RoleOverviewModule role={currentRole} business={current} user={user} cases={cases} setActive={setActive} setNotice={setNotice} onRoleChange={(r) => setCurrentRole(r)}/>;
+    if(target==='Overview') return <RoleOverviewModule role={currentRole} business={current} user={safeUser} cases={cases} setActive={setActive} setNotice={setNotice} onRoleChange={(r) => setCurrentRole(r)}/>;
     if(target==='Budgets & commitments'||target==='Budget variance audit') { if (typeof window !== 'undefined') window.location.href = '/budgets'; return null; }
     if(target==='Staff mobile view') return <StaffMobileViewModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(target==='Payroll sign-off'||target==='Hybrid payroll') return <PayrollSignOffView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Payroll sign-off'||target==='Hybrid payroll') return <PayrollSignOffView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='HR Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
     if(target==='Executive briefing') return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p)=>setActive(p)}/>;
     if(target==='Subsidiary portfolio') return <Businesses businesses={businesses} current={current} onSelect={selectBusiness} onAdd={onAddBusiness}/>;
@@ -1920,12 +1921,12 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     if(target==='New fund request') { if (typeof window !== 'undefined') window.location.href = '/requests/new'; return null; }
     if(target==='Request channels') return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={(p)=>p==='/requests'?setActive('Fund requests'):window.location.href=p}/>;
     if(target==='Draft requests') return <DraftRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(target==='Approvals desk') return <ApprovalsDeskView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
-    if(target==='Approval matrix') return <ApprovalMatrixView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
-    if(target==='Emergency overrides') return <EmergencyOverridesView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
-    if(target==='Disbursements desk'||target==='Disbursements') return <DisbursementsDeskView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Approvals desk') return <ApprovalsDeskView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Approval matrix') return <ApprovalMatrixView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Emergency overrides') return <EmergencyOverridesView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Disbursements desk'||target==='Disbursements') return <DisbursementsDeskView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='Transfer verification') return <TransferVerificationModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(target==='Treasury accounts') return <TreasuryAccountsView businessName={current.name} userName={user.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Treasury accounts') return <TreasuryAccountsView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='Receipt archive') return <LiveReceiptArchiveModule setNotice={setNotice}/>;
     if(target==='Accountability closure') return <LiveAccountabilityModule setNotice={setNotice}/>;
     if(target==='Proof & deliverables') return <LiveProofDeliverablesModule setNotice={setNotice}/>;
@@ -1963,7 +1964,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
         <div className="top-actions">
           <button className="templates-top" onClick={()=>{setMarketplaceBusinessId(current.id);setMarketplaceOpen(true);setTopPanel(null)}}><span>▤</span><div><strong>Fund Request Desk</strong><small>Instant multi-level flow</small></div><b>New Request ＋</b></button>
           <div className="top-popover-wrap"><button className="top-icon notification" aria-label="Notifications" aria-expanded={topPanel==='notifications'} onClick={()=>setTopPanel(topPanel==='notifications'?null:'notifications')}>♧{!notificationsRead&&<i/>}</button>{topPanel==='notifications'&&<div className={notificationsRead?'top-popover notifications-panel read':'top-popover notifications-panel'}><header><strong>Notifications</strong><button onClick={()=>setTopPanel(null)}>×</button></header><button onClick={()=>{setActive('Setup & launch');setTopPanel(null)}}><span>!</span><div><strong>Finish channel review</strong><small>Required before your first launch</small></div></button><button onClick={()=>{setActive('Test centre');setTopPanel(null)}}><span>✓</span><div><strong>46 tests are passing</strong><small>5 checks still need attention</small></div></button><button onClick={()=>{setActive('Billing & usage');setTopPanel(null)}}><span>₦</span><div><strong>Usage is within estimate</strong><small>66% of this month’s budget</small></div></button><footer onClick={()=>{setNotificationsRead(true);setNotice('All notifications marked as read.');setTopPanel(null)}}>Mark all as read</footer></div>}</div>
-          <div className="top-popover-wrap"><button className="avatar" aria-label="Account menu" aria-expanded={topPanel==='account'} onClick={()=>setTopPanel(topPanel==='account'?null:'account')}>{initialsOf(user.fullName)}</button>{topPanel==='account'&&<div className="top-popover account-panel"><div><span>{initialsOf(user.fullName)}</span><strong>{user.fullName}</strong><small>{user.email}</small></div><button onClick={()=>{setActive('Settings');setTopPanel(null)}}>Account & business settings</button><button onClick={()=>{setActive('Team & access');setTopPanel(null)}}>Team and access</button><button onClick={()=>{setNotice('Help centre opened.');setTopPanel(null)}}>Help centre</button><button onClick={onSignOut}>Sign out</button></div>}</div>
+          <div className="top-popover-wrap"><button className="avatar" aria-label="Account menu" aria-expanded={topPanel==='account'} onClick={()=>setTopPanel(topPanel==='account'?null:'account')}>{initialsOf(safeUser.fullName)}</button>{topPanel==='account'&&<div className="top-popover account-panel"><div><span>{initialsOf(safeUser.fullName)}</span><strong>{safeUser.fullName}</strong><small>{safeUser.email}</small></div><button onClick={()=>{setActive('Settings');setTopPanel(null)}}>Account & business settings</button><button onClick={()=>{setActive('Team & access');setTopPanel(null)}}>Team and access</button><button onClick={()=>{setNotice('Help centre opened.');setTopPanel(null)}}>Help centre</button><button onClick={onSignOut}>Sign out</button></div>}</div>
         </div>
       </header>
       <div className="content">
@@ -1975,8 +1976,8 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
       <AiMotionEntryScreen
         onComplete={() => setSwitching(null)}
         businessName="BEMS Group"
-        userName={user.fullName}
-        userRole={user.role}
+        userName={safeUser.fullName}
+        userRole={safeUser.role}
         mode="reload"
       />
     )}
@@ -1986,7 +1987,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
         <AmbientBottomAiBar
           currentPage={active}
           businessName={current.name}
-          userName={user.fullName}
+          userName={safeUser.fullName}
           userRole={currentRole}
           messages={aiManager.messages}
           isTyping={aiManager.isTyping}
@@ -2004,7 +2005,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
             setActiveAiPrompt(undefined);
           }}
           userRole={currentRole}
-          userName={user.fullName}
+          userName={safeUser.fullName}
           businessName={current.name}
           businessId={current.id}
           currentPage={active}
@@ -2143,9 +2144,16 @@ export default function Home() {
   }
 
   // 2. Auth gating once dynamic motion screen completes or is dismissed
-  if (authStatus === 'signed-out') return <AuthGate onAuthed={onAuthed} />;
+  if (authStatus === 'checking') {
+    return (
+      <main className="app-loading" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b1220' }}>
+        <img src="/bems-mark.png" alt="BEMS Group" style={{ width: 48, height: 48, opacity: 0.8 }} />
+      </main>
+    );
+  }
+  if (authStatus === 'signed-out' || !user) return <AuthGate onAuthed={onAuthed} />;
   if (status === 'error') return <main className="app-loading error"><img src="/bems-mark.png" alt="BEMS Group"/><p>Could not reach the BEMS Group API. Confirm the backend is running on port 4001.</p><button onClick={retryLoad}>Retry →</button></main>;
   if (addingBusiness) return <Onboarding onCancel={businesses.length?()=>setAddingBusiness(false):undefined} onComplete={complete}/>;
   if (businesses.length === 0 && authStatus === 'signed-in') return <Onboarding onComplete={complete}/>;
-  return <AppWorkspace user={user as AuthUser} onSignOut={signOut} onAddBusiness={()=>setAddingBusiness(true)} businesses={businesses} currentId={currentId||businesses[0].id} setCurrentId={setCurrentId} onUpdateBusiness={updateBusiness}/>;
+  return <AppWorkspace user={user} onSignOut={signOut} onAddBusiness={()=>setAddingBusiness(true)} businesses={businesses} currentId={currentId||businesses[0].id} setCurrentId={setCurrentId} onUpdateBusiness={updateBusiness}/>;
 }
