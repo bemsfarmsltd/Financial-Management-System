@@ -368,8 +368,46 @@ const emptyOnboarding: OnboardingData = {
 
 function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
   const [view, setView] = useState<'login' | 'signup' | 'pending' | 'setup'>('login');
-  const [form, setForm] = useState({ fullName: '', email: '', phone: '+234 ', password: '' });
-  const set = (key: keyof typeof form, value: string) => setForm(old => ({ ...old, [key]: value }));
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [signupStep, setSignupStep] = useState(1);
+  const [registeredEmpNumber, setRegisteredEmpNumber] = useState('');
+  const [registeredName, setRegisteredName] = useState('');
+
+  const [signupForm, setSignupForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '+234 ',
+    gender: 'MALE',
+    dateOfBirth: '',
+    residentialAddress: '',
+    cityState: '',
+    subsidiaryId: '',
+    departmentId: '',
+    jobTitle: '',
+    employmentType: 'FULL_TIME',
+    resumptionDate: '',
+    bankName: 'Access Bank Plc',
+    accountNumber: '',
+    accountName: '',
+    nextOfKinName: '',
+    nextOfKinPhone: '+234 ',
+    nextOfKinRelationship: 'Spouse',
+    password: '',
+    agreeTerms: false,
+  });
+
+  const [options, setOptions] = useState<{
+    organizations: { id: string; legalName: string; code: string }[];
+    departments: { id: string; name: string; code: string; organizationId: string }[];
+    banks: string[];
+    employmentTypes: { value: string; label: string }[];
+  }>({
+    organizations: [],
+    departments: [],
+    banks: [],
+    employmentTypes: [],
+  });
+
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [bootstrapSecret, setBootstrapSecret] = useState('');
@@ -378,33 +416,56 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
   const [adminExists, setAdminExists] = useState(false);
   const [devRoles, setDevRoles] = useState<{ role: string; label: string }[]>([]);
   const [devRoleBusy, setDevRoleBusy] = useState('');
-  useEffect(() => { fetch('/api/auth/bootstrap').then(r => r.json()).then(d => { setBootstrapAvailable(Boolean(d.available)); setBootstrapConfigured(Boolean(d.configured)); setAdminExists(Boolean(d.adminExists)); }).catch(() => setBootstrapAvailable(false)); }, []);
-  useEffect(() => { fetch('/api/auth/dev-role').then(r => r.ok ? r.json() : null).then(d => { if (d?.enabled) setDevRoles(d.roles || []); }).catch(() => setDevRoles([])); }, []);
+
+  useEffect(() => {
+    fetch('/api/auth/bootstrap').then(r => r.json()).then(d => { setBootstrapAvailable(Boolean(d.available)); setBootstrapConfigured(Boolean(d.configured)); setAdminExists(Boolean(d.adminExists)); }).catch(() => setBootstrapAvailable(false));
+    fetch('/api/auth/dev-role').then(r => r.ok ? r.json() : null).then(d => { if (d?.enabled) setDevRoles(d.roles || []); }).catch(() => setDevRoles([]));
+    fetch('/api/auth/signup/options').then(r => r.json()).then(d => {
+      if (d && d.organizations) {
+        setOptions(d);
+        if (d.organizations.length > 0) {
+          setSignupForm(prev => ({
+            ...prev,
+            subsidiaryId: prev.subsidiaryId || d.organizations[0].id,
+            bankName: prev.bankName || (d.banks?.[0] || 'Access Bank Plc'),
+          }));
+        }
+      }
+    }).catch(() => {});
+  }, []);
 
   const submitLogin = (e: FormEvent) => {
     e.preventDefault(); setError(''); setBusy(true);
-    authRequest<{ user?: AuthUser; error?: string; pendingApproval?: boolean }>('/api/auth/login', { email: form.email, password: form.password }).then(({ ok, data }) => {
+    authRequest<{ user?: AuthUser; error?: string; pendingApproval?: boolean }>('/api/auth/login', { email: loginForm.email, password: loginForm.password }).then(({ ok, data }) => {
       setBusy(false);
       if (ok && data.user) { onAuthed(data.user); return; }
       setError(data.error || 'Could not sign in.');
     });
   };
+
   const submitSignup = (e: FormEvent) => {
     e.preventDefault(); setError(''); setBusy(true);
-    authRequest<{ user?: AuthUser; error?: string; pendingApproval?: boolean }>('/api/auth/signup', { fullName: form.fullName, email: form.email, phone: form.phone, password: form.password }).then(({ ok, data }) => {
+    authRequest<{ user?: AuthUser; error?: string; pendingApproval?: boolean; employeeNumber?: string }>('/api/auth/signup', signupForm).then(({ ok, data }) => {
       setBusy(false);
-      if (ok && data.pendingApproval) { setView('pending'); return; }
-      setError(data.error || 'Could not create your account.');
+      if (ok && data.pendingApproval) {
+        setRegisteredEmpNumber(data.employeeNumber || '');
+        setRegisteredName(signupForm.fullName);
+        setView('pending');
+        return;
+      }
+      setError(data.error || 'Could not complete staff registration.');
     });
   };
+
   const submitBootstrap = (e: FormEvent) => {
     e.preventDefault(); setError(''); setBusy(true);
-    authRequest<{ user?: AuthUser; error?: string }>('/api/auth/bootstrap', { bootstrapSecret, fullName: form.fullName, email: form.email, password: form.password }).then(({ ok, data }) => {
+    authRequest<{ user?: AuthUser; error?: string }>('/api/auth/bootstrap', { bootstrapSecret, fullName: signupForm.fullName || 'System Admin', email: loginForm.email, password: loginForm.password }).then(({ ok, data }) => {
       setBusy(false);
       if (ok && data.user) { onAuthed(data.user); return; }
       setError(data.error || 'Could not create the first System Admin account.');
     });
   };
+
   const enterDevRole = async (role: string) => {
     setError(''); setDevRoleBusy(role);
     try {
@@ -416,19 +477,38 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
     } finally { setDevRoleBusy(''); }
   };
 
-
+  const filteredDepartments = options.departments.filter(d => !signupForm.subsidiaryId || d.organizationId === signupForm.subsidiaryId);
 
   return <main className="onboarding-shell">
     <section className="onboarding-brand-panel">
       <div className="circuit-art" aria-hidden="true"><i/><i/><i/><i/><i/></div>
       <div className="onboarding-brand"><img src="/bems-mark.png" alt=""/><div><strong>BEMS</strong><span>GROUP</span></div></div>
-      <div className="onboarding-promise"><span>BEMS GROUP EXPENDITURE & ACCOUNTABILITY</span><h1>One secure account for requests, payments, payroll and evidence.</h1><p>Staff requests and company spending stay organized across subsidiaries, with approvals and accountability in one place.</p></div>
-      <div className="trust-list"><span>✓ Staff signup with admin approval</span><span>✓ Secure role-based access</span><span>✓ Auditable request and payment history</span></div>
-      <small>© 2026 BEMS Group Holdings</small>
+      <div className="onboarding-promise">
+        <span>BEMS GROUP EXPENDITURE & ACCOUNTABILITY</span>
+        <h1>Enterprise Expenditure, Requisition & Staff Accountability.</h1>
+        <p>Official corporate registration for all subsidiary staff. Requisitions, bank disbursements, and 72-hour evidence close-outs in one unified ledger.</p>
+      </div>
+      <div className="trust-list">
+        <span>✓ Automated Unique BEMS Staff Identity Number</span>
+        <span>✓ Verified Disbursement Bank Account for Advances</span>
+        <span>✓ 5-Tier Review Ladder & 72h Evidence Compliance</span>
+      </div>
+      <small>© 2026 BEMS Group Holdings Limited</small>
     </section>
+
     <section className="onboarding-main">
-      <header className="onboarding-top"><span>{view==='login'?'Sign in':view==='signup'?'Create staff account':view==='setup'?'Initial admin setup':'Approval pending'}</span></header>
-      <div className="onboarding-progress"><i style={{width: view==='pending'?'100%':'50%'}}/></div>
+      <header className="onboarding-top">
+        <span>
+          {view==='login' ? 'Sign in' : view==='signup' ? `Staff Registration (Step ${signupStep} of 4)` : view==='setup' ? 'Initial admin setup' : 'Registration Complete'}
+        </span>
+      </header>
+
+      <div className="onboarding-progress">
+        <i style={{
+          width: view==='pending' ? '100%' : view==='signup' ? `${(signupStep / 4) * 100}%` : '50%'
+        }}/>
+      </div>
+
       {view==='login' && <form className="journey-card" onSubmit={submitLogin}>
         {!adminExists && bootstrapAvailable && (
           <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '14px 16px', marginBottom: 20 }}>
@@ -459,35 +539,348 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
         )}
         <p className="kicker">WELCOME BACK</p><h2>Sign in to BEMS Group</h2><p className="lead">Sign in with your approved BEMS Group work email.</p>
         <div className="form-grid">
-          <label className="full">Email<input required type="email" value={form.email} onChange={e=>set('email',e.target.value)} placeholder="you@company.com"/></label>
-          <label className="full">Password<input required type="password" value={form.password} onChange={e=>set('password',e.target.value)} placeholder="Your password"/></label>
+          <label className="full">Email<input required type="email" value={loginForm.email} onChange={e=>setLoginForm(old=>({...old, email: e.target.value}))} placeholder="you@company.com"/></label>
+          <label className="full">Password<input required type="password" value={loginForm.password} onChange={e=>setLoginForm(old=>({...old, password: e.target.value}))} placeholder="Your password"/></label>
         </div>
         {error && <p className="auth-error">{error}</p>}
         <footer className="journey-actions"><span/><button className="continue-button" disabled={busy}>{busy?'Signing in…':'Sign in'} <span>→</span></button></footer>
       </form>}
+
       {view==='login' && devRoles.length > 0 && <section className="journey-card" aria-label="Local role access" style={{ marginTop: 18, paddingTop: 18, paddingBottom: 18 }}>
-        <p className="kicker">LOCAL TESTING</p><h2 style={{ fontSize: 18 }}>Open a role directly</h2><p className="lead">Development access only. Choose one of the four workspace roles.</p>
+        <p className="kicker">LOCAL TESTING</p><h2 style={{ fontSize: 18 }}>Open a role directly</h2><p className="lead">Development access only. Choose one of the workspace roles.</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{devRoles.map(({ role, label }) => <button key={role} type="button" className="continue-button" disabled={Boolean(devRoleBusy)} onClick={() => void enterDevRole(role)}>{devRoleBusy === role ? 'Opening…' : label}</button>)}</div>
       </section>}
-      {view==='signup' && <form className="journey-card" onSubmit={submitSignup}>
-        <p className="kicker">CREATE YOUR STAFF ACCOUNT</p><h2>Join BEMS Group</h2><p className="lead">Create your staff account. A System Admin must approve it before you can sign in.</p>
-        <div className="form-grid">
-          <label>Full name<input required value={form.fullName} onChange={e=>set('fullName',e.target.value)} placeholder="Your full name"/></label>
-          <label>Work email<input required type="email" value={form.email} onChange={e=>set('email',e.target.value)} placeholder="you@company.com"/></label>
-          <label>Phone number<input required value={form.phone} onChange={e=>set('phone',e.target.value)}/></label>
-          <label>Create password<input required type="password" minLength={10} value={form.password} onChange={e=>set('password',e.target.value)} placeholder="At least 10 characters"/></label>
-        </div>
-        <label className="check-row"><input required type="checkbox"/> I agree to the Terms of Service and Privacy Notice.</label>
-        {error && <p className="auth-error">{error}</p>}
-        <footer className="journey-actions"><span/><button className="continue-button" disabled={busy}>{busy?'Creating account…':'Continue'} <span>→</span></button></footer>
-      </form>}
+
+      {view==='signup' && (
+        <form className="journey-card" onSubmit={(e) => {
+          e.preventDefault();
+          if (signupStep < 4) {
+            setError('');
+            setSignupStep(signupStep + 1);
+          } else {
+            submitSignup(e);
+          }
+        }}>
+          {signupStep === 1 && (
+            <>
+              <p className="kicker">STEP 1 OF 4 · PERSONAL IDENTITY</p>
+              <h2>Staff Personal Information</h2>
+              <p className="lead">Enter your legal identity details as verified on official records.</p>
+              <div className="form-grid">
+                <label className="full">
+                  Full Legal Name *
+                  <input
+                    required
+                    value={signupForm.fullName}
+                    onChange={e => setSignupForm(old => ({ ...old, fullName: e.target.value }))}
+                    placeholder="e.g. Babatunde Adeleke"
+                  />
+                </label>
+                <label>
+                  Work / Personal Email *
+                  <input
+                    required
+                    type="email"
+                    value={signupForm.email}
+                    onChange={e => setSignupForm(old => ({ ...old, email: e.target.value }))}
+                    placeholder="name@company.com"
+                  />
+                </label>
+                <label>
+                  Phone Number (WhatsApp) *
+                  <input
+                    required
+                    type="tel"
+                    value={signupForm.phone}
+                    onChange={e => setSignupForm(old => ({ ...old, phone: e.target.value }))}
+                    placeholder="+234 803 000 0000"
+                  />
+                </label>
+                <label>
+                  Gender
+                  <select
+                    value={signupForm.gender}
+                    onChange={e => setSignupForm(old => ({ ...old, gender: e.target.value }))}
+                  >
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                    <option value="OTHER">Other / Prefer not to say</option>
+                  </select>
+                </label>
+                <label>
+                  Date of Birth
+                  <input
+                    type="date"
+                    value={signupForm.dateOfBirth}
+                    onChange={e => setSignupForm(old => ({ ...old, dateOfBirth: e.target.value }))}
+                  />
+                </label>
+                <label className="full">
+                  Residential Street Address
+                  <input
+                    value={signupForm.residentialAddress}
+                    onChange={e => setSignupForm(old => ({ ...old, residentialAddress: e.target.value }))}
+                    placeholder="House number, Street, Landmark"
+                  />
+                </label>
+                <label className="full">
+                  City & State of Residence
+                  <input
+                    value={signupForm.cityState}
+                    onChange={e => setSignupForm(old => ({ ...old, cityState: e.target.value }))}
+                    placeholder="e.g. Ikeja, Lagos State"
+                  />
+                </label>
+              </div>
+            </>
+          )}
+
+          {signupStep === 2 && (
+            <>
+              <p className="kicker">STEP 2 OF 4 · CORPORATE PLACEMENT</p>
+              <h2>Subsidiary, Role & Employment Type</h2>
+              <p className="lead">Specify which subsidiary entity and department you are joining.</p>
+              <div className="form-grid">
+                <label className="full">
+                  Subsidiary Entity *
+                  <select
+                    required
+                    value={signupForm.subsidiaryId}
+                    onChange={e => setSignupForm(old => ({ ...old, subsidiaryId: e.target.value }))}
+                  >
+                    {options.organizations.map(org => (
+                      <option key={org.id} value={org.id}>{org.legalName} ({org.code})</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Department
+                  <select
+                    value={signupForm.departmentId}
+                    onChange={e => setSignupForm(old => ({ ...old, departmentId: e.target.value }))}
+                  >
+                    <option value="">General Operations / Unassigned</option>
+                    {filteredDepartments.map(dept => (
+                      <option key={dept.id} value={dept.id}>{dept.name} ({dept.code})</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Employment Type *
+                  <select
+                    value={signupForm.employmentType}
+                    onChange={e => setSignupForm(old => ({ ...old, employmentType: e.target.value }))}
+                  >
+                    {options.employmentTypes.map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="full">
+                  Designation / Operational Role *
+                  <input
+                    required
+                    value={signupForm.jobTitle}
+                    onChange={e => setSignupForm(old => ({ ...old, jobTitle: e.target.value }))}
+                    placeholder="e.g. Farm Operations Lead, Software Developer, Agronomist, Sales Executive"
+                  />
+                </label>
+                <label className="full">
+                  Resumption / Start Date
+                  <input
+                    type="date"
+                    value={signupForm.resumptionDate}
+                    onChange={e => setSignupForm(old => ({ ...old, resumptionDate: e.target.value }))}
+                  />
+                </label>
+              </div>
+            </>
+          )}
+
+          {signupStep === 3 && (
+            <>
+              <p className="kicker">STEP 3 OF 4 · DISBURSEMENT BANKING</p>
+              <h2>Advance & Payout Bank Details</h2>
+              <p className="lead">Approved fund requests and cash advances will be wired directly to this commercial bank account.</p>
+              <div className="form-grid">
+                <label className="full">
+                  Bank Name *
+                  <select
+                    required
+                    value={signupForm.bankName}
+                    onChange={e => setSignupForm(old => ({ ...old, bankName: e.target.value }))}
+                  >
+                    {options.banks.map(bank => (
+                      <option key={bank} value={bank}>{bank}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Account Number (10-Digit NUBAN) *
+                  <input
+                    required
+                    type="text"
+                    maxLength={10}
+                    value={signupForm.accountNumber}
+                    onChange={e => setSignupForm(old => ({ ...old, accountNumber: e.target.value.replace(/\D/g, '') }))}
+                    placeholder="0123456789"
+                  />
+                </label>
+                <label>
+                  Account Holder Name *
+                  <input
+                    required
+                    value={signupForm.accountName}
+                    onChange={e => setSignupForm(old => ({ ...old, accountName: e.target.value }))}
+                    placeholder="Must match your official name"
+                  />
+                </label>
+              </div>
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', marginTop: 14, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                ℹ️ <strong>Direct Bank Disbursement:</strong> Finance disburses all advances and expense reimbursements to this account. Ensure account number and bank match correctly.
+              </div>
+            </>
+          )}
+
+          {signupStep === 4 && (
+            <>
+              <p className="kicker">STEP 4 OF 4 · SECURITY & EMERGENCY</p>
+              <h2>Emergency Contact & Account Password</h2>
+              <p className="lead">Finalize your emergency contact and set up a secure sign-in password.</p>
+              <div className="form-grid">
+                <label>
+                  Next of Kin Full Name
+                  <input
+                    value={signupForm.nextOfKinName}
+                    onChange={e => setSignupForm(old => ({ ...old, nextOfKinName: e.target.value }))}
+                    placeholder="e.g. Funke Adeleke"
+                  />
+                </label>
+                <label>
+                  Next of Kin Phone Number
+                  <input
+                    type="tel"
+                    value={signupForm.nextOfKinPhone}
+                    onChange={e => setSignupForm(old => ({ ...old, nextOfKinPhone: e.target.value }))}
+                    placeholder="+234 802 000 0000"
+                  />
+                </label>
+                <label className="full">
+                  Relationship
+                  <select
+                    value={signupForm.nextOfKinRelationship}
+                    onChange={e => setSignupForm(old => ({ ...old, nextOfKinRelationship: e.target.value }))}
+                  >
+                    <option value="Spouse">Spouse</option>
+                    <option value="Parent">Parent</option>
+                    <option value="Sibling">Sibling</option>
+                    <option value="Child">Child</option>
+                    <option value="Legal Guardian">Legal Guardian</option>
+                  </select>
+                </label>
+                <label className="full">
+                  Account Password *
+                  <input
+                    required
+                    type="password"
+                    minLength={10}
+                    value={signupForm.password}
+                    onChange={e => setSignupForm(old => ({ ...old, password: e.target.value }))}
+                    placeholder="Minimum 10 characters"
+                  />
+                </label>
+              </div>
+              <label className="check-row" style={{ marginTop: 16 }}>
+                <input
+                  required
+                  type="checkbox"
+                  checked={signupForm.agreeTerms}
+                  onChange={e => setSignupForm(old => ({ ...old, agreeTerms: e.target.checked }))}
+                />
+                I agree to the BEMS Group Financial Accountability Policy, 72-Hour Advance Retirement SLA, and Employee Code of Conduct.
+              </label>
+            </>
+          )}
+
+          {error && <p className="auth-error">{error}</p>}
+
+          <footer className="journey-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
+            {signupStep > 1 ? (
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => { setError(''); setSignupStep(signupStep - 1); }}
+                style={{ cursor: 'pointer', padding: '8px 14px', background: 'transparent', border: '1px solid #cbd5e1', borderRadius: 8, color: '#475569', fontSize: 13, fontWeight: 600 }}
+              >
+                ← Back
+              </button>
+            ) : <span />}
+
+            <button className="continue-button" disabled={busy}>
+              {busy ? 'Registering…' : signupStep < 4 ? 'Continue →' : 'Complete Registration & Assign Staff ID →'}
+            </button>
+          </footer>
+        </form>
+      )}
+
       {view==='setup' && <form className="journey-card" onSubmit={submitBootstrap}>
         <p className="kicker">ONE-TIME INITIALIZATION</p><h2>Create the first System Admin</h2><p className="lead">This setup is available only before a System Admin account exists. Keep the setup key private.</p>
-        <div className="form-grid"><label className="full">Setup key<input required type="password" value={bootstrapSecret} onChange={e=>setBootstrapSecret(e.target.value)}/></label><label className="full">Full name<input required value={form.fullName} onChange={e=>set('fullName',e.target.value)}/></label><label className="full">Work email<input required type="email" value={form.email} onChange={e=>set('email',e.target.value)}/></label><label className="full">Password<input required type="password" minLength={12} value={form.password} onChange={e=>set('password',e.target.value)} placeholder="At least 12 characters"/></label></div>
+        <div className="form-grid"><label className="full">Setup key<input required type="password" value={bootstrapSecret} onChange={e=>setBootstrapSecret(e.target.value)}/></label><label className="full">Full name<input required value={signupForm.fullName} onChange={e=>setSignupForm(old=>({...old, fullName: e.target.value}))}/></label><label className="full">Work email<input required type="email" value={loginForm.email} onChange={e=>setLoginForm(old=>({...old, email: e.target.value}))}/></label><label className="full">Password<input required type="password" minLength={12} value={loginForm.password} onChange={e=>setLoginForm(old=>({...old, password: e.target.value}))} placeholder="At least 12 characters"/></label></div>
         {error && <p className="auth-error">{error}</p>}<footer className="journey-actions"><span/><button className="continue-button" disabled={busy}>{busy?'Setting up…':'Create System Admin'} <span>→</span></button></footer>
       </form>}
-      {view==='pending' && <div className="journey-card"><p className="kicker">ACCOUNT REVIEW</p><h2>Signup received</h2><p className="lead">Your staff account is waiting for System Admin approval. You’ll be able to sign in after it’s approved.</p><footer className="journey-actions"><span/><button type="button" className="continue-button" onClick={()=>setView('login')}>Back to sign in</button></footer></div>}
-      {view!=='pending' && <p className="signin-note">{view==='login' ? <>New to BEMS Group? <button onClick={()=>{setError('');setView('signup')}}>Create an account</button></> : <>Already have an account? <button onClick={()=>{setError('');setView('login')}}>Sign in</button></>}</p>}{view==='login' && bootstrapAvailable && <p className="signin-note"><button onClick={()=>{setError('');setView('setup')}}>Set up the first System Admin</button></p>}{view==='login' && !adminExists && !bootstrapConfigured && <p className="signin-note">First-time setup needs <code>BEMS_BOOTSTRAP_SECRET</code> in <code>.env.local</code>.</p>}
+
+      {view==='pending' && (
+        <div className="journey-card" style={{ textAlign: 'center', padding: '32px 24px' }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#dcfce7', color: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24, fontWeight: 900 }}>
+            ✓
+          </div>
+          <p className="kicker" style={{ color: '#ea580c' }}>STAFF REGISTRATION SUBMITTED</p>
+          <h2 style={{ fontSize: 24, margin: '8px 0', color: '#0f172a' }}>Welcome, {registeredName || 'Staff Member'}</h2>
+          <p className="lead" style={{ maxWidth: 440, margin: '0 auto 20px', color: '#64748b', fontSize: 14 }}>
+            Your employee registration dossier, corporate placement, and disbursement bank details have been securely recorded.
+          </p>
+          
+          {registeredEmpNumber && (
+            <div style={{ background: '#f8fafc', border: '1.5px dashed #cbd5e1', borderRadius: 12, padding: '16px 20px', margin: '0 auto 24px', maxWidth: 360 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 4 }}>
+                Assigned Unique Staff Identity
+              </span>
+              <strong style={{ fontSize: 24, fontWeight: 900, color: '#0f172a', letterSpacing: '0.04em', fontFamily: 'monospace' }}>
+                {registeredEmpNumber}
+              </strong>
+              <small style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginTop: 4 }}>
+                Official Group Identification Number
+              </small>
+            </div>
+          )}
+
+          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 16px', margin: '0 auto 24px', maxWidth: 440, textAlign: 'left', fontSize: 13, color: '#92400e', lineHeight: 1.5 }}>
+            <strong>Next Step:</strong> Your registration is now in the review queue for final administrative sign-off. Once verified, you will be able to sign in and submit expenditure requisitions.
+          </div>
+
+          <footer className="journey-actions" style={{ justifyContent: 'center' }}>
+            <button
+              type="button"
+              className="continue-button"
+              onClick={() => { setView('login'); setSignupStep(1); }}
+            >
+              Return to Sign In →
+            </button>
+          </footer>
+        </div>
+      )}
+
+      {view!=='pending' && (
+        <p className="signin-note">
+          {view==='login' ? (
+            <>New to BEMS Group? <button onClick={()=>{ setError(''); setView('signup'); setSignupStep(1); }}>Create staff account</button></>
+          ) : (
+            <>Already have an account? <button onClick={()=>{ setError(''); setView('login'); }}>Sign in</button></>
+          )}
+        </p>
+      )}
+      {view==='login' && bootstrapAvailable && <p className="signin-note"><button onClick={()=>{setError('');setView('setup')}}>Set up the first System Admin</button></p>}
+      {view==='login' && !adminExists && !bootstrapConfigured && <p className="signin-note">First-time setup needs <code>BEMS_BOOTSTRAP_SECRET</code> in <code>.env.local</code>.</p>}
     </section>
   </main>;
 }

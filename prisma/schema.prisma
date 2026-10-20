@@ -65,6 +65,26 @@ model Employee {
   approvalStatus String   @default("APPROVED") // PENDING_APPROVAL | APPROVED | REJECTED
   passwordHash   String?
   avatarUrl      String?
+  
+  // Enhanced Enterprise Dossier
+  gender                String?   // MALE | FEMALE | OTHER
+  dateOfBirth           String?
+  residentialAddress    String?
+  cityState             String?
+  jobTitle              String?
+  employmentType        String?   @default("FULL_TIME") // FULL_TIME | CONTRACT | INTERN | PROBATION | PART_TIME
+  resumptionDate        DateTime? @default(now())
+
+  // Disbursement Banking
+  bankName              String?
+  accountNumber         String?
+  accountName           String?
+
+  // Emergency / Next of Kin
+  nextOfKinName         String?
+  nextOfKinPhone        String?
+  nextOfKinRelationship String?
+
   createdAt      DateTime @default(now())
 
   authSessions   AuthSession[]

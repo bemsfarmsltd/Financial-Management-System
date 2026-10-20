@@ -10,6 +10,19 @@ type PendingSignup = {
   workEmail: string;
   phone: string | null;
   role: string;
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  residentialAddress?: string | null;
+  cityState?: string | null;
+  jobTitle?: string | null;
+  employmentType?: string | null;
+  bankName?: string | null;
+  accountNumber?: string | null;
+  accountName?: string | null;
+  nextOfKinName?: string | null;
+  nextOfKinPhone?: string | null;
+  nextOfKinRelationship?: string | null;
+  assignments?: { subsidiaryId: string; departmentId?: string | null; positionName: string }[];
   createdAt: string;
 };
 
@@ -242,15 +255,27 @@ export function PeopleAccessWorkspaceModule({
                   gap: 16,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 260 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 21, background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>
-                    <UserRound size={20} />
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, minWidth: 320, flex: '1 1 320px' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 22, background: '#ffedd5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ea580c', flexShrink: 0, marginTop: 2 }}>
+                    <UserRound size={22} />
                   </div>
-                  <div>
-                    <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 15 }}>{employee.legalName}</div>
-                    <div style={{ color: '#475569', fontSize: 13 }}>{employee.workEmail}</div>
-                    <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>
-                      {employee.phone || 'No phone'} · Registered {new Date(employee.createdAt).toLocaleDateString('en-GB')}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 800, color: '#0f172a', fontSize: 15.5 }}>{employee.legalName}</span>
+                      <span style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 800, fontFamily: 'monospace', color: '#334155' }}>
+                        {employee.employeeNumber}
+                      </span>
+                    </div>
+                    <div style={{ color: '#475569', fontSize: 13 }}>
+                      <strong>{employee.jobTitle || 'Staff Member'}</strong> · <span style={{ color: '#0284c7', fontWeight: 600 }}>{employee.employmentType || 'FULL_TIME'}</span> · {employee.workEmail}
+                    </div>
+                    {employee.bankName && employee.accountNumber && (
+                      <div style={{ color: '#166534', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, background: '#f0fdf4', padding: '2px 8px', borderRadius: 4, width: 'fit-content', border: '1px solid #bbf7d0' }}>
+                        🏦 {employee.bankName} · {employee.accountNumber} ({employee.accountName || employee.legalName})
+                      </div>
+                    )}
+                    <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 1 }}>
+                      {employee.phone || 'No phone'} · {employee.cityState || 'Location not specified'} · Registered {new Date(employee.createdAt).toLocaleDateString('en-GB')}
                     </div>
                   </div>
                 </div>

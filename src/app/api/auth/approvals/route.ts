@@ -18,6 +18,25 @@ export async function GET() {
         workEmail: true,
         phone: true,
         role: true,
+        gender: true,
+        dateOfBirth: true,
+        residentialAddress: true,
+        cityState: true,
+        jobTitle: true,
+        employmentType: true,
+        bankName: true,
+        accountNumber: true,
+        accountName: true,
+        nextOfKinName: true,
+        nextOfKinPhone: true,
+        nextOfKinRelationship: true,
+        assignments: {
+          select: {
+            subsidiaryId: true,
+            departmentId: true,
+            positionName: true,
+          }
+        },
         createdAt: true,
       },
       orderBy: { createdAt: 'asc' },
@@ -61,8 +80,8 @@ export async function POST(request: Request) {
     }
 
     const approved = decision === 'APPROVE';
-    const officialEmpNum = approved
-      ? `BEMS-${assignedRole.slice(0, 3)}-${Date.now().toString().slice(-4)}`
+    const officialEmpNum = employee.employeeNumber.startsWith('PENDING-')
+      ? (approved ? `BEMS-${assignedRole.slice(0, 3)}-${Date.now().toString().slice(-4)}` : employee.employeeNumber)
       : employee.employeeNumber;
 
     await prisma.$transaction(async (tx) => {
