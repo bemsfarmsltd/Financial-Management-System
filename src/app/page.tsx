@@ -33,6 +33,7 @@ import { AiFinancialManagerDrawer } from "@/components/ai/AiFinancialManagerDraw
 import { AmbientBottomAiBar } from "@/components/ai/AmbientBottomAiBar";
 import { AiScreenEdgeGlow } from "@/components/ai/AiScreenEdgeGlow";
 import { useAiFinancialManager } from "@/components/ai/useAiFinancialManager";
+import { AiMotionEntryScreen } from "@/components/ai/AiMotionEntryScreen";
 
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -2022,7 +2023,13 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
         {content}
       </div>
     </section>
-    {switching&&<div className="workspace-switching"><img src="/bems-mark.png" alt="BEMS Group"/><span>SWITCHING BUSINESS WORKSPACE</span><h2>{switching.name}</h2><p>Loading its channels, services, customers, team, billing and environment…</p><i/></div>}
+    {switching && (
+      <AiMotionEntryScreen
+        onComplete={() => setSwitching(null)}
+        businessName={switching.name}
+        userName={user.fullName}
+      />
+    )}
     {isAiAuthorized && (
       <>
         <AiScreenEdgeGlow isActive={true} isProcessing={aiManager.isTyping} />
@@ -2073,6 +2080,7 @@ export default function Home() {
   const [businesses,setBusinesses]=useState<Business[]>(defaultBemsBusinesses);
   const [currentId,setCurrentId]=useState('bsh-ltd');
   const [status,setStatus]=useState<'loading'|'ready'|'error'>('ready');
+  const [showAiEntry, setShowAiEntry] = useState(true);
 
   const checkAuth=()=>{
     fetch('/api/auth/session', { credentials: 'include' })
@@ -2129,10 +2137,19 @@ export default function Home() {
     return updated;
   });
 
-  if(authStatus==='checking') return <main className="app-loading"><img src="/bems-mark.png" alt="BEMS Group"/><div className="spinner"/><p>Loading BEMS Group…</p></main>;
-  if(authStatus==='signed-out') return <AuthGate onAuthed={onAuthed}/>;
-  if(status==='loading') return <main className="app-loading"><img src="/bems-mark.png" alt="BEMS Group"/><div className="spinner"/><p>Loading your workspace…</p></main>;
-  if(status==='error') return <main className="app-loading error"><img src="/bems-mark.png" alt="BEMS Group"/><p>Could not reach the BEMS Group API. Confirm the backend is running on port 4001.</p><button onClick={retryLoad}>Retry →</button></main>;
+  if (authStatus === 'checking') return <AiMotionEntryScreen onComplete={() => {}} />;
+  if (authStatus === 'signed-out') return <AuthGate onAuthed={onAuthed} />;
+  if (status === 'loading' || showAiEntry) {
+    const currentBiz = businesses.find(b => b.id === currentId) || businesses[0];
+    return (
+      <AiMotionEntryScreen
+        onComplete={() => setShowAiEntry(false)}
+        businessName={currentBiz?.name || 'BEMS Group'}
+        userName={user?.fullName || 'Bems'}
+      />
+    );
+  }
+  if (status === 'error') return <main className="app-loading error"><img src="/bems-mark.png" alt="BEMS Group"/><p>Could not reach the BEMS Group API. Confirm the backend is running on port 4001.</p><button onClick={retryLoad}>Retry →</button></main>;
   if(addingBusiness) return <Onboarding onCancel={businesses.length?()=>setAddingBusiness(false):undefined} onComplete={complete}/>;
   if(businesses.length===0) return <Onboarding onComplete={complete}/>;
   return <AppWorkspace user={user as AuthUser} onSignOut={signOut} onAddBusiness={()=>setAddingBusiness(true)} businesses={businesses} currentId={currentId||businesses[0].id} setCurrentId={setCurrentId} onUpdateBusiness={updateBusiness}/>;
