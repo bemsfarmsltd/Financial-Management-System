@@ -23,6 +23,7 @@ import { BudgetProposalCard } from './cards/BudgetProposalCard';
 import { SalaryAdjustmentCard } from './cards/SalaryAdjustmentCard';
 import { DisbursementRecordCard } from './cards/DisbursementRecordCard';
 import { ScenarioSimulatorCard } from './cards/ScenarioSimulatorCard';
+import { AiMessage } from './types';
 import { KineticAiOrb } from './KineticAiOrb';
 
 interface Props {
@@ -35,6 +36,10 @@ interface Props {
   currentPage: string;
   initialPrompt?: string;
   onNavigate?: (tab: string) => void;
+  sharedMessages?: AiMessage[];
+  sharedIsTyping?: boolean;
+  onSendMessage?: (text: string) => void;
+  onConfirmAction?: (messageId: string, actionType: string, payload: any) => void;
 }
 
 export function AiFinancialManagerDrawer({
@@ -47,6 +52,10 @@ export function AiFinancialManagerDrawer({
   currentPage,
   initialPrompt,
   onNavigate,
+  sharedMessages,
+  sharedIsTyping,
+  onSendMessage,
+  onConfirmAction,
 }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -54,13 +63,18 @@ export function AiFinancialManagerDrawer({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastPromptSentRef = useRef<string | null>(null);
 
-  const { messages, isTyping, sendMessage, handleConfirmAction } = useAiFinancialManager({
+  const internalAi = useAiFinancialManager({
     userRole,
     userName,
     businessName,
     businessId,
     currentPage,
   });
+
+  const messages = sharedMessages || internalAi.messages;
+  const isTyping = sharedIsTyping !== undefined ? sharedIsTyping : internalAi.isTyping;
+  const sendMessage = onSendMessage || internalAi.sendMessage;
+  const handleConfirmAction = onConfirmAction || internalAi.handleConfirmAction;
 
   // If launched with an initial prompt from the ambient HUD, send it automatically
   useEffect(() => {

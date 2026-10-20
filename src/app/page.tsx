@@ -30,7 +30,9 @@ import {
   WorkspaceSettingsModule as LiveWorkspaceSettingsModule,
 } from "@/components/dashboard/gmd/BusinessModules";
 import { AiFinancialManagerDrawer } from "@/components/ai/AiFinancialManagerDrawer";
-import { AmbientAiCopilotHud } from "@/components/ai/AmbientAiCopilotHud";
+import { AmbientBottomAiBar } from "@/components/ai/AmbientBottomAiBar";
+import { AiScreenEdgeGlow } from "@/components/ai/AiScreenEdgeGlow";
+import { useAiFinancialManager } from "@/components/ai/useAiFinancialManager";
 
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -1750,6 +1752,14 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   const [activeAiPrompt, setActiveAiPrompt] = useState<string | undefined>(undefined);
   const isAiAuthorized = currentRole === 'GMD' || (user.role as string) === 'GMD' || (user.role as string) === 'SYSTEM_ADMIN';
 
+  const aiManager = useAiFinancialManager({
+    userRole: currentRole,
+    userName: user.fullName,
+    businessName: current.name,
+    businessId: current.id,
+    currentPage: active,
+  });
+
   const handleOpenAiDrawer = (prompt?: string) => {
     setActiveAiPrompt(prompt);
     setAiDrawerOpen(true);
@@ -2008,14 +2018,6 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
         </div>
       </header>
       <div className="content">
-        {isAiAuthorized && (
-          <AmbientAiCopilotHud
-            currentPage={active}
-            businessName={current.name}
-            onOpenDrawer={handleOpenAiDrawer}
-            pendingCount={1}
-          />
-        )}
         {notices.length>0&&<div className="notice-stack">{notices.map(n=><div className="notice" key={n.id}><span>i</span>{n.message}<button onClick={()=>dismissNotice(n.id)}>×</button></div>)}</div>}
         {content}
       </div>
@@ -2023,6 +2025,21 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     {switching&&<div className="workspace-switching"><img src="/bems-mark.png" alt="BEMS Group"/><span>SWITCHING BUSINESS WORKSPACE</span><h2>{switching.name}</h2><p>Loading its channels, services, customers, team, billing and environment…</p><i/></div>}
     {isAiAuthorized && (
       <>
+        <AiScreenEdgeGlow isActive={true} isProcessing={aiManager.isTyping} />
+        <AmbientBottomAiBar
+          currentPage={active}
+          businessName={current.name}
+          userName={user.fullName}
+          userRole={currentRole}
+          messages={aiManager.messages}
+          isTyping={aiManager.isTyping}
+          onSendMessage={aiManager.sendMessage}
+          onConfirmAction={aiManager.handleConfirmAction}
+          onOpenFullCockpit={handleOpenAiDrawer}
+          onNavigate={(tab) => {
+            openModule(tab);
+          }}
+        />
         <AiFinancialManagerDrawer
           isOpen={aiDrawerOpen}
           onClose={() => {
@@ -2036,9 +2053,13 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           currentPage={active}
           initialPrompt={activeAiPrompt}
           onNavigate={(tab) => {
-            setActive(tab);
+            openModule(tab);
             setAiDrawerOpen(false);
           }}
+          sharedMessages={aiManager.messages}
+          sharedIsTyping={aiManager.isTyping}
+          onSendMessage={aiManager.sendMessage}
+          onConfirmAction={aiManager.handleConfirmAction}
         />
       </>
     )}
