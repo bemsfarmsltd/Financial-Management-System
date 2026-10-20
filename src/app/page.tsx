@@ -2156,40 +2156,12 @@ export default function Home() {
     return updated;
   });
 
-  if (authStatus === 'checking') {
-    return (
-      <main
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#f5f2eb',
-          fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
-          color: '#1c1917',
-        }}
-      >
-        <img
-          src="/bems-mark.png"
-          alt="BEMS Group"
-          style={{ width: 44, height: 44, marginBottom: 14, objectFit: 'contain' }}
-        />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ea580c', display: 'inline-block' }} />
-          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#78716c' }}>
-            BEMS GROUP · INITIALIZING COCKPIT
-          </span>
-        </div>
-      </main>
-    );
-  }
-  if (authStatus === 'signed-out') return <AuthGate onAuthed={onAuthed} />;
+  // 1. Immediately show AI Dynamic Motion Screen on reload or login
   if (showAiEntry) {
     const currentBiz = businesses.find(b => b.id === currentId) || businesses[0];
     return (
       <AiMotionEntryScreen
-        key={`ai-entry-${entryMode}-${user?.id || 'user'}`}
+        key={`ai-entry-${entryMode}-${user?.id || 'active'}`}
         onComplete={() => setShowAiEntry(false)}
         businessName={currentBiz?.name || 'BEMS Group'}
         userName={user?.fullName || 'Dr. Pastra'}
@@ -2198,12 +2170,15 @@ export default function Home() {
       />
     );
   }
-  if (status === 'loading') {
+
+  // 2. Auth gating once AI motion screen finishes or is dismissed
+  if (authStatus === 'signed-out') return <AuthGate onAuthed={onAuthed} />;
+  if (authStatus === 'checking' || status === 'loading') {
     const currentBiz = businesses.find(b => b.id === currentId) || businesses[0];
     return (
       <AiMotionEntryScreen
-        key="ai-entry-loading"
-        onComplete={() => setStatus('ready')}
+        key="ai-entry-checking"
+        onComplete={() => {}}
         businessName={currentBiz?.name || 'BEMS Group'}
         userName={user?.fullName || 'Dr. Pastra'}
         userRole={user?.role || 'GMD'}
