@@ -166,6 +166,7 @@ const gmdNavGroups = [
       ['Fund requests', '▱'],
       ['Approvals & payments', '✓'],
       ['Budgets & commitments', '◫'],
+      ['Treasury accounts', '🏦'],
       ['Recurring commitments', '◌'],
       ['Hybrid payroll', '⌁'],
       ['Intercompany notes', '▥'],
@@ -177,7 +178,7 @@ const gmdNavGroups = [
     label: 'PEOPLE & REPORTS',
     items: [
       ['Staff profiles', '♙'],
-      ['Analytics & BI', '▥'],
+      ['Staff onboarding', '👤'],
       ['Audit logs', '≡'],
       ['Settings', '⚙'],
     ]
@@ -1942,6 +1943,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     if(target==='Notification bridge') return <NotificationBridgeModule business={current} setNotice={setNotice}/>;
     if(target==='Audit logs') return <LiveAuditLogsModule setNotice={setNotice}/>;
     if(target==='Staff profiles') return <LiveStaffProfilesModule setNotice={setNotice}/>;
+    if(target==='Staff onboarding') { if (typeof window !== 'undefined') window.location.href = '/staff-approvals'; return null; }
     if(target==='Team & access') return <TeamAccessPage business={current} setNotice={setNotice}/>;
     if(target==='Security & compliance') return <SecurityCompliancePage name="Security & compliance" setNotice={setNotice}/>;
     if(target==='System configuration') return <ConfigurationCenter setNotice={setNotice}/>;

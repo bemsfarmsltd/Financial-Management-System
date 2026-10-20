@@ -150,10 +150,20 @@ export function ExecutiveBriefingClient({
   const [budgetsList, setBudgetsList] = useState<BudgetItem[]>(initialBudgets);
   const [casesList, setCasesList] = useState<AccountabilityCaseItem[]>(initialCases);
   const [disbList, setDisbList] = useState<DisbursementItem[]>(initialDisbursements);
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
 
   useEffect(() => {
+    fetch('/api/treasury')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d && Array.isArray(d.accounts)) {
+          setBankAccounts(d.accounts);
+        }
+      })
+      .catch(() => {});
+
     if (initialOrgs.length === 0 && initialRequests.length === 0) {
       fetch('/api/briefing')
         .then((r) => r.json())
@@ -932,100 +942,107 @@ export function ExecutiveBriefingClient({
 
       {/* SECTION 3: BANK ACCOUNTS */}
       <div style={{ marginBottom: '28px' }}>
-        <h2 style={{ fontSize: '16px', color: 'var(--navy)', margin: '0 0 2px', fontWeight: '800' }}>
-          Company Bank Accounts
-        </h2>
-        <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--muted)' }}>
-          Current balances in our primary bank accounts.
-        </p>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '14px' }}>
-          {/* Account 1 */}
-          <div
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <div>
+            <h2 style={{ fontSize: '16px', color: 'var(--navy)', margin: '0 0 2px', fontWeight: '800' }}>
+              Company Bank Accounts
+            </h2>
+            <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
+              Current balances in our primary bank accounts.
+            </p>
+          </div>
+          <button
+            onClick={() => router.push('/?tab=Treasury+accounts')}
             style={{
-              background: '#fff',
+              padding: '6px 12px',
+              borderRadius: '6px',
               border: '1px solid var(--line)',
-              borderRadius: '14px',
-              padding: '18px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
+              background: '#fff',
+              fontSize: '11px',
+              fontWeight: 700,
+              color: 'var(--orange, #ea580c)',
+              cursor: 'pointer'
             }}
           >
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--blue)', background: '#eff6ff', padding: '2px 7px', borderRadius: '5px' }}>
-                  Operations Account
-                </span>
-                <span style={{ fontSize: '11px', color: '#059669', fontWeight: '600' }}>● Active</span>
-              </div>
-              <h3 style={{ margin: '0 0 2px', fontSize: '15px', color: 'var(--navy)', fontWeight: '800' }}>
-                Access Bank
-              </h3>
-              <p style={{ margin: '0 0 14px', fontSize: '11px', color: 'var(--muted)' }}>
-                Account: 012894**** · Daily expenses & supplier payouts
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-              <div>
-                <small style={{ color: 'var(--muted)', fontSize: '10px' }}>AVAILABLE BALANCE</small>
-                <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--navy)' }}>
-                  ₦52,800,000
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <small style={{ color: 'var(--muted)', fontSize: '10px' }}>SET ASIDE FOR PAYMENTS</small>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: '#d97706' }}>
-                  ₦4,350,000
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Account 2 */}
-          <div
-            style={{
-              background: '#fff',
-              border: '1px solid var(--line)',
-              borderRadius: '14px',
-              padding: '18px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '10px', fontWeight: '700', color: '#6366f1', background: '#eef2ff', padding: '2px 7px', borderRadius: '5px' }}>
-                  Reserve Account
-                </span>
-                <span style={{ fontSize: '11px', color: '#059669', fontWeight: '600' }}>● High Yield</span>
-              </div>
-              <h3 style={{ margin: '0 0 2px', fontSize: '15px', color: 'var(--navy)', fontWeight: '800' }}>
-                Zenith Bank
-              </h3>
-              <p style={{ margin: '0 0 14px', fontSize: '11px', color: 'var(--muted)' }}>
-                Account: 101492**** · Company reserves & major projects
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-              <div>
-                <small style={{ color: 'var(--muted)', fontSize: '10px' }}>AVAILABLE BALANCE</small>
-                <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--navy)' }}>
-                  ₦31,400,000
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <small style={{ color: 'var(--muted)', fontSize: '10px' }}>MINIMUM TARGET</small>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: '#059669' }}>
-                  ₦10,000,000
-                </div>
-              </div>
-            </div>
-          </div>
+            ＋ Add / Manage Bank Accounts
+          </button>
         </div>
+
+        {bankAccounts.length === 0 ? (
+          <div style={{
+            background: '#fff',
+            border: '1px dashed var(--line)',
+            borderRadius: '12px',
+            padding: '28px 20px',
+            textAlign: 'center'
+          }}>
+            <p style={{ margin: '0 0 10px', fontSize: '13px', color: 'var(--muted)' }}>
+              No company bank accounts configured yet.
+            </p>
+            <button
+              onClick={() => router.push('/?tab=Treasury+accounts')}
+              style={{
+                padding: '7px 14px',
+                borderRadius: '6px',
+                border: 'none',
+                background: '#ea580c',
+                color: '#fff',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              ＋ Add Bank Account in Treasury
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '14px' }}>
+            {bankAccounts.map((acc) => (
+              <div
+                key={acc.id}
+                style={{
+                  background: '#fff',
+                  border: '1px solid var(--line)',
+                  borderRadius: '14px',
+                  padding: '18px 20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--blue)', background: '#eff6ff', padding: '2px 7px', borderRadius: '5px' }}>
+                      {acc.accountType}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#059669', fontWeight: '600' }}>● {acc.status || 'Active'}</span>
+                  </div>
+                  <h3 style={{ margin: '0 0 2px', fontSize: '15px', color: 'var(--navy)', fontWeight: '800' }}>
+                    {acc.bankName}
+                  </h3>
+                  <p style={{ margin: '0 0 14px', fontSize: '11px', color: 'var(--muted)' }}>
+                    Account: {acc.accountNumber} · {acc.accountName}
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+                  <div>
+                    <small style={{ color: 'var(--muted)', fontSize: '10px' }}>AVAILABLE BALANCE</small>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--navy)' }}>
+                      {acc.balanceFormatted}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <small style={{ color: 'var(--muted)', fontSize: '10px' }}>DAILY LIMIT</small>
+                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#ea580c' }}>
+                      {acc.dailyLimitFormatted}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* SECTION 4: DELIVERABLES & PROOFS */}
