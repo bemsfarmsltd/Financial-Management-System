@@ -5,10 +5,8 @@ import { prisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 const roleOptions = [
-  { role: 'STAFF', label: 'Staff', employeeNumber: 'LOCAL-DEMO-STAFF', legalName: 'Local Staff Test Account', workEmail: 'staff.local@demo.invalid' },
-  { role: 'GMD', label: 'GMD', employeeNumber: 'LOCAL-DEMO-GMD', legalName: 'Local GMD Test Account', workEmail: 'gmd.local@demo.invalid' },
-  { role: 'HR', label: 'HR', employeeNumber: 'LOCAL-DEMO-HR', legalName: 'Local HR Test Account', workEmail: 'hr.local@demo.invalid' },
-  { role: 'SYSTEM_ADMIN', label: 'System Admin', employeeNumber: 'LOCAL-DEMO-SYSTEM-ADMIN', legalName: 'Local System Admin Test Account', workEmail: 'system-admin.local@demo.invalid' },
+  { role: 'GMD', label: 'GMD (Executive Command)', employeeNumber: 'LOCAL-DEMO-GMD', legalName: 'GMD Executive', workEmail: 'gmd@bemsgroup.com' },
+  { role: 'SYSTEM_ADMIN', label: 'System Admin (Shared Command)', employeeNumber: 'LOCAL-DEMO-SYSTEM-ADMIN', legalName: 'Bems system Admin', workEmail: 'bemssofthubltd@gmail.com' },
 ];
 
 export async function GET() {
@@ -22,7 +20,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const role = typeof body.role === 'string' ? body.role : '';
     const option = roleOptions.find(item => item.role === role);
-    if (!option) return NextResponse.json({ error: 'Choose one of the four local test roles.' }, { status: 400 });
+    if (!option) return NextResponse.json({ error: 'Choose GMD or System Admin.' }, { status: 400 });
     let employee = await prisma.employee.findFirst({
       where: { role, status: 'ACTIVE', approvalStatus: 'APPROVED' },
       orderBy: { employeeNumber: 'asc' },

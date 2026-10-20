@@ -4,8 +4,8 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   const actor = await getAuthenticatedEmployee();
-  if (!actor || actor.role !== 'SYSTEM_ADMIN') {
-    return NextResponse.json({ error: 'System Admin access required.' }, { status: 403 });
+  if (!actor || !['SYSTEM_ADMIN', 'GMD'].includes(actor.role)) {
+    return NextResponse.json({ error: 'Executive or System Admin access required.' }, { status: 403 });
   }
 
   const [employees, organizations, departments] = await Promise.all([
@@ -37,8 +37,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const actor = await getAuthenticatedEmployee();
-  if (!actor || actor.role !== 'SYSTEM_ADMIN') {
-    return NextResponse.json({ error: 'System Admin access required.' }, { status: 403 });
+  if (!actor || !['SYSTEM_ADMIN', 'GMD'].includes(actor.role)) {
+    return NextResponse.json({ error: 'Executive or System Admin access required.' }, { status: 403 });
   }
 
   try {

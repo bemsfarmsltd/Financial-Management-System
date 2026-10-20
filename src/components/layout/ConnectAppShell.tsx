@@ -152,7 +152,7 @@ export function ConnectAppShell({ children }: { children: React.ReactNode }) {
   ];
 
   const sysAdminNav = [
-    { label: 'ADMINISTRATION & PEOPLE', items: [['Overview', '/', '⌂'], ['Staff Signup Approvals', '/staff-approvals', '✓']] },
+    { label: 'ADMINISTRATION & PEOPLE', items: [['Overview', '/', '⌂'], ['Staff Signup Approvals', '/?tab=Staff+onboarding', '✓']] },
     { label: 'GOVERNANCE & AUDIT', items: [['Audit Trail', '/audit', '≡'], ['Approval Policies', '/approvals', '⚙'], ['Vendors & Registry', '/vendors', '▦']] },
   ];
 

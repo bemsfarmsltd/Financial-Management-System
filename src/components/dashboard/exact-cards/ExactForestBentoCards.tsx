@@ -340,9 +340,7 @@ export function ExactForestBentoCards({ config, onNavigate, businessName = 'BEMS
               {config.teamTitle}
             </h3>
             <button
-              onClick={() => {
-                if (typeof window !== 'undefined') window.location.href = '/staff-approvals';
-              }}
+              onClick={() => onNavigate('Staff onboarding')}
               style={{
                 border: '1px solid #cbd5e1',
                 background: '#ffffff',

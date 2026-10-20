@@ -34,6 +34,7 @@ import { AmbientBottomAiBar } from "@/components/ai/AmbientBottomAiBar";
 import { AiScreenEdgeGlow, notifyAiInteraction } from "@/components/ai/AiScreenEdgeGlow";
 import { useAiFinancialManager } from "@/components/ai/useAiFinancialManager";
 import { AiMotionEntryScreen } from "@/components/ai/AiMotionEntryScreen";
+import { PeopleAccessWorkspaceModule } from "@/components/dashboard/gmd/PeopleAccessWorkspaceModule";
 
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -133,7 +134,7 @@ const goalPresets: Record<string, string[]> = {
 const defaultGoals = ['Answer customer questions', 'Collect information', 'Process payments', 'Book appointments', 'Send notifications', 'Handle support cases'];
 
 
-type SystemRole = 'GMD' | 'COO' | 'HR' | 'Auditor' | 'Staff';
+type SystemRole = 'GMD' | 'SYSTEM_ADMIN';
 
 interface RoleProfile {
   role: SystemRole;
@@ -144,11 +145,8 @@ interface RoleProfile {
 }
 
 const roleProfiles: Record<SystemRole, RoleProfile> = {
-  GMD: { role: 'GMD', title: 'Group Managing Director', badge: 'Super Executive', platform: 'Web (Full) & Mobile', avatarColor: '#ea580c' },
-  COO: { role: 'COO', title: 'Chief Operating Officer', badge: 'Operations Lead', platform: 'Web Dashboard', avatarColor: '#f97316' },
-  HR: { role: 'HR', title: 'Human Resources Lead', badge: 'People & Payroll', platform: 'Web Dashboard', avatarColor: '#7158de' },
-  Auditor: { role: 'Auditor', title: 'Internal Auditor & Compliance', badge: 'Accountability Gate', platform: 'Web Dashboard', avatarColor: '#0d8a70' },
-  Staff: { role: 'Staff', title: 'General Staff / Requester', badge: 'Requester', platform: 'Mobile App View', avatarColor: '#a76400' },
+  GMD: { role: 'GMD', title: 'Group Managing Director', badge: 'Super Executive', platform: 'Executive Command Center', avatarColor: '#ea580c' },
+  SYSTEM_ADMIN: { role: 'SYSTEM_ADMIN', title: 'System Administrator', badge: 'Super Executive', platform: 'Executive Command Center', avatarColor: '#ea580c' },
 };
 
 const gmdNavGroups = [
@@ -185,118 +183,10 @@ const gmdNavGroups = [
   },
 ];
 
-const cooNavGroups = [
-  {
-    label: 'OPERATIONS WORKSPACE',
-    items: [
-      ['Overview', '⌂'],
-      ['Fund requests', '▱'],
-      ['Request channels', '◎'],
-    ]
-  },
-  {
-    label: 'OPERATIONAL APPROVALS',
-    items: [
-      ['Approvals desk', '✓'],
-      ['Approval matrix', '☷'],
-    ]
-  },
-  {
-    label: 'TREASURY & PAYMENTS',
-    items: [
-      ['Budgets & commitments', '◫'],
-      ['Disbursements desk', '₦'],
-      ['Transfer verification', '✓'],
-      ['Receipt archive', '▣'],
-    ]
-  },
-  {
-    label: 'PROCUREMENT & VENDORS',
-    items: [
-      ['Vendors & suppliers', '▦'],
-      ['Price benchmarks', '◫'],
-      ['Recurring commitments', '◌'],
-      ['Notification bridge', '◉'],
-    ]
-  },
-];
-
-const hrNavGroups = [
-  {
-    label: 'PEOPLE & HR',
-    items: [
-      ['Overview', '⌂'],
-      ['Team & access', '♙'],
-      ['HR Fund requests', '▱'],
-    ]
-  },
-  {
-    label: 'PAYROLL (NO TAX)',
-    items: [
-      ['Hybrid payroll', '⌁'],
-      ['Cost allocation rules', '▥'],
-      ['Intercompany notes', '₦'],
-    ]
-  },
-  {
-    label: 'STAFF DIRECTORY',
-    items: [
-      ['Staff profiles', '◎'],
-      ['Welfare requests', '▤'],
-    ]
-  },
-  {
-    label: 'GOVERNANCE',
-    items: [
-      ['Audit logs', '≡'],
-      ['Settings', '⚙'],
-    ]
-  },
-];
-
-const auditorNavGroups = [
-  {
-    label: 'AUDIT & ACCOUNTABILITY',
-    items: [
-      ['Overview', '⌂'],
-      ['Accountability closure', '◈'],
-      ['Proof & deliverables', '▤'],
-      ['Closure clearances', '✓'],
-      ['Follow-up tasks', '◇'],
-    ]
-  },
-  {
-    label: 'COMPLIANCE AUDIT',
-    items: [
-      ['Audit logs', '≡'],
-      ['Budget variance audit', '◫'],
-      ['Price benchmarks', '◫'],
-      ['Receipt archive', '▣'],
-      ['Security & compliance', '⌾'],
-    ]
-  },
-];
-
-const staffNavGroups = [
-  {
-    label: 'STAFF MOBILE EXPERIENCE',
-    items: [
-      ['Staff mobile view', '📱'],
-      ['Fund requests', '▱'],
-      ['New fund request', '＋'],
-      ['Request channels', '◎'],
-      ['Proof & deliverables', '▤'],
-    ]
-  },
-];
-
-function getRoleNavigation(role: SystemRole) {
-  if (role === 'GMD') return gmdNavGroups;
-  if (role === 'COO') return cooNavGroups;
-  if (role === 'HR') return hrNavGroups;
-  if (role === 'Auditor') return auditorNavGroups;
-  return staffNavGroups;
+function getRoleNavigation(_role?: SystemRole) {
+  return gmdNavGroups;
 }
+
 
 
 const capabilities = [
@@ -1087,46 +977,6 @@ function RoleOverviewModule({role,business,user,cases,setActive,setNotice,onRole
   );
 }
 
-function StaffMobileViewModule({business,setNotice,onNavigate}:{business:Business;setNotice:(x:string)=>void;onNavigate:(p:string)=>void}) {
-  return <>
-    <SectionHeader eyebrow="STAFF MOBILE APP INTERFACE" title="Staff Requester App Simulator" text="Interactive simulator showing how employees submit requests, discuss in channel chats, and clear advances on mobile." action="Submit New Request" onAction={()=>onNavigate('/requests/new')}/>
-    <div style={{display:'flex',justifyContent:'center',padding:'20px 0'}}>
-      <div style={{width:'375px',minHeight:'680px',background:'#fff',borderRadius:'36px',border:'8px solid #1a2942',boxShadow:'0 24px 60px rgba(6,26,66,0.22)',overflow:'hidden',display:'flex',flexDirection:'column'}}>
-        <div style={{background:'linear-gradient(135deg, #0b1220 0%, #1e293b 100%)',padding:'18px 20px 14px',color:'#fff',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div>
-            <span style={{fontSize:'10px',letterSpacing:'0.1em',color:'rgba(255,255,255,0.7)'}}>{business.name.toUpperCase()}</span>
-            <h4 style={{margin:0,fontSize:'16px'}}>Staff App Simulator</h4>
-          </div>
-          <button style={{background:'rgba(255,255,255,0.15)',border:0,color:'#fff',borderRadius:'8px',padding:'4px 8px',fontSize:'11px'}} onClick={()=>onNavigate('/requests/new')}>＋ New</button>
-        </div>
-        
-        <div style={{padding:'16px',flex:1,overflowY:'auto',background:'#f6f8fb'}}>
-          <div style={{background:'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',color:'#fff',padding:'16px',borderRadius:'16px',marginBottom:'14px',boxShadow:'0 10px 20px rgba(234,88,12,0.2)'}}>
-            <span style={{fontSize:'11px',opacity:0.9,color:'#fed7aa'}}>PENDING ACCOUNTABILITY</span>
-            <h3 style={{margin:'4px 0',fontSize:'20px'}}>₦0</h3>
-            <p style={{margin:0,fontSize:'11px',opacity:0.9,color:'#ffedd5'}}>0 pending advances awaiting proof</p>
-            <button style={{marginTop:'10px',background:'#fff',color:'#ea580c',border:0,borderRadius:'8px',padding:'6px 12px',fontSize:'11px',fontWeight:'700',width:'100%'}} onClick={()=>onNavigate('/accountability')}>Go to Accountability Desk ↗</button>
-          </div>
-
-          <h5 style={{margin:'0 0 10px',fontSize:'13px',color:'var(--navy)'}}>My Active Requests</h5>
-          
-          <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
-            <div style={{background:'#fff',padding:'24px 16px',borderRadius:'12px',border:'1px dashed var(--line)',textAlign:'center'}}>
-              <p style={{margin:0,fontSize:'12px',color:'var(--muted)'}}>No active fund requests submitted yet.</p>
-              <button style={{marginTop:'10px',background:'var(--blue)',color:'#fff',border:0,borderRadius:'6px',padding:'6px 12px',fontSize:'11px',fontWeight:'700'}} onClick={()=>onNavigate('/requests/new')}>＋ Submit First Request</button>
-            </div>
-          </div>
-        </div>
-
-        <div style={{background:'#fff',borderTop:'1px solid var(--line)',padding:'10px 16px',display:'flex',justifyContent:'space-around'}}>
-          <button style={{border:0,background:'none',fontSize:'11px',color:'var(--blue)',fontWeight:'700'}} onClick={()=>setNotice('Home view active')}>🏠 Home</button>
-          <button style={{border:0,background:'none',fontSize:'11px',color:'var(--muted)'}} onClick={()=>onNavigate('/requests/new')}>＋ Request</button>
-          <button style={{border:0,background:'none',fontSize:'11px',color:'var(--muted)'}} onClick={()=>onNavigate('/accountability')}>◈ Proof</button>
-        </div>
-      </div>
-    </div>
-  </>;
-}
 
 function ExecutiveBriefingModule({business,setNotice,onNavigate}:{business:Business;setNotice:(x:string)=>void;onNavigate:(p:string)=>void}) {
   return (
@@ -1674,6 +1524,13 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   const safeUser: AuthUser = user || { id: 'auth-user', fullName: 'Authorized User', email: '', role: 'GMD' };
   const [active,setActive]=useState('Overview');
   const [collapsed,setCollapsed]=useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam) setActive(tabParam);
+    }
+  }, []);
   const [switcher,setSwitcher]=useState(false);
   const [notices,setNotices]=useState<{id:number;message:string}[]>([]);
   const noticeIdRef=useRef(0);
@@ -1913,7 +1770,6 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
 
     if(target==='Overview') return <RoleOverviewModule role={currentRole} business={current} user={safeUser} cases={cases} setActive={setActive} setNotice={setNotice} onRoleChange={(r) => setCurrentRole(r)}/>;
     if(target==='Budgets & commitments'||target==='Budget variance audit') { if (typeof window !== 'undefined') window.location.href = '/budgets'; return null; }
-    if(target==='Staff mobile view') return <StaffMobileViewModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
     if(target==='Payroll sign-off'||target==='Hybrid payroll') return <PayrollSignOffView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='HR Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
     if(target==='Executive briefing') return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p)=>setActive(p)}/>;
@@ -1942,8 +1798,8 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     if(target==='Recurring commitments') return <RecurringCommitmentsModule business={current} setNotice={setNotice}/>;
     if(target==='Notification bridge') return <NotificationBridgeModule business={current} setNotice={setNotice}/>;
     if(target==='Audit logs') return <LiveAuditLogsModule setNotice={setNotice}/>;
-    if(target==='Staff profiles') return <LiveStaffProfilesModule setNotice={setNotice}/>;
-    if(target==='Staff onboarding') { if (typeof window !== 'undefined') window.location.href = '/staff-approvals'; return null; }
+    if(target==='Staff profiles') return <LiveStaffProfilesModule setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
+    if(target==='Staff onboarding') return <PeopleAccessWorkspaceModule setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
     if(target==='Team & access') return <TeamAccessPage business={current} setNotice={setNotice}/>;
     if(target==='Security & compliance') return <SecurityCompliancePage name="Security & compliance" setNotice={setNotice}/>;
     if(target==='System configuration') return <ConfigurationCenter setNotice={setNotice}/>;
