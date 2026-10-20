@@ -31,7 +31,7 @@ import {
 } from "@/components/dashboard/gmd/BusinessModules";
 import { AiFinancialManagerDrawer } from "@/components/ai/AiFinancialManagerDrawer";
 import { AmbientBottomAiBar } from "@/components/ai/AmbientBottomAiBar";
-import { AiScreenEdgeGlow } from "@/components/ai/AiScreenEdgeGlow";
+import { AiScreenEdgeGlow, notifyAiInteraction } from "@/components/ai/AiScreenEdgeGlow";
 import { useAiFinancialManager } from "@/components/ai/useAiFinancialManager";
 import { AiMotionEntryScreen } from "@/components/ai/AiMotionEntryScreen";
 
@@ -1762,6 +1762,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   });
 
   const handleOpenAiDrawer = (prompt?: string) => {
+    notifyAiInteraction();
     setActiveAiPrompt(prompt);
     setAiDrawerOpen(true);
   };
@@ -1771,6 +1772,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
         e.preventDefault();
         if (isAiAuthorized) {
+          notifyAiInteraction();
           setAiDrawerOpen((prev) => !prev);
         }
       }

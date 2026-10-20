@@ -11,6 +11,7 @@ import { BudgetProposalCard } from './cards/BudgetProposalCard';
 import { SalaryAdjustmentCard } from './cards/SalaryAdjustmentCard';
 import { DisbursementRecordCard } from './cards/DisbursementRecordCard';
 import { ScenarioSimulatorCard } from './cards/ScenarioSimulatorCard';
+import { notifyAiInteraction } from './AiScreenEdgeGlow';
 
 interface Props {
   currentPage: string;
@@ -63,6 +64,7 @@ export function AmbientBottomAiBar({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
+    notifyAiInteraction();
     onSendMessage(inputText.trim());
     setInputText('');
     setIsDeckOpen(true);
@@ -383,6 +385,7 @@ export function AmbientBottomAiBar({
             cursor: 'pointer',
           }}
           onClick={() => {
+            notifyAiInteraction();
             if (telemetry.actionPrompt) {
               onSendMessage(telemetry.actionPrompt);
               setIsDeckOpen(true);
@@ -435,6 +438,7 @@ export function AmbientBottomAiBar({
             type="button"
             onClick={() => {
               if (telemetry.actionPrompt) {
+                notifyAiInteraction();
                 onSendMessage(telemetry.actionPrompt);
                 setIsDeckOpen(true);
               }
@@ -476,8 +480,12 @@ export function AmbientBottomAiBar({
             type="text"
             placeholder={isTelemetryTyping ? displayText : `Ask AI or instruct: e.g. What needs my attention?`}
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={(e) => {
+              notifyAiInteraction();
+              setInputText(e.target.value);
+            }}
             onFocus={() => {
+              notifyAiInteraction();
               if (messages.length > 1) setIsDeckOpen(true);
             }}
             style={{
@@ -520,7 +528,10 @@ export function AmbientBottomAiBar({
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
           <button
             type="button"
-            onClick={() => setIsDeckOpen(!isDeckOpen)}
+            onClick={() => {
+              notifyAiInteraction();
+              setIsDeckOpen(!isDeckOpen);
+            }}
             title={isDeckOpen ? 'Collapse Deck' : 'Expand AI Stream'}
             style={{
               background: 'rgba(255, 255, 255, 0.50)',
