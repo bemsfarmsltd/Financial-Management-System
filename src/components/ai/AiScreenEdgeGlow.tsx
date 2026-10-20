@@ -8,7 +8,7 @@ interface Props {
   lastActivityTime?: number;
 }
 
-export const AI_INACTIVITY_LIMIT_MS = 60 * 1000; // 1 minute
+export const AI_INACTIVITY_LIMIT_MS = 30 * 1000; // 30 seconds of inactivity
 
 /**
  * Utility to notify the screen edge glow that an AI interaction occurred
@@ -50,7 +50,7 @@ export function AiScreenEdgeGlow({ isActive = true, isProcessing = false, lastAc
     return () => window.removeEventListener('bems-ai-interaction', handleInteraction);
   }, []);
 
-  // Check 1-minute inactivity countdown
+  // Check 30-second inactivity countdown
   useEffect(() => {
     if (!isActive) return;
 
@@ -67,7 +67,7 @@ export function AiScreenEdgeGlow({ isActive = true, isProcessing = false, lastAc
       }
     };
 
-    const interval = setInterval(checkTimer, 1000);
+    const interval = setInterval(checkTimer, 500);
     return () => clearInterval(interval);
   }, [isActive, isProcessing, lastActive]);
 
@@ -82,11 +82,14 @@ export function AiScreenEdgeGlow({ isActive = true, isProcessing = false, lastAc
         pointerEvents: 'none',
         zIndex: 9990,
         opacity: isGlowing ? (isProcessing ? 1 : 0.85) : 0,
+        visibility: isGlowing ? 'visible' : 'hidden',
         boxShadow: isProcessing
           ? 'inset 0 0 36px 4px rgba(249, 115, 22, 0.45), inset 0 0 80px 10px rgba(234, 88, 12, 0.22), inset 0 0 120px 16px rgba(16, 185, 129, 0.14)'
           : 'inset 0 0 22px 2px rgba(249, 115, 22, 0.28), inset 0 0 55px 6px rgba(249, 115, 22, 0.12), inset 0 0 90px 10px rgba(16, 185, 129, 0.06)',
-        animation: isProcessing ? 'edgeGlowPulse 1.8s infinite ease-in-out' : 'edgeGlowBreathe 4.5s infinite ease-in-out',
-        transition: 'opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s ease',
+        animation: isGlowing
+          ? (isProcessing ? 'edgeGlowPulse 1.8s infinite ease-in-out' : 'edgeGlowBreathe 4.5s infinite ease-in-out')
+          : 'none',
+        transition: 'opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.7s ease, box-shadow 0.5s ease',
       }}
     >
       {/* Specular border shimmer line along the very edge */}
@@ -102,22 +105,18 @@ export function AiScreenEdgeGlow({ isActive = true, isProcessing = false, lastAc
       <style jsx>{`
         @keyframes edgeGlowBreathe {
           0%, 100% {
-            opacity: 0.65;
             filter: drop-shadow(0 0 4px rgba(249, 115, 22, 0.2));
           }
           50% {
-            opacity: 1;
-            filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.4));
+            filter: drop-shadow(0 0 10px rgba(249, 115, 22, 0.45));
           }
         }
         @keyframes edgeGlowPulse {
           0%, 100% {
-            opacity: 0.8;
             filter: drop-shadow(0 0 6px rgba(249, 115, 22, 0.4));
           }
           50% {
-            opacity: 1;
-            filter: drop-shadow(0 0 14px rgba(249, 115, 22, 0.7));
+            filter: drop-shadow(0 0 16px rgba(249, 115, 22, 0.75));
           }
         }
       `}</style>
