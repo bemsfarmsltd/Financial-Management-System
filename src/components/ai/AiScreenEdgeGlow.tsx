@@ -82,14 +82,13 @@ export function AiScreenEdgeGlow({ isActive = true, isProcessing = false, lastAc
         pointerEvents: 'none',
         zIndex: 9990,
         opacity: isGlowing ? (isProcessing ? 1 : 0.85) : 0,
-        visibility: isGlowing ? 'visible' : 'hidden',
         boxShadow: isProcessing
           ? 'inset 0 0 36px 4px rgba(249, 115, 22, 0.45), inset 0 0 80px 10px rgba(234, 88, 12, 0.22), inset 0 0 120px 16px rgba(16, 185, 129, 0.14)'
           : 'inset 0 0 22px 2px rgba(249, 115, 22, 0.28), inset 0 0 55px 6px rgba(249, 115, 22, 0.12), inset 0 0 90px 10px rgba(16, 185, 129, 0.06)',
         animation: isGlowing
           ? (isProcessing ? 'edgeGlowPulse 1.8s infinite ease-in-out' : 'edgeGlowBreathe 4.5s infinite ease-in-out')
           : 'none',
-        transition: 'opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.7s ease, box-shadow 0.5s ease',
+        transition: 'opacity 0.4s ease, box-shadow 0.4s ease',
       }}
     >
       {/* Specular border shimmer line along the very edge */}
