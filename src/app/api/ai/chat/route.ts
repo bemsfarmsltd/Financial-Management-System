@@ -61,7 +61,71 @@ export async function POST(req: NextRequest) {
     const userName = actor ? actor.legalName.split(' ')[0] : 'GMD';
     const normalized = message.toLowerCase();
 
-    // 1. Fetch live telemetry from DB & local store
+    // 0. Forward to external n8n AI Agent if configured (BEMS AI Backend Contract Section 02)
+    const n8nWebhookUrl = process.env.N8N_AI_WEBHOOK_URL;
+    if (n8nWebhookUrl && actor) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 35000);
+
+        const correlationId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const sessionId = `conv_${actor.id}`;
+        const authHeader = req.headers.get('authorization') || `Bearer bems_session_${actor.id}`;
+        const sharedSecret = process.env.N8N_AI_SHARED_SECRET;
+
+        const n8nPayload = {
+          user: {
+            id: actor.id,
+            name: actor.legalName,
+            title: (actor as any).jobTitle || (actor.role === 'GMD' ? 'Group Managing Director' : 'System Admin'),
+            role: actor.role,
+          },
+          session_id: sessionId,
+          message,
+          auth_token: authHeader.replace(/^Bearer\s+/i, ''),
+          correlation_id: correlationId,
+        };
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'X-Correlation-Id': correlationId,
+        };
+        if (sharedSecret) {
+          headers['X-Service-Secret'] = sharedSecret;
+        }
+
+        const n8nRes = await fetch(n8nWebhookUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(n8nPayload),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+
+        if (n8nRes.ok) {
+          const n8nData = await n8nRes.json();
+          return NextResponse.json({
+            message: n8nData.reply || n8nData.message || 'Workflow executed.',
+            actionCard: n8nData.staged_action
+              ? {
+                  type: 'STAGED_ACTION',
+                  ...n8nData.staged_action,
+                }
+              : n8nData.actionCard || null,
+            staged_action: n8nData.staged_action || null,
+            citations: n8nData.citations || [],
+            timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+          });
+        } else {
+          console.warn(`n8n webhook responded with status ${n8nRes.status}. Gracefully falling back to internal engine.`);
+        }
+      } catch (n8nErr: any) {
+        console.warn(`n8n webhook unreachable (${n8nErr.message}). Gracefully falling back to internal engine.`);
+      }
+    }
+
+    // 1. Fetch live telemetry from DB & local store (Internal Engine)
     const [bankAccounts, pendingRequests, totalActiveStaff, orgs, openCases] = await Promise.all([
       Promise.resolve(readSavedAccounts()),
       prisma.expenditureRequest.findMany({
