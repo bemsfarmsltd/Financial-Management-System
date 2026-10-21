@@ -46,6 +46,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Invalid role selected. Allowed roles: ${VALID_ROLES.join(', ')}` }, { status: 400 });
     }
 
+    if (role === 'GMD') {
+      const existingGmd = await prisma.employee.findFirst({
+        where: { role: 'GMD', status: 'ACTIVE', approvalStatus: 'APPROVED' },
+        select: { id: true, legalName: true, workEmail: true },
+      });
+      if (existingGmd) {
+        return NextResponse.json({
+          error: `The system can only have one Group Managing Director (GMD). An active GMD already exists: ${existingGmd.legalName} (${existingGmd.workEmail}).`,
+        }, { status: 409 });
+      }
+    }
+
     if (!password || password.length < 10) {
       return NextResponse.json({ error: 'Initial password must be at least 10 characters long.' }, { status: 400 });
     }

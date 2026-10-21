@@ -50,9 +50,13 @@ export async function GET() {
       select: { id: true, name: true, code: true, organizationId: true },
       orderBy: { name: 'asc' },
     }),
+    prisma.employee.findFirst({
+      where: { role: 'GMD', status: 'ACTIVE', approvalStatus: 'APPROVED' },
+      select: { id: true, legalName: true, workEmail: true, employeeNumber: true },
+    }),
   ]);
 
-  return NextResponse.json({ employees, organizations, departments });
+  return NextResponse.json({ employees, organizations, departments, activeGmd });
 }
 
 export async function POST(request: Request) {
@@ -81,6 +85,19 @@ export async function POST(request: Request) {
     }
 
     const approved = decision === 'APPROVE';
+
+    if (approved && assignedRole === 'GMD') {
+      const existingGmd = await prisma.employee.findFirst({
+        where: { role: 'GMD', status: 'ACTIVE', approvalStatus: 'APPROVED', id: { not: employee.id } },
+        select: { id: true, legalName: true, workEmail: true },
+      });
+      if (existingGmd) {
+        return NextResponse.json({
+          error: `The system can only have one Group Managing Director (GMD). Active GMD is ${existingGmd.legalName} (${existingGmd.workEmail}).`,
+        }, { status: 409 });
+      }
+    }
+
     const officialEmpNum = employee.employeeNumber.startsWith('PENDING-')
       ? (approved ? `BEMS-${assignedRole.slice(0, 3)}-${Date.now().toString().slice(-4)}` : employee.employeeNumber)
       : employee.employeeNumber;

@@ -50,6 +50,7 @@ export function PeopleAccessWorkspaceModule({
   const [employees, setEmployees] = useState<PendingSignup[]>([]);
   const [organizations, setOrganizations] = useState<Org[]>([]);
   const [departments, setDepartments] = useState<Dept[]>([]);
+  const [activeGmd, setActiveGmd] = useState<{ id: string; legalName: string; workEmail: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
@@ -65,7 +66,7 @@ export function PeopleAccessWorkspaceModule({
     legalName: '',
     workEmail: '',
     phone: '',
-    role: 'GMD',
+    role: 'STAFF',
     subsidiaryId: '',
     departmentId: '',
     password: '',
@@ -83,6 +84,7 @@ export function PeopleAccessWorkspaceModule({
       setEmployees(data.employees || []);
       setOrganizations(data.organizations || []);
       setDepartments(data.departments || []);
+      if (data.activeGmd) setActiveGmd(data.activeGmd);
       if (data.organizations?.length && !onboardForm.subsidiaryId) {
         setOnboardForm((prev) => ({ ...prev, subsidiaryId: data.organizations[0].id }));
       }
@@ -287,9 +289,14 @@ export function PeopleAccessWorkspaceModule({
                     value={approvalRoles[employee.id] || 'STAFF'}
                     onChange={(e) => setApprovalRoles((prev) => ({ ...prev, [employee.id]: e.target.value }))}
                   >
-                    {ADMIN_ROLES.map((r) => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
+                    {ADMIN_ROLES.map((r) => {
+                      const isGmdOccupied = r.value === 'GMD' && activeGmd;
+                      return (
+                        <option key={r.value} value={r.value} disabled={Boolean(isGmdOccupied)}>
+                          {isGmdOccupied ? `GMD — Group Managing Director (Occupied by ${activeGmd.legalName})` : r.label}
+                        </option>
+                      );
+                    })}
                   </select>
 
                   <select
@@ -469,9 +476,14 @@ export function PeopleAccessWorkspaceModule({
                     onChange={(e) => setOnboardForm({ ...onboardForm, role: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, background: '#fff', boxSizing: 'border-box' }}
                   >
-                    {ADMIN_ROLES.map((r) => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
+                    {ADMIN_ROLES.map((r) => {
+                      const isGmdOccupied = r.value === 'GMD' && activeGmd;
+                      return (
+                        <option key={r.value} value={r.value} disabled={Boolean(isGmdOccupied)}>
+                          {isGmdOccupied ? `GMD — Group Managing Director (Occupied by ${activeGmd.legalName})` : r.label}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
