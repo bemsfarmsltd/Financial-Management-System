@@ -178,13 +178,35 @@ HTTP/1.1 200 OK
 
 ---
 
-### What I Need From You Next:
+### 5. Conversation Memory Architecture (Section 02 Resolution)
 
-You're completely unblocked to connect your nodes! 
+Per your note in Section 02 offering to expose conversation memory via BEMS endpoints instead of raw database credentials, **we handle conversation memory directly in the BEMS backend** to maintain strict enterprise database isolation and audit controls:
 
-Whenever you're ready, **just send over your live n8n webhook URL**. I will plug it right into `N8N_AI_WEBHOOK_URL` on our server, and we can jump in and do a live test together.
+* **Automatic Payload Injection (Zero Setup / Recommended):**  
+  Every chat dispatch from the BEMS portal automatically retrieves the recent message history for the executive session and passes it directly inside the webhook payload:
+  * `context.conversation_history: [ { role, content, timestamp }, ... ]`
+  * `chat_history: [ ... ]`
+  Your LangChain AI Agent receives multi-turn conversational context out of the box without needing an external database memory node.
 
-Excited to see this live!
+* **Dedicated REST Memory Endpoints (If your workflow prefers HTTP tools):**
+  * **`GET /api/v1/ai/memory?session_id={{ $json.session_id }}&limit=20`**  
+    Fetches the chronological message history for that session.
+  * **`POST /api/v1/ai/memory`**  
+    Body: `{"session_id": "conv_...", "role": "assistant", "message": "..."}`  
+    Appends a turn to persistent memory.
+  * **Retention:** Enforces a rolling **30-day retention window** in compliance with internal audit standards.
+  * **Auth:** Authenticated via your permanent Bearer service token or session token.
+
+---
+
+### 6. Deployment & Next Steps
+
+* **Webhook Bound:** Your live webhook `https://n8n.srv2065537.hstgr.cloud/webhook/bems-financial-manager` is bound in our production environment.
+* **Option A per-user auth:** Supported across all routes.
+* **Seeded Staging Data:** Active request `REQ-2026-0042` (₦450k Generator Servicing) and vendor `vnd_agroparts_001` (*AgroParts Hub Ltd*) are ready for end-to-end acceptance scenarios.
+
+We are ready to run the first live test together!
 
 Best,  
 Henry Adeleke
+
