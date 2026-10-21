@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 
     const reqItem = await prisma.expenditureRequest.findFirst({
       where: { OR: [{ id: request_id }, { requestNumber: request_id }] },
-      include: { disbursements: true, organization: true },
+      include: { disbursements: true, subsidiary: true },
     });
 
     if (!reqItem) {
