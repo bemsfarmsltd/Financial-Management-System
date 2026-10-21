@@ -77,6 +77,17 @@ export async function POST(request: Request) {
     const nextOfKinName = typeof body.nextOfKinName === 'string' ? body.nextOfKinName.trim() : null;
     const nextOfKinPhone = typeof body.nextOfKinPhone === 'string' ? body.nextOfKinPhone.trim() : null;
     const nextOfKinRelationship = typeof body.nextOfKinRelationship === 'string' ? body.nextOfKinRelationship.trim() : null;
+    const nextOfKinAddress = typeof body.nextOfKinAddress === 'string' ? body.nextOfKinAddress.trim() : null;
+
+    // 5. Statutory & Corporate Profile
+    const maritalStatus = typeof body.maritalStatus === 'string' ? body.maritalStatus.trim() : null;
+    const stateOfOrigin = typeof body.stateOfOrigin === 'string' ? body.stateOfOrigin.trim() : null;
+    const lga = typeof body.lga === 'string' ? body.lga.trim() : null;
+    const nin = typeof body.nin === 'string' ? body.nin.trim() : null;
+    const bvn = typeof body.bvn === 'string' ? body.bvn.trim() : null;
+    const workLocation = typeof body.workLocation === 'string' ? body.workLocation.trim() : 'LAGOS_HQ';
+    const staffGrade = typeof body.staffGrade === 'string' ? body.staffGrade.trim() : 'OFFICER';
+    const highestEducation = typeof body.highestEducation === 'string' ? body.highestEducation.trim() : null;
 
     // Validation
     if (fullName.length < 2) {
@@ -121,6 +132,15 @@ export async function POST(request: Request) {
           nextOfKinName,
           nextOfKinPhone,
           nextOfKinRelationship,
+          nextOfKinAddress,
+          maritalStatus,
+          stateOfOrigin,
+          lga,
+          nin,
+          bvn,
+          workLocation,
+          staffGrade,
+          highestEducation,
         },
       });
 

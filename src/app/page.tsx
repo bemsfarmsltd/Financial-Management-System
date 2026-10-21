@@ -377,19 +377,28 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
     phone: '+234 ',
     gender: 'MALE',
     dateOfBirth: '',
+    maritalStatus: 'SINGLE',
+    stateOfOrigin: '',
+    lga: '',
+    nin: '',
     residentialAddress: '',
     cityState: '',
     subsidiaryId: '',
     departmentId: '',
     jobTitle: '',
     employmentType: 'FULL_TIME',
+    staffGrade: 'OFFICER',
+    workLocation: 'LAGOS_HQ',
     resumptionDate: '',
     bankName: 'Access Bank Plc',
     accountNumber: '',
     accountName: '',
+    bvn: '',
+    highestEducation: 'BSC',
     nextOfKinName: '',
     nextOfKinPhone: '+234 ',
     nextOfKinRelationship: 'Spouse',
+    nextOfKinAddress: '',
     password: '',
     agreeTerms: false,
   });
@@ -399,11 +408,19 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
     departments: { id: string; name: string; code: string; organizationId: string }[];
     banks: string[];
     employmentTypes: { value: string; label: string }[];
+    staffGrades: { value: string; label: string }[];
+    workLocations: { value: string; label: string }[];
+    maritalStatuses: { value: string; label: string }[];
+    educationLevels: { value: string; label: string }[];
   }>({
     organizations: [],
     departments: [],
     banks: [],
     employmentTypes: [],
+    staffGrades: [],
+    workLocations: [],
+    maritalStatuses: [],
+    educationLevels: [],
   });
 
   const [error, setError] = useState('');
@@ -426,6 +443,10 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
             ...prev,
             subsidiaryId: prev.subsidiaryId || d.organizations[0].id,
             bankName: prev.bankName || (d.banks?.[0] || 'Access Bank Plc'),
+            staffGrade: prev.staffGrade || (d.staffGrades?.[2]?.value || 'OFFICER'),
+            workLocation: prev.workLocation || (d.workLocations?.[0]?.value || 'LAGOS_HQ'),
+            maritalStatus: prev.maritalStatus || (d.maritalStatuses?.[0]?.value || 'SINGLE'),
+            highestEducation: prev.highestEducation || (d.educationLevels?.[0]?.value || 'BSC'),
           }));
         }
       }
@@ -561,9 +582,9 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
         }}>
           {signupStep === 1 && (
             <>
-              <p className="kicker">STEP 1 OF 4 · PERSONAL IDENTITY</p>
-              <h2>Staff Personal Information</h2>
-              <p className="lead">Enter your legal identity details as verified on official records.</p>
+              <p className="kicker">STEP 1 OF 4 · PERSONAL & STATUTORY IDENTITY</p>
+              <h2>Staff Personal & Identity Dossier</h2>
+              <p className="lead">Enter your official legal identity and national statutory details as verified on official records.</p>
               <div className="form-grid">
                 <label className="full">
                   Full Legal Name *
@@ -595,7 +616,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                   />
                 </label>
                 <label>
-                  Gender
+                  Gender *
                   <select
                     value={signupForm.gender}
                     onChange={e => setSignupForm(old => ({ ...old, gender: e.target.value }))}
@@ -606,11 +627,52 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                   </select>
                 </label>
                 <label>
+                  Marital Status *
+                  <select
+                    value={signupForm.maritalStatus}
+                    onChange={e => setSignupForm(old => ({ ...old, maritalStatus: e.target.value }))}
+                  >
+                    {(options.maritalStatuses.length > 0 ? options.maritalStatuses : [
+                      { value: 'SINGLE', label: 'Single' },
+                      { value: 'MARRIED', label: 'Married' },
+                      { value: 'DIVORCED', label: 'Divorced' },
+                      { value: 'WIDOWED', label: 'Widowed' },
+                    ]).map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
                   Date of Birth
                   <input
                     type="date"
                     value={signupForm.dateOfBirth}
                     onChange={e => setSignupForm(old => ({ ...old, dateOfBirth: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  National Identity Number (NIN)
+                  <input
+                    maxLength={11}
+                    value={signupForm.nin}
+                    onChange={e => setSignupForm(old => ({ ...old, nin: e.target.value.replace(/\D/g, '') }))}
+                    placeholder="11-digit NIN"
+                  />
+                </label>
+                <label>
+                  State of Origin
+                  <input
+                    value={signupForm.stateOfOrigin}
+                    onChange={e => setSignupForm(old => ({ ...old, stateOfOrigin: e.target.value }))}
+                    placeholder="e.g. Edo State, Lagos State"
+                  />
+                </label>
+                <label>
+                  Local Govt Area (LGA)
+                  <input
+                    value={signupForm.lga}
+                    onChange={e => setSignupForm(old => ({ ...old, lga: e.target.value }))}
+                    placeholder="e.g. Oredo, Ikeja, Egor"
                   />
                 </label>
                 <label className="full">
@@ -626,7 +688,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                   <input
                     value={signupForm.cityState}
                     onChange={e => setSignupForm(old => ({ ...old, cityState: e.target.value }))}
-                    placeholder="e.g. Ikeja, Lagos State"
+                    placeholder="e.g. Ikeja, Lagos State or Benin City, Edo State"
                   />
                 </label>
               </div>
@@ -635,9 +697,9 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
 
           {signupStep === 2 && (
             <>
-              <p className="kicker">STEP 2 OF 4 · CORPORATE PLACEMENT</p>
-              <h2>Subsidiary, Role & Employment Type</h2>
-              <p className="lead">Specify which subsidiary entity and department you are joining.</p>
+              <p className="kicker">STEP 2 OF 4 · CORPORATE PLACEMENT & ROLE</p>
+              <h2>Subsidiary, Role, Grade & Employment Type</h2>
+              <p className="lead">Specify your operational designation, subsidiary placement, grade level, and physical station.</p>
               <div className="form-grid">
                 <label className="full">
                   Subsidiary Entity *
@@ -652,7 +714,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                   </select>
                 </label>
                 <label>
-                  Department
+                  Department / Unit
                   <select
                     value={signupForm.departmentId}
                     onChange={e => setSignupForm(old => ({ ...old, departmentId: e.target.value }))}
@@ -669,7 +731,13 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                     value={signupForm.employmentType}
                     onChange={e => setSignupForm(old => ({ ...old, employmentType: e.target.value }))}
                   >
-                    {options.employmentTypes.map(t => (
+                    {(options.employmentTypes.length > 0 ? options.employmentTypes : [
+                      { value: 'FULL_TIME', label: 'Full-Time (Permanent Staff)' },
+                      { value: 'PROBATION', label: 'Probationary Staff (3-6 Months)' },
+                      { value: 'CONTRACT', label: 'Fixed-Term Contract' },
+                      { value: 'INTERN', label: 'Graduate Intern / NYSC Trainee' },
+                      { value: 'PART_TIME', label: 'Part-Time Specialist' },
+                    ]).map(t => (
                       <option key={t.value} value={t.value}>{t.label}</option>
                     ))}
                   </select>
@@ -682,6 +750,41 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                     onChange={e => setSignupForm(old => ({ ...old, jobTitle: e.target.value }))}
                     placeholder="e.g. Farm Operations Lead, Software Developer, Agronomist, Sales Executive"
                   />
+                </label>
+                <label>
+                  Staff Grade / Hierarchy Level *
+                  <select
+                    value={signupForm.staffGrade}
+                    onChange={e => setSignupForm(old => ({ ...old, staffGrade: e.target.value }))}
+                  >
+                    {(options.staffGrades.length > 0 ? options.staffGrades : [
+                      { value: 'INTERN_TRAINEE', label: 'Intern / Graduate Trainee' },
+                      { value: 'JUNIOR_OFFICER', label: 'Junior Officer (Level 1)' },
+                      { value: 'OFFICER', label: 'Officer / Specialist (Level 2)' },
+                      { value: 'SENIOR_OFFICER', label: 'Senior Officer (Level 3)' },
+                      { value: 'TEAM_LEAD', label: 'Team Lead / Unit Supervisor (Level 4)' },
+                      { value: 'MANAGER', label: 'Department Manager (Level 5)' },
+                    ]).map(g => (
+                      <option key={g.value} value={g.value}>{g.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Primary Work Location / Station *
+                  <select
+                    value={signupForm.workLocation}
+                    onChange={e => setSignupForm(old => ({ ...old, workLocation: e.target.value }))}
+                  >
+                    {(options.workLocations.length > 0 ? options.workLocations : [
+                      { value: 'LAGOS_HQ', label: 'Lagos Corporate HQ (Victoria Island / Lekki)' },
+                      { value: 'BENIN_FARM_HUB', label: 'Benin City Agricultural Hub & Mill' },
+                      { value: 'ABUJA_OFFICE', label: 'Abuja Regional Liaison Hub' },
+                      { value: 'PORT_HARCOURT', label: 'Port Harcourt Operations Office' },
+                      { value: 'FIELD_REMOTE', label: 'Field Operations / Remote Station' },
+                    ]).map(loc => (
+                      <option key={loc.value} value={loc.value}>{loc.label}</option>
+                    ))}
+                  </select>
                 </label>
                 <label className="full">
                   Resumption / Start Date
@@ -697,12 +800,12 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
 
           {signupStep === 3 && (
             <>
-              <p className="kicker">STEP 3 OF 4 · DISBURSEMENT BANKING</p>
-              <h2>Advance & Payout Bank Details</h2>
+              <p className="kicker">STEP 3 OF 4 · DISBURSEMENT BANKING & KYC</p>
+              <h2>Disbursement Account & Financial KYC</h2>
               <p className="lead">Approved fund requests and cash advances will be wired directly to this commercial bank account.</p>
               <div className="form-grid">
                 <label className="full">
-                  Bank Name *
+                  Commercial Bank Name *
                   <select
                     required
                     value={signupForm.bankName}
@@ -733,38 +836,67 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                     placeholder="Must match your official name"
                   />
                 </label>
+                <label className="full">
+                  Bank Verification Number (BVN)
+                  <input
+                    maxLength={11}
+                    value={signupForm.bvn}
+                    onChange={e => setSignupForm(old => ({ ...old, bvn: e.target.value.replace(/\D/g, '') }))}
+                    placeholder="11-digit BVN for automated financial compliance"
+                  />
+                </label>
               </div>
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', marginTop: 14, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
-                ℹ️ <strong>Direct Bank Disbursement:</strong> Finance disburses all advances and expense reimbursements to this account. Ensure account number and bank match correctly.
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px', marginTop: 14, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                ℹ️ <strong>Direct Bank Disbursement:</strong> Finance disburses all advances and expense reimbursements directly to this commercial NUBAN account. Your BVN assists in automated identity verification for disbursement clearance.
               </div>
             </>
           )}
 
           {signupStep === 4 && (
             <>
-              <p className="kicker">STEP 4 OF 4 · SECURITY & EMERGENCY</p>
-              <h2>Emergency Contact & Account Password</h2>
-              <p className="lead">Finalize your emergency contact and set up a secure sign-in password.</p>
+              <p className="kicker">STEP 4 OF 4 · EDUCATION, EMERGENCY & SECURITY</p>
+              <h2>Emergency Contact, Education & Security</h2>
+              <p className="lead">Finalize your educational credentials, emergency contact, and secure sign-in password.</p>
               <div className="form-grid">
+                <label className="full">
+                  Highest Educational Qualification
+                  <select
+                    value={signupForm.highestEducation}
+                    onChange={e => setSignupForm(old => ({ ...old, highestEducation: e.target.value }))}
+                  >
+                    {(options.educationLevels.length > 0 ? options.educationLevels : [
+                      { value: 'BSC', label: "Bachelor's Degree (B.Sc / B.Tech / B.A)" },
+                      { value: 'HND', label: 'Higher National Diploma (HND)' },
+                      { value: 'OND', label: 'Ordinary National Diploma (OND / NCE)' },
+                      { value: 'MSC', label: "Master's Degree (M.Sc / MBA / M.Tech)" },
+                      { value: 'PHD', label: 'Doctorate (Ph.D)' },
+                      { value: 'SSCE', label: 'Secondary School Certificate (SSCE / WAEC)' },
+                    ]).map(ed => (
+                      <option key={ed.value} value={ed.value}>{ed.label}</option>
+                    ))}
+                  </select>
+                </label>
                 <label>
-                  Next of Kin Full Name
+                  Next of Kin Full Name *
                   <input
+                    required
                     value={signupForm.nextOfKinName}
                     onChange={e => setSignupForm(old => ({ ...old, nextOfKinName: e.target.value }))}
                     placeholder="e.g. Funke Adeleke"
                   />
                 </label>
                 <label>
-                  Next of Kin Phone Number
+                  Next of Kin Phone Number *
                   <input
+                    required
                     type="tel"
                     value={signupForm.nextOfKinPhone}
                     onChange={e => setSignupForm(old => ({ ...old, nextOfKinPhone: e.target.value }))}
                     placeholder="+234 802 000 0000"
                   />
                 </label>
-                <label className="full">
-                  Relationship
+                <label>
+                  Relationship *
                   <select
                     value={signupForm.nextOfKinRelationship}
                     onChange={e => setSignupForm(old => ({ ...old, nextOfKinRelationship: e.target.value }))}
@@ -775,6 +907,14 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                     <option value="Child">Child</option>
                     <option value="Legal Guardian">Legal Guardian</option>
                   </select>
+                </label>
+                <label>
+                  Next of Kin Residential Address
+                  <input
+                    value={signupForm.nextOfKinAddress}
+                    onChange={e => setSignupForm(old => ({ ...old, nextOfKinAddress: e.target.value }))}
+                    placeholder="Street, City, State"
+                  />
                 </label>
                 <label className="full">
                   Account Password *
@@ -795,7 +935,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                   checked={signupForm.agreeTerms}
                   onChange={e => setSignupForm(old => ({ ...old, agreeTerms: e.target.checked }))}
                 />
-                I agree to the BEMS Group Financial Accountability Policy, 72-Hour Advance Retirement SLA, and Employee Code of Conduct.
+                I declare that all submitted personal, statutory, banking, and placement information is true and accurate. I agree to the BEMS Group Financial Accountability Policy, 72-Hour Advance Retirement SLA, and Employee Code of Conduct.
               </label>
             </>
           )}
