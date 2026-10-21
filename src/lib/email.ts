@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { prisma } from '@/lib/prisma';
 
 export interface EmailOptions {
@@ -11,6 +12,15 @@ export interface EmailOptions {
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://pink-horse-318730.hostingersite.com';
 const SMTP_FROM = process.env.SMTP_FROM || 'BEMS Group Notifications <notifications@bemsgroup.com>';
+const RESEND_FROM = process.env.RESEND_FROM || 'BEMS Group <onboarding@resend.dev>';
+
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || !apiKey.startsWith('re_')) {
+    return null;
+  }
+  return new Resend(apiKey);
+}
 
 function getTransporter() {
   const host = process.env.SMTP_HOST;
@@ -32,11 +42,51 @@ function getTransporter() {
 }
 
 /**
- * Universal email sender with automatic fallback to database logging & simulation
+ * Universal email sender with automatic Resend, SMTP, and fallback database logging
  */
-export async function sendEmail({ to, subject, html, text, eventType = 'GENERAL_NOTIFICATION' }: EmailOptions): Promise<{ success: boolean; simulated?: boolean; messageId?: string }> {
-  const recipients = Array.isArray(to) ? to.join(', ') : to;
-  const transporter = getTransporter();
+export async function sendEmail({ to, subject, html, text, eventType = 'GENERAL_NOTIFICATION' }: EmailOptions): Promise<{ success: boolean; simulated?: boolean; messageId?: string; error?: string }> {
+  const recipientList = Array.isArray(to) ? to : [to];
+  const recipientsStr = recipientList.join(', ');
+
+  // 1. Prioritize Resend if configured
+  const resend = getResendClient();
+  if (resend) {
+    try {
+      const response = await resend.emails.send({
+        from: RESEND_FROM,
+        to: recipientList,
+        subject,
+        html,
+        text: text || subject,
+      });
+
+      if (response.error) {
+        console.error('Resend API returned error:', response.error);
+      } else {
+        const messageId = response.data?.id;
+        try {
+          await prisma.outboundNotification.create({
+            data: {
+              channel: 'EMAIL',
+              recipient: recipientsStr,
+              eventType,
+              payload: JSON.stringify({ subject, to: recipientList, provider: 'resend' }),
+              status: 'SENT',
+              externalId: messageId || `resend-${Date.now()}`,
+            },
+          });
+        } catch (dbErr) {
+          console.error('Failed to log outbound email notification:', dbErr);
+        }
+
+        return { success: true, messageId };
+      }
+    } catch (err: any) {
+      console.error('Resend dispatch exception, attempting fallback:', err);
+    }
+  }
+
+  // 2. SMTP Transporter fallback
 
   if (transporter) {
     try {
