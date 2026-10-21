@@ -36,8 +36,54 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
       setMessages((prev) => [...prev, userMsg]);
       setIsTyping(true);
 
+      try {
+        const res = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: text,
+            context: {
+              active_business_id: businessId,
+            },
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const actionCard = data.actionCard || (data.staged_action ? {
+            type: data.staged_action.type || 'approval_decision',
+            data: data.staged_action.preview || data.staged_action,
+            staged_action_id: data.staged_action.staged_action_id,
+            confirmation_hash: data.staged_action.confirmation_hash,
+          } : undefined);
+
+          const aiReply: AiMessage = {
+            id: `ai-${Date.now()}`,
+            sender: 'assistant',
+            timestamp: data.timestamp || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+            content: data.message || 'I have analyzed your query against the live ledger.',
+            actionCard,
+            references: Array.isArray(data.citations)
+              ? data.citations.map((c: any) => ({
+                  type: c.record_type === 'vendor' ? 'budget' : 'request',
+                  id: c.record_id,
+                  label: c.label || c.record_id,
+                }))
+              : undefined,
+          };
+          setMessages((prev) => [...prev, aiReply]);
+          setIsTyping(false);
+          return;
+        }
+      } catch (err) {
+        console.warn('Live AI chat API call failed, using graceful fallback:', err);
+      }
+
       const normalized = text.toLowerCase();
 
+      // Local fallback in case network call fails
       setTimeout(() => {
         // 1. Executive Briefing Command
         if (normalized.includes('brief') || normalized.includes('morning') || normalized.includes('attention') || normalized.includes('what do you have')) {
@@ -67,125 +113,57 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
           return;
         }
 
-        // 2. Request Review / Decision Gate Command
-        if (normalized.includes('req-2026') || normalized.includes('approval') || normalized.includes('decide') || normalized.includes('microsoft')) {
-          const aiReply: AiMessage = {
-            id: `ai-${Date.now()}`,
-            sender: 'assistant',
-            timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-            content: `There are currently no requisitions pending executive authorization across ${businessName}. When employees submit requests, you will be able to review, approve, or clarify them right here.`,
-          };
-          setMessages((prev) => [...prev, aiReply]);
-          setIsTyping(false);
-          return;
-        }
-
-        // 3. What-if Scenario Simulation
-        if (normalized.includes('simulate') || normalized.includes('what-if') || normalized.includes('runway') || normalized.includes('burn')) {
-          const simData: ScenarioSimulatorCardData = {
-            initialRunwayMonths: 11.4,
-            initialLiquidNaira: 84200000,
-            monthlyBurnNaira: 7400000,
-            pendingCommitmentsNaira: 4650000,
-          };
-
-          const aiReply: AiMessage = {
-            id: `ai-${Date.now()}`,
-            sender: 'assistant',
-            timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-            content: `I have launched the **Cash Runway Modeler** for ${businessName}. You can test the financial impact of postponing non-critical commitments or injecting additional capex below without altering any active production ledgers:`,
-            actionCard: {
-              type: 'scenario_simulator',
-              data: simData,
-            },
-          };
-          setMessages((prev) => [...prev, aiReply]);
-          setIsTyping(false);
-          return;
-        }
-
-        // 4. Budget Creation / Proposal
-        if (normalized.includes('budget') || normalized.includes('draft') || normalized.includes('allocation')) {
-          const budgetData: BudgetProposalCardData = {
-            organizationId: businessId,
-            organizationName: 'BemsSoft Hub Ltd',
-            periodName: 'Q1 2027 — Software & Cloud Expansion',
-            fiscalYear: 2027,
-            fiscalPeriod: 'Q1',
-            totalAmount: 25000000,
-            currency: 'NGN',
-            lines: [
-              { departmentName: 'Engineering & Cloud', category: 'Cloud Infrastructure & VPS Hosting', allocatedAmount: 14000000 },
-              { departmentName: 'Corporate Services', category: 'Developer Tooling & Licenses', allocatedAmount: 6000000 },
-              { departmentName: 'Operations', category: 'Technical QA & Testing Sandbox', allocatedAmount: 5000000 },
-            ],
-            varianceFromPrevious: 3000000,
-          };
-
-          const aiReply: AiMessage = {
-            id: `ai-${Date.now()}`,
-            sender: 'assistant',
-            timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-            content: `I have drafted the departmental budget proposal for **${budgetData.organizationName}**. The allocation matches the total ceiling. Please inspect the line items and click confirm when ready:`,
-            actionCard: {
-              type: 'budget_proposal',
-              data: budgetData,
-            },
-          };
-          setMessages((prev) => [...prev, aiReply]);
-          setIsTyping(false);
-          return;
-        }
-
-        // 5. Salary Adjustment Proposal
-        if (normalized.includes('salary') || normalized.includes('compensation') || normalized.includes('tunde')) {
-          const salaryData: SalaryAdjustmentCardData = {
-            employeeId: 'emp-2026-0002',
-            employeeName: 'Engr. Tunde Adeleke',
-            employeeNumber: 'EMP-2026-0002',
-            subsidiaryName: 'BemsSoft Hub Ltd',
-            departmentName: 'Engineering & Cloud',
-            currentSalary: 1400000,
-            proposedSalary: 1650000,
-            changeType: 'ADDITION',
-            effectiveDate: '1 November 2026',
-            reason: 'Annual executive performance increment and group technical leadership expansion.',
-            willNotifyEmployee: true,
-          };
-
-          const aiReply: AiMessage = {
-            id: `ai-${Date.now()}`,
-            sender: 'assistant',
-            timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-            content: `Here is the proposed compensation review for **${salaryData.employeeName}**. Per policy, executing this will generate an audited compensation version and send an automated notification:`,
-            actionCard: {
-              type: 'salary_adjustment',
-              data: salaryData,
-            },
-          };
-          setMessages((prev) => [...prev, aiReply]);
-          setIsTyping(false);
-          return;
-        }
-
         // Default General Conversational Response
         const defaultReply: AiMessage = {
           id: `ai-${Date.now()}`,
           sender: 'assistant',
           timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-          content: `I understand your request regarding "${text}".\n\nI can retrieve real-time telemetry, draft budget ceilings, review pending requisitions, simulate your cash burn rate, or prepare executive decisions. Choose one of the quick commands above or provide a specific requisition reference to proceed.`,
+          content: `I am your BEMS AI Group Financial Manager. I monitor real-time expenditure, approvals, cash runway, and compliance across ${businessName}.\n\nHow can I assist your financial oversight today?`,
         };
         setMessages((prev) => [...prev, defaultReply]);
         setIsTyping(false);
-      }, 700);
+      }, 500);
     },
-    [userName, businessName, businessId]
+    [businessName, businessId]
   );
 
   // Execute confirmation for an action card
   const handleConfirmAction = useCallback(
     async (messageId: string, actionType: string, payload: any) => {
       try {
+        if (payload?.staged_action_id) {
+          const res = await fetch(`/api/v1/staged-actions/${payload.staged_action_id}/confirm`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Idempotency-Key': `idemp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            },
+            body: JSON.stringify({
+              confirmed_by: userName || 'GMD Executive',
+              confirmation_hash: payload.confirmation_hash,
+            }),
+          });
+          const result = await res.json();
+          if (res.ok) {
+            setMessages((prev) =>
+              prev.map((m) => {
+                if (m.id === messageId && m.actionCard) {
+                  return {
+                    ...m,
+                    actionCard: {
+                      ...m.actionCard,
+                      confirmed: true,
+                      resultMessage: `Operation confirmed! Audit Event ID: #${result.audit_event_id || 'AUDIT-OK'}.`,
+                    },
+                  };
+                }
+                return m;
+              })
+            );
+            return;
+          }
+        }
+
         if (actionType === 'approval_decision') {
           // Call backend approval API
           await fetch(`/api/requests/${payload.requestNumber || 'REQ-2026-0004'}/action`, {
@@ -217,7 +195,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
         console.error('Failed to commit action:', err);
       }
     },
-    []
+    [userName]
   );
 
   return {
