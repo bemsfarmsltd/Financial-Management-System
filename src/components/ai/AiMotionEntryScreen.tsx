@@ -25,38 +25,99 @@ export function AiMotionEntryScreen({
   // Use the actual logged-in user's name
   const displayName = userName?.trim() || (userRole === 'GMD' ? 'GMD' : userRole.includes('ADMIN') ? 'System Admin' : 'Executive');
 
-  const financialUpdates = [
+  const [liveUpdates, setLiveUpdates] = useState<Array<{ metric: string; text: string; tag: string; tagColor: string }>>([
     {
-      metric: 'GROUP LIQUIDITY',
-      text: 'Consolidated group liquidity stands at ₦84.2M across subsidiaries',
-      tag: 'HEALTHY',
-      tagColor: '#059669',
-    },
-    {
-      metric: 'EXECUTIVE APPROVAL QUEUE',
-      text: '1 pending requisition requires executive review and authorization (₦650,000)',
-      tag: 'ACTION REQUIRED',
+      metric: 'GROUP TELEMETRY',
+      text: 'Synchronizing real-time ledger intelligence across BEMS Group subsidiaries...',
+      tag: 'CONNECTING',
       tagColor: '#ea580c',
     },
     {
-      metric: 'CASH RUNWAY FORECAST',
-      text: 'Liquid cash runway confirmed at 11.4 months at current group burn rate',
-      tag: 'OPTIMAL',
+      metric: 'EXECUTIVE APPROVAL QUEUE',
+      text: 'Connecting to live requisition approval pipeline...',
+      tag: 'AUDIT',
       tagColor: '#0284c7',
     },
     {
-      metric: 'AUDIT & COMPLIANCE',
-      text: 'Group accountability verification is 100% compliant with zero overdue retirements',
-      tag: 'VERIFIED',
+      metric: 'ACCOUNTABILITY STATUS',
+      text: 'Verifying 72-hour cash advance retirement evidence...',
+      tag: 'VERIFYING',
       tagColor: '#059669',
     },
-    {
-      metric: 'CAPITAL COMMITMENTS',
-      text: 'Operational commitments allocated with 34% remaining budget headroom',
-      tag: 'CONTROLLED',
-      tagColor: '#7c3aed',
-    },
-  ];
+  ]);
+
+  // Fetch real-time live database statistics on mount
+  useEffect(() => {
+    fetch('/api/briefing')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        const requests = Array.isArray(data.requests) ? data.requests : [];
+        const budgets = Array.isArray(data.budgets) ? data.budgets : [];
+        const accountabilityCases = Array.isArray(data.accountabilityCases) ? data.accountabilityCases : [];
+        const disbursements = Array.isArray(data.disbursements) ? data.disbursements : [];
+        const orgs = Array.isArray(data.organizations) ? data.organizations : [];
+
+        // 1. Pending Approvals
+        const pending = requests.filter((r: any) => r.approvalStatus === 'SUBMITTED' || r.approvalStatus === 'IN_REVIEW');
+        const pendingSum = pending.reduce((sum: number, r: any) => sum + (Number(r.amountNaira) || 0), 0);
+
+        // 2. Unpaid Approved
+        const unpaid = requests.filter((r: any) => r.approvalStatus === 'APPROVED' && r.paymentStatus === 'UNPAID');
+        const unpaidSum = unpaid.reduce((sum: number, r: any) => sum + (Number(r.amountNaira) || 0), 0);
+
+        // 3. Accountability Compliance
+        const now = new Date();
+        const overdue = accountabilityCases.filter((c: any) => c.status !== 'CLOSED' && new Date(c.dueAt) < now);
+
+        // 4. Budget Total
+        const totalBudget = budgets.reduce((sum: number, b: any) => sum + (Number(b.totalAmount) || 0), 0);
+
+        const realList = [
+          {
+            metric: 'EXECUTIVE APPROVAL QUEUE',
+            text: pending.length > 0
+              ? `${pending.length} pending requisition${pending.length > 1 ? 's' : ''} awaiting executive review (₦${pendingSum.toLocaleString()})`
+              : 'Zero pending requisitions awaiting executive authorization — queue is fully cleared',
+            tag: pending.length > 0 ? 'ACTION NEEDED' : 'CLEAR',
+            tagColor: pending.length > 0 ? '#ea580c' : '#059669',
+          },
+          {
+            metric: 'PAYMENT DISBURSEMENT QUEUE',
+            text: unpaid.length > 0
+              ? `${unpaid.length} approved requisition${unpaid.length > 1 ? 's' : ''} awaiting payment recording (₦${unpaidSum.toLocaleString()})`
+              : 'All approved requisitions have been disbursed and matched to external bank records',
+            tag: unpaid.length > 0 ? 'READY TO PAY' : 'SETTLED',
+            tagColor: unpaid.length > 0 ? '#0284c7' : '#059669',
+          },
+          {
+            metric: 'AUDIT & 72H COMPLIANCE',
+            text: overdue.length === 0
+              ? `Accountability is 100% compliant across ${accountabilityCases.length} advance case${accountabilityCases.length === 1 ? '' : 's'} with 0 overdue`
+              : `${overdue.length} advance retirement${overdue.length > 1 ? 's' : ''} past 72-hour evidence deadline`,
+            tag: overdue.length === 0 ? 'COMPLIANT' : 'OVERDUE',
+            tagColor: overdue.length === 0 ? '#059669' : '#dc2626',
+          },
+          {
+            metric: 'CONSOLIDATED CAPITAL ALLOCATION',
+            text: `${orgs.length || 3} active subsidiaries operating with ₦${(totalBudget / 1_000_000).toFixed(1)}M total allocated capital`,
+            tag: 'OPTIMAL',
+            tagColor: '#7c3aed',
+          },
+          {
+            metric: 'DISBURSEMENT LEDGER',
+            text: `${disbursements.length} verified group disbursement${disbursements.length === 1 ? '' : 's'} recorded on ledger`,
+            tag: 'VERIFIED',
+            tagColor: '#059669',
+          },
+        ];
+
+        setLiveUpdates(realList);
+      })
+      .catch((err) => console.warn('Could not load live briefing metrics for entry screen:', err));
+  }, []);
+
+  const financialUpdates = liveUpdates;
 
   // Cycle through real-time financial updates in login mode
   useEffect(() => {

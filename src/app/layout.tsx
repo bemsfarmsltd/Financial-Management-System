@@ -27,17 +27,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <title>BEMS ERP | Financial Operations</title>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/bems-mark.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/bems-mark.png" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `document.title = "BEMS ERP | Financial Operations";`,
-          }}
-        />
-      </head>
       <body className="antialiased min-h-screen">
         <AppProvider>
           {children}

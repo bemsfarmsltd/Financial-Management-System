@@ -2232,16 +2232,16 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   const [marketplaceOpen,setMarketplaceOpen]=useState(false);
   const [marketplaceBusinessId,setMarketplaceBusinessId]=useState(currentId);
   const [topPanel,setTopPanel]=useState<'notifications'|'account'|null>(null);
-  const current=businesses.find(b=>b.id===currentId) || businesses[0];
+  const current = (businesses && businesses.length > 0 ? (businesses.find(b=>b.id===currentId) || businesses[0]) : defaultBemsBusinesses[0]) || defaultBemsBusinesses[0];
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [activeAiPrompt, setActiveAiPrompt] = useState<string | undefined>(undefined);
   const isAiAuthorized = !isStaff && (currentRole === 'GMD' || (safeUser.role as string) === 'GMD' || (safeUser.role as string) === 'SYSTEM_ADMIN');
 
   const aiManager = useAiFinancialManager({
     userRole: currentRole,
-    userName: safeUser.fullName,
-    businessName: current.name,
-    businessId: current.id,
+    userName: safeUser?.fullName || 'Dr Pastra',
+    businessName: current?.name || 'BEMS Group',
+    businessId: current?.id || 'bems-group-hq',
     currentPage: active,
   });
 

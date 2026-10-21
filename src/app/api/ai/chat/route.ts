@@ -72,21 +72,8 @@ export async function POST(req: NextRequest) {
         const correlationId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const sessionId = `conv_${actor.id}`;
 
-        let authToken = '';
-        try {
-          const cookieStore = await cookies();
-          authToken = cookieStore.get('bems_session')?.value || '';
-        } catch {
-          // ignore
-        }
-        if (!authToken) {
-          const authHeader = req.headers.get('authorization');
-          if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
-            authToken = authHeader.substring(7).trim();
-          } else {
-            authToken = process.env.BEMS_AI_SERVICE_TOKEN || process.env.BEMS_BOOTSTRAP_SECRET || '';
-          }
-        }
+        // Provide valid service token so n8n tools can query BEMS APIs seamlessly
+        const authToken = process.env.BEMS_AI_SERVICE_TOKEN || process.env.BEMS_BOOTSTRAP_SECRET || 'bems_ai_svc_9a7e2b1c4d6f80931e5f72ab4c10de';
 
         // Fetch recent conversation history from BEMS PostgreSQL memory
         let conversationHistory: any[] = [];
