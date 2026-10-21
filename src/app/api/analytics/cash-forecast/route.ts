@@ -28,7 +28,7 @@ export async function GET(req: Request) {
 
     // 2. Active payroll obligations
     const activeStaffCount = await prisma.employee.count({
-      where: { status: 'ACTIVE' },
+      where: { status: 'ACTIVE', role: { not: 'SYSTEM_ADMIN' } },
     });
     // Estimated payroll obligation based on staff count
     const estimatedMonthlyPayroll = activeStaffCount * 280000;

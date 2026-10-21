@@ -13,26 +13,41 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const orgId = searchParams.get('organization_id');
 
-    const [activeStaffCount, batches, orgs] = await Promise.all([
-      prisma.employee.count({ where: { status: 'ACTIVE' } }),
+    const now = new Date();
+    const [activeStaffCount, batches, orgs, activeCompAgreements] = await Promise.all([
+      prisma.employee.count({ where: { status: 'ACTIVE', role: { not: 'SYSTEM_ADMIN' } } }),
       prisma.payrollBatch.findMany({
         take: 3,
         orderBy: { createdAt: 'desc' },
       }),
       prisma.organization.findMany({ where: { status: 'ACTIVE' } }),
+      prisma.compensationAgreement.findMany({
+        where: {
+          employmentAgreement: {
+            status: 'ACTIVE',
+            employee: { status: 'ACTIVE', role: { not: 'SYSTEM_ADMIN' } },
+          },
+          effectiveFrom: { lte: now },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }],
+        },
+        select: { grossMinor: true },
+      }),
     ]);
 
     const latestBatch = batches[0];
-    const estimatedRunRate = activeStaffCount * 280000;
+    const totalContractSalaries = activeCompAgreements.reduce((sum, c) => sum + Number(c.grossMinor) / 100, 0);
+    const totalMonthlyRunRate = latestBatch
+      ? Number(latestBatch.totalGrossMinor) / 100
+      : totalContractSalaries;
 
     return NextResponse.json({
       ok: true,
       summary: {
-        total_monthly_run_rate: latestBatch ? Number(latestBatch.totalGrossMinor) / 100 : estimatedRunRate,
-        total_monthly_formatted: `₦${(latestBatch ? Number(latestBatch.totalGrossMinor) / 100 : estimatedRunRate).toLocaleString()}`,
+        total_monthly_run_rate: totalMonthlyRunRate,
+        total_monthly_formatted: `₦${totalMonthlyRunRate.toLocaleString()}`,
         active_headcount: activeStaffCount,
-        latest_batch_period: latestBatch ? 'Current Cycle' : 'Open Registration',
-        payment_status: latestBatch ? latestBatch.status : 'SCHEDULED',
+        latest_batch_period: latestBatch ? 'Current Cycle' : (totalContractSalaries > 0 ? 'Active Contracts Sum' : 'No Batch Prepared'),
+        payment_status: latestBatch ? latestBatch.status : (totalContractSalaries > 0 ? 'SCHEDULED' : 'PENDING_REGISTRATION'),
         upcoming_deadlines: '25th of the month (Statutory Tax & Pension Remittance)',
         subsidiary_allocations: orgs.map(o => ({
           subsidiary: o.legalName,

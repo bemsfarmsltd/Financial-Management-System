@@ -12,6 +12,9 @@ export async function GET(req: Request) {
     const now = new Date();
 
     const employees = await prisma.employee.findMany({
+      where: {
+        role: { not: 'SYSTEM_ADMIN' },
+      },
       include: {
         assignments: {
           include: {
