@@ -44,9 +44,13 @@ const defaultSubsidiaries: Subsidiary[] = [
   { id: 'bems-group-hq', name: 'BEMS Group', code: 'BEMS-GROUP', industry: 'Conglomerate & Holding HQ', initials: 'BG', color: '#0b1220', status: 'Live' },
 ];
 
-export function ConnectAppShell({ children }: { children: React.ReactNode }) {
+export function ConnectAppShell({ children, initialRole }: { children: React.ReactNode; initialRole?: SystemRole }) {
   const pathname = usePathname();
-  const [currentRole] = useState<SystemRole>('GMD');
+  const [currentRole, setCurrentRole] = useState<SystemRole>(() => {
+    if (initialRole) return initialRole;
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/staff')) return 'Staff';
+    return 'GMD';
+  });
   const [collapsed, setCollapsed] = useState(false);
   const [subsidiaries, setSubsidiaries] = useState<Subsidiary[]>(defaultSubsidiaries);
   const [currentSubId, setCurrentSubId] = useState('bems-group-hq');
@@ -204,13 +208,28 @@ export function ConnectAppShell({ children }: { children: React.ReactNode }) {
   ];
 
   const staffNav = [
-    { label: 'STAFF EXPERIENCE', items: [['Mobile View Simulator', '/', '📱'], ['My Fund Requests', '/requests', '▱'], ['Submit New Request', '/requests/new', '＋'], ['Upload Proof / Accountability', '/accountability', '◈']] },
+    {
+      label: 'STAFF DESK',
+      items: [
+        ['Staff Dashboard', '/staff', '⌂'],
+        ['My Fund Requests', '/requests', '▱'],
+        ['Submit New Request', '/requests/new', '＋'],
+        ['72h Evidence Vault', '/accountability', '◈'],
+      ],
+    },
+    {
+      label: 'PORTAL & VENDORS',
+      items: [
+        ['Vendor Registry', '/vendors', '▦'],
+        ['Intercompany Notes', '/intercompany', '▥'],
+      ],
+    },
   ];
 
   const navGroups = currentRole === 'GMD' ? gmdNav : currentRole === 'HR' ? hrNav : currentRole === 'SystemAdmin' ? sysAdminNav : staffNav;
 
   return (
-    <main className={`app-shell gmd-view ${collapsed ? 'collapsed' : ''}`}>
+    <main className={`app-shell ${currentRole === 'Staff' ? 'staff-view' : 'gmd-view'} ${collapsed ? 'collapsed' : ''}`}>
       {/* SIDEBAR */}
       <aside className="sidebar">
         <div className="sidebar-circuit" aria-hidden="true"><i/><i/><i/><i/><i/><i/></div>
@@ -349,6 +368,27 @@ export function ConnectAppShell({ children }: { children: React.ReactNode }) {
               )}
             </div>
 
+            <Link
+              href={pathname?.startsWith('/staff') ? '/' : '/staff'}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                padding: '5px 12px',
+                borderRadius: '8px',
+                background: currentRole === 'Staff' ? '#ea580c' : 'rgba(255, 255, 255, 0.08)',
+                color: '#ffffff',
+                textDecoration: 'none',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                transition: 'all 0.15s ease',
+              }}
+              title="Toggle View Mode"
+            >
+              <span>{currentRole === 'Staff' ? 'Staff Portal' : 'GMD Exec'}</span>
+              <span style={{ opacity: 0.6 }}>⇄</span>
+            </Link>
             <div className="avatar">HN</div>
           </div>
         </header>

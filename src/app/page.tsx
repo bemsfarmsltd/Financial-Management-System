@@ -2008,7 +2008,8 @@ function VendorsModule({business,setNotice,onNavigate}:{business:Business;setNot
 
 function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurrentId,onUpdateBusiness}:{user:AuthUser;onSignOut:()=>void;onAddBusiness:()=>void;businesses:Business[];currentId:string;setCurrentId:(value:string)=>void;onUpdateBusiness:(id:string,patch:Partial<Business>)=>Promise<Business>}) {
   const safeUser: AuthUser = user || { id: 'auth-user', fullName: 'Authorized User', email: '', role: 'GMD' };
-  const isStaff = safeUser.role === 'STAFF';
+  const [currentRole, setCurrentRole] = useState<SystemRole>((safeUser.role as SystemRole) || 'GMD');
+  const isStaff = (currentRole as string) === 'STAFF' || (safeUser.role as string) === 'STAFF';
   const [active,setActive]=useState('Overview');
   const [collapsed,setCollapsed]=useState(false);
   useEffect(() => {
@@ -2040,7 +2041,6 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   const [marketplaceBusinessId,setMarketplaceBusinessId]=useState(currentId);
   const [topPanel,setTopPanel]=useState<'notifications'|'account'|null>(null);
   const current=businesses.find(b=>b.id===currentId) || businesses[0];
-  const [currentRole, setCurrentRole] = useState<SystemRole>((safeUser.role as SystemRole) || 'GMD');
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [activeAiPrompt, setActiveAiPrompt] = useState<string | undefined>(undefined);
   const isAiAuthorized = !isStaff && (currentRole === 'GMD' || (safeUser.role as string) === 'GMD' || (safeUser.role as string) === 'SYSTEM_ADMIN');
@@ -2073,7 +2073,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     return () => window.removeEventListener('keydown', handleAiKey);
   }, [isAiAuthorized]);
 
-  const navigation = getRoleNavigation(safeUser.role);
+  const navigation = getRoleNavigation((currentRole as string) === 'STAFF' ? 'STAFF' : safeUser.role);
   const sectorOperations=(navigation[3] && navigation[3].items) ? navigation[3].items.map(([name])=>name) : [];
   const liveOnly=['Inbox','Customers','Campaigns','Cases & SLAs','Commerce & orders','Payments','Bookings','Loyalty & rewards','Analytics & BI'];
   const incompleteLocked=['Inbox','Customers','Campaigns','Cases & SLAs','Commerce & orders','Payments','Bookings','Loyalty & rewards','Analytics & BI','Quality & experiments','Audit logs'];
