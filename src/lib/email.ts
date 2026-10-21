@@ -10,9 +10,9 @@ export interface EmailOptions {
   eventType?: string;
 }
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://pink-horse-318730.hostingersite.com';
-const SMTP_FROM = process.env.SMTP_FROM || 'BEMS Group Notifications <notifications@bemsgroup.com>';
-const RESEND_FROM = process.env.RESEND_FROM || 'BEMS Group <onboarding@resend.dev>';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://bemserp.work';
+const SMTP_FROM = process.env.SMTP_FROM || 'BEMS Group Notifications <notifications@bemserp.work>';
+const RESEND_FROM = process.env.RESEND_FROM || 'BEMS Group Notifications <notifications@bemserp.work>';
 
 function getResendClient() {
   const apiKey = process.env.RESEND_API_KEY;
