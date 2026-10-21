@@ -35,7 +35,6 @@ import { AiScreenEdgeGlow, notifyAiInteraction } from "@/components/ai/AiScreenE
 import { useAiFinancialManager } from "@/components/ai/useAiFinancialManager";
 import { AiMotionEntryScreen } from "@/components/ai/AiMotionEntryScreen";
 import { PeopleAccessWorkspaceModule } from "@/components/dashboard/gmd/PeopleAccessWorkspaceModule";
-import { GmdExecutiveAiApp } from "@/components/ai/GmdExecutiveAiApp";
 import { StaffWorkspaceModule } from "@/components/dashboard/staff/StaffWorkspaceModule";
 
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -182,7 +181,6 @@ const gmdNavGroups = [
     label: 'EXECUTIVE',
     items: [
       ['Overview', '⌂'],
-      ['Executive AI Copilot', '✦'],
       ['Subsidiary portfolio', '▦'],
       ['Executive briefing', '✦'],
     ]
@@ -1510,7 +1508,6 @@ function RoleOverviewModule({role,business,user,cases,setActive,setNotice,onRole
         </div>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           <button className="outline-button" onClick={() => setActive("Subsidiary portfolio")}>Manage Subsidiaries ▦</button>
-          <button className="primary-button" style={{ background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)', border: 'none', boxShadow: '0 2px 10px rgba(234,88,12,0.3)' }} onClick={() => setActive("Executive AI Copilot")}>✦ Executive AI Copilot</button>
         </div>
       </div>
       <ModernBentoDashboard
@@ -2360,7 +2357,6 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     if(target==='Budgets & commitments'||target==='Budget variance audit') { if (typeof window !== 'undefined') window.location.href = '/budgets'; return null; }
     if(target==='Payroll sign-off'||target==='Hybrid payroll') return <PayrollSignOffView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='HR Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(target==='Executive AI Copilot'||target==='Executive AI') return <GmdExecutiveAiApp userName={safeUser.fullName} businessName={current.name} onNavigate={setActive}/>;
     if(target==='Executive briefing') return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p)=>setActive(p)}/>;
     if(target==='Subsidiary portfolio') return <Businesses businesses={businesses} current={current} onSelect={selectBusiness} onAdd={onAddBusiness}/>;
     if(target==='Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={currentRole !== 'GMD'}/>;
@@ -2575,6 +2571,7 @@ export default function Home() {
             status: 'Live',
             readiness: 100,
             color: '#ea580c',
+            aiEnabled: true,
           };
           setBusinesses(old => [...old, next]);
           setCurrentId(next.id);
