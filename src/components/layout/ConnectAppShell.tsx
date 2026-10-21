@@ -134,26 +134,68 @@ export function ConnectAppShell({ children }: { children: React.ReactNode }) {
 
   const gmdNav = [
     {
-      label: 'EXECUTIVE HUBS',
+      label: 'EXECUTIVE',
       items: [
         ['Overview', '/', '⌂'],
+        ['Subsidiary portfolio', '/?tab=Subsidiary+portfolio', '▦'],
         ['Executive briefing', '/briefing', '✦'],
-        ['Subsidiary portfolio', '/', '▦'],
-        ['Approvals & Payments', '/fund-flow', '₦'],
-        ['Intercompany & Audit Hub', '/intercompany', '▥'],
       ]
     },
     {
-      label: 'GOVERNANCE & ADMIN',
+      label: 'FUND FLOW',
       items: [
-        ['Settings', '/audit', '⚙'],
+        ['Fund requests', '/requests', '▱'],
+        ['Approvals & payments', '/approvals', '✓'],
+        ['Budgets & commitments', '/budgets', '◫'],
+        ['Treasury accounts', '/?tab=Treasury+accounts', '🏦'],
+        ['Recurring commitments', '/?tab=Recurring+commitments', '◌'],
+        ['Hybrid payroll', '/payroll', '⌁'],
+        ['Intercompany notes', '/intercompany', '▥'],
+        ['Request channels', '/?tab=Request+channels', '◎'],
+      ]
+    },
+    {
+      label: 'PEOPLE & REPORTS',
+      items: [
+        ['Staff profiles', '/?tab=Staff+profiles', '👥'],
+        ['Staff onboarding', '/?tab=Staff+onboarding', '✓'],
+        ['Audit logs', '/audit', '≡'],
+        ['Settings', '/?tab=Settings', '⚙'],
       ]
     },
   ];
 
   const sysAdminNav = [
-    { label: 'ADMINISTRATION & PEOPLE', items: [['Overview', '/', '⌂'], ['Staff Signup Approvals', '/?tab=Staff+onboarding', '✓']] },
-    { label: 'GOVERNANCE & AUDIT', items: [['Audit Trail', '/audit', '≡'], ['Approval Policies', '/approvals', '⚙'], ['Vendors & Registry', '/vendors', '▦']] },
+    {
+      label: 'EXECUTIVE',
+      items: [
+        ['Overview', '/', '⌂'],
+        ['Subsidiary portfolio', '/?tab=Subsidiary+portfolio', '▦'],
+        ['Executive briefing', '/briefing', '✦'],
+      ]
+    },
+    {
+      label: 'FUND FLOW',
+      items: [
+        ['Fund requests', '/requests', '▱'],
+        ['Approvals & payments', '/approvals', '✓'],
+        ['Budgets & commitments', '/budgets', '◫'],
+        ['Treasury accounts', '/?tab=Treasury+accounts', '🏦'],
+        ['Recurring commitments', '/?tab=Recurring+commitments', '◌'],
+        ['Hybrid payroll', '/payroll', '⌁'],
+        ['Intercompany notes', '/intercompany', '▥'],
+        ['Vendors & suppliers', '/vendors', '▦'],
+      ]
+    },
+    {
+      label: 'ADMINISTRATION & PEOPLE',
+      items: [
+        ['Staff profiles', '/?tab=Staff+profiles', '👥'],
+        ['Staff onboarding', '/?tab=Staff+onboarding', '✓'],
+        ['Audit logs', '/audit', '≡'],
+        ['Settings', '/?tab=Settings', '⚙'],
+      ]
+    },
   ];
 
   const hrNav = [
@@ -188,7 +230,7 @@ export function ConnectAppShell({ children }: { children: React.ReactNode }) {
             <div className="nav-group" key={group.label}>
               <p>{group.label}</p>
               {group.items.map(([name, url, icon]) => {
-                const isActive = pathname === url;
+                const isActive = pathname === url || (url.startsWith('/?tab=') && pathname === '/' && typeof window !== 'undefined' && window.location.search.includes(url.replace('/?tab=', '')));
                 return (
                   <Link
                     href={url}

@@ -2296,7 +2296,17 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     }
 
     if(target==='Overview') return <RoleOverviewModule role={currentRole} business={current} user={safeUser} cases={cases} setActive={setActive} setNotice={setNotice} onRoleChange={(r) => setCurrentRole(r)}/>;
-    if(target==='Budgets & commitments'||target==='Budget variance audit') { if (typeof window !== 'undefined') window.location.href = '/budgets'; return null; }
+    if(target==='Budgets & commitments'||target==='Budget variance audit') {
+      return (
+        <TreasuryFinanceHubView
+          initialTab="budgets"
+          businessName={current.name}
+          userName={safeUser.fullName}
+          onNavigate={setActive}
+          onSelectBusiness={selectBusiness}
+        />
+      );
+    }
     if(target==='Payroll sign-off'||target==='Hybrid payroll') return <PayrollSignOffView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='HR Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
     if(target==='Executive briefing') return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p)=>setActive(p)}/>;
