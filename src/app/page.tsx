@@ -424,6 +424,8 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
   });
 
   const [error, setError] = useState('');
+  const [magicMessage, setMagicMessage] = useState('');
+  const [magicBusy, setMagicBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [bootstrapSecret, setBootstrapSecret] = useState('');
   const [bootstrapAvailable, setBootstrapAvailable] = useState(false);
@@ -433,6 +435,13 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
   const [devRoleBusy, setDevRoleBusy] = useState('');
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      const emailParam = sp.get('email');
+      if (emailParam) {
+        setLoginForm(prev => ({ ...prev, email: emailParam }));
+      }
+    }
     fetch('/api/auth/bootstrap').then(r => r.json()).then(d => { setBootstrapAvailable(Boolean(d.available)); setBootstrapConfigured(Boolean(d.configured)); setAdminExists(Boolean(d.adminExists)); }).catch(() => setBootstrapAvailable(false));
     fetch('/api/auth/dev-role').then(r => r.ok ? r.json() : null).then(d => { if (d?.enabled) setDevRoles(d.roles || []); }).catch(() => setDevRoles([]));
     fetch('/api/auth/signup/options').then(r => r.json()).then(d => {
@@ -452,6 +461,31 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
       }
     }).catch(() => {});
   }, []);
+
+  const requestLoginEmail = async () => {
+    if (!loginForm.email) {
+      setError('Please enter your work email address above first.');
+      return;
+    }
+    setError(''); setMagicMessage(''); setMagicBusy(true);
+    try {
+      const res = await fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginForm.email }),
+      });
+      const data = await res.json();
+      setMagicBusy(false);
+      if (res.ok) {
+        setMagicMessage(data.message || 'Login email dispatched! Check your inbox.');
+      } else {
+        setError(data.error || 'Could not send sign-in email.');
+      }
+    } catch {
+      setMagicBusy(false);
+      setError('Could not reach the email notification service. Try again.');
+    }
+  };
 
   const submitLogin = (e: FormEvent) => {
     e.preventDefault(); setError(''); setBusy(true);
@@ -559,8 +593,26 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
         <p className="kicker">WELCOME BACK</p><h2>Sign in to BEMS Group</h2><p className="lead">Sign in with your approved BEMS Group work email.</p>
         <div className="form-grid">
           <label className="full">Email<input required type="email" value={loginForm.email} onChange={e=>setLoginForm(old=>({...old, email: e.target.value}))} placeholder="you@company.com"/></label>
-          <label className="full">Password<input required type="password" value={loginForm.password} onChange={e=>setLoginForm(old=>({...old, password: e.target.value}))} placeholder="Your password"/></label>
+          <label className="full">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Password</span>
+              <button
+                type="button"
+                onClick={requestLoginEmail}
+                disabled={magicBusy}
+                style={{ background: 'none', border: 'none', color: '#ea580c', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0 }}
+              >
+                {magicBusy ? 'Sending sign-in email…' : '✉️ Email me login link'}
+              </button>
+            </div>
+            <input required type="password" value={loginForm.password} onChange={e=>setLoginForm(old=>({...old, password: e.target.value}))} placeholder="Your password"/>
+          </label>
         </div>
+        {magicMessage && (
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', marginTop: 14, fontSize: 13, color: '#166534' }}>
+            ✓ {magicMessage}
+          </div>
+        )}
         {error && <p className="auth-error">{error}</p>}
         <footer className="journey-actions"><span/><button className="continue-button" disabled={busy}>{busy?'Signing in…':'Sign in'} <span>→</span></button></footer>
       </form>}

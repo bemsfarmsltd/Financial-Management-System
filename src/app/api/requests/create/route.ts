@@ -150,14 +150,17 @@ export async function POST(request: Request) {
       },
     });
 
-    // Trigger multi-channel alert via WhatsApp & Slack Bridge
+    // Trigger multi-channel alert via WhatsApp, Slack & Real-Time Executive Email to GMD
     try {
+      const org = await prisma.organization.findUnique({ where: { id: subsidiaryId }, select: { legalName: true } });
       await notifyApprovalRequired({
         requestNumber,
         title: titleStr,
         amountMinor: Number(amountMinor),
         approverRole: initialApproverRole,
         requesterName: actor.legalName,
+        subsidiaryName: org?.legalName || "BEMS Group",
+        justification: justStr,
       });
     } catch (notifErr) {
       console.error("Notification bridge error:", notifErr);

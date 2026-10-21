@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { hashPassword } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { sendStaffSignupReceiptEmail, sendGmdNewStaffAlert } from '@/lib/email';
 
 async function generateUniqueEmployeeNumber(subsidiaryId?: string | null): Promise<string> {
   const year = new Date().getFullYear();
@@ -161,10 +162,30 @@ export async function POST(request: Request) {
       return newEmp;
     });
 
-    // Notify System Administrators of new registration
+    // Fetch subsidiary name for email templates
+    let subsidiaryName = 'BEMS Group Holdings';
+    if (subsidiaryId) {
+      const org = await prisma.organization.findUnique({ where: { id: subsidiaryId }, select: { legalName: true } });
+      if (org?.legalName) subsidiaryName = org.legalName;
+    }
+
+    // 1. Dispatch confirmation email to new staff member
+    try {
+      await sendStaffSignupReceiptEmail({
+        to: email,
+        staffName: fullName,
+        employeeNumber: uniqueEmployeeNumber,
+        roleTitle: jobTitle,
+        subsidiaryName,
+      });
+    } catch (emailErr) {
+      console.error('Failed to send staff signup receipt email:', emailErr);
+    }
+
+    // 2. Notify GMD and System Administrators of new registration (In-App + Real-Time Email)
     const admins = await prisma.employee.findMany({
       where: { role: { in: ['SYSTEM_ADMIN', 'GMD'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' },
-      select: { id: true }
+      select: { id: true, workEmail: true, legalName: true, role: true }
     });
 
     if (admins.length) {
@@ -177,6 +198,26 @@ export async function POST(request: Request) {
           linkUrl: '/staff',
         })),
       });
+
+      // Send real-time executive alert email to GMD and Admins
+      for (const admin of admins) {
+        try {
+          await sendGmdNewStaffAlert({
+            gmdEmail: admin.workEmail,
+            gmdName: admin.legalName,
+            staffName: fullName,
+            employeeNumber: uniqueEmployeeNumber,
+            jobTitle,
+            subsidiaryName,
+            employmentType,
+            workLocation,
+            bankName: bankName || 'Standard Commercial Bank',
+            accountNumber: accountNumber || 'N/A',
+          });
+        } catch (adminEmailErr) {
+          console.error(`Failed to dispatch new staff alert email to ${admin.workEmail}:`, adminEmailErr);
+        }
+      }
     }
 
     return NextResponse.json({

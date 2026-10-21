@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
+import { sendEmail, getExecutiveRecipients, sendGmdRequisitionAlert } from "@/lib/email";
 
 export interface NotificationPayload {
-  channel: "SLACK" | "WHATSAPP" | "BOTH";
-  recipient: string; // Phone number or Slack channel/user ID
-  eventType: "APPROVAL_REQUESTED" | "DISBURSED" | "RETIREMENT_WARNING" | "CLARIFICATION_REQUIRED";
+  channel: "SLACK" | "WHATSAPP" | "EMAIL" | "BOTH" | "ALL";
+  recipient: string; // Phone number, email, or Slack channel/user ID
+  eventType: "APPROVAL_REQUESTED" | "DISBURSED" | "RETIREMENT_WARNING" | "CLARIFICATION_REQUIRED" | "STAFF_ONBOARDING";
   title: string;
   summary: string;
   metadata?: Record<string, any>;
@@ -14,6 +15,7 @@ export interface BridgeDispatchResult {
   success: boolean;
   slackStatus?: "SENT" | "SKIPPED" | "FAILED";
   whatsappStatus?: "SENT" | "SKIPPED" | "FAILED";
+  emailStatus?: "SENT" | "SKIPPED" | "FAILED";
   notificationIds: string[];
 }
 
@@ -112,7 +114,7 @@ function buildSlackApprovalCard(params: {
 }
 
 /**
- * Dispatches outbound notifications to Slack and/or WhatsApp
+ * Dispatches outbound notifications to Slack, WhatsApp and/or Email
  * Logs each dispatch to the OutboundNotification table.
  */
 export async function dispatchNotificationBridge(payload: NotificationPayload): Promise<BridgeDispatchResult> {
@@ -126,7 +128,7 @@ export async function dispatchNotificationBridge(payload: NotificationPayload): 
   const whatsappPhoneId = process.env.WHATSAPP_PHONE_ID;
 
   // 1. Dispatch Slack
-  if (payload.channel === "SLACK" || payload.channel === "BOTH") {
+  if (payload.channel === "SLACK" || payload.channel === "BOTH" || payload.channel === "ALL") {
     let slackStatus: "SENT" | "SKIPPED" | "FAILED" = "SKIPPED";
     let slackExternalId: string | null = null;
     const slackPayload = buildSlackApprovalCard({
@@ -177,13 +179,13 @@ export async function dispatchNotificationBridge(payload: NotificationPayload): 
   }
 
   // 2. Dispatch WhatsApp
-  if (payload.channel === "WHATSAPP" || payload.channel === "BOTH") {
+  if (payload.channel === "WHATSAPP" || payload.channel === "BOTH" || payload.channel === "ALL") {
     let waStatus: "SENT" | "SKIPPED" | "FAILED" = "SKIPPED";
     let waExternalId: string | null = null;
 
     const waText = `*BEMS Group Alert: ${payload.title}*\n\n${payload.summary}\n\n• Reference: ${payload.metadata?.requestNumber || "N/A"}\n• Amount: ₦${payload.metadata?.amountMinor ? (payload.metadata.amountMinor / 100).toLocaleString() : 'N/A'}\n\nReply *APPROVE* or *DECLINE* followed by the request number.`;
 
-    if (whatsappApiToken && whatsappPhoneId && payload.recipient) {
+    if (whatsappApiToken && whatsappPhoneId && payload.recipient && !payload.recipient.includes('@')) {
       try {
         const res = await fetch(`https://graph.facebook.com/v19.0/${whatsappPhoneId}/messages`, {
           method: "POST",
@@ -230,6 +232,26 @@ export async function dispatchNotificationBridge(payload: NotificationPayload): 
     result.whatsappStatus = waStatus;
   }
 
+  // 3. Dispatch Email
+  if (payload.channel === "EMAIL" || payload.channel === "ALL") {
+    try {
+      const emailResult = await sendEmail({
+        to: payload.recipient,
+        subject: payload.title,
+        html: `<p><strong>${payload.title}</strong></p><p>${payload.summary}</p>`,
+        text: `${payload.title}\n\n${payload.summary}`,
+        eventType: payload.eventType,
+      });
+      result.emailStatus = emailResult.success ? "SENT" : "FAILED";
+      if (emailResult.messageId) {
+        result.notificationIds.push(emailResult.messageId);
+      }
+    } catch (err) {
+      console.error("Email bridge dispatch error:", err);
+      result.emailStatus = "FAILED";
+    }
+  }
+
   return result;
 }
 
@@ -242,9 +264,12 @@ export async function notifyApprovalRequired(params: {
   amountMinor: number;
   approverRole: string;
   requesterName: string;
+  subsidiaryName?: string;
+  justification?: string;
   recipientPhone?: string;
 }) {
-  return dispatchNotificationBridge({
+  // Dispatch multi-channel bridge (Slack + WhatsApp)
+  const bridgePromise = dispatchNotificationBridge({
     channel: "BOTH",
     recipient: params.recipientPhone || "+2348011223344",
     eventType: "APPROVAL_REQUESTED",
@@ -257,6 +282,31 @@ export async function notifyApprovalRequired(params: {
       requesterName: params.requesterName,
     },
   });
+
+  // Always send real-time executive notification emails to GMD & System Admin
+  const emailPromise = (async () => {
+    try {
+      const execs = await getExecutiveRecipients();
+      for (const exec of execs) {
+        await sendGmdRequisitionAlert({
+          gmdEmail: exec.email,
+          gmdName: exec.name,
+          requestNumber: params.requestNumber,
+          requesterName: params.requesterName,
+          subsidiaryName: params.subsidiaryName || "BEMS Group",
+          category: params.title,
+          amountMinor: params.amountMinor,
+          justification: params.justification || "Official expenditure request awaiting review.",
+          approverRole: params.approverRole,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to dispatch GMD requisition email:", err);
+    }
+  })();
+
+  const [bridgeResult] = await Promise.all([bridgePromise, emailPromise]);
+  return bridgeResult;
 }
 
 export async function notifyRetirementWarning(params: {

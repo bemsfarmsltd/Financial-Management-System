@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { sendStaffLoginReadyEmail } from '@/lib/email';
 
 export async function GET() {
   const actor = await getAuthenticatedEmployee();
@@ -118,6 +119,25 @@ export async function POST(request: Request) {
         },
       });
     });
+
+    if (approved) {
+      try {
+        let subName = 'BEMS Group Holdings';
+        if (subsidiaryId) {
+          const org = await prisma.organization.findUnique({ where: { id: subsidiaryId }, select: { legalName: true } });
+          if (org?.legalName) subName = org.legalName;
+        }
+        await sendStaffLoginReadyEmail({
+          to: employee.workEmail,
+          staffName: employee.legalName,
+          employeeNumber: officialEmpNum,
+          roleTitle: employee.jobTitle || assignedRole,
+          subsidiaryName: subName,
+        });
+      } catch (emailErr) {
+        console.error('Failed to dispatch staff login ready email:', emailErr);
+      }
+    }
 
     return NextResponse.json({
       success: true,
