@@ -12,19 +12,26 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { request_id, decision, reason } = body;
+    const { request_id, decision } = body;
+    const rawReason = (body.comment || body.reason || '').trim();
 
     if (!request_id || !decision) {
       return NextResponse.json({ ok: false, error_code: 'VALIDATION_FAILED', message: 'request_id and decision are required.' }, { status: 400 });
     }
 
-    if (!['APPROVE', 'DECLINE', 'REQUEST_CLARIFICATION'].includes(decision)) {
-      return NextResponse.json({ ok: false, error_code: 'VALIDATION_FAILED', message: 'Decision must be APPROVE, DECLINE, or REQUEST_CLARIFICATION.' }, { status: 400 });
+    const norm = String(decision).toUpperCase().trim();
+    let canonicalDecision = '';
+    if (norm === 'APPROVE' || norm === 'APPROVED') {
+      canonicalDecision = 'APPROVE';
+    } else if (norm === 'DECLINE' || norm === 'DECLINED' || norm === 'REJECT' || norm === 'REJECTED') {
+      canonicalDecision = 'DECLINE';
+    } else if (norm === 'REQUEST_CLARIFICATION' || norm === 'NEEDS_CLARIFICATION' || norm === 'CLARIFICATION') {
+      canonicalDecision = 'REQUEST_CLARIFICATION';
+    } else {
+      return NextResponse.json({ ok: false, error_code: 'VALIDATION_FAILED', message: 'Decision must be APPROVED, DECLINED, or NEEDS_CLARIFICATION.' }, { status: 400 });
     }
 
-    if (['DECLINE', 'REQUEST_CLARIFICATION'].includes(decision) && (!reason || !reason.trim())) {
-      return NextResponse.json({ ok: false, error_code: 'VALIDATION_FAILED', message: 'Reason is mandatory when declining or requesting clarification.' }, { status: 400 });
-    }
+    const reason = rawReason || (canonicalDecision !== 'APPROVE' ? 'Executive review action' : '');
 
     const item = await prisma.expenditureRequest.findFirst({
       where: {

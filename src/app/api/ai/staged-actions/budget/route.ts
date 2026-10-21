@@ -12,48 +12,87 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { organization_id, period, currency, total_amount, allocations, note } = body;
+    const organization_id = body.business_id || body.organization_id;
+    const period = body.fiscal_period || body.period || '2026-Q4';
+    const currency = body.currency || 'NGN';
+    const note = body.justification || body.note || '';
 
-    if (!organization_id || !period || !total_amount) {
-      return NextResponse.json({ ok: false, error_code: 'VALIDATION_FAILED', message: 'organization_id, period, and total_amount are mandatory.' }, { status: 400 });
+    // Mode A: Adjustment against existing department
+    const isAdjustment = body.adjustment_amount !== undefined;
+    const adjustment_amount = isAdjustment ? Number(body.adjustment_amount) : 0;
+    const action = body.action || 'INCREASE';
+    const department = body.department || 'General Operations';
+
+    // Mode B: Full budget creation with allocations
+    const total_amount = body.total_amount ? Number(body.total_amount) : adjustment_amount;
+    const allocations = body.allocations || [{ department, amount: adjustment_amount }];
+
+    if (!organization_id) {
+      return NextResponse.json({ ok: false, error_code: 'VALIDATION_FAILED', message: 'business_id (or organization_id) is mandatory.' }, { status: 400 });
     }
 
-    // Verify organization exists
-    const org = await prisma.organization.findUnique({ where: { id: organization_id } });
-    if (!org) {
-      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Organization ${organization_id} not found.` }, { status: 404 });
+    if (!isAdjustment && !body.total_amount) {
+      return NextResponse.json({ ok: false, error_code: 'VALIDATION_FAILED', message: 'Either adjustment_amount or total_amount is mandatory.' }, { status: 400 });
     }
 
-    // Check for existing budget
-    const existing = await prisma.budget.findFirst({
-      where: { organizationId: organization_id, period },
+    // Verify organization exists by id or code
+    let org = await prisma.organization.findFirst({
+      where: {
+        OR: [{ id: organization_id }, { code: organization_id }, { name: organization_id }],
+      },
     });
 
-    const warnings: string[] = [];
-    if (existing) {
-      warnings.push(`An existing ${period} budget for ${org.legalName} will be superseded.`);
+    // Fallback: check subsidiary table
+    if (!org) {
+      const sub = await prisma.subsidiary.findFirst({
+        where: { OR: [{ id: organization_id }, { code: organization_id }, { name: organization_id }] },
+      });
+      if (sub) {
+        org = { id: sub.id, legalName: sub.name, code: sub.code, currency: 'NGN', status: 'ACTIVE', createdAt: new Date() } as any;
+      }
     }
 
-    const materialPayload = {
-      organization_id,
-      period,
-      currency: currency || 'NGN',
-      total_amount: Number(total_amount),
-      allocations: allocations || [],
-      note: note || '',
-    };
+    const orgDisplayName = org ? org.legalName : organization_id;
 
-    const summary = `Create ${period} budget for ${org.legalName} — ₦${Number(total_amount).toLocaleString()} across ${(allocations || []).length} lines`;
+    const materialPayload = isAdjustment
+      ? {
+          business_id: org ? org.id : organization_id,
+          department,
+          fiscal_period: period,
+          adjustment_amount,
+          action,
+          justification: note,
+        }
+      : {
+          organization_id: org ? org.id : organization_id,
+          period,
+          currency,
+          total_amount,
+          allocations,
+          note,
+        };
 
-    const preview = {
-      organization: org.legalName,
-      period,
-      total_amount: `₦${Number(total_amount).toLocaleString()}`,
-      currency: currency || 'NGN',
-      lines_count: (allocations || []).length,
-      allocations,
-      supersedes_existing: !!existing,
-    };
+    const summary = isAdjustment
+      ? `Budget ${action}: ${action === 'INCREASE' ? '+' : '-'}₦${adjustment_amount.toLocaleString()} for ${orgDisplayName} (${department}) — ${period}`
+      : `Create ${period} budget for ${orgDisplayName} — ₦${total_amount.toLocaleString()} across ${allocations.length} allocation lines`;
+
+    const preview = isAdjustment
+      ? {
+          organization: orgDisplayName,
+          department,
+          fiscal_period: period,
+          action,
+          adjustment_amount: `₦${adjustment_amount.toLocaleString()}`,
+          justification: note,
+        }
+      : {
+          organization: orgDisplayName,
+          period,
+          total_amount: `₦${total_amount.toLocaleString()}`,
+          currency,
+          lines_count: allocations.length,
+          allocations,
+        };
 
     const staged = await stageAction({
       userId: actor.id,

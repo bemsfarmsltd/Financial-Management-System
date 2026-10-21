@@ -11,8 +11,12 @@ export async function GET(request: Request) {
 
     const status = searchParams.get("status");
     const category = searchParams.get("category");
-    const subsidiaryId = searchParams.get("subsidiaryId");
-    const search = searchParams.get("search");
+    const subsidiaryId = searchParams.get("organization_id") || searchParams.get("subsidiaryId");
+    const search = searchParams.get("q") || searchParams.get("search");
+    const requesterId = searchParams.get("requester_id");
+    const minAmount = searchParams.get("min_amount") ? Number(searchParams.get("min_amount")) : null;
+    const dateFrom = searchParams.get("date_from");
+    const dateTo = searchParams.get("date_to");
     const limit = Math.min(Number(searchParams.get("limit") || 100), 200);
 
     // Build Prisma where query
@@ -21,6 +25,10 @@ export async function GET(request: Request) {
     // If logged in as staff, restrict to their own requests unless privileged (Admin, GMD, HR)
     if (actor && !hasAnyRole(actor, ["SYSTEM_ADMIN", "GMD", "HR"])) {
       where.requestedById = actor.id;
+    }
+
+    if (requesterId) {
+      where.requestedById = requesterId;
     }
 
     if (status) {
@@ -35,11 +43,21 @@ export async function GET(request: Request) {
       where.subsidiaryId = subsidiaryId;
     }
 
+    if (minAmount && !isNaN(minAmount)) {
+      where.amount = { gte: minAmount };
+    }
+
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo) where.createdAt.lte = new Date(dateTo);
+    }
+
     if (search) {
       where.OR = [
-        { title: { contains: search } },
-        { requestNumber: { contains: search } },
-        { justification: { contains: search } },
+        { title: { contains: search, mode: "insensitive" } },
+        { requestNumber: { contains: search, mode: "insensitive" } },
+        { justification: { contains: search, mode: "insensitive" } },
       ];
     }
 

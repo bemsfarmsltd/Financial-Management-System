@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee } from '@/lib/auth';
 import { stageAction } from '@/lib/staged-actions';
@@ -70,29 +71,51 @@ export async function POST(req: NextRequest) {
 
         const correlationId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const sessionId = `conv_${actor.id}`;
-        const authHeader = req.headers.get('authorization') || `Bearer bems_session_${actor.id}`;
-        const sharedSecret = process.env.N8N_AI_SHARED_SECRET;
+
+        let authToken = '';
+        try {
+          const cookieStore = await cookies();
+          authToken = cookieStore.get('bems_session')?.value || '';
+        } catch {
+          // ignore
+        }
+        if (!authToken) {
+          const authHeader = req.headers.get('authorization');
+          if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+            authToken = authHeader.substring(7).trim();
+          } else {
+            authToken = process.env.BEMS_AI_SERVICE_TOKEN || process.env.BEMS_BOOTSTRAP_SECRET || '';
+          }
+        }
+
+        const webhookSecret = process.env.BEMS_N8N_SHARED_SECRET || 'bems_webhook_secret_2026_x89q';
 
         const n8nPayload = {
+          session_id: sessionId,
           user: {
             id: actor.id,
             name: actor.legalName,
             title: (actor as any).jobTitle || (actor.role === 'GMD' ? 'Group Managing Director' : 'System Admin'),
             role: actor.role,
+            permissions: ['all'],
           },
-          session_id: sessionId,
+          query: message,
           message,
-          auth_token: authHeader.replace(/^Bearer\s+/i, ''),
+          timestamp: new Date().toISOString(),
+          context: {
+            active_business_id: (body.context && body.context.active_business_id) || '',
+            channel: 'web_chat',
+          },
+          auth_token: authToken,
           correlation_id: correlationId,
         };
 
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
           'X-Correlation-Id': correlationId,
+          'X-BEMS-Webhook-Secret': webhookSecret,
+          'X-Service-Secret': webhookSecret,
         };
-        if (sharedSecret) {
-          headers['X-Service-Secret'] = sharedSecret;
-        }
 
         const n8nRes = await fetch(n8nWebhookUrl, {
           method: 'POST',

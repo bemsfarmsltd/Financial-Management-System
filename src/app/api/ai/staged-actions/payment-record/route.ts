@@ -12,10 +12,20 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { request_id, amount, currency, payer_account_id, beneficiary_name, beneficiary_bank, beneficiary_account, transfer_reference, payment_date } = body;
+    const request_id = body.request_id;
+    const amount = body.amount_paid !== undefined ? body.amount_paid : body.amount;
+    const transfer_reference = body.reference || body.transfer_reference;
+    const payer_account_id = body.bank_account_id || body.payer_account_id;
+    const beneficiary_name = body.payee_name || body.beneficiary_name;
+    const beneficiary_bank = body.beneficiary_bank;
+    const beneficiary_account = body.beneficiary_account;
+    const payment_date = body.payment_date;
+    const currency = body.currency;
+    const payment_method = body.payment_method || 'BANK_TRANSFER';
+    const receipt_file_id = body.receipt_file_id || null;
 
-    if (!request_id || !amount || !transfer_reference) {
-      return NextResponse.json({ ok: false, error_code: 'VALIDATION_FAILED', message: 'request_id, amount, and transfer_reference are mandatory.' }, { status: 400 });
+    if (!request_id || amount === undefined || !transfer_reference) {
+      return NextResponse.json({ ok: false, error_code: 'VALIDATION_FAILED', message: 'request_id, amount (or amount_paid), and reference are mandatory.' }, { status: 400 });
     }
 
     const reqItem = await prisma.expenditureRequest.findFirst({
