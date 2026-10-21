@@ -93,6 +93,33 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
       workEmail: employee.workEmail,
       phone: employee.phone,
       createdAt: employee.createdAt,
+      // Registration & Personal Details
+      gender: employee.gender,
+      dateOfBirth: employee.dateOfBirth,
+      maritalStatus: employee.maritalStatus,
+      stateOfOrigin: employee.stateOfOrigin,
+      lga: employee.lga,
+      residentialAddress: employee.residentialAddress,
+      cityState: employee.cityState,
+      highestEducation: employee.highestEducation,
+      // Official & Workplace
+      jobTitle: employee.jobTitle,
+      employmentType: employee.employmentType,
+      resumptionDate: employee.resumptionDate,
+      workLocation: employee.workLocation,
+      staffGrade: employee.staffGrade,
+      // Banking
+      bankName: employee.bankName,
+      accountNumber: employee.accountNumber,
+      accountName: employee.accountName,
+      // Identity
+      nin: employee.nin,
+      bvn: employee.bvn,
+      // Next of Kin
+      nextOfKinName: employee.nextOfKinName,
+      nextOfKinPhone: employee.nextOfKinPhone,
+      nextOfKinRelationship: employee.nextOfKinRelationship,
+      nextOfKinAddress: employee.nextOfKinAddress,
       assignment: employee.assignments[0] ? {
         positionName: employee.assignments[0].positionName,
         subsidiaryName: employee.assignments[0].subsidiary.legalName,
