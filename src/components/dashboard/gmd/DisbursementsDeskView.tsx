@@ -120,7 +120,8 @@ export function DisbursementsDeskView({
   // Maker Recording Modal State
   const [makerModalOpen, setMakerModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<RequestItem | null>(null);
-  const [payerBank, setPayerBank] = useState('Access Bank PLC (Corporate 0029481029)');
+  const [availableBanks, setAvailableBanks] = useState<{ id: string; bankName: string; accountNumber: string; balanceFormatted: string }[]>([]);
+  const [payerBank, setPayerBank] = useState('');
   const [externalRef, setExternalRef] = useState('');
   const [beneficiaryName, setBeneficiaryName] = useState('');
   const [beneficiaryBank, setBeneficiaryBank] = useState('');
@@ -159,13 +160,24 @@ export function DisbursementsDeskView({
 
   useEffect(() => {
     fetchDisbursements();
+    fetch('/api/treasury')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d && Array.isArray(d.accounts)) {
+          setAvailableBanks(d.accounts);
+          if (d.accounts.length > 0) {
+            setPayerBank(`${d.accounts[0].bankName} (${d.accounts[0].accountNumber})`);
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const openMakerModal = (req: RequestItem) => {
     setSelectedRequest(req);
     setBeneficiaryName(req.vendor?.accountName || req.vendor?.name || req.requester.legalName);
-    setBeneficiaryBank(req.vendor?.bankName || 'Access Bank PLC');
-    setBeneficiaryAccount(req.vendor?.accountNumber || '0039281920');
+    setBeneficiaryBank(req.vendor?.bankName || '');
+    setBeneficiaryAccount(req.vendor?.accountNumber || '');
     setExternalRef(`TRF-2026-${Math.floor(1000 + Math.random() * 9000)}`);
     setReceiptFile(null);
     setReceiptFileName('');
@@ -835,9 +847,15 @@ export function DisbursementsDeskView({
                     background: '#fff'
                   }}
                 >
-                  <option value="Access Bank PLC (Corporate 0029481029)">Access Bank PLC · Corporate (0029481029)</option>
-                  <option value="Zenith Bank PLC (Reserve 1018492048)">Zenith Bank PLC · Tech Reserve (1018492048)</option>
-                  <option value="Providus Bank PLC (Settlement 5400192837)">Providus Bank PLC · Clearing (5400192837)</option>
+                  {availableBanks.length > 0 ? (
+                    availableBanks.map((acc) => (
+                      <option key={acc.id} value={`${acc.bankName} (${acc.accountNumber})`}>
+                        {acc.bankName} · {acc.accountNumber} ({acc.balanceFormatted})
+                      </option>
+                    ))
+                  ) : (
+                    <option value="Primary Corporate Account">Primary Corporate Operational Account</option>
+                  )}
                 </select>
               </div>
 

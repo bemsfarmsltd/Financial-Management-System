@@ -115,7 +115,7 @@ export function useDynamicDashboardConfig({ role, businessName, subsidiaryId }: 
         {
           label: 'Audited & Cleared',
           value: String(closedCases),
-          amount: formatAmount(closedCases * 100000),
+          amount: formatAmount(Number(summary.closedCasesAmountMinor || 0)),
           height: 65,
           drop: 'Closed',
         },

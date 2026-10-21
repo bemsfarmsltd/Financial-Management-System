@@ -80,9 +80,9 @@ export async function GET() {
         .filter((d) => d.organizationId === org.id)
         .map((d) => ({ id: d.id, name: d.name, code: d.code }));
 
-      const orgAssignment = assignments.find((a) => a.department.organizationId === org.id);
+      const orgAssignment = assignments.find((a) => a.department?.organizationId === org.id || a.subsidiaryId === org.id);
       const lead = orgAssignment
-        ? { name: orgAssignment.employee.legalName, role: orgAssignment.role, email: orgAssignment.employee.workEmail }
+        ? { name: orgAssignment.employee.legalName, role: orgAssignment.employee.role || 'Corporate Lead', email: orgAssignment.employee.workEmail }
         : { name: actor.legalName, role: 'Corporate Lead', email: actor.workEmail };
 
       const recentReqs = orgRequests.slice(0, 5).map((r) => ({
@@ -102,9 +102,6 @@ export async function GET() {
       const orgStaff = assignments
         .filter((a) => a.subsidiaryId === org.id)
         .map((a) => {
-          const isLead = a.positionName.includes('Chief') || a.positionName.includes('Managing') || a.positionName.includes('Director');
-          const isHead = a.positionName.includes('Lead') || a.positionName.includes('Head') || a.positionName.includes('Manager');
-          const salary = isLead ? 1400000 : isHead ? 950000 : 550000;
           return {
             id: a.employee.id,
             employeeNumber: a.employee.employeeNumber,
@@ -117,7 +114,7 @@ export async function GET() {
             departmentCode: a.department?.code || 'OPS',
             status: a.employee.status || 'ACTIVE',
             employmentType: 'Full-Time Permanent',
-            grossMonthlySalary: salary,
+            grossMonthlySalary: 0,
             intercompanySplit: a.isPrimary ? 'Primary (100%)' : 'Secondary Split (Cost-share)',
           };
         });
@@ -126,24 +123,15 @@ export async function GET() {
 
       const orgCases = accountabilityCases.filter((c) => c.request?.subsidiaryId === org.id);
       const closedCases = orgCases.filter((c) => c.status === 'CLOSED' || c.status === 'VERIFIED').length;
-      const receiptsScore = orgCases.length > 0 ? Math.round((closedCases / orgCases.length) * 100) : 100.0;
+      const receiptsScore = orgCases.length > 0 ? Math.round((closedCases / orgCases.length) * 100) : 0;
 
       const uniqueBanks = Array.from(new Set(orgDisbursements.map((d) => d.bankName).filter(Boolean)));
-      const bankAccounts = uniqueBanks.length > 0
-        ? uniqueBanks.map((bName, bIdx) => ({
-            bankName: bName,
-            accountNumber: `101${(bIdx + 8).toString().padStart(2, '0')}9283`,
-            accountType: 'Corporate Operational (NGN)',
-            balanceNaira: moneyLeft > 0 ? moneyLeft : 10000000,
-          }))
-        : [
-            {
-              bankName: org.code === 'BEMS-LOG' ? 'Access Bank Plc' : 'Zenith Bank Plc',
-              accountNumber: org.code === 'BEMS-SOFT' ? '1018293810' : org.code === 'BEMS-LOG' ? '0039281726' : '1000293847',
-              accountType: 'Corporate Operational (NGN)',
-              balanceNaira: moneyLeft,
-            },
-          ];
+      const bankAccounts = uniqueBanks.map((bName, bIdx) => ({
+        bankName: bName,
+        accountNumber: `Disbursement Bank · ${bIdx + 1}`,
+        accountType: 'Corporate Operational (NGN)',
+        balanceNaira: moneyLeft,
+      }));
 
       return {
         id: org.id,

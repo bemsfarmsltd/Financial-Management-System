@@ -222,28 +222,32 @@ export function ExecutiveBriefingClient({
     return tier3Escalations.reduce((acc, r) => acc + r.amountNaira, 0);
   }, [tier3Escalations]);
 
-  // Corporate bank accounts
+  // Corporate bank accounts (derived directly from live treasury registry)
   const corporateTreasury = useMemo(() => {
-    const totalDisb = disbList.reduce((acc, d) => acc + d.amountNaira, 0);
-    const accessBalance = Math.max(10000000, 52800000 - totalDisb);
-    const zenithBalance = 31400000;
+    const totalLiquid = bankAccounts.reduce((acc, a) => acc + (Number(a.balance) || 0), 0);
+    const bankNames = bankAccounts.map((a) => a.bankName).filter(Boolean);
+    const uniqueBankNames = Array.from(new Set(bankNames));
     return {
-      accessBank: accessBalance,
-      zenithBank: zenithBalance,
-      totalLiquid: accessBalance + zenithBalance,
+      totalLiquid,
+      bankListLabel: uniqueBankNames.length > 0 ? uniqueBankNames.join(' & ') : 'No accounts configured',
+      hasAccounts: bankAccounts.length > 0,
     };
-  }, [disbList]);
+  }, [bankAccounts]);
 
-  // Runway calculation
+  // Real monthly burn based on verified disbursements
   const monthlyBurn = useMemo(() => {
     const totalDisb = disbList.reduce((acc, d) => acc + d.amountNaira, 0);
-    return totalDisb > 0 ? totalDisb : 7400000;
+    return totalDisb;
   }, [disbList]);
-  const runwayMonths = (corporateTreasury.totalLiquid / monthlyBurn).toFixed(1);
+
+  const runwayMonths = useMemo(() => {
+    if (corporateTreasury.totalLiquid <= 0 || monthlyBurn <= 0) return '0.0';
+    return (corporateTreasury.totalLiquid / monthlyBurn).toFixed(1);
+  }, [corporateTreasury.totalLiquid, monthlyBurn]);
 
   // Receipts and Proof Score
   const proofScore = useMemo(() => {
-    if (filteredAccountability.length === 0) return '100.0%';
+    if (filteredAccountability.length === 0) return '0.0%';
     const verified = filteredAccountability.filter(
       (c) => c.status === 'VERIFIED' || c.status === 'CLOSED'
     ).length;
@@ -306,8 +310,9 @@ export function ExecutiveBriefingClient({
       ['KEY METRICS'],
       ['Cash Runway', `${runwayMonths} Months`],
       ['Total Cash in Banks', `NGN ${corporateTreasury.totalLiquid.toLocaleString()}`],
-      ['Access Bank', `NGN ${corporateTreasury.accessBank.toLocaleString()}`],
-      ['Zenith Bank', `NGN ${corporateTreasury.zenithBank.toLocaleString()}`],
+      ...(bankAccounts.length > 0
+        ? bankAccounts.map((a) => [a.bankName || 'Bank Account', `NGN ${(Number(a.balance) || 0).toLocaleString()}`])
+        : [['Bank Accounts', 'No accounts configured']]),
       ['Awaiting Your Approval', `${tier3Escalations.length} requests (NGN ${totalEscalationsValue.toLocaleString()})`],
       ['Approved (Unpaid)', `NGN ${totalCommitted.toLocaleString()}`],
       ['Paid Out', `NGN ${totalVerifiedDisbursed.toLocaleString()}`],
@@ -524,12 +529,12 @@ export function ExecutiveBriefingClient({
             {runwayMonths} <span style={{ fontSize: '15px', fontWeight: '500' }}>Months</span>
           </strong>
           <span style={{ fontSize: '11px', color: '#ffedd5' }}>
-            At ~₦7.4M monthly spend
+            {monthlyBurn > 0 ? `At ~₦${(monthlyBurn / 1000000).toFixed(1)}M monthly spend` : '₦0 recorded monthly spend'}
           </span>
           <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: '#ffedd5' }} />
+            <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: corporateTreasury.totalLiquid > 0 ? '#ffedd5' : 'rgba(255,255,255,0.4)' }} />
             <small style={{ fontSize: '10px', color: '#ffffff', fontWeight: '700' }}>
-              Healthy cash reserve
+              {corporateTreasury.totalLiquid > 0 ? 'Healthy cash reserve' : 'Awaiting treasury setup'}
             </small>
           </div>
         </article>
@@ -554,13 +559,24 @@ export function ExecutiveBriefingClient({
             ₦{corporateTreasury.totalLiquid.toLocaleString()}
           </strong>
           <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-            Access Bank & Zenith Bank
+            {corporateTreasury.bankListLabel}
           </span>
           <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <CheckCircle2 size={12} color="#059669" />
-            <small style={{ fontSize: '10px', color: '#059669', fontWeight: '600' }}>
-              Reconciled & verified
-            </small>
+            {corporateTreasury.hasAccounts ? (
+              <>
+                <CheckCircle2 size={12} color="#059669" />
+                <small style={{ fontSize: '10px', color: '#059669', fontWeight: '600' }}>
+                  Reconciled & verified
+                </small>
+              </>
+            ) : (
+              <>
+                <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: '#94a3b8' }} />
+                <small style={{ fontSize: '10px', color: '#64748b', fontWeight: '600' }}>
+                  Awaiting account setup
+                </small>
+              </>
+            )}
           </div>
         </article>
 
@@ -608,19 +624,30 @@ export function ExecutiveBriefingClient({
             <small style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: '800', letterSpacing: '0.08em' }}>
               RECEIPTS & PROOF SCORE
             </small>
-            <ShieldCheck size={15} color="#059669" />
+            <ShieldCheck size={15} color={filteredAccountability.length > 0 ? '#059669' : '#64748b'} />
           </div>
-          <strong style={{ display: 'block', fontSize: '26px', margin: '6px 0 2px', fontWeight: '800', color: '#059669' }}>
+          <strong style={{ display: 'block', fontSize: '26px', margin: '6px 0 2px', fontWeight: '800', color: filteredAccountability.length > 0 ? '#059669' : 'var(--navy)' }}>
             {proofScore}
           </strong>
           <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-            No overdue staff advances
+            {filteredAccountability.length > 0 ? `${filteredAccountability.length} accountability case${filteredAccountability.length > 1 ? 's' : ''}` : '0 active accountability cases'}
           </span>
           <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <CheckCircle2 size={12} color="#059669" />
-            <small style={{ fontSize: '10px', color: '#059669', fontWeight: '600' }}>
-              Proofs submitted on time
-            </small>
+            {filteredAccountability.length > 0 ? (
+              <>
+                <CheckCircle2 size={12} color="#059669" />
+                <small style={{ fontSize: '10px', color: '#059669', fontWeight: '600' }}>
+                  Proofs tracked live
+                </small>
+              </>
+            ) : (
+              <>
+                <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: '#059669' }} />
+                <small style={{ fontSize: '10px', color: '#059669', fontWeight: '600' }}>
+                  No advances awaiting proof
+                </small>
+              </>
+            )}
           </div>
         </article>
       </div>

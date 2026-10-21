@@ -1622,64 +1622,6 @@ function TransferVerificationModule({business,setNotice,onNavigate}:{business:Bu
   </>;
 }
 
-function TreasuryAccountsModule({business,setNotice}:{business:Business;setNotice:(x:string)=>void}) {
-  return <>
-    <SectionHeader eyebrow="BANK REGISTRY" title="Treasury Bank Accounts & Balances" text="Designated subsidiary operating accounts and balances for verified corporate disbursements."/>
-    <div className="customer-summary">
-      <article><small>ACCESS BANK PLC</small><strong>₦52,400,000</strong><span>Corporate Account · 0029481029</span></article>
-      <article><small>ZENITH BANK PLC</small><strong>₦31,800,000</strong><span>Reserve Account · 1018492048</span></article>
-      <article><small>MONTHLY OUTFLOW</small><strong>₦14,850,000</strong><span>MTD cleared transfers</span></article>
-      <article><small>DISBURSEMENT STATUS</small><strong>Active</strong><span>Maker-checker enforced</span></article>
-    </div>
-  </>;
-}
-
-function ReceiptArchiveModule({business,setNotice}:{business:Business;setNotice:(x:string)=>void}) {
-  return <>
-    <SectionHeader eyebrow="CRYPTOGRAPHIC LEDGER" title="Payment Receipt Archive & SHA-256 Hashes" text="Permanent vault of all payment receipts with duplicate detection algorithms."/>
-    <section className="card data-register">
-      <div className="register-head"><span>Receipt Reference</span><span>Subsidiary</span><span>Amount</span><span>SHA-256 Hash Status</span><span/></div>
-      {[
-        ['RCP-2026-0091', 'BemsSoft Hub Ltd', '₦450,000', 'Unique · a8f12...e039', 'Verified'],
-        ['RCP-2026-0092', 'Bems Logistics & Farms Ltd', '₦2,800,000', 'Unique · f4c91...198b', 'Verified'],
-      ].map(r => (
-        <div className="register-row" key={r[0]}>
-          <span><i>▣</i><strong>{r[0]}</strong></span>
-          <span>{r[1]}</span>
-          <strong style={{color:'var(--navy)'}}>{r[2]}</strong>
-          <b className="good">{r[3]}</b>
-          <em>{r[4]}</em>
-        </div>
-      ))}
-    </section>
-  </>;
-}
-
-function ProofDeliverablesModule({business,setNotice,onNavigate}:{business:Business;setNotice:(x:string)=>void;onNavigate:(p:string)=>void}) {
-  return <>
-    <SectionHeader eyebrow="PHYSICAL PROOF" title="Waybills, Invoices & Inspection Certificates" text="Every expenditure must be supported by physical proofs, signed delivery notes, and photo deliverables." action="Review Accountability" onAction={()=>onNavigate('/accountability')}/>
-    <div style={{padding:'20px',background:'#fff',borderRadius:'16px',border:'1px solid var(--line)'}}>
-      <h4 style={{margin:'0 0 12px'}}>Deliverable Verification Checklist</h4>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'12px'}}>
-        <div style={{padding:'12px',borderRadius:'8px',background:'var(--cloud)'}}><strong>Vendor Invoice</strong><p style={{margin:'4px 0 0',fontSize:'12px',color:'var(--muted)'}}>Mandatory matching with PO</p></div>
-        <div style={{padding:'12px',borderRadius:'8px',background:'var(--cloud)'}}><strong>Signed Waybill</strong><p style={{margin:'4px 0 0',fontSize:'12px',color:'var(--muted)'}}>Storekeeper confirmation</p></div>
-        <div style={{padding:'12px',borderRadius:'8px',background:'var(--cloud)'}}><strong>Photo / Technical Test</strong><p style={{margin:'4px 0 0',fontSize:'12px',color:'var(--muted)'}}>Installed hardware or service</p></div>
-      </div>
-    </div>
-  </>;
-}
-
-function FollowUpTasksModule({business,setNotice}:{business:Business;setNotice:(x:string)=>void}) {
-  return <>
-    <SectionHeader eyebrow="ACCOUNTABILITY CADENCE" title="Automated Follow-up Tasks & Reminders" text="Automated cadence notifications sent via Slack and WhatsApp as closure deadlines approach."/>
-    <div className="customer-summary">
-      <article><small>TASKS SCHEDULED</small><strong>2</strong><span>Next 48 hours</span></article>
-      <article><small>ESCALATIONS</small><strong>0</strong><span>On schedule</span></article>
-      <article><small>CHANNEL BRIDGE</small><strong>Slack + WhatsApp</strong><span>Active</span></article>
-      <article><small>COMPLIANCE RATE</small><strong>96.4%</strong><span>On-time receipts</span></article>
-    </div>
-  </>;
-}
 
 function ClosureClearancesModule({business,setNotice}:{business:Business;setNotice:(x:string)=>void}) {
   return <>
