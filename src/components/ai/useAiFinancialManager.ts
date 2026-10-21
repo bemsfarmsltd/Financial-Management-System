@@ -72,6 +72,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
                   label: c.label || c.record_id,
                 }))
               : undefined,
+            quickReplies: Array.isArray(data.quick_replies) ? data.quick_replies : Array.isArray(data.quickReplies) ? data.quickReplies : undefined,
           };
           setMessages((prev) => [...prev, aiReply]);
           setIsTyping(false);

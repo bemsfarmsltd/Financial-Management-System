@@ -116,6 +116,14 @@ const defaultBemsBusinesses: Business[] = [
   }
 ];
 
+function formatDisplayName(fullName?: string): string {
+  if (!fullName) return 'Executive';
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length > 1 && ['dr', 'dr.', 'mr', 'mr.', 'mrs', 'mrs.', 'ms', 'ms.', 'engr', 'engr.', 'prof', 'prof.', 'chief', 'pastor'].includes(parts[0].toLowerCase())) {
+    return `${parts[0]} ${parts[1]}`;
+  }
+  return parts[0];
+}
 
 const industryOptions = [
   'Financial services', 'Banking', 'Investment & wealth', 'Insurance', 'Healthcare',
@@ -1119,7 +1127,7 @@ function Overview({business,user,cases,setActive,setNotice}:{business:Business;u
       <div className="welcome-row">
         <div>
           <p className="kicker">EXECUTIVE COMMAND TELEMETRY</p>
-          <h1>Good afternoon, {user.fullName.split(" ")[0]}.</h1>
+          <h1>Good afternoon, {formatDisplayName(user.fullName)}.</h1>
           <p>Real-time expenditure pipeline, cash run-rate, and accountability governance across {business.name}.</p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
@@ -1134,7 +1142,7 @@ function Overview({business,user,cases,setActive,setNotice}:{business:Business;u
 function OldOverview({business,user,cases,setActive,setNotice}:{business:Business;user:AuthUser;cases:CaseRecord[];setActive:(x:string)=>void;setNotice:(x:string)=>void}) {
   const openCases=cases.filter(c=>c.status!=='Resolved').length;
   return <>
-    <div className="welcome-row"><div><p className="kicker">MONDAY, 31 AUGUST</p><h1>Good afternoon, {user.fullName.split(' ')[0]}.</h1><p>Here is what is happening across {business.name}.</p></div><button className="outline-button" onClick={()=>setNotice('Customer preview opened in Test mode.')}>Preview customer experience ↗</button></div>
+    <div className="welcome-row"><div><p className="kicker">MONDAY, 31 AUGUST</p><h1>Good afternoon, {formatDisplayName(user.fullName)}.</h1><p>Here is what is happening across {business.name}.</p></div><button className="outline-button" onClick={()=>setNotice('Customer preview opened in Test mode.')}>Preview customer experience ↗</button></div>
     <section className="launch-hero"><div><span className="hero-label">ACTIVE SUBSIDIARY · {business.status.toUpperCase()}</span><h2>Financial telemetry & expenditure pipeline</h2><p>Fund requests move through multi-level approval, payment recording with receipt, staff confirmation, and accountability across {business.name}.</p><div className="hero-progress"><i style={{width:'100%'}}/></div><div className="hero-meta"><span>Compliance rate: 100%</span><button onClick={()=>setActive('Fund requests')}>Submit fund request ＋</button></div></div><div className="network-orbit"><i/><i/><i/><strong><img src="/bems-mark.png" alt="BEMS Group"/></strong></div></section>
     <section className="metric-grid">
       <article style={{cursor:'pointer'}} onClick={()=>setActive('Disbursements')}><span className="metric-symbol blue">₦</span><div><small>DISBURSED MTD</small><strong>₦0</strong><p>0 approved disbursements</p></div></article>
@@ -1695,7 +1703,7 @@ function RoleOverviewModule({role,business,user,cases,setActive,setNotice,onRole
       <div className="welcome-row">
         <div>
           <p className="kicker">EXECUTIVE COMMAND TELEMETRY · {roleProfiles[role]?.title?.toUpperCase() || role}</p>
-          <h1>Good afternoon, {user.fullName.split(" ")[0]}.</h1>
+          <h1>Good afternoon, {formatDisplayName(user.fullName)}.</h1>
           <p>Real-time expenditure pipeline, cash run-rate, and accountability governance across {business.name}.</p>
         </div>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>

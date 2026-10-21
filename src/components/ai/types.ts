@@ -118,4 +118,5 @@ export interface AiMessage {
     label: string;
     targetTab?: string;
   }[];
+  quickReplies?: string[];
 }

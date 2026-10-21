@@ -25,6 +25,7 @@ import { DisbursementRecordCard } from './cards/DisbursementRecordCard';
 import { ScenarioSimulatorCard } from './cards/ScenarioSimulatorCard';
 import { AiMessage } from './types';
 import { KineticAiOrb } from './KineticAiOrb';
+import { FormattedAiMessage } from './FormattedAiMessage';
 
 interface Props {
   isOpen: boolean;
@@ -306,21 +307,30 @@ export function AiFinancialManagerDrawer({
 
                 <div
                   style={{
-                    background: isUser ? 'linear-gradient(135deg, rgba(234, 88, 12, 0.90) 0%, rgba(249, 115, 22, 0.90) 100%)' : 'rgba(255, 255, 255, 0.60)',
-                    backdropFilter: 'blur(16px)',
-                    WebkitBackdropFilter: 'blur(16px)',
-                    border: isUser ? 'none' : '1px solid rgba(255, 255, 255, 0.85)',
+                    background: isUser ? 'linear-gradient(135deg, rgba(234, 88, 12, 0.95) 0%, rgba(249, 115, 22, 0.95) 100%)' : 'rgba(255, 255, 255, 0.88)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    border: isUser ? 'none' : '1px solid rgba(226, 232, 240, 0.85)',
                     borderRadius: isUser ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
-                    padding: '12px 16px',
+                    padding: isUser ? '12px 16px' : '14px 16px',
                     color: isUser ? '#ffffff' : '#0f172a',
                     fontSize: '13px',
                     lineHeight: 1.5,
-                    maxWidth: isExpanded ? '85%' : '95%',
-                    boxShadow: isUser ? '0 4px 14px rgba(234, 88, 12, 0.25)' : '0 4px 16px rgba(15, 23, 42, 0.05)',
-                    whiteSpace: 'pre-wrap',
+                    maxWidth: isExpanded ? '90%' : '98%',
+                    width: isUser ? 'auto' : '100%',
+                    boxShadow: isUser ? '0 4px 14px rgba(234, 88, 12, 0.25)' : '0 4px 20px rgba(15, 23, 42, 0.06)',
                   }}
                 >
-                  {msg.content}
+                  <FormattedAiMessage
+                    content={msg.content}
+                    isUser={isUser}
+                    quickReplies={msg.quickReplies}
+                    onSelectQuickReply={(prompt) => sendMessage(prompt)}
+                    onNavigateToRequest={(reqNum) => {
+                      onClose();
+                      onNavigate && onNavigate('Fund requests');
+                    }}
+                  />
                 </div>
 
                 {/* Render Interactive Action Card if Present */}

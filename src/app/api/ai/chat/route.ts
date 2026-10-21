@@ -171,6 +171,7 @@ export async function POST(req: NextRequest) {
               : n8nData.actionCard || null,
             staged_action: n8nData.staged_action || null,
             citations: n8nData.citations || [],
+            quick_replies: n8nData.quick_replies || n8nData.quickReplies || [],
             timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
           });
         } else {
