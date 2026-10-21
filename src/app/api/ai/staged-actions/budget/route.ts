@@ -36,21 +36,11 @@ export async function POST(req: Request) {
     }
 
     // Verify organization exists by id or code
-    let org = await prisma.organization.findFirst({
+    const org = await prisma.organization.findFirst({
       where: {
-        OR: [{ id: organization_id }, { code: organization_id }, { name: organization_id }],
+        OR: [{ id: organization_id }, { code: organization_id }, { legalName: organization_id }],
       },
     });
-
-    // Fallback: check subsidiary table
-    if (!org) {
-      const sub = await prisma.subsidiary.findFirst({
-        where: { OR: [{ id: organization_id }, { code: organization_id }, { name: organization_id }] },
-      });
-      if (sub) {
-        org = { id: sub.id, legalName: sub.name, code: sub.code, currency: 'NGN', status: 'ACTIVE', createdAt: new Date() } as any;
-      }
-    }
 
     const orgDisplayName = org ? org.legalName : organization_id;
 
@@ -93,6 +83,11 @@ export async function POST(req: Request) {
           lines_count: allocations.length,
           allocations,
         };
+
+    const warnings: string[] = [];
+    if (!org) {
+      warnings.push(`Target business entity '${organization_id}' will be referenced as a new business unit.`);
+    }
 
     const staged = await stageAction({
       userId: actor.id,

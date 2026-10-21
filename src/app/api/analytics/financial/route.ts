@@ -21,8 +21,8 @@ export async function GET(req: Request) {
         select: { id: true, amountMinor: true, approvalStatus: true, category: true, createdAt: true },
       }),
       prisma.disbursement.findMany({
-        where: orgId ? { organizationId: orgId } : undefined,
-        select: { id: true, totalAmountMinor: true, status: true, executedAt: true },
+        where: orgId ? { payerOrgId: orgId } : undefined,
+        select: { id: true, amountMinor: true, status: true, paidAt: true },
       }),
       prisma.budget.findMany({
         where: orgId ? { organizationId: orgId } : undefined,
@@ -35,8 +35,8 @@ export async function GET(req: Request) {
     ]);
 
     const totalRequestsSum = requests.reduce((s, r) => s + Number(r.amountMinor) / 100, 0);
-    const totalDisbursedSum = disbursements.reduce((s, d) => s + Number(d.totalAmountMinor) / 100, 0);
-    const totalBudgetSum = budgets.reduce((s, b) => s + Number(b.totalAmountMinor) / 100, 0);
+    const totalDisbursedSum = disbursements.reduce((s, d) => s + Number(d.amountMinor) / 100, 0);
+    const totalBudgetSum = budgets.reduce((s, b) => s + Number(b.totalAmount), 0);
 
     // Grouping
     const groupedByCategory = requests.reduce((acc: Record<string, number>, r) => {
