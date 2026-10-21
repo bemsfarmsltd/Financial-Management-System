@@ -4,10 +4,20 @@ import { ConnectAppShell } from '@/components/layout/ConnectAppShell';
 import { RequestsInventoryClient } from './RequestsInventoryClient';
 import { toSystemRequestId } from '@/lib/request-id';
 
+import { redirect } from 'next/navigation';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+
 export const dynamic = 'force-dynamic';
 
 export default async function RequestsPage() {
+  const actor = await getAuthenticatedEmployee();
+  if (!actor) {
+    redirect('/');
+  }
+
+  const isStaff = actor.role === 'STAFF';
   const requests = await prisma.expenditureRequest.findMany({
+    where: isStaff ? { requestedById: actor.id } : undefined,
     include: {
       subsidiary: true,
       requester: true,
