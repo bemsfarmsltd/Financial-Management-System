@@ -20,7 +20,7 @@ export async function POST(req: Request) {
 
     const reqItem = await prisma.expenditureRequest.findFirst({
       where: { OR: [{ id: request_id }, { requestNumber: request_id }] },
-      include: { requester: true, organization: true },
+      include: { requester: true, subsidiary: true },
     });
 
     if (!reqItem) return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Request ${request_id} not found.` }, { status: 404 });
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
         title: reqItem.title,
         amount: amountFormatted,
         requester: reqItem.requester?.legalName || 'Staff',
-        subsidiary: reqItem.organization?.legalName || 'BEMS Group',
+        subsidiary: reqItem.subsidiary?.name || 'BEMS Group',
         justification: justification || 'Emergency operational continuity',
         action: 'BYPASS_INTERMEDIATE_APPROVALS',
       },

@@ -43,13 +43,9 @@ export async function GET(
         approvalSteps: {
           orderBy: { stageIndex: "asc" },
         },
-        disbursements: {
-          include: {
-            bankAccount: true,
-          },
-        },
+        disbursements: true,
         attachments: true,
-        accountabilityClearance: true,
+        accountabilityCase: true,
       },
     });
 
@@ -60,24 +56,25 @@ export async function GET(
       );
     }
 
+    const amountNaira = Number(expenditure.amountMinor) / 100;
+
     // Compute budget impact if department/subsidiary budget exists
     let budgetImpact = null;
     try {
       const budget = await prisma.budget.findFirst({
         where: {
-          subsidiaryId: expenditure.subsidiaryId,
-          department: expenditure.category,
+          organizationId: expenditure.subsidiaryId,
         },
+        include: { lines: true },
       });
       if (budget) {
-        const remaining = Number(budget.allocatedAmount) - Number(budget.spentAmount);
+        const totalAllocated = Number(budget.totalAmountMinor) / 100;
         budgetImpact = {
           budgetId: budget.id,
-          allocatedAmount: Number(budget.allocatedAmount),
-          spentAmount: Number(budget.spentAmount),
-          remainingBeforeRequest: remaining,
-          remainingAfterRequest: remaining - Number(expenditure.amount),
-          exceedsCap: Number(expenditure.amount) > remaining,
+          totalAllocated,
+          currency: budget.currency,
+          impactAmount: amountNaira,
+          status: budget.status,
         };
       }
     } catch {
@@ -89,11 +86,16 @@ export async function GET(
         id: expenditure.id,
         requestNumber: expenditure.requestNumber,
         title: expenditure.title,
-        amount: Number(expenditure.amount),
+        amount: amountNaira,
+        amountMinor: Number(expenditure.amountMinor),
         currency: expenditure.currency,
         category: expenditure.category,
         justification: expenditure.justification,
-        status: expenditure.approvalStatus,
+        deliverable: expenditure.deliverable,
+        neededBy: expenditure.neededBy,
+        approvalStatus: expenditure.approvalStatus,
+        paymentStatus: expenditure.paymentStatus,
+        accountabilityStatus: expenditure.accountabilityStatus,
         createdAt: expenditure.createdAt,
         updatedAt: expenditure.updatedAt,
         subsidiary: expenditure.subsidiary ? {
@@ -105,36 +107,41 @@ export async function GET(
         vendor: expenditure.vendor ? {
           id: expenditure.vendor.id,
           name: expenditure.vendor.name,
+          code: expenditure.vendor.code,
+          category: expenditure.vendor.category,
           accountNumber: expenditure.vendor.accountNumber,
           bankName: expenditure.vendor.bankName,
-          status: expenditure.vendor.status,
         } : null,
-        approvalSteps: expenditure.approvalSteps.map(step => ({
+        approvalSteps: expenditure.approvalSteps.map((step) => ({
           stageIndex: step.stageIndex,
-          stageName: step.stageName,
-          approverRole: step.approverRole,
+          assignedRole: step.assignedRole,
+          approverName: step.approverName,
           status: step.status,
-          approverNotes: step.approverNotes,
-          actionTimestamp: step.actionTimestamp,
+          decisionReason: step.decisionReason,
+          decidedAt: step.decidedAt,
         })),
-        disbursements: expenditure.disbursements.map(d => ({
+        disbursements: expenditure.disbursements.map((d) => ({
           id: d.id,
-          amountPaid: Number(d.amountPaid),
-          paymentMethod: d.paymentMethod,
-          reference: d.reference,
-          payeeName: d.payeeName,
-          disbursedAt: d.disbursedAt,
-          bankAccount: d.bankAccount ? {
-            bankName: d.bankAccount.bankName,
-            accountNumber: d.bankAccount.accountNumber,
-          } : null,
+          amountPaid: Number(d.amountMinor) / 100,
+          currency: d.currency,
+          reference: d.externalReference,
+          bankName: d.bankName,
+          beneficiaryName: d.beneficiaryName,
+          beneficiaryBank: d.beneficiaryBank,
+          beneficiaryAccount: d.beneficiaryAccount,
+          disbursedAt: d.paidAt,
+          status: d.status,
         })),
         evidenceCount: expenditure.attachments.length,
+        accountability: expenditure.accountabilityCase ? {
+          id: expenditure.accountabilityCase.id,
+          status: expenditure.accountabilityCase.status,
+        } : null,
         budgetImpact,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error retrieving fund request detail:", error);
-    return NextResponse.json({ error: "Failed to retrieve fund request detail" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Failed to retrieve fund request detail" }, { status: 500 });
   }
 }

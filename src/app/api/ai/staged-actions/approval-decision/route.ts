@@ -39,9 +39,9 @@ export async function POST(req: Request) {
       },
       include: {
         requester: true,
-        organization: true,
+        subsidiary: true,
         vendor: true,
-        approvalSteps: { orderBy: { stepOrder: 'asc' } },
+        approvalSteps: { orderBy: { stageIndex: 'asc' } },
       },
     });
 

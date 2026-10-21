@@ -230,13 +230,14 @@ export async function executeStagedAction(params: {
       // Record approval step
       await tx.approvalStep.create({
         data: {
-          requestId: request_id,
-          stepOrder: 1,
-          approverRole: actor.role,
+          requestId: req.id,
+          stageIndex: 1,
+          assignedRole: actor.role,
           approverId: actor.id,
+          approverName: actor.legalName,
           status: newStatus,
-          notes: reason || `Executive decision via AI: ${decision}`,
-          actedAt: new Date(),
+          decisionReason: reason || `Executive decision via AI: ${decision}`,
+          decidedAt: new Date(),
         },
       });
 
@@ -251,25 +252,32 @@ export async function executeStagedAction(params: {
     } else if (action.actionType === 'payment_record') {
       const { request_id, amount, currency, payer_account_id, beneficiary_name, beneficiary_bank, beneficiary_account, transfer_reference, payment_date } = materialPayload;
 
-      const req = await tx.expenditureRequest.findUnique({ where: { id: request_id } });
+      const req = await tx.expenditureRequest.findFirst({
+        where: { OR: [{ id: request_id }, { requestNumber: request_id }] },
+      });
       if (!req) throw new Error(`Request ${request_id} not found.`);
 
       const disbursement = await tx.disbursement.create({
         data: {
-          requestId: request_id,
-          organizationId: req.organizationId,
-          totalAmountMinor: BigInt(Math.round(amount * 100)),
+          requestId: req.id,
+          payerOrgId: req.subsidiaryId,
+          amountMinor: BigInt(Math.round(amount * 100)),
           currency: currency || req.currency || 'NGN',
-          paymentReference: transfer_reference || `TX-${Date.now()}`,
+          externalReference: transfer_reference || `TX-${Date.now()}`,
+          bankName: 'Commercial Bank',
+          beneficiaryName: beneficiary_name || 'Payee',
+          beneficiaryBank: beneficiary_bank || 'Access Bank',
+          beneficiaryAccount: beneficiary_account || '0000000000',
           recordedById: actor.id,
-          status: 'COMPLETED',
-          executedAt: payment_date ? new Date(payment_date) : new Date(),
+          status: 'AWAITING_RECIPIENT_CONFIRMATION',
+          idempotencyKey: idempotencyKey || `disb_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          paidAt: payment_date ? new Date(payment_date) : new Date(),
         },
       });
 
       await tx.expenditureRequest.update({
-        where: { id: request_id },
-        data: { approvalStatus: 'DISBURSED' },
+        where: { id: req.id },
+        data: { paymentStatus: 'PAID' },
       });
 
       recordType = 'disbursement';
@@ -472,16 +480,18 @@ export async function executeStagedAction(params: {
     } else if (action.actionType === 'vendor_approval') {
       const { name, category, tin, bank_name, account_number, contact_person, contact_phone } = materialPayload;
 
+      const code = `VND-${Date.now().toString().slice(-6)}`;
       const vendor = await tx.vendor.create({
         data: {
           name,
-          category: category || 'General Supplies',
-          tin: tin || 'PENDING_TIN',
+          code,
+          category: category || 'GENERAL',
+          taxId: tin || 'PENDING_TIN',
           bankName: bank_name || 'Commercial Bank',
           accountNumber: account_number || '0000000000',
-          contactPerson: contact_person || name,
+          accountName: contact_person || name,
           contactPhone: contact_phone || null,
-          status: 'ACTIVE',
+          rating: 5,
         },
       });
 
@@ -510,12 +520,13 @@ export async function executeStagedAction(params: {
       await tx.approvalStep.create({
         data: {
           requestId: reqItem.id,
-          stepOrder: 99,
-          approverRole: 'GMD',
+          stageIndex: 99,
+          assignedRole: 'GMD',
           approverId: actor.id,
-          status: 'EMERGENCY_OVERRIDE_APPROVED',
-          notes: `GMD EMERGENCY OVERRIDE: ${justification || 'Critical operational continuity'}`,
-          actedAt: new Date(),
+          approverName: actor.legalName,
+          status: 'APPROVED',
+          decisionReason: `GMD EMERGENCY OVERRIDE: ${justification || 'Critical operational continuity'}`,
+          decidedAt: new Date(),
         },
       });
 
