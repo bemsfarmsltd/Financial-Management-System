@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, hashPassword, publicEmployee } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { sendStaffOnboardWelcomeEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,9 +101,31 @@ export async function POST(request: Request) {
       return created;
     });
 
+    try {
+      let subName = 'BEMS Group Holdings';
+      if (subsidiaryId) {
+        const org = await prisma.organization.findUnique({
+          where: { id: subsidiaryId },
+          select: { legalName: true },
+        });
+        if (org?.legalName) subName = org.legalName;
+      }
+
+      await sendStaffOnboardWelcomeEmail({
+        to: employee.workEmail,
+        name: employee.legalName,
+        employeeNumber: employee.employeeNumber,
+        role: employee.role,
+        initialPassword: password,
+        subsidiaryName: subName,
+      });
+    } catch (emailErr) {
+      console.error('Failed to dispatch onboarding welcome email:', emailErr);
+    }
+
     return NextResponse.json({
       success: true,
-      message: `Successfully onboarded ${employee.legalName} as ${employee.role}.`,
+      message: `Successfully onboarded ${employee.legalName} as ${employee.role}. Welcome email with credentials dispatched to ${employee.workEmail}.`,
       employee: {
         ...publicEmployee(employee),
         employeeNumber: employee.employeeNumber,

@@ -298,6 +298,53 @@ export async function sendStaffLoginReadyEmail(params: {
 }
 
 /**
+ * Template: Admin Directly Onboards Employee (Welcome with Credentials)
+ */
+export async function sendStaffOnboardWelcomeEmail(params: {
+  to: string;
+  name: string;
+  employeeNumber: string;
+  role: string;
+  initialPassword?: string;
+  subsidiaryName: string;
+}) {
+  const content = `
+    <p>Dear <strong>${params.name}</strong>,</p>
+    <p>A new enterprise account has been created for you on the <strong>BEMS Group Financial Management Portal</strong>.</p>
+    
+    <div class="card" style="border-left: 4px solid #ea580c;">
+      <span class="badge badge-orange" style="margin-bottom: 10px;">Corporate Account Provisioned</span>
+      <table style="width:100%; border-collapse: collapse; font-size: 13px; margin-top: 8px;">
+        <tr><td style="padding: 5px 0; color: #64748b; width: 40%;">Official Staff ID:</td><td style="padding: 5px 0; font-weight: 800; font-family: monospace; font-size: 15px; color: #0f172a;">${params.employeeNumber}</td></tr>
+        <tr><td style="padding: 5px 0; color: #64748b;">Work Email:</td><td style="padding: 5px 0; font-weight: 600;">${params.to}</td></tr>
+        <tr><td style="padding: 5px 0; color: #64748b;">Assigned Role:</td><td style="padding: 5px 0; font-weight: 600;">${params.role}</td></tr>
+        <tr><td style="padding: 5px 0; color: #64748b;">Subsidiary:</td><td style="padding: 5px 0; font-weight: 600;">${params.subsidiaryName}</td></tr>
+        ${params.initialPassword ? `<tr><td style="padding: 5px 0; color: #64748b;">Initial Password:</td><td style="padding: 5px 0; font-weight: 700; font-family: monospace; color: #c2410c;">${params.initialPassword}</td></tr>` : ''}
+      </table>
+    </div>
+
+    <p style="margin-top: 18px;">
+      You can now sign in using the button below. Please sign in and update your security settings.
+    </p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `[BEMS Group] Your Account has been Provisioned — Access Credentials`,
+    eventType: 'ACCOUNT_ONBOARDED_CREDENTIALS',
+    html: wrapEmailTemplate({
+      title: 'Welcome to BEMS Group',
+      preheader: `Your ${params.role} profile is active. Sign in with Staff ID: ${params.employeeNumber}.`,
+      content,
+      callToAction: {
+        label: 'Sign In to BEMS Portal →',
+        url: `${APP_URL}/?email=${encodeURIComponent(params.to)}`,
+      },
+    }),
+  });
+}
+
+/**
  * Template: GMD Alert for New Staff Registration
  */
 export async function sendGmdNewStaffAlert(params: {
