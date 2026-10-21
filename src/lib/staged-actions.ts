@@ -548,9 +548,11 @@ export async function executeStagedAction(params: {
         actorId: actor.id,
         actorName: actor.legalName,
         actorRole: actor.role,
+        groupId: 'BEMS_GROUP_HOLDINGS',
         targetType: recordType.toUpperCase(),
         targetId: recordId,
         action: `AI_STAGED_${action.actionType.toUpperCase()}_EXECUTED`,
+        correlationId: idempotencyKey || auditEventId,
         metadata: JSON.stringify({
           stagedActionId: actionId,
           correlationId: idempotencyKey,
