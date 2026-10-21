@@ -160,49 +160,100 @@ export async function getExecutiveRecipients(): Promise<{ email: string; name: s
 }
 
 /**
- * Modern corporate email shell layout
+ * Modern corporate email shell layout matching official BEMS specification
  */
-function wrapEmailTemplate({ title, preheader, content, callToAction }: { title: string; preheader: string; content: string; callToAction?: { label: string; url: string } }) {
+function wrapEmailTemplate({
+  title,
+  preheader,
+  badge = 'Live System Notification',
+  content,
+  callToAction,
+}: {
+  title: string;
+  preheader: string;
+  badge?: string;
+  content: string;
+  callToAction?: { label: string; url: string };
+}) {
   return `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; margin: 0; padding: 24px 0; color: #334155; }
-    .wrapper { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.15); }
-    .header { background: radial-gradient(circle at 10% 20%, #ea580c, #9a3412 80%); padding: 32px 36px; text-align: left; }
-    .logo { font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: -0.04em; margin: 0; }
-    .logo span { font-size: 11px; font-weight: 700; color: #fed7aa; letter-spacing: 0.25em; text-transform: uppercase; display: block; margin-top: 2px; }
-    .header h1 { color: #ffffff; font-size: 20px; font-weight: 800; margin: 16px 0 0; letter-spacing: -0.02em; }
-    .body { padding: 36px; line-height: 1.6; font-size: 14px; color: #334155; }
-    .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 20px; margin: 20px 0; }
-    .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
-    .badge-orange { background: #fff7ed; color: #ea580c; border: 1px solid #ffedd5; }
-    .badge-green { background: #f0fdf4; color: #16a34a; border: 1px solid #dcfce7; }
-    .cta-btn { display: inline-block; background: linear-gradient(135deg, #ea580c, #c2410c); color: #ffffff !important; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 700; font-size: 14px; margin: 18px 0; box-shadow: 0 4px 12px rgba(234,88,12,0.3); }
-    .footer { background: #f1f5f9; padding: 20px 36px; font-size: 11px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; }
-  </style>
 </head>
-<body>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 32px 16px; color: #1e293b;">
   <div style="display:none;font-size:1px;color:#fff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
     ${preheader}
   </div>
-  <div class="wrapper">
-    <div class="header">
-      <div class="logo">BEMS <span>GROUP HOLDINGS</span></div>
-      <h1>${title}</h1>
-    </div>
-    <div class="body">
-      ${content}
-      ${callToAction ? `<div style="text-align: center; margin-top: 24px;"><a href="${callToAction.url}" class="cta-btn" target="_blank">${callToAction.label}</a></div>` : ''}
-    </div>
-    <div class="footer">
-      <p style="margin: 0 0 6px;">BEMS Group Expenditure & Accountability System</p>
-      <p style="margin: 0;">This is an automated enterprise advisory. Please do not reply directly to this email.</p>
-    </div>
-  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+    <!-- Top Accent Bar -->
+    <tr>
+      <td style="height: 6px; background: #ea580c; font-size: 0; line-height: 0;">&nbsp;</td>
+    </tr>
+    <tr>
+      <td style="padding: 32px 36px 32px;">
+        <!-- Brand Header Lockup -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
+          <tr>
+            <td width="52" style="vertical-align: middle;">
+              <img src="https://bemserp.work/bems-mark.png" alt="BEMS Group" width="46" height="46" style="border-radius: 8px; display: block; border: 0;" />
+            </td>
+            <td style="padding-left: 14px; vertical-align: middle;">
+              <h1 style="margin: 0; font-size: 21px; font-weight: 900; letter-spacing: -0.025em; text-transform: uppercase; color: #0f172a; line-height: 1.1;">BEMS GROUP</h1>
+              <p style="margin: 3px 0 0; font-size: 8.5px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #64748b; line-height: 1.1;">FINANCIAL MANAGEMENT &amp; EXPENDITURE ACCOUNTABILITY PORTAL</p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Status Badge -->
+        <div style="margin-bottom: 16px;">
+          <span style="display: inline-block; padding: 4px 14px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 9999px; color: #ea580c; font-size: 11.5px; font-weight: 700;">
+            ● ${badge}
+          </span>
+        </div>
+
+        <!-- Main Title -->
+        <h2 style="font-size: 24px; font-weight: 800; color: #0f172a; margin: 0 0 16px; letter-spacing: -0.03em; line-height: 1.25;">${title}</h2>
+
+        <!-- Email Body Content -->
+        <div style="color: #334155; font-size: 14px; line-height: 1.6;">
+          ${content}
+        </div>
+
+        <!-- Call to Action Button -->
+        ${callToAction ? `
+        <div style="text-align: center; margin: 28px 0 24px;">
+          <a href="${callToAction.url}" style="background: #ea580c; color: #ffffff !important; padding: 13px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 14px; display: inline-block; box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25);">
+            ${callToAction.label}
+          </a>
+        </div>` : ''}
+
+        <!-- Split Footer -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top: 1px solid #f1f5f9; padding-top: 20px; margin-top: 28px;">
+          <tr>
+            <td width="48%" style="vertical-align: middle;">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="32" style="vertical-align: middle;">
+                    <img src="https://bemserp.work/bems-mark.png" alt="" width="28" height="28" style="border-radius: 6px; display: block; border: 0;" />
+                  </td>
+                  <td style="padding-left: 8px; vertical-align: middle;">
+                    <strong style="display: block; font-size: 12px; font-weight: 900; color: #0f172a; line-height: 1.1;">BEMS GROUP</strong>
+                    <span style="display: block; font-size: 6.5px; font-weight: 700; color: #94a3b8; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 2px;">FINANCIAL MANAGEMENT &amp; EXPENDITURE ACCOUNTABILITY</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+            <td style="border-left: 1px solid #e2e8f0; padding-left: 16px; vertical-align: middle; font-size: 11px; color: #64748b; line-height: 1.4;">
+              Automated live dispatch by<br />BEMS Financial Management System.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`;
 }
@@ -218,21 +269,38 @@ export async function sendStaffSignupReceiptEmail(params: {
   subsidiaryName: string;
 }) {
   const content = `
-    <p>Dear <strong>${params.staffName}</strong>,</p>
-    <p>Your official staff registration dossier has been received and securely registered in the BEMS Group enterprise ledger.</p>
-    
-    <div class="card">
-      <span class="badge badge-orange" style="margin-bottom: 10px;">Registration Recorded</span>
-      <table style="width:100%; border-collapse: collapse; font-size: 13px; margin-top: 8px;">
-        <tr><td style="padding: 5px 0; color: #64748b; width: 40%;">Assigned Staff ID:</td><td style="padding: 5px 0; font-weight: 800; font-family: monospace; font-size: 15px; color: #0f172a;">${params.employeeNumber}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Designation:</td><td style="padding: 5px 0; font-weight: 600;">${params.roleTitle}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Subsidiary:</td><td style="padding: 5px 0; font-weight: 600;">${params.subsidiaryName}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Approval Status:</td><td style="padding: 5px 0; font-weight: 700; color: #d97706;">Pending Review</td></tr>
+    <p style="margin: 0 0 16px; color: #334155;">Hello <strong>${params.staffName}</strong>,</p>
+    <p style="margin: 0 0 16px; color: #475569;">
+      Your official staff registration dossier has been received and securely registered in the <strong>BEMS Group enterprise ledger</strong>.
+    </p>
+
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Assigned Staff ID:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 800; font-family: monospace; text-align: right;">${params.employeeNumber}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Corporate Role:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.roleTitle}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Subsidiary:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.subsidiaryName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Dossier Status:</td>
+          <td style="padding: 8px 0; text-align: right;">
+            <span style="display: inline-block; padding: 3px 10px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 9999px; color: #b45309; font-size: 11px; font-weight: 700;">
+              ● PENDING REVIEW
+            </span>
+          </td>
+        </tr>
       </table>
     </div>
 
-    <p style="color: #475569; font-size: 13px;">
-      Your profile is currently awaiting final administrative and executive sign-off. As soon as your account is approved, you will receive an activation email with a direct login link to start submitting expenditure requests.
+    <p style="margin: 0; color: #475569; font-size: 13px;">
+      Your profile is currently awaiting executive verification. You will receive an activation email as soon as your access is approved.
     </p>
   `;
 
@@ -241,8 +309,9 @@ export async function sendStaffSignupReceiptEmail(params: {
     subject: `[BEMS Group] Staff Registration Dossier Received — ${params.employeeNumber}`,
     eventType: 'STAFF_SIGNUP_RECEIPT',
     html: wrapEmailTemplate({
-      title: 'Staff Registration Received',
+      title: 'Registration Dossier Received',
       preheader: `Your BEMS staff identity ${params.employeeNumber} has been recorded.`,
+      badge: 'Registration Recorded',
       content,
       callToAction: {
         label: 'View Portal Status →',
@@ -263,20 +332,41 @@ export async function sendStaffLoginReadyEmail(params: {
   subsidiaryName: string;
 }) {
   const content = `
-    <p>Dear <strong>${params.staffName}</strong>,</p>
-    <p>Great news! Your staff onboarding profile and disbursement banking credentials have been <strong>approved</strong> by executive leadership.</p>
-    
-    <div class="card" style="border-left: 4px solid #16a34a;">
-      <span class="badge badge-green" style="margin-bottom: 10px;">Account Approved & Active</span>
-      <table style="width:100%; border-collapse: collapse; font-size: 13px; margin-top: 8px;">
-        <tr><td style="padding: 5px 0; color: #64748b; width: 40%;">Official Staff ID:</td><td style="padding: 5px 0; font-weight: 800; font-family: monospace; font-size: 15px; color: #0f172a;">${params.employeeNumber}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Work Email:</td><td style="padding: 5px 0; font-weight: 600;">${params.to}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Role:</td><td style="padding: 5px 0; font-weight: 600;">${params.roleTitle}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Subsidiary:</td><td style="padding: 5px 0; font-weight: 600;">${params.subsidiaryName}</td></tr>
+    <p style="margin: 0 0 16px; color: #334155;">Hello <strong>${params.staffName}</strong>,</p>
+    <p style="margin: 0 0 16px; color: #475569;">
+      Great news! Your staff onboarding profile and disbursement banking credentials have been <strong>approved</strong> by executive leadership.
+    </p>
+
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Official Staff ID:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 800; font-family: monospace; font-size: 15px; text-align: right;">${params.employeeNumber}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Work Email:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.to}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Corporate Role:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.roleTitle}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Subsidiary:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.subsidiaryName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Account Status:</td>
+          <td style="padding: 8px 0; text-align: right;">
+            <span style="display: inline-block; padding: 3px 10px; background: #dcfce7; border: 1px solid #bbf7d0; border-radius: 9999px; color: #15803d; font-size: 11px; font-weight: 700;">
+              ● ACTIVE &amp; APPROVED
+            </span>
+          </td>
+        </tr>
       </table>
     </div>
 
-    <p style="margin-top: 18px;">
+    <p style="margin: 0; color: #475569; font-size: 13.5px;">
       You can now sign in using your registered email and password to access the <strong>Staff Requisition Portal</strong>, create fund requests, track advances, and upload 72-hour evidence deliverables.
     </p>
   `;
@@ -286,8 +376,9 @@ export async function sendStaffLoginReadyEmail(params: {
     subject: `[BEMS Group] Your Staff Account is Approved — Ready to Sign In`,
     eventType: 'STAFF_LOGIN_READY',
     html: wrapEmailTemplate({
-      title: 'Welcome to BEMS Group',
+      title: 'Your Account is Approved & Ready',
       preheader: `Your account is approved. Sign in with Staff ID: ${params.employeeNumber}.`,
+      badge: 'Account Approved & Active',
       content,
       callToAction: {
         label: 'Sign In to Staff Portal →',
@@ -309,22 +400,47 @@ export async function sendStaffOnboardWelcomeEmail(params: {
   subsidiaryName: string;
 }) {
   const content = `
-    <p>Dear <strong>${params.name}</strong>,</p>
-    <p>A new enterprise account has been created for you on the <strong>BEMS Group Financial Management Portal</strong>.</p>
-    
-    <div class="card" style="border-left: 4px solid #ea580c;">
-      <span class="badge badge-orange" style="margin-bottom: 10px;">Corporate Account Provisioned</span>
-      <table style="width:100%; border-collapse: collapse; font-size: 13px; margin-top: 8px;">
-        <tr><td style="padding: 5px 0; color: #64748b; width: 40%;">Official Staff ID:</td><td style="padding: 5px 0; font-weight: 800; font-family: monospace; font-size: 15px; color: #0f172a;">${params.employeeNumber}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Work Email:</td><td style="padding: 5px 0; font-weight: 600;">${params.to}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Assigned Role:</td><td style="padding: 5px 0; font-weight: 600;">${params.role}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Subsidiary:</td><td style="padding: 5px 0; font-weight: 600;">${params.subsidiaryName}</td></tr>
-        ${params.initialPassword ? `<tr><td style="padding: 5px 0; color: #64748b;">Initial Password:</td><td style="padding: 5px 0; font-weight: 700; font-family: monospace; color: #c2410c;">${params.initialPassword}</td></tr>` : ''}
+    <p style="margin: 0 0 16px; color: #334155;">Hello <strong>${params.name}</strong>,</p>
+    <p style="margin: 0 0 16px; color: #475569;">
+      A new enterprise account has been created for you on the <strong>BEMS Group Financial Management Portal</strong>.
+    </p>
+
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Official Staff ID:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 800; font-family: monospace; font-size: 15px; text-align: right;">${params.employeeNumber}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Work Email:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.to}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Assigned Role:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.role}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Subsidiary:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.subsidiaryName}</td>
+        </tr>
+        ${params.initialPassword ? `
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Initial Password:</td>
+          <td style="padding: 8px 0; color: #c2410c; font-weight: 700; font-family: monospace; font-size: 14px; text-align: right;">${params.initialPassword}</td>
+        </tr>` : ''}
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Account Status:</td>
+          <td style="padding: 8px 0; text-align: right;">
+            <span style="display: inline-block; padding: 3px 10px; background: #dcfce7; border: 1px solid #bbf7d0; border-radius: 9999px; color: #15803d; font-size: 11px; font-weight: 700;">
+              ● ACTIVE &amp; READY
+            </span>
+          </td>
+        </tr>
       </table>
     </div>
 
-    <p style="margin-top: 18px;">
-      You can now sign in using the button below. Please sign in and update your security settings.
+    <p style="margin: 0; color: #475569; font-size: 13.5px;">
+      You can sign in immediately using the button below. Please update your password upon your first sign in.
     </p>
   `;
 
@@ -333,11 +449,12 @@ export async function sendStaffOnboardWelcomeEmail(params: {
     subject: `[BEMS Group] Your Account has been Provisioned — Access Credentials`,
     eventType: 'ACCOUNT_ONBOARDED_CREDENTIALS',
     html: wrapEmailTemplate({
-      title: 'Welcome to BEMS Group',
+      title: 'Corporate Account Provisioned',
       preheader: `Your ${params.role} profile is active. Sign in with Staff ID: ${params.employeeNumber}.`,
+      badge: 'Account Provisioned',
       content,
       callToAction: {
-        label: 'Sign In to BEMS Portal →',
+        label: 'Open Management Portal →',
         url: `${APP_URL}/?email=${encodeURIComponent(params.to)}`,
       },
     }),
@@ -360,23 +477,45 @@ export async function sendGmdNewStaffAlert(params: {
   accountNumber: string;
 }) {
   const content = `
-    <p>Good day <strong>${params.gmdName}</strong>,</p>
-    <p>A new employee onboarding dossier has been registered and is pending executive review:</p>
+    <p style="margin: 0 0 16px; color: #334155;">Hello <strong>${params.gmdName}</strong>,</p>
+    <p style="margin: 0 0 16px; color: #475569;">
+      A new employee onboarding dossier has been registered and is pending executive review:
+    </p>
 
-    <div class="card" style="border-left: 4px solid #ea580c;">
-      <span class="badge badge-orange" style="margin-bottom: 10px;">Pending Executive Approval</span>
-      <table style="width:100%; border-collapse: collapse; font-size: 13px; margin-top: 8px;">
-        <tr><td style="padding: 5px 0; color: #64748b; width: 40%;">Candidate Name:</td><td style="padding: 5px 0; font-weight: 700; color: #0f172a;">${params.staffName}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Staff Identity:</td><td style="padding: 5px 0; font-weight: 800; font-family: monospace; color: #ea580c;">${params.employeeNumber}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Designation / Role:</td><td style="padding: 5px 0; font-weight: 600;">${params.jobTitle}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Subsidiary Placement:</td><td style="padding: 5px 0; font-weight: 600;">${params.subsidiaryName}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Employment Type:</td><td style="padding: 5px 0; font-weight: 600;">${params.employmentType}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Work Station:</td><td style="padding: 5px 0; font-weight: 600;">${params.workLocation}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Disbursement Bank:</td><td style="padding: 5px 0; font-weight: 600;">${params.bankName} (${params.accountNumber})</td></tr>
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Candidate Name:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 700; text-align: right;">${params.staffName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Staff Identity:</td>
+          <td style="padding: 8px 0; color: #ea580c; font-weight: 800; font-family: monospace; text-align: right;">${params.employeeNumber}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Designation / Role:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.jobTitle}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Subsidiary:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.subsidiaryName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Employment Type:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.employmentType}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Station:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.workLocation}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Disbursement Bank:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.bankName} (${params.accountNumber})</td>
+        </tr>
       </table>
     </div>
 
-    <p style="color: #475569; font-size: 13px;">
+    <p style="margin: 0; color: #475569; font-size: 13px;">
       Log in to the Executive Command Center to inspect the full statutory record, verify KYC credentials, and approve access.
     </p>
   `;
@@ -388,6 +527,7 @@ export async function sendGmdNewStaffAlert(params: {
     html: wrapEmailTemplate({
       title: 'New Staff Registration Dossier',
       preheader: `Action Required: New staff onboarding dossier for ${params.staffName} awaiting review.`,
+      badge: 'Action Required',
       content,
       callToAction: {
         label: 'Review in Executive Center →',
@@ -414,26 +554,46 @@ export async function sendGmdRequisitionAlert(params: {
   const amountFormatted = `₦${(params.amountMinor / 100).toLocaleString('en-NG')}`;
 
   const content = `
-    <p>Good day <strong>${params.gmdName}</strong>,</p>
-    <p>An expenditure requisition has been submitted and requires executive attention:</p>
+    <p style="margin: 0 0 16px; color: #334155;">Hello <strong>${params.gmdName}</strong>,</p>
+    <p style="margin: 0 0 16px; color: #475569;">
+      An expenditure requisition has been submitted and requires executive approval:
+    </p>
 
-    <div class="card" style="border-left: 4px solid #ea580c;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
-        <span class="badge badge-orange">Pending Review</span>
-        <strong style="font-size: 18px; color: #0f172a;">${amountFormatted}</strong>
-      </div>
-      <table style="width:100%; border-collapse: collapse; font-size: 13px; margin-top: 8px;">
-        <tr><td style="padding: 5px 0; color: #64748b; width: 35%;">Request Number:</td><td style="padding: 5px 0; font-weight: 800; font-family: monospace;">${params.requestNumber}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Requester:</td><td style="padding: 5px 0; font-weight: 600;">${params.requesterName}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Subsidiary:</td><td style="padding: 5px 0; font-weight: 600;">${params.subsidiaryName}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Category:</td><td style="padding: 5px 0; font-weight: 600;">${params.category}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Assigned Gate:</td><td style="padding: 5px 0; font-weight: 600; color: #ea580c;">${params.approverRole}</td></tr>
-        <tr><td style="padding: 5px 0; color: #64748b;">Justification:</td><td style="padding: 5px 0; font-style: italic; color: #334155;">"${params.justification}"</td></tr>
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Request Number:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 800; font-family: monospace; text-align: right;">${params.requestNumber}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Amount:</td>
+          <td style="padding: 8px 0; color: #ea580c; font-weight: 900; font-size: 16px; text-align: right;">${amountFormatted}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Requester:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.requesterName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Subsidiary:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.subsidiaryName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Category:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.category}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Target Approval Gate:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.approverRole}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500; vertical-align: top;">Justification:</td>
+          <td style="padding: 8px 0; font-style: italic; color: #475569; text-align: right; max-width: 280px;">"${params.justification}"</td>
+        </tr>
       </table>
     </div>
 
-    <p style="color: #475569; font-size: 13px;">
-      Direct executive action can be performed directly via the Executive Command Center.
+    <p style="margin: 0; color: #475569; font-size: 13px;">
+      Direct executive action can be performed directly via the Executive Command Desk.
     </p>
   `;
 
@@ -444,6 +604,7 @@ export async function sendGmdRequisitionAlert(params: {
     html: wrapEmailTemplate({
       title: 'Expenditure Request Submitted',
       preheader: `Requisition ${params.requestNumber} for ${amountFormatted} submitted by ${params.requesterName}.`,
+      badge: 'Action Required',
       content,
       callToAction: {
         label: `Review & Decide ${params.requestNumber} →`,
