@@ -60,6 +60,7 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
   const [newSubName, setNewSubName] = useState('');
   const [newSubIndustry, setNewSubIndustry] = useState('');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -368,28 +369,65 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
               )}
             </div>
 
-            <Link
-              href={pathname?.startsWith('/staff') ? '/' : '/staff'}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '11.5px',
-                fontWeight: '700',
-                padding: '5px 12px',
-                borderRadius: '8px',
-                background: currentRole === 'Staff' ? '#ea580c' : 'rgba(255, 255, 255, 0.08)',
-                color: '#ffffff',
-                textDecoration: 'none',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                transition: 'all 0.15s ease',
-              }}
-              title="Toggle View Mode"
-            >
-              <span>{currentRole === 'Staff' ? 'Staff Portal' : 'GMD Exec'}</span>
-              <span style={{ opacity: 0.6 }}>⇄</span>
-            </Link>
-            <div className="avatar">HN</div>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setProfileOpen(!profileOpen)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                <div className="avatar" title="Account Menu">HN</div>
+              </button>
+              {profileOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: '46px',
+                    background: '#0f172a',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '12px',
+                    padding: '14px 16px',
+                    minWidth: '200px',
+                    boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
+                    zIndex: 1000,
+                  }}
+                >
+                  <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '10px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '800', color: '#ffffff' }}>Account Session</div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Role: {currentRole}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await fetch('/api/auth/logout', { method: 'POST' });
+                      } catch {}
+                      if (typeof window !== 'undefined') window.location.href = '/';
+                    }}
+                    style={{
+                      width: '100%',
+                      background: '#dc2626',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      fontSize: '12.5px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                    }}
+                  >
+                    Sign Out ⎋
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

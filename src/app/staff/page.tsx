@@ -10,8 +10,8 @@ export const dynamic = 'force-dynamic';
 export default async function StaffPage() {
   const actor = await getAuthenticatedEmployee();
 
-  // Enforce mandatory authentication: redirect unauthenticated visitors to login
-  if (!actor) {
+  // Strictly enforce role-based access control: only registered, approved STAFF can access /staff
+  if (!actor || actor.role !== 'STAFF') {
     redirect('/');
   }
 

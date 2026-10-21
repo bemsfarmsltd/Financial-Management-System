@@ -2480,13 +2480,23 @@ export default function Home() {
   useEffect(()=>{ if(authStatus==='signed-in') fetchBusinesses(); },[authStatus]);
   const retryLoad=()=>{setStatus('loading');fetchBusinesses()};
 
+  useEffect(() => {
+    if (authStatus === 'signed-in' && user?.role === 'STAFF' && typeof window !== 'undefined' && window.location.pathname === '/') {
+      window.location.href = '/staff';
+    }
+  }, [authStatus, user]);
+
   const onAuthed=(u:AuthUser)=>{
     setUser(u);
     setEntryMode('login');
-    setShowAiEntry(true);
     window.dispatchEvent(new Event('bems-session-changed'));
     setStatus('ready');
     setAuthStatus('signed-in');
+    if (u.role === 'STAFF') {
+      window.location.href = '/staff';
+      return;
+    }
+    setShowAiEntry(true);
   };
   const signOut=()=>{
     setShowAiEntry(false);
