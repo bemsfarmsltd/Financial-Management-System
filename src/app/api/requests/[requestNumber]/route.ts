@@ -6,11 +6,12 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ requestNumber?: string; id?: string }> }
 ) {
   try {
     const actor = await getAuthenticatedEmployee();
-    const { id } = await params;
+    const resolvedParams = await params;
+    const id = resolvedParams.requestNumber || resolvedParams.id;
 
     if (!id) {
       return NextResponse.json({ error: "Request identifier is required." }, { status: 400 });

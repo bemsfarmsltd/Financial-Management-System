@@ -88,7 +88,38 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        const webhookSecret = process.env.BEMS_N8N_SHARED_SECRET || 'bems_webhook_secret_2026_x89q';
+        // Fetch recent conversation history from BEMS PostgreSQL memory
+        let conversationHistory: any[] = [];
+        try {
+          const rows = await prisma.$queryRaw<Array<{ id: number; message: any; created_at: Date }>>`
+            SELECT id, message, created_at
+            FROM n8n_chat_histories
+            WHERE session_id = ${sessionId}
+            ORDER BY id DESC
+            LIMIT 10
+          `;
+          conversationHistory = rows.reverse().map((r) => {
+            let m = r.message;
+            if (typeof m === 'string') {
+              try { m = JSON.parse(m); } catch {}
+            }
+            return m;
+          });
+        } catch (e) {
+          console.warn('Could not load memory history:', e);
+        }
+
+        // Persist incoming user turn to memory
+        try {
+          await prisma.$executeRaw`
+            INSERT INTO n8n_chat_histories (session_id, message, created_at)
+            VALUES (${sessionId}, ${JSON.stringify({ role: 'user', content: message, timestamp: new Date().toISOString() })}::jsonb, NOW())
+          `;
+        } catch (e) {
+          console.warn('Could not persist user chat to memory:', e);
+        }
+
+        const webhookSecret = process.env.BEMS_N8N_SHARED_SECRET || 'bems_n8n_sec_88491029384756102938475';
 
         const n8nPayload = {
           session_id: sessionId,
@@ -105,7 +136,10 @@ export async function POST(req: NextRequest) {
           context: {
             active_business_id: (body.context && body.context.active_business_id) || '',
             channel: 'web_chat',
+            conversation_history: conversationHistory,
           },
+          conversation_history: conversationHistory,
+          chat_history: conversationHistory,
           auth_token: authToken,
           correlation_id: correlationId,
         };
@@ -128,8 +162,20 @@ export async function POST(req: NextRequest) {
 
         if (n8nRes.ok) {
           const n8nData = await n8nRes.json();
+          const reply = n8nData.reply || n8nData.message || 'Workflow executed.';
+
+          // Persist assistant reply to memory
+          try {
+            await prisma.$executeRaw`
+              INSERT INTO n8n_chat_histories (session_id, message, created_at)
+              VALUES (${sessionId}, ${JSON.stringify({ role: 'assistant', content: reply, timestamp: new Date().toISOString() })}::jsonb, NOW())
+            `;
+          } catch (e) {
+            console.warn('Could not persist assistant reply to memory:', e);
+          }
+
           return NextResponse.json({
-            message: n8nData.reply || n8nData.message || 'Workflow executed.',
+            message: reply,
             actionCard: n8nData.staged_action
               ? {
                   type: 'STAGED_ACTION',
