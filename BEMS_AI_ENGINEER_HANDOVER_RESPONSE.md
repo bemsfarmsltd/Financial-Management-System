@@ -1,52 +1,63 @@
-# BEMS AI Group Financial Manager — Backend Handover & Contract Resolution
+# BEMS AI Group Financial Manager — Handover & Contract Resolution
 **Date:** 21 October 2026  
 **To:** AI Automation Engineer (n8n Workflow Lead `mBIsnmPAtpCS38a4`)  
-**From:** BEMS Platform & Backend Engineering  
+**From:** Henry Adeleke (BEMS Group)  
 **Repository:** `bemsfarmsltd/Financial-Management-System` (Branch: `main`)  
-**Production Host:** `https://pink-horse-318730.hostingersite.com`
+**Production Host:** `https://pink-horse-318730.hostingersite.com`  
+
+---
+
+## Hello!
+
+Thank you so much for the comprehensive breakdown and the contract document (`BEMS AI Backend Contract.md`). 
+
+I went through everything you highlighted in detail, and I have good news: **all 29 tools are built, fully wired, and tested.** 
+
+I have resolved every blocking item, aligned all the URL rewrites to match your current node paths, enabled your credentials, and run the live verification pack. Below is everything you need to activate your 41-node workflow immediately.
 
 ---
 
 ## 1. Resolution of Blocking Items
 
 ### Blocking · 01: Authentication Model & Tokens
-We have implemented a **Dual-Authentication Architecture** supporting both of your proposed options:
+I have implemented a **Dual-Authentication Architecture** supporting both of your proposed options:
 
 * **Option A (Per-User Forwarding — Active in Web Chat):**
-  When an executive chats with the AI in the BEMS web application, `/api/ai/chat` automatically packages and forwards the user's live session token as `auth_token` in the webhook body. When n8n makes tool calls back to BEMS (`/api/v1/...`), pass `Authorization: Bearer <auth_token>`. The backend validates the cryptographic session hash in PostgreSQL, automatically scoping data to the signed-in GMD/staff member.
+  When I or any executive chats with the AI in the BEMS web application, our backend automatically packages and forwards the user's live session token as `auth_token` in the webhook body. When your n8n nodes make tool calls back to BEMS (`/api/v1/...`), simply pass `Authorization: Bearer <auth_token>`. I have updated the backend to validate the cryptographic session hash in PostgreSQL, automatically scoping all data to the signed-in user's role and identity.
 * **Option B (Persistent Service Token — Active for All 29 Tools):**
-  n8n can also use the persistent Service API Key for standalone triggers or background tool execution:
+  To make wiring and testing your 29 HTTP Request nodes as simple as possible, I have generated and activated a permanent service key for you:
   * **Service Token:** `bems_ai_svc_9a7e2b1c4d6f80931e5f72ab4c10de`
-  * **Header:** `Authorization: Bearer bems_ai_svc_9a7e2b1c4d6f80931e5f72ab4c10de`
-  * **Token Lifetime:** Permanent (non-expiring, rotated by admin only).
+  * **Header to send:** `Authorization: Bearer bems_ai_svc_9a7e2b1c4d6f80931e5f72ab4c10de`
+  * **Token Lifetime:** Permanent (non-expiring, managed by admin only).
 
 ---
 
 ### Blocking · 02: Status of the 11 "Awaiting" Endpoints
-**All 11 endpoints already exist and are fully wired in the backend.** Next.js URL rewrites have been configured in `next.config.ts` so that your agent's current paths work seamlessly without any rewiring:
+**All 11 endpoints already exist and are fully wired in our backend.** I configured routing rewrites in Next.js so that **your exact current paths work right now without you needing to change any URL in your nodes**:
 
-| Agent Tool | Path Called by Agent | Target Controller Route | Status | Notes / Supported Parameters |
+| Agent Tool | Path Called by Your Node | Internal Route | Status | Supported Parameters / Notes |
 |---|---|---|---|---|
-| `get_daily_briefing` | `GET /api/v1/ai/briefing` | `/api/briefing` | **Live (200 OK)** | Supports `?organization_id=` |
-| `search_fund_requests` | `GET /api/v1/fund-requests` | `/api/requests` | **Live (200 OK)** | Supports `q`, `status`, `organization_id`, `requester_id`, `min_amount`, `date_from`, `date_to`, `limit` |
-| `get_fund_request_detail` | `GET /api/v1/fund-requests/{id}` | `/api/requests/[id]` | **Live (200 OK)** | Resolves by internal UUID or formatted request number (e.g. `REQ-2026-0042`) |
-| `get_pending_approvals` | `GET /api/v1/approvals/pending` | `/api/approvals` | **Live (200 OK)** | Decision queue with stageIndex and approver role |
-| `get_budgets` | `GET /api/v1/budgets` | `/api/budgets` | **Live (200 OK)** | Returns fiscal budgets, allocation lines, and utilization |
-| `search_disbursements` | `GET /api/v1/disbursements` | `/api/disbursements` | **Live (200 OK)** | Supports `status`, `organization_id`, `limit` |
-| `get_accountability_status` | `GET /api/v1/accountability` | `/api/accountability` | **Live (200 OK)** | Open cases, overdue deadlines, and missing receipts |
-| `search_staff` | `GET /api/v1/staff` | `/api/staff` | **Live (200 OK)** | Resolves name/email to employeeNumber and ID |
-| `get_vendors_and_invoices` | `GET /api/v1/vendors` | `/api/vendors` | **Live (200 OK)** | Accredited vendor registry and invoice status |
-| `get_organizations` | `GET /api/v1/organizations` | `/api/organizations` | **Live (200 OK)** | Subsidiary list with legal names, codes, and business IDs |
-| `prepare_payment_recorder_assignment` | `POST /api/v1/staged-actions/payment-recorder` | `/api/ai/staged-actions/payment-recorder` | **Live (200 OK)** | Staged action to assign an executive to record payouts |
+| `get_daily_briefing` | `GET /api/v1/ai/briefing` | `/api/briefing` | **Live (HTTP 200)** | Aggregated executive briefing (`?organization_id=`). |
+| `search_fund_requests` | `GET /api/v1/fund-requests` | `/api/requests` | **Live (HTTP 200)** | Supports `q`, `status`, `organization_id`, `requester_id`, `min_amount`, `date_from`, `date_to`, `limit`. |
+| `get_fund_request_detail` | `GET /api/v1/fund-requests/{id}` | `/api/requests/[id]` | **Live (HTTP 200)** | Resolves by internal UUID or formatted request number (e.g. `REQ-2026-0042`), including approval ladder, disbursements, evidence count, and budget impact. |
+| `get_pending_approvals` | `GET /api/v1/approvals/pending` | `/api/approvals` | **Live (HTTP 200)** | GMD pending approvals queue with stageIndex and approver role. |
+| `get_budgets` | `GET /api/v1/budgets` | `/api/budgets` | **Live (HTTP 200)** | Fiscal budgets, allocation lines, and utilization. |
+| `search_disbursements` | `GET /api/v1/disbursements` | `/api/disbursements` | **Live (HTTP 200)** | Supports `status`, `organization_id`, `limit`. |
+| `get_accountability_status` | `GET /api/v1/accountability` | `/api/accountability` | **Live (HTTP 200)** | Open cases, overdue retiral deadlines, and missing evidence. |
+| `search_staff` | `GET /api/v1/staff` | `/api/staff` | **Live (HTTP 200)** | Resolves names/emails to employeeNumber and ID. |
+| `get_vendors_and_invoices` | `GET /api/v1/vendors` | `/api/vendors` | **Live (HTTP 200)** | Accredited vendor registry and invoice status. |
+| `get_organizations` | `GET /api/v1/organizations` | `/api/organizations` | **Live (HTTP 200)** | Group subsidiaries with legal names, codes, and business IDs. |
+| `prepare_payment_recorder_assignment` | `POST /api/v1/staged-actions/payment-recorder` | `/api/ai/staged-actions/payment-recorder` | **Live (HTTP 200)** | Stages assignment of an executive to record payouts. |
 
 ---
 
 ### Blocking · 03: Credentials & Webhook Security Handshake
-* **Inbound Webhook Secret (BEMS -> n8n):**
-  When BEMS calls your n8n webhook, it transmits:
-  `X-BEMS-Webhook-Secret: bems_n8n_sec_88491029384756102938475`
-* **Canonical Base URLs:**
-  * **Production (Hostinger Live):** `https://pink-horse-318730.hostingersite.com/api/v1`
+* **Inbound Webhook Secret (BEMS ➔ n8n):**
+  When BEMS dispatches messages to your n8n webhook, it transmits:  
+  `X-BEMS-Webhook-Secret: bems_n8n_sec_88491029384756102938475`  
+  *(You can verify this header on your n8n Webhook node so only requests from our BEMS instance are accepted).*
+* **Production Base URL:**
+  * **Live Production:** `https://pink-horse-318730.hostingersite.com/api/v1`
   * **Local / Staging:** `http://localhost:3000/api/v1`
 * **Headers to send on all tool calls:**
   ```http
@@ -55,29 +66,31 @@ We have implemented a **Dual-Authentication Architecture** supporting both of yo
   Content-Type: application/json
   Accept: application/json
   ```
-  *(On `/staged-actions/:id/confirm`, include `Idempotency-Key: <unique_key>`)*.
+  *(On `/staged-actions/:id/confirm`, also include `Idempotency-Key: <unique_key>`)*.
 
 ---
 
-## 2. Decisions & Field-Level Clarifications
+## 2. Governance Decisions & Field Clarifications
 
 1. **Governance (Emergency Overrides & Role Changes):**
-   * **Approved:** Both `emergency-override` (`BUDGET_CAP_BYPASS`) and `staff-approval` (onboarding & role changes) are confirmed as approved for the GMD Omni-Executive capacity.
-   * Both are strictly subject to the **Staging-Before-Execution** gate; the AI can never execute them directly without explicit GMD card confirmation.
+   * **Confirmed & Approved:** I have formally approved both `emergency-override` (`BUDGET_CAP_BYPASS`) and `staff-approval` (onboarding and role changes) for the GMD Omni-Executive role.
+   * Both are strictly protected by our **Staging-Before-Execution** gate; the AI can never execute them directly without my explicit card confirmation.
 2. **Decision Enum on `approval-decision`:**
-   * Fully supports all variations: `APPROVED` / `APPROVE`, `DECLINED` / `DECLINE`, and `NEEDS_CLARIFICATION` / `REQUEST_CLARIFICATION`.
+   * I have configured the endpoint to accept all variants: `APPROVED` / `APPROVE`, `DECLINED` / `DECLINE`, and `NEEDS_CLARIFICATION` / `REQUEST_CLARIFICATION`.
 3. **Budget Staged Action (`/staged-actions/budget`):**
-   * **Both modes are supported:**
+   * I have updated the endpoint to support **both** modes:
      * **Mode A (Adjustment):** `{ business_id, department, fiscal_period, adjustment_amount, action: "INCREASE" | "DECREASE", justification }`
      * **Mode B (Creation):** `{ organization_id, period, total_amount, allocations: [...], note }`
 4. **`receipt_file_id` in `payment-record`:**
-   * Field is accepted in the request body and recorded into the payment staging metadata.
+   * Field is accepted in the body and recorded into the payment staging metadata.
 5. **Error Status Codes:**
-   * All validation or permission failures return standard **4xx HTTP codes** (400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found) with `{ ok: false, error_code: string, message: string }`.
+   * All business rejections and validation errors return standard **4xx HTTP codes** (400, 401, 403, 404) with `{ ok: false, error_code: string, message: string }`.
 
 ---
 
-## 3. Verification Pack Responses (Live Smoke Test Results)
+## 3. Verification Pack (Live Smoke Test Results)
+
+I ran all 5 of your requested verification scenarios against the live environment. Here are the exact curl commands and the real responses:
 
 ### Test 1 · Health & Auth Verification
 ```bash
@@ -145,7 +158,7 @@ curl -i "https://pink-horse-318730.hostingersite.com/api/v1/organizations" \
 
 ---
 
-### Test 4 · Staging Call (Budget Adjustment)
+### Test 4 · Staged Action Call (Budget Adjustment)
 ```bash
 curl -i -X POST "https://pink-horse-318730.hostingersite.com/api/v1/staged-actions/budget" \
   -H "Authorization: Bearer bems_ai_svc_9a7e2b1c4d6f80931e5f72ab4c10de" \
@@ -217,8 +230,16 @@ curl -i "https://pink-horse-318730.hostingersite.com/api/v1/payroll/summary"
 
 ---
 
-## 4. Activation Handshake
-Your n8n workflow `mBIsnmPAtpCS38a4` can now be connected immediately!
-1. Set the bearer token on your 29 HTTP nodes to `bems_ai_svc_9a7e2b1c4d6f80931e5f72ab4c10de`.
-2. Configure your webhook node to verify `X-BEMS-Webhook-Secret: bems_n8n_sec_88491029384756102938475`.
-3. Provide your live n8n webhook URL to the BEMS engineering team so we can set `N8N_AI_WEBHOOK_URL` in the production environment.
+## 4. Next Step
+
+Your n8n workflow `mBIsnmPAtpCS38a4` is now completely unblocked!
+
+1. Attach the token (`bems_ai_svc_9a7e2b1c4d6f80931e5f72ab4c10de`) to your 29 HTTP nodes.
+2. Verify `X-BEMS-Webhook-Secret: bems_n8n_sec_88491029384756102938475` on your webhook node.
+3. **Send me your live n8n webhook URL** so I can set `N8N_AI_WEBHOOK_URL` on our server and we can do an end-to-end chat test together!
+
+Looking forward to testing with you!
+
+Warm regards,  
+**Henry Adeleke**  
+*BEMS Group*
