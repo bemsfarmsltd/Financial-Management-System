@@ -29,8 +29,9 @@ I saw your note about Option A vs Option B. Let's actually support **both**, giv
   To make sure your n8n webhook only accepts traffic genuinely coming from our platform, my server will send this secret on every chat dispatch:
   * **Header:** `X-BEMS-Webhook-Secret: bems_n8n_sec_88491029384756102938475`
 
-* **Our Live Base URL:**  
-  `https://pink-horse-318730.hostingersite.com/api/v1`  
+* **Our Live Base URLs:**  
+  * **Primary (Official Custom Domain):** `https://bemserp.work/api/v1`  
+  * **Edge Fallback Domain:** `https://pink-horse-318730.hostingersite.com/api/v1`  
   *(For local dev/testing: `http://localhost:3000/api/v1`)*
 
 ---
@@ -182,11 +183,13 @@ HTTP/1.1 200 OK
 
 Per your note in Section 02 offering to expose conversation memory via BEMS endpoints instead of raw database credentials, **we handle conversation memory directly in the BEMS backend** to maintain strict enterprise database isolation and audit controls:
 
-* **Automatic Payload Injection (Zero Setup / Recommended):**  
-  Every chat dispatch from the BEMS portal automatically retrieves the recent message history for the executive session and passes it directly inside the webhook payload:
-  * `context.conversation_history: [ { role, content, timestamp }, ... ]`
-  * `chat_history: [ ... ]`
-  Your LangChain AI Agent receives multi-turn conversational context out of the box without needing an external database memory node.
+* **Automatic Bidirectional Persistence (Zero Setup / Fully Handled by BEMS):**  
+  * When an executive sends a prompt, BEMS writes the `user` turn to PostgreSQL.
+  * When your n8n workflow returns its response (`reply` or `message`), BEMS automatically records the `assistant` turn in the exact same session.
+  * On every subsequent dispatch, the complete bidirectional history is injected into:
+    * `context.conversation_history: [ { role, content, timestamp }, ... ]`
+    * `chat_history: [ ... ]`
+  * **Result:** You do **not** need to POST assistant replies back—BEMS captures both sides automatically so the agent never contradicts itself or forgets what it said.
 
 * **Dedicated REST Memory Endpoints (If your workflow prefers HTTP tools):**
   * **`GET /api/v1/ai/memory?session_id={{ $json.session_id }}&limit=20`**  
