@@ -46,10 +46,10 @@ export function RecurringCommitmentsView({ businessName }: { businessName: strin
     setLoading(true);
     setError('');
     try {
-      let response = await fetch('/api/recurring', { credentials: 'include' });
+      let response = await fetch(`/api/recurring?_t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
       if (response.status === 401) {
-        await new Promise((r) => setTimeout(r, 350));
-        response = await fetch('/api/recurring', { credentials: 'include' });
+        await new Promise((r) => setTimeout(r, 400));
+        response = await fetch(`/api/recurring?_t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
       }
       const contentType = response.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {

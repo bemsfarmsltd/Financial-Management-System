@@ -103,7 +103,7 @@ export function ApprovalMatrixView({
     try {
       setLoading(true);
       const url = `/api/policies?subsidiary=${encodeURIComponent(selectedSubsidiary)}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { credentials: 'include', cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to load approval policies');
       const data = await res.json();
       setPolicies(data.policies || []);
@@ -287,6 +287,7 @@ export function ApprovalMatrixView({
       const res = await fetch('/api/policies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(payload),
       });
 

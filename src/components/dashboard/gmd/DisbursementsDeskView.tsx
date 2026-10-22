@@ -160,7 +160,7 @@ export function DisbursementsDeskView({
 
   useEffect(() => {
     fetchDisbursements();
-    fetch('/api/treasury')
+    fetch('/api/treasury', { credentials: 'include', cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (d && Array.isArray(d.accounts)) {
@@ -218,6 +218,7 @@ export function DisbursementsDeskView({
       formData.set('receipt', receiptFile);
       const res = await fetch('/api/disbursements', {
         method: 'POST',
+        credentials: 'include',
         body: formData
       });
 
@@ -247,6 +248,7 @@ export function DisbursementsDeskView({
       const res = await fetch('/api/disbursements', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           disbursementId: selectedDisbursement.id,
           decision,

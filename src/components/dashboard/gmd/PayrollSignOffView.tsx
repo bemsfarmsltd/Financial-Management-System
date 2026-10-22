@@ -187,13 +187,13 @@ export function PayrollSignOffView({
   const fetchPayroll = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/payroll');
+      const res = await fetch('/api/payroll', { credentials: 'include', cache: 'no-store' });
       const json = await res.json();
       if (json && !json.error) {
         setData(json);
       } else {
         if (res.status === 403) {
-          const mine = await fetch('/api/payroll/my-payments');
+          const mine = await fetch('/api/payroll/my-payments', { credentials: 'include', cache: 'no-store' });
           const mineJson = await mine.json();
           if (mine.ok) setStaffPayments(mineJson.payments || []);
           else setNotice(mineJson.error || json.error || 'Could not load payroll payments.');
@@ -221,6 +221,7 @@ export function PayrollSignOffView({
       const res = await fetch('/api/payroll', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           batchId: data.batch.id,
           disbursementAssigneeId: selectedAssigneeId,
@@ -251,7 +252,7 @@ export function PayrollSignOffView({
     form.set('payrollItemId', paymentItem.id);
     try {
       setRecordingPayment(true);
-      const response = await fetch('/api/payroll/record', { method: 'POST', body: form });
+      const response = await fetch('/api/payroll/record', { method: 'POST', body: form, credentials: 'include' });
       const result = await response.json();
       if (!response.ok) { setNotice(result.error || 'Could not record payroll payment.'); return; }
       setNotice(result.message);
@@ -265,7 +266,7 @@ export function PayrollSignOffView({
     const note = staffIssuePaymentId === disbursementId ? staffIssueNote.trim() : '';
     if (decision === 'NOT_RECEIVED' && !note) { setNotice('Add a note explaining the payment issue.'); return; }
     try {
-      const response = await fetch('/api/disbursements/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disbursementId, decision, note }) });
+      const response = await fetch('/api/disbursements/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ disbursementId, decision, note }) });
       const result = await response.json();
       if (!response.ok) { setNotice(result.error || 'Could not save your confirmation.'); return; }
       setNotice(decision === 'RECEIVED' ? 'Receipt confirmed.' : 'Payment issue sent to Finance.');
@@ -332,7 +333,7 @@ export function PayrollSignOffView({
               onClick={async () => {
                 setSignOffModalOpen(true);
                 try {
-                  const response = await fetch('/api/payroll/assignees');
+                  const response = await fetch('/api/payroll/assignees', { credentials: 'include', cache: 'no-store' });
                   const result = await response.json();
                   if (response.ok) {
                     setAssignees(result.employees || []);
