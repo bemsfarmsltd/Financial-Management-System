@@ -47,6 +47,7 @@ export async function createEmployeeSession(employeeId: string) {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
+    maxAge: SESSION_MAX_AGE,
     expires: expiresAt,
   });
   return { token, expiresAt };

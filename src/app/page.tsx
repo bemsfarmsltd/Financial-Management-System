@@ -33,6 +33,7 @@ import { AiFinancialManagerDrawer } from "@/components/ai/AiFinancialManagerDraw
 import { AmbientBottomAiBar } from "@/components/ai/AmbientBottomAiBar";
 import { AiScreenEdgeGlow, notifyAiInteraction } from "@/components/ai/AiScreenEdgeGlow";
 import { useAiFinancialManager } from "@/components/ai/useAiFinancialManager";
+import { AiMotionEntryScreen } from "@/components/ai/AiMotionEntryScreen";
 import { UniversalClickToAskProvider } from "@/components/ai/UniversalClickToAskProvider";
 import { PeopleAccessWorkspaceModule } from "@/components/dashboard/gmd/PeopleAccessWorkspaceModule";
 import { StaffWorkspaceModule } from "@/components/dashboard/staff/StaffWorkspaceModule";
@@ -2763,17 +2764,25 @@ export default function Home() {
   const [businesses,setBusinesses]=useState<Business[]>(defaultBemsBusinesses);
   const [currentId,setCurrentId]=useState('bems-group-hq');
   const [status,setStatus]=useState<'loading'|'ready'|'error'>('ready');
+  const [showAiEntry, setShowAiEntry] = useState(false);
+  const [entryMode, setEntryMode] = useState<'login' | 'reload'>('reload');
+
   const checkAuth = () => {
-    fetch('/api/auth/session', { credentials: 'include' })
+    fetch('/api/auth/session', { credentials: 'include', cache: 'no-store' })
       .then(r => r.json())
       .then(data => {
         const nextUser = data?.user as AuthUser | null;
         setUser(nextUser);
         setAuthStatus(nextUser ? 'signed-in' : 'signed-out');
+        if (nextUser) {
+          setEntryMode('reload');
+          setShowAiEntry(true);
+        }
       })
       .catch(() => {
         setUser(null);
         setAuthStatus('signed-out');
+        setShowAiEntry(false);
       });
   };
   useEffect(() => {
@@ -2810,6 +2819,7 @@ export default function Home() {
 
   const onAuthed = (u: AuthUser) => {
     setUser(u);
+    setEntryMode('login');
     window.dispatchEvent(new Event('bems-session-changed'));
     setStatus('ready');
     setAuthStatus('signed-in');
@@ -2817,9 +2827,11 @@ export default function Home() {
       window.location.href = '/staff';
       return;
     }
+    setShowAiEntry(true);
   };
 
   const signOut = async () => {
+    setShowAiEntry(false);
     setUser(null);
     setAuthStatus('signed-out');
     setBusinesses([]);
@@ -2889,6 +2901,20 @@ export default function Home() {
   // 2. Unauthenticated or signed out: strictly present sign-in / registration
   if (!user || authStatus === 'signed-out') {
     return <AuthGate onAuthed={onAuthed} />;
+  }
+
+  // 3. Dynamic AI Motion Pre-Screen before dashboard access (on login & reload)
+  if (showAiEntry) {
+    return (
+      <AiMotionEntryScreen
+        key={`ai-entry-${entryMode}-${user.id}`}
+        onComplete={() => setShowAiEntry(false)}
+        businessName="BEMS Group"
+        userName={user.fullName || user.name || 'Executive'}
+        userRole={user.role || 'STAFF'}
+        mode={entryMode}
+      />
+    );
   }
 
   if (status === 'error') return <main className="app-loading error"><p>Could not reach the BEMS Group API. Confirm the backend is running on port 4001.</p><button onClick={retryLoad}>Retry →</button></main>;
