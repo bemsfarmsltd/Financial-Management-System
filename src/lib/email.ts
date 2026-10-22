@@ -392,6 +392,79 @@ export async function sendStaffLoginReadyEmail(params: {
 }
 
 /**
+ * Template: Executive & Admin Role Invitation Email (Self-Service Onboarding)
+ */
+export async function sendAdminInvitationEmail(params: {
+  to: string;
+  role: string;
+  subsidiaryName: string;
+  departmentName?: string;
+  positionName?: string;
+  inviteToken: string;
+  expiresInDays?: number;
+}) {
+  const onboardUrl = `${APP_URL}/onboard?token=${encodeURIComponent(params.inviteToken)}`;
+  const days = params.expiresInDays || 7;
+
+  const content = `
+    <p style="margin: 0 0 16px; color: #334155;">Hello,</p>
+    <p style="margin: 0 0 16px; color: #475569;">
+      You have been invited to join the <strong>BEMS Group Financial Management &amp; Accountability Portal</strong> in an executive / administrative capacity.
+    </p>
+
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Invited Email:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.to}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Provisioned Role:</td>
+          <td style="padding: 8px 0; color: #ea580c; font-weight: 800; text-align: right;">${params.role}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Subsidiary / Entity:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.subsidiaryName}</td>
+        </tr>
+        ${params.departmentName ? `
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Department:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.departmentName}</td>
+        </tr>` : ''}
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Link Validity:</td>
+          <td style="padding: 8px 0; text-align: right;">
+            <span style="display: inline-block; padding: 3px 10px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 9999px; color: #c2410c; font-size: 11px; font-weight: 700;">
+              ● Valid for ${days} days
+            </span>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <p style="margin: 0 0 12px; color: #475569; font-size: 13.5px;">
+      Please click the button below to complete your onboarding dossier. You will enter your full legal name, contact information, banking details, and create your own private login password.
+    </p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `[BEMS Group] Official Invitation: Executive & Governance Role Provisioning`,
+    eventType: 'ADMIN_INVITATION',
+    html: wrapEmailTemplate({
+      title: 'Executive Role Invitation',
+      preheader: `You have been provisioned as ${params.role} for ${params.subsidiaryName}. Complete your onboarding.`,
+      badge: 'Executive Provisioning',
+      content,
+      callToAction: {
+        label: 'Complete Your Onboarding →',
+        url: onboardUrl,
+      },
+    }),
+  });
+}
+
+/**
  * Template: Admin Directly Onboards Employee (Welcome with Credentials)
  */
 export async function sendStaffOnboardWelcomeEmail(params: {

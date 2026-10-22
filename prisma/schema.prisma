@@ -29,6 +29,7 @@ model Organization {
   budgets              Budget[]
   payrollAllocations   PayrollItemAllocation[]
   settings             WorkspaceSetting[]
+  adminInvitations     AdminInvitation[]
 }
 
 model WorkspaceSetting {
@@ -644,5 +645,32 @@ model StagedAction {
   @@index([userId, status])
   @@index([expiresAt])
   @@index([idempotencyKey])
+}
+
+model AdminInvitation {
+  id           String       @id @default(uuid())
+  workEmail    String
+  role         String       // COO | HEAD_OF_ADMIN | FINANCE | VERIFIER | DEPT_HEAD | HR | SYSTEM_ADMIN
+  subsidiaryId String
+  subsidiary   Organization @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+  departmentId String?
+  positionName String?
+  token        String       @unique
+  invitedById  String
+  status       String       @default("PENDING") // PENDING | COMPLETED | EXPIRED | REVOKED
+  expiresAt    DateTime
+  createdAt    DateTime     @default(now())
+
+  @@index([workEmail, status])
+  @@index([token])
+}
+
+model N8nChatHistory {
+  id        Int      @id @default(autoincrement())
+  sessionId String   @map("session_id")
+  message   Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("n8n_chat_histories")
 }
 

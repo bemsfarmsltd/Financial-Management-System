@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { Check, RefreshCw, ShieldCheck, UserPlus, UserRound, X } from 'lucide-react';
+import { Check, RefreshCw, ShieldCheck, UserPlus, UserRound, X, Mail, Clock, Send, Trash2, Building2 } from 'lucide-react';
 
 type PendingSignup = {
   id: string;
@@ -26,18 +26,31 @@ type PendingSignup = {
   createdAt: string;
 };
 
+type AdminInvitationItem = {
+  id: string;
+  workEmail: string;
+  role: string;
+  subsidiaryId: string;
+  subsidiary?: { id: string; legalName: string };
+  departmentId?: string | null;
+  positionName?: string | null;
+  status: 'PENDING' | 'COMPLETED' | 'EXPIRED' | 'REVOKED';
+  expiresAt: string;
+  createdAt: string;
+};
+
 type Org = { id: string; legalName: string; code: string; type: string };
 type Dept = { id: string; name: string; code: string; organizationId: string };
 
 const ADMIN_ROLES = [
-  { value: 'GMD', label: 'GMD — Group Managing Director' },
-  { value: 'SYSTEM_ADMIN', label: 'System Administrator' },
-  { value: 'COO', label: 'COO — Chief Operating Officer' },
-  { value: 'HEAD_OF_ADMIN', label: 'Head of Administration' },
   { value: 'FINANCE', label: 'Finance & Treasury Lead' },
-  { value: 'VERIFIER', label: 'Internal Auditor & Compliance Verifier' },
   { value: 'DEPT_HEAD', label: 'Department Head' },
+  { value: 'VERIFIER', label: 'Internal Auditor & Compliance Verifier' },
+  { value: 'HEAD_OF_ADMIN', label: 'Head of Administration' },
   { value: 'HR', label: 'HR — Human Resources Lead' },
+  { value: 'COO', label: 'COO — Chief Operating Officer' },
+  { value: 'SYSTEM_ADMIN', label: 'System Administrator' },
+  { value: 'GMD', label: 'GMD — Group Managing Director' },
 ];
 
 export function PeopleAccessWorkspaceModule({
@@ -48,6 +61,7 @@ export function PeopleAccessWorkspaceModule({
   onNavigate?: (tab: string) => void;
 }) {
   const [employees, setEmployees] = useState<PendingSignup[]>([]);
+  const [invitations, setInvitations] = useState<AdminInvitationItem[]>([]);
   const [organizations, setOrganizations] = useState<Org[]>([]);
   const [departments, setDepartments] = useState<Dept[]>([]);
   const [activeGmd, setActiveGmd] = useState<{ id: string; legalName: string; workEmail: string } | null>(null);
@@ -60,40 +74,49 @@ export function PeopleAccessWorkspaceModule({
   const [approvalOrgs, setApprovalOrgs] = useState<Record<string, string>>({});
   const [approvalDepts, setApprovalDepts] = useState<Record<string, string>>({});
 
-  // Direct Onboarding Modal State
-  const [showOnboardModal, setShowOnboardModal] = useState(false);
-  const [onboardForm, setOnboardForm] = useState({
-    legalName: '',
+  // Executive Invite Modal State
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteForm, setInviteForm] = useState({
     workEmail: '',
-    phone: '',
-    role: 'STAFF',
+    role: 'FINANCE',
     subsidiaryId: '',
     departmentId: '',
-    password: '',
+    positionName: '',
   });
-  const [onboardBusy, setOnboardBusy] = useState(false);
-  const [onboardError, setOnboardError] = useState('');
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteError, setInviteError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/auth/approvals', { credentials: 'include' });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Could not load pending signups.');
-      setEmployees(data.employees || []);
-      setOrganizations(data.organizations || []);
-      setDepartments(data.departments || []);
-      if (data.activeGmd) setActiveGmd(data.activeGmd);
-      if (data.organizations?.length && !onboardForm.subsidiaryId) {
-        setOnboardForm((prev) => ({ ...prev, subsidiaryId: data.organizations[0].id }));
+      const [approvalRes, inviteRes] = await Promise.all([
+        fetch('/api/auth/approvals', { credentials: 'include' }),
+        fetch('/api/staff/invite', { credentials: 'include' }).catch(() => null),
+      ]);
+
+      const approvalData = await approvalRes.json();
+      if (!approvalRes.ok) throw new Error(approvalData.error || 'Could not load pending signups.');
+
+      setEmployees(approvalData.employees || []);
+      setOrganizations(approvalData.organizations || []);
+      setDepartments(approvalData.departments || []);
+      if (approvalData.activeGmd) setActiveGmd(approvalData.activeGmd);
+
+      if (inviteRes && inviteRes.ok) {
+        const inviteData = await inviteRes.json();
+        setInvitations(inviteData.invitations || []);
+      }
+
+      if (approvalData.organizations?.length && !inviteForm.subsidiaryId) {
+        setInviteForm((prev) => ({ ...prev, subsidiaryId: approvalData.organizations[0].id }));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load pending signups.');
+      setError(err instanceof Error ? err.message : 'Could not load administration records.');
     } finally {
       setLoading(false);
     }
-  }, [onboardForm.subsidiaryId]);
+  }, [inviteForm.subsidiaryId]);
 
   useEffect(() => {
     void load();
@@ -124,53 +147,69 @@ export function PeopleAccessWorkspaceModule({
     }
   };
 
-  const handleOnboardSubmit = async (e: FormEvent) => {
+  const handleInviteSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setOnboardBusy(true);
-    setOnboardError('');
+    setInviteBusy(true);
+    setInviteError('');
     try {
-      const response = await fetch('/api/staff/onboard', {
+      const response = await fetch('/api/staff/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(onboardForm),
+        body: JSON.stringify(inviteForm),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to onboard role.');
+      if (!response.ok) throw new Error(data.error || 'Failed to dispatch executive invitation.');
 
-      setNotice(data.message || 'Role successfully onboarded.');
-      setShowOnboardModal(false);
-      setOnboardForm({
-        legalName: '',
+      setNotice(data.message || `Official invitation dispatched to ${inviteForm.workEmail}.`);
+      setShowInviteModal(false);
+      setInviteForm({
         workEmail: '',
-        phone: '',
-        role: 'GMD',
+        role: 'FINANCE',
         subsidiaryId: organizations[0]?.id || '',
         departmentId: '',
-        password: '',
+        positionName: '',
       });
       await load();
     } catch (err: any) {
-      setOnboardError(err.message || 'Failed to onboard account.');
+      setInviteError(err.message || 'Failed to send invitation.');
     } finally {
-      setOnboardBusy(false);
+      setInviteBusy(false);
     }
   };
 
-  const filteredDepts = onboardForm.subsidiaryId
-    ? departments.filter((d) => d.organizationId === onboardForm.subsidiaryId)
+  const revokeInvitation = async (id: string) => {
+    try {
+      const res = await fetch(`/api/staff/invite?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to revoke invitation.');
+      setNotice('Invitation revoked.');
+      await load();
+    } catch (err: any) {
+      setError(err.message || 'Could not revoke invitation.');
+    }
+  };
+
+  const filteredDepts = inviteForm.subsidiaryId
+    ? departments.filter((d) => d.organizationId === inviteForm.subsidiaryId)
     : departments;
 
+  const pendingInvitations = invitations.filter((inv) => inv.status === 'PENDING');
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+      {/* Top Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#ea580c', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
-            <ShieldCheck size={16} /> SYSTEM ADMINISTRATION & ACCESS
+            <ShieldCheck size={16} /> SYSTEM ADMINISTRATION &amp; ACCESS
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0 }}>People, Leadership & Access Center</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0 }}>People, Leadership &amp; Access Center</h1>
           <p style={{ color: '#64748b', fontSize: 13, margin: '4px 0 0 0' }}>
-            Onboard corporate leadership roles directly, or review and approve manual staff registrations across BEMS Group.
+            Invite executive and governance leadership roles via secure email links, and review manual staff self-registrations.
           </p>
         </div>
 
@@ -198,7 +237,7 @@ export function PeopleAccessWorkspaceModule({
 
           <button
             type="button"
-            onClick={() => setShowOnboardModal(true)}
+            onClick={() => setShowInviteModal(true)}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -214,7 +253,7 @@ export function PeopleAccessWorkspaceModule({
               boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
             }}
           >
-            <UserPlus size={16} color="#ffffff" /> Onboard Admin / Leadership Role
+            <Mail size={16} color="#ffffff" /> Invite Executive / Admin Role
           </button>
         </div>
       </div>
@@ -225,23 +264,110 @@ export function PeopleAccessWorkspaceModule({
         </div>
       )}
 
-      {/* Pending Staff Signups Section */}
-      <section style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, borderBottom: '1px solid #f1f5f9', paddingBottom: 14 }}>
+      {/* 1. Pending Executive Invitations Section */}
+      <section style={{ background: '#ffffff', border: '1px solid #fed7aa', borderRadius: 12, padding: '22px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #ffedd5', paddingBottom: 12 }}>
           <div>
-            <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1e293b', margin: 0 }}>
-              Manual Staff Registrations Waiting for Approval ({employees.length})
-            </h2>
-            <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0 0' }}>
-              Staff members who registered online. Choose their role and corporate division before confirming.
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Mail size={16} color="#ea580c" />
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                Active Executive &amp; Governance Invitations ({pendingInvitations.length})
+              </h2>
+            </div>
+            <p style={{ fontSize: 12.5, color: '#64748b', margin: '4px 0 0 0' }}>
+              Invited leaders who have received a secure 7-day onboarding email link to enter their own information and password.
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {loading ? (
-            <p style={{ textAlign: 'center', color: '#94a3b8', padding: '32px 0' }}>Loading registration queue…</p>
-          ) : employees.length ? (
+        {pendingInvitations.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {pendingInvitations.map((inv) => (
+              <div
+                key={inv.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderRadius: 8,
+                  border: '1px solid #fde047',
+                  background: '#fefce8',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#fef08a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#854d0e', fontWeight: 800, fontSize: 13 }}>
+                    @
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: 14 }}>
+                      {inv.workEmail}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#475569', display: 'flex', gap: 8, alignItems: 'center', marginTop: 2 }}>
+                      <span style={{ background: '#ea580c', color: '#ffffff', padding: '1px 7px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                        {inv.role}
+                      </span>
+                      <span>·</span>
+                      <span>🏢 {inv.subsidiary?.legalName || 'Subsidiary'}</span>
+                      {inv.positionName && <span>({inv.positionName})</span>}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ fontSize: 11.5, color: '#854d0e', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Clock size={13} />
+                    <span>Expires {new Date(inv.expiresAt).toLocaleDateString('en-GB')}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void revokeInvitation(inv.id)}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid #fecaca',
+                      color: '#b91c1c',
+                      padding: '5px 10px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    <Trash2 size={12} /> Revoke Invite
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '24px 12px', color: '#64748b' }}>
+            <div style={{ fontSize: 13, color: '#64748b' }}>
+              No outstanding executive invitations. Click <strong>&quot;Invite Executive / Admin Role&quot;</strong> above to dispatch a link.
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* 2. Manual Staff Self-Registrations Queue */}
+      <section style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, borderBottom: '1px solid #f1f5f9', paddingBottom: 14 }}>
+          <div>
+            <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1e293b', margin: 0 }}>
+              Staff Self-Registrations Waiting for Verification ({employees.length})
+            </h2>
+            <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0 0' }}>
+              General staff members who registered themselves online. Choose their corporate division before confirming.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {employees.length > 0 ? (
             employees.map((employee) => (
               <div
                 key={employee.id}
@@ -349,7 +475,7 @@ export function PeopleAccessWorkspaceModule({
                       cursor: 'pointer',
                     }}
                   >
-                    <Check size={14} /> Approve & Grant Access
+                    <Check size={14} /> Approve &amp; Grant Access
                   </button>
                 </div>
               </div>
@@ -366,8 +492,8 @@ export function PeopleAccessWorkspaceModule({
         </div>
       </section>
 
-      {/* Onboard Leadership / Admin Modal */}
-      {showOnboardModal && (
+      {/* Invite Executive / Admin Role Modal */}
+      {showInviteModal && (
         <div
           style={{
             position: 'fixed',
@@ -389,7 +515,7 @@ export function PeopleAccessWorkspaceModule({
               background: '#ffffff',
               borderRadius: 14,
               width: '100%',
-              maxWidth: 560,
+              maxWidth: 520,
               padding: '28px',
               boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
               position: 'relative',
@@ -398,89 +524,61 @@ export function PeopleAccessWorkspaceModule({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, borderBottom: '1px solid #f1f5f9', paddingBottom: 14 }}>
               <div>
                 <div style={{ color: '#ea580c', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  ADMINISTRATOR PROVISIONING
+                  ADMINISTRATIVE EMAIL INVITATION
                 </div>
                 <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', margin: '4px 0 0 0' }}>
-                  Onboard Executive / Admin Role
+                  Invite Executive / Admin Role
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setShowOnboardModal(false)}
+                onClick={() => setShowInviteModal(false)}
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', marginBottom: 14, fontSize: 12, lineHeight: 1.4 }}>
-              <strong>Notice:</strong> General staff members self-register via the sign-up portal and appear in the <em>Pending Staff Signups</em> review queue below. Use this form exclusively for executive and administrative role provisioning.
+            <div style={{ padding: '10px 14px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, color: '#9a3412', marginBottom: 16, fontSize: 12.5, lineHeight: 1.45 }}>
+              Enter the executive&apos;s corporate email address and role. An official email invitation will be dispatched containing a secure 7-day link for them to complete their profile and set their private password.
             </div>
 
-            {onboardError && (
+            {inviteError && (
               <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#991b1b', marginBottom: 16, fontSize: 13 }}>
-                {onboardError}
+                {inviteError}
               </div>
             )}
 
-            <form onSubmit={handleOnboardSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <form onSubmit={handleInviteSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
-                  Full Legal Name *
+                  Work Email Address *
                 </label>
                 <input
                   required
-                  type="text"
-                  placeholder="e.g. Henry Nwosu"
-                  value={onboardForm.legalName}
-                  onChange={(e) => setOnboardForm({ ...onboardForm, legalName: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, boxSizing: 'border-box' }}
+                  type="email"
+                  placeholder="e.g. finance.director@bemsgroup.com"
+                  value={inviteForm.workEmail}
+                  onChange={(e) => setInviteForm({ ...inviteForm, workEmail: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, boxSizing: 'border-box' }}
                 />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
-                    Work Email Address *
-                  </label>
-                  <input
-                    required
-                    type="email"
-                    placeholder="henry@bemsgroup.com"
-                    value={onboardForm.workEmail}
-                    onChange={(e) => setOnboardForm({ ...onboardForm, workEmail: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, boxSizing: 'border-box' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="+234 803 000 0000"
-                    value={onboardForm.phone}
-                    onChange={(e) => setOnboardForm({ ...onboardForm, phone: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, boxSizing: 'border-box' }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
-                    Corporate Role *
+                    Executive / Admin Role *
                   </label>
                   <select
-                    value={onboardForm.role}
-                    onChange={(e) => setOnboardForm({ ...onboardForm, role: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, background: '#fff', boxSizing: 'border-box' }}
+                    value={inviteForm.role}
+                    onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13.5, background: '#fff', boxSizing: 'border-box' }}
                   >
                     {ADMIN_ROLES.map((r) => {
                       const isGmdOccupied = r.value === 'GMD' && activeGmd;
                       return (
                         <option key={r.value} value={r.value} disabled={Boolean(isGmdOccupied)}>
-                          {isGmdOccupied ? `GMD — Group Managing Director (Occupied by ${activeGmd.legalName})` : r.label}
+                          {isGmdOccupied ? `GMD (Occupied by ${activeGmd.legalName})` : r.label}
                         </option>
                       );
                     })}
@@ -489,12 +587,12 @@ export function PeopleAccessWorkspaceModule({
 
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
-                    Subsidiary / Division
+                    Subsidiary Entity *
                   </label>
                   <select
-                    value={onboardForm.subsidiaryId}
-                    onChange={(e) => setOnboardForm({ ...onboardForm, subsidiaryId: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, background: '#fff', boxSizing: 'border-box' }}
+                    value={inviteForm.subsidiaryId}
+                    onChange={(e) => setInviteForm({ ...inviteForm, subsidiaryId: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13.5, background: '#fff', boxSizing: 'border-box' }}
                   >
                     {organizations.map((org) => (
                       <option key={org.id} value={org.id}>{org.legalName}</option>
@@ -506,12 +604,12 @@ export function PeopleAccessWorkspaceModule({
               {filteredDepts.length > 0 && (
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
-                    Department
+                    Department (Optional)
                   </label>
                   <select
-                    value={onboardForm.departmentId}
-                    onChange={(e) => setOnboardForm({ ...onboardForm, departmentId: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, background: '#fff', boxSizing: 'border-box' }}
+                    value={inviteForm.departmentId}
+                    onChange={(e) => setInviteForm({ ...inviteForm, departmentId: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13.5, background: '#fff', boxSizing: 'border-box' }}
                   >
                     <option value="">Select Department (Optional)</option>
                     {filteredDepts.map((d) => (
@@ -523,33 +621,28 @@ export function PeopleAccessWorkspaceModule({
 
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
-                  Initial Password *
+                  Official Job Title (Optional)
                 </label>
                 <input
-                  required
-                  type="password"
-                  minLength={10}
-                  placeholder="At least 10 characters"
-                  value={onboardForm.password}
-                  onChange={(e) => setOnboardForm({ ...onboardForm, password: e.target.value })}
+                  type="text"
+                  placeholder="e.g. Chief Financial Officer"
+                  value={inviteForm.positionName}
+                  onChange={(e) => setInviteForm({ ...inviteForm, positionName: e.target.value })}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, boxSizing: 'border-box' }}
                 />
-                <small style={{ color: '#64748b', fontSize: 12, marginTop: 4, display: 'block' }}>
-                  Share this initial password with the user. They can sign in immediately on the live portal.
-                </small>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14, borderTop: '1px solid #f1f5f9', paddingTop: 14 }}>
                 <button
                   type="button"
-                  onClick={() => setShowOnboardModal(false)}
+                  onClick={() => setShowInviteModal(false)}
                   style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', fontSize: 14, cursor: 'pointer', color: '#475569' }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={onboardBusy}
+                  disabled={inviteBusy}
                   style={{
                     padding: '9px 20px',
                     borderRadius: 6,
@@ -558,10 +651,14 @@ export function PeopleAccessWorkspaceModule({
                     color: '#fff',
                     fontSize: 14,
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    cursor: inviteBusy ? 'default' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
                   }}
                 >
-                  {onboardBusy ? 'Provisioning…' : 'Complete Onboarding →'}
+                  <Send size={14} />
+                  <span>{inviteBusy ? 'Sending Invitation...' : 'Send Invitation Email →'}</span>
                 </button>
               </div>
             </form>
