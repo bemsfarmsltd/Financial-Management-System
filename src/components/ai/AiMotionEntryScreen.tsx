@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { AmaraHologramAvatar } from './AmaraHologramAvatar';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { KineticOptikkaTorus } from './KineticOptikkaTorus';
+import { ArrowRight } from 'lucide-react';
 
 interface Props {
   onComplete: () => void;
@@ -21,7 +21,6 @@ export function AiMotionEntryScreen({
 }: Props) {
   const [financialIndex, setFinancialIndex] = useState(0);
   const [isFadingOut, setIsFadingOut] = useState(false);
-  const [isDissolving, setIsDissolving] = useState(false);
 
   // Dynamic user display name
   const displayName = userName?.trim() || (userRole === 'GMD' ? 'Dr Pastra' : userRole.includes('ADMIN') ? 'Bems system Admin' : 'Executive');
@@ -68,11 +67,10 @@ export function AiMotionEntryScreen({
         const unpaidSum = unpaid.reduce((sum: number, r: any) => sum + (Number(r.amountNaira) || 0), 0);
 
         // 3. Accountability Compliance
-        const now = new Date();
-        const overdue = accountabilityCases.filter((c: any) => c.status !== 'CLOSED' && new Date(c.dueAt) < now);
+        const overdue = accountabilityCases.filter((c: any) => c.status === 'OVERDUE');
 
-        // 4. Budget Total
-        const totalBudget = budgets.reduce((sum: number, b: any) => sum + (Number(b.totalAmount) || 0), 0);
+        // 4. Budget
+        const totalBudget = budgets.reduce((sum: number, b: any) => sum + (Number(b.allocatedAmount) || 0), 0);
 
         const realList = [
           {
@@ -129,17 +127,17 @@ export function AiMotionEntryScreen({
     return () => clearInterval(timer);
   }, [financialUpdates.length, mode]);
 
-  // For reload mode: automatic graceful transition after avatar greeting (~3.2 seconds)
+  // For reload mode: automatically transition directly to the dashboard after ~2.4 seconds
   useEffect(() => {
     if (mode === 'reload') {
       const autoTimer = setTimeout(() => {
         handleProceed();
-      }, 3400);
+      }, 2400);
       return () => clearTimeout(autoTimer);
     }
   }, [mode]);
 
-  // Handle keyboard shortcuts (Enter / Space / Escape to proceed)
+  // Handle keyboard shortcut (Enter / Space / Escape to proceed)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
@@ -152,83 +150,79 @@ export function AiMotionEntryScreen({
   }, []);
 
   const handleProceed = () => {
-    setIsDissolving(true);
-    setTimeout(() => {
-      setIsFadingOut(true);
-      setTimeout(onComplete, 450);
-    }, 400);
+    setIsFadingOut(true);
+    setTimeout(onComplete, 350);
   };
 
   const currentUpdate = financialUpdates[financialIndex] || financialUpdates[0];
 
+  // ==========================================
+  // PAGE RELOAD MODE: ONLY THE MOVING OBJECT
+  // ==========================================
+  if (mode === 'reload') {
+    return (
+      <div
+        className="ai-executive-motion-screen reload-minimal"
+        onClick={handleProceed}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 99999,
+          background: '#f5f2eb',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: isFadingOut ? 0 : 1,
+          transform: isFadingOut ? 'scale(1.03)' : 'scale(1)',
+          transition: 'opacity 0.35s ease, transform 0.35s ease',
+          cursor: 'pointer',
+          userSelect: 'none',
+        }}
+      >
+        <KineticOptikkaTorus size={460} />
+      </div>
+    );
+  }
+
+  // ==========================================
+  // LOGIN MODE: 3D OBJECT + USER NAME + LIVE FINANCIAL UPDATE TICKER + CONTINUE BUTTON
+  // ==========================================
   return (
     <div
-      className="amara-executive-motion-screen"
+      className="ai-executive-motion-screen login-welcome"
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 99999,
-        background: 'radial-gradient(circle at 50% 38%, #0f172a 0%, #070b14 65%, #02050b 100%)',
+        background: '#f5f2eb',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '28px 32px',
-        color: '#f8fafc',
+        padding: '36px 32px',
+        color: '#1c1917',
         fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
         opacity: isFadingOut ? 0 : 1,
         transform: isFadingOut ? 'scale(1.02)' : 'scale(1)',
-        transition: 'opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1)',
+        transition: 'opacity 0.35s ease, transform 0.35s ease',
         userSelect: 'none',
-        overflow: 'hidden',
       }}
     >
-      {/* Top Telemetry Header HUD */}
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '1100px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          position: 'relative',
-          zIndex: 20,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span
-            style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: '#38bdf8',
-              boxShadow: '0 0 10px #38bdf8',
-              display: 'inline-block',
-            }}
-          />
-          <span
-            style={{
-              fontSize: '11px',
-              fontWeight: 800,
-              letterSpacing: '0.14em',
-              textTransform: 'uppercase',
-              color: '#94a3b8',
-              textShadow: '0 2px 8px rgba(0,0,0,0.7)',
-            }}
-          >
+      {/* Top Subtle Brand Tag */}
+      <div style={{ width: '100%', maxWidth: '1000px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ea580c', display: 'inline-block' }} />
+          <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#78716c' }}>
             BEMS AI · AUTONOMOUS LEDGER GOVERNANCE
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Sparkles size={14} color="#ea580c" />
-          <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#f97316', letterSpacing: '0.04em' }}>
-            BEMS Group HQ
-          </span>
-        </div>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: '#78716c', letterSpacing: '0.04em' }}>
+          BEMS Group
+        </span>
       </div>
 
-      {/* Centerpiece: Amara Holographic Avatar & Particle Convergence */}
+      {/* Centerpiece: 3D Kinetic Optikka Torus + Executive Welcome + Live Financial Update */}
       <div
         style={{
           display: 'flex',
@@ -236,48 +230,108 @@ export function AiMotionEntryScreen({
           alignItems: 'center',
           textAlign: 'center',
           width: '100%',
-          maxWidth: '900px',
+          maxWidth: '820px',
           margin: 'auto 0',
-          position: 'relative',
-          zIndex: 10,
         }}
       >
-        <AmaraHologramAvatar
-          userName={displayName}
-          userRole={userRole}
-          statusText={currentUpdate?.text}
-          metricBadge={{ label: currentUpdate?.metric || 'EXECUTIVE TELEMETRY', text: currentUpdate?.text || '', color: currentUpdate?.tagColor }}
-          isDissolving={isDissolving}
-          size={500}
-        />
+        {/* Kinetic 3D Torus Object */}
+        <div style={{ transform: 'scale(1.02)', marginBottom: '18px' }}>
+          <KineticOptikkaTorus size={380} />
+        </div>
 
-        {/* Proceed to Dashboard Button (Clickable in login mode; also clickable anytime on reload) */}
-        <div style={{ marginTop: '22px', position: 'relative', zIndex: 30 }}>
+        {/* Executive Welcome Header with dynamic user name */}
+        <h1
+          style={{
+            margin: '0 0 12px 0',
+            fontSize: '44px',
+            fontWeight: 850,
+            letterSpacing: '-0.035em',
+            color: '#1c1917',
+            lineHeight: 1.15,
+          }}
+        >
+          Welcome, {displayName}
+        </h1>
+
+        {/* Dynamic Financial Update Ticker */}
+        <div
+          style={{
+            minHeight: '62px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '8px 24px',
+            borderRadius: '999px',
+            background: 'rgba(255, 255, 255, 0.65)',
+            border: '1px solid rgba(255, 255, 255, 0.9)',
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 10px 30px rgba(28, 25, 23, 0.05)',
+            transition: 'all 0.3s ease',
+            width: 'min(640px, 94vw)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span
+              style={{
+                fontSize: '9.5px',
+                fontWeight: 800,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: currentUpdate.tagColor,
+                background: 'rgba(255, 255, 255, 0.85)',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                border: '1px solid rgba(226, 232, 240, 0.8)',
+              }}
+            >
+              {currentUpdate.metric}
+            </span>
+            <span style={{ fontSize: '10px', color: '#94a3b8' }}>· Live Update</span>
+          </div>
+
+          <p
+            key={financialIndex}
+            style={{
+              margin: 0,
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#334155',
+              lineHeight: 1.4,
+              animation: 'tickerFade 0.35s ease',
+            }}
+          >
+            {currentUpdate.text}
+          </p>
+        </div>
+
+        {/* In Login Mode: User MUST click Continue to Dashboard */}
+        <div style={{ marginTop: '28px' }}>
           <button
             type="button"
             onClick={handleProceed}
             style={{
-              background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+              background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)',
               color: '#ffffff',
-              border: '1px solid rgba(254, 215, 170, 0.4)',
+              border: 'none',
               borderRadius: '999px',
-              padding: '11px 28px',
+              padding: '12px 28px',
               fontSize: '13.5px',
               fontWeight: 700,
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '9px',
-              boxShadow: '0 8px 30px rgba(234, 88, 12, 0.45)',
-              transition: 'all 0.25s ease',
+              gap: '8px',
+              boxShadow: '0 8px 24px rgba(28, 25, 23, 0.25)',
+              transition: 'all 0.2s ease',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-              e.currentTarget.style.boxShadow = '0 12px 35px rgba(234, 88, 12, 0.6)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 12px 30px rgba(28, 25, 23, 0.35)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0) scale(1)';
-              e.currentTarget.style.boxShadow = '0 8px 30px rgba(234, 88, 12, 0.45)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(28, 25, 23, 0.25)';
             }}
           >
             <span>Continue to Dashboard</span>
@@ -286,30 +340,31 @@ export function AiMotionEntryScreen({
         </div>
       </div>
 
-      {/* Bottom Subtitle Brand HUD */}
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '1100px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-end',
-          fontSize: '11.5px',
-          color: '#64748b',
-          position: 'relative',
-          zIndex: 20,
-        }}
-      >
+      {/* Bottom Subtitle */}
+      <div style={{ width: '100%', maxWidth: '1000px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '11.5px', color: '#78716c' }}>
         <div>
-          <span style={{ fontWeight: 700, color: '#94a3b8' }}>BEMS Group · Executive Telemetry</span>
+          <span style={{ fontWeight: 700, color: '#44403c' }}>BEMS Group · Executive Governance</span>
         </div>
 
         <div>
-          <span style={{ fontSize: '11px', color: '#64748b' }}>
+          <span style={{ fontSize: '11px', color: '#a8a29e' }}>
             Enterprise Command Cockpit
           </span>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes tickerFade {
+          from {
+            opacity: 0;
+            transform: translateY(4px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

@@ -13,7 +13,6 @@ import { DisbursementRecordCard } from './cards/DisbursementRecordCard';
 import { ScenarioSimulatorCard } from './cards/ScenarioSimulatorCard';
 import { notifyAiInteraction } from './AiScreenEdgeGlow';
 import { FormattedAiMessage } from './FormattedAiMessage';
-import { AmaraHologramAvatar } from './AmaraHologramAvatar';
 
 interface Props {
   currentPage: string;
@@ -46,7 +45,6 @@ export function AmbientBottomAiBar({
 }: Props) {
   const [inputText, setInputText] = useState('');
   const [isDeckOpen, setIsDeckOpen] = useState(false);
-  const [isAmaraSummoned, setIsAmaraSummoned] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { telemetry, displayText, isTyping: isTelemetryTyping } = useAmbientTelemetry({
@@ -512,35 +510,6 @@ export function AmbientBottomAiBar({
           </button>
         )}
 
-        {/* Amara Hologram Summon Button */}
-        <button
-          type="button"
-          onClick={() => {
-            notifyAiInteraction();
-            setIsAmaraSummoned(true);
-          }}
-          title="Summon Amara Hologram Executive Assistant"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '5px',
-            padding: '4px 10px',
-            borderRadius: '999px',
-            background: 'linear-gradient(135deg, rgba(234, 88, 12, 0.15) 0%, rgba(56, 189, 248, 0.15) 100%)',
-            border: '1px solid rgba(234, 88, 12, 0.35)',
-            color: '#c2410c',
-            fontSize: '10.5px',
-            fontWeight: 800,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <Sparkles size={12} color="#ea580c" />
-          <span>Amara AI</span>
-        </button>
-
         {/* Direct Transparent Chat Input Bar */}
         <form
           onSubmit={handleSubmit}
@@ -647,114 +616,6 @@ export function AmbientBottomAiBar({
         </div>
       </div>
 
-      {/* Amara Holographic Summon Modal Overlay */}
-      {isAmaraSummoned && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 100000,
-            background: 'radial-gradient(circle at 50% 35%, rgba(15, 23, 42, 0.94) 0%, rgba(7, 11, 20, 0.97) 70%, rgba(2, 6, 23, 0.99) 100%)',
-            backdropFilter: 'blur(20px)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '24px',
-            animation: 'amaraFadeIn 0.35s ease',
-          }}
-        >
-          {/* Close button */}
-          <button
-            type="button"
-            onClick={() => setIsAmaraSummoned(false)}
-            style={{
-              position: 'absolute',
-              top: '24px',
-              right: '28px',
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              color: '#ffffff',
-              borderRadius: '50%',
-              width: '38px',
-              height: '38px',
-              display: 'grid',
-              placeItems: 'center',
-              cursor: 'pointer',
-              zIndex: 30,
-              transition: 'all 0.2s ease',
-            }}
-            title="Dismiss Amara (Esc)"
-          >
-            <X size={18} />
-          </button>
-
-          {/* Amara Avatar Bust */}
-          <AmaraHologramAvatar
-            userName={userName || 'Dr Pastra'}
-            userRole={userRole || 'GMD'}
-            statusText="I am monitoring real-time expenditure pipelines, liquidity thresholds, and 72-hour compliance across all BEMS subsidiaries."
-            metricBadge={{ label: 'EXECUTIVE AI TELEMETRY', text: 'Live Autonomous Ledger Link', color: '#38bdf8' }}
-            size={460}
-          />
-
-          {/* Interactive Executive Voice / Action Chips */}
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '10px',
-              justifyContent: 'center',
-              maxWidth: '680px',
-              marginTop: '16px',
-              position: 'relative',
-              zIndex: 20,
-            }}
-          >
-            {[
-              { label: 'Review pending requisitions', prompt: 'Summarize all fund requests waiting for executive approval right now with amounts and subsidiaries.' },
-              { label: 'Check cash liquidity & runway', prompt: 'What is our consolidated cash position and runway across BEMS Group HQ, Tech, and Media?' },
-              { label: 'Inspect 72h accountability status', prompt: 'Are there any overdue cash advances or unretired receipts past the 72-hour deadline?' },
-            ].map((chip) => (
-              <button
-                key={chip.label}
-                type="button"
-                onClick={() => {
-                  notifyAiInteraction();
-                  setIsAmaraSummoned(false);
-                  onSendMessage(chip.prompt);
-                  setIsDeckOpen(true);
-                }}
-                style={{
-                  background: 'rgba(15, 23, 42, 0.75)',
-                  border: '1px solid rgba(56, 189, 248, 0.3)',
-                  color: '#e2e8f0',
-                  borderRadius: '999px',
-                  padding: '8px 18px',
-                  fontSize: '12px',
-                  fontWeight: 650,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 15px rgba(0, 0, 0, 0.3)',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#ea580c';
-                  e.currentTarget.style.color = '#ffffff';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
-                  e.currentTarget.style.color = '#e2e8f0';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-              >
-                <span>✨ {chip.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <style jsx>{`
         @keyframes deckSlideUp {
           from {
@@ -766,10 +627,6 @@ export function AmbientBottomAiBar({
             transform: translateY(0) scale(1);
           }
         }
-        @keyframes amaraFadeIn {
-          from {
-            opacity: 0;
-            transform: scale(0.98);
           }
           to {
             opacity: 1;
