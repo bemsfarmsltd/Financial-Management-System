@@ -69,10 +69,22 @@ export async function POST(request: Request) {
     const resumptionDateStr = typeof body.resumptionDate === 'string' ? body.resumptionDate : null;
     const resumptionDate = resumptionDateStr ? new Date(resumptionDateStr) : new Date();
 
-    // 3. Disbursement Bank Details
+    // 3. Disbursement Bank Details & Salary Account
     const bankName = typeof body.bankName === 'string' ? body.bankName.trim() : null;
     const accountNumber = typeof body.accountNumber === 'string' ? body.accountNumber.trim() : null;
     const accountName = typeof body.accountName === 'string' ? body.accountName.trim() : null;
+
+    // Dual Banking: Salary Account
+    const useSameAccountForSalary = body.useSameAccountForSalary !== false;
+    const salaryBankName = useSameAccountForSalary
+      ? bankName
+      : (typeof body.salaryBankName === 'string' && body.salaryBankName.trim() ? body.salaryBankName.trim() : bankName);
+    const salaryAccountNumber = useSameAccountForSalary
+      ? accountNumber
+      : (typeof body.salaryAccountNumber === 'string' && body.salaryAccountNumber.trim() ? body.salaryAccountNumber.trim() : accountNumber);
+    const salaryAccountName = useSameAccountForSalary
+      ? accountName
+      : (typeof body.salaryAccountName === 'string' && body.salaryAccountName.trim() ? body.salaryAccountName.trim() : accountName);
 
     // 4. Emergency / Next of Kin
     const nextOfKinName = typeof body.nextOfKinName === 'string' ? body.nextOfKinName.trim() : null;
@@ -108,6 +120,18 @@ export async function POST(request: Request) {
     // Automatically generate persistent enterprise Unique Identity Number
     const uniqueEmployeeNumber = await generateUniqueEmployeeNumber(subsidiaryId);
 
+    // Ensure salary account columns exist dynamically in Postgres
+    try {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "Employee" 
+        ADD COLUMN IF NOT EXISTS "salaryBankName" TEXT,
+        ADD COLUMN IF NOT EXISTS "salaryAccountNumber" TEXT,
+        ADD COLUMN IF NOT EXISTS "salaryAccountName" TEXT;
+      `);
+    } catch {
+      // Safe fallback if column already exists or driver prevents DDL
+    }
+
     // Create Employee within transaction
     const employee = await prisma.$transaction(async (tx) => {
       const newEmp = await tx.employee.create({
@@ -130,6 +154,9 @@ export async function POST(request: Request) {
           bankName,
           accountNumber,
           accountName,
+          salaryBankName,
+          salaryAccountNumber,
+          salaryAccountName,
           nextOfKinName,
           nextOfKinPhone,
           nextOfKinRelationship,
@@ -162,63 +189,67 @@ export async function POST(request: Request) {
       return newEmp;
     });
 
-    // Fetch subsidiary name for email templates
-    let subsidiaryName = 'BEMS Group Holdings';
-    if (subsidiaryId) {
-      const org = await prisma.organization.findUnique({ where: { id: subsidiaryId }, select: { legalName: true } });
-      if (org?.legalName) subsidiaryName = org.legalName;
-    }
+    // Background notification dispatch - do not block HTTP response to ensure instantaneous registration
+    (async () => {
+      try {
+        let subsidiaryName = 'BEMS Group Holdings';
+        if (subsidiaryId) {
+          const org = await prisma.organization.findUnique({ where: { id: subsidiaryId }, select: { legalName: true } });
+          if (org?.legalName) subsidiaryName = org.legalName;
+        }
 
-    // 1. Dispatch confirmation email to new staff member
-    try {
-      await sendStaffSignupReceiptEmail({
-        to: email,
-        staffName: fullName,
-        employeeNumber: uniqueEmployeeNumber,
-        roleTitle: jobTitle,
-        subsidiaryName,
-      });
-    } catch (emailErr) {
-      console.error('Failed to send staff signup receipt email:', emailErr);
-    }
-
-    // 2. Notify GMD and System Administrators of new registration (In-App + Real-Time Email)
-    const admins = await prisma.employee.findMany({
-      where: { role: { in: ['SYSTEM_ADMIN', 'GMD'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' },
-      select: { id: true, workEmail: true, legalName: true, role: true }
-    });
-
-    if (admins.length) {
-      await prisma.systemNotification.createMany({
-        data: admins.map(({ id }) => ({
-          employeeId: id,
-          kind: 'SIGNUP_APPROVAL',
-          title: `New Staff Registration: ${fullName} (${uniqueEmployeeNumber})`,
-          body: `${fullName} has registered as ${jobTitle} (${employmentType}). Unique Staff ID: ${uniqueEmployeeNumber}. Pending verification.`,
-          linkUrl: '/staff',
-        })),
-      });
-
-      // Send real-time executive alert email to GMD and Admins
-      for (const admin of admins) {
+        // 1. Dispatch confirmation email to new staff member
         try {
-          await sendGmdNewStaffAlert({
-            gmdEmail: admin.workEmail,
-            gmdName: admin.legalName,
+          await sendStaffSignupReceiptEmail({
+            to: email,
             staffName: fullName,
             employeeNumber: uniqueEmployeeNumber,
-            jobTitle,
+            roleTitle: jobTitle,
             subsidiaryName,
-            employmentType,
-            workLocation,
-            bankName: bankName || 'Standard Commercial Bank',
-            accountNumber: accountNumber || 'N/A',
           });
-        } catch (adminEmailErr) {
-          console.error(`Failed to dispatch new staff alert email to ${admin.workEmail}:`, adminEmailErr);
+        } catch (emailErr) {
+          console.error('Failed to send staff signup receipt email:', emailErr);
         }
+
+        // 2. Notify GMD and System Administrators of new registration
+        const admins = await prisma.employee.findMany({
+          where: { role: { in: ['SYSTEM_ADMIN', 'GMD'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' },
+          select: { id: true, workEmail: true, legalName: true, role: true }
+        });
+
+        if (admins.length) {
+          await prisma.systemNotification.createMany({
+            data: admins.map(({ id }) => ({
+              employeeId: id,
+              kind: 'SIGNUP_APPROVAL',
+              title: `New Staff Registration: ${fullName} (${uniqueEmployeeNumber})`,
+              body: `${fullName} has registered as ${jobTitle} (${employmentType}). Unique Staff ID: ${uniqueEmployeeNumber}. Pending verification.`,
+              linkUrl: '/staff',
+            })),
+          });
+
+          // Send real-time executive alert email to GMD and Admins in parallel
+          await Promise.allSettled(
+            admins.map(admin =>
+              sendGmdNewStaffAlert({
+                gmdEmail: admin.workEmail,
+                gmdName: admin.legalName,
+                staffName: fullName,
+                employeeNumber: uniqueEmployeeNumber,
+                jobTitle,
+                subsidiaryName,
+                employmentType,
+                workLocation,
+                bankName: bankName || 'Standard Commercial Bank',
+                accountNumber: accountNumber || 'N/A',
+              })
+            )
+          );
+        }
+      } catch (backgroundErr) {
+        console.error('Background signup notification error:', backgroundErr);
       }
-    }
+    })();
 
     return NextResponse.json({
       pendingApproval: true,

@@ -112,6 +112,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
       bankName: employee.bankName,
       accountNumber: employee.accountNumber,
       accountName: employee.accountName,
+      salaryBankName: employee.salaryBankName,
+      salaryAccountNumber: employee.salaryAccountNumber,
+      salaryAccountName: employee.salaryAccountName,
       // Identity
       nin: employee.nin,
       bvn: employee.bvn,

@@ -73,14 +73,21 @@ async function apiPatch<T>(path: string, body: unknown): Promise<T> {
 
 // Auth calls need the response body even on non-2xx (error message, devVerificationCode, etc.)
 async function authRequest<T>(path: string, body?: unknown): Promise<{ ok: boolean; status: number; data: T }> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json().catch(() => ({})) as T;
-  return { ok: res.ok, status: res.status, data };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      signal: controller.signal,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({})) as T;
+    return { ok: res.ok, status: res.status, data };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 type Business = {
@@ -404,6 +411,10 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
     accountNumber: '',
     accountName: '',
     bvn: '',
+    useSameAccountForSalary: true,
+    salaryBankName: 'Access Bank Plc',
+    salaryAccountNumber: '',
+    salaryAccountName: '',
     highestEducation: 'BSC',
     nextOfKinName: '',
     nextOfKinPhone: '+234 ',
@@ -462,6 +473,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
             ...prev,
             subsidiaryId: prev.subsidiaryId || d.organizations[0].id,
             bankName: prev.bankName || (d.banks?.[0] || 'Access Bank Plc'),
+            salaryBankName: prev.salaryBankName || (d.banks?.[0] || 'Access Bank Plc'),
             staffGrade: prev.staffGrade || (d.staffGrades?.[2]?.value || 'OFFICER'),
             workLocation: prev.workLocation || (d.workLocations?.[0]?.value || 'LAGOS_HQ'),
             maritalStatus: prev.maritalStatus || (d.maritalStatuses?.[0]?.value || 'SINGLE'),
@@ -508,16 +520,21 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
 
   const submitSignup = (e: FormEvent) => {
     e.preventDefault(); setError(''); setBusy(true);
-    authRequest<{ user?: AuthUser; error?: string; pendingApproval?: boolean; employeeNumber?: string }>('/api/auth/signup', signupForm).then(({ ok, data }) => {
-      setBusy(false);
-      if (ok && data.pendingApproval) {
-        setRegisteredEmpNumber(data.employeeNumber || '');
-        setRegisteredName(signupForm.fullName);
-        setView('pending');
-        return;
-      }
-      setError(data.error || 'Could not complete staff registration.');
-    });
+    authRequest<{ user?: AuthUser; error?: string; pendingApproval?: boolean; employeeNumber?: string }>('/api/auth/signup', signupForm)
+      .then(({ ok, data }) => {
+        setBusy(false);
+        if (ok && data.pendingApproval) {
+          setRegisteredEmpNumber(data.employeeNumber || '');
+          setRegisteredName(signupForm.fullName);
+          setView('pending');
+          return;
+        }
+        setError(data.error || 'Could not complete staff registration. Please try again.');
+      })
+      .catch((err) => {
+        setBusy(false);
+        setError('Network connection error or server timeout. Please try again.');
+      });
   };
 
   const submitBootstrap = (e: FormEvent) => {
@@ -635,6 +652,16 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
       {view==='signup' && (
         <form className="journey-card" onSubmit={(e) => {
           e.preventDefault();
+          if (signupStep === 3 && !signupForm.useSameAccountForSalary) {
+            if (!signupForm.salaryAccountNumber || signupForm.salaryAccountNumber.length !== 10) {
+              setError('Please enter a valid 10-digit NUBAN account number for your dedicated salary account.');
+              return;
+            }
+            if (!signupForm.salaryAccountName.trim()) {
+              setError('Please enter the official account holder name for your dedicated salary account.');
+              return;
+            }
+          }
           if (signupStep < 4) {
             setError('');
             setSignupStep(signupStep + 1);
@@ -937,8 +964,100 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                   />
                 </label>
               </div>
+
+              {/* Dual Banking: Salary Account Option */}
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
+                <div 
+                  onClick={() => setSignupForm(old => ({ ...old, useSameAccountForSalary: !old.useSameAccountForSalary }))}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    background: signupForm.useSameAccountForSalary ? '#f0fdf4' : '#fff7ed',
+                    border: `1.5px solid ${signupForm.useSameAccountForSalary ? '#86efac' : '#fdba74'}`,
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={signupForm.useSameAccountForSalary}
+                    onChange={e => setSignupForm(old => ({ ...old, useSameAccountForSalary: e.target.checked }))}
+                    onClick={e => e.stopPropagation()}
+                    style={{ width: 18, height: 18, accentColor: '#ea580c', cursor: 'pointer' }}
+                  />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: signupForm.useSameAccountForSalary ? '#166534' : '#9a3412' }}>
+                      {signupForm.useSameAccountForSalary 
+                        ? '✓ Using this same account for monthly salary payments' 
+                        : 'Entering a separate bank account for salary payment'}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: signupForm.useSameAccountForSalary ? '#15803d' : '#c2410c' }}>
+                      {signupForm.useSameAccountForSalary 
+                        ? 'Click here to uncheck if you wish to provide a different bank account for your monthly wages.' 
+                        : 'Click here if you prefer to use the same account for both expenses and salary.'}
+                    </div>
+                  </div>
+                </div>
+
+                {!signupForm.useSameAccountForSalary && (
+                  <div style={{
+                    marginTop: 14,
+                    padding: '16px 18px',
+                    borderRadius: 8,
+                    background: '#fcfcfc',
+                    border: '1.5px solid #ea580c',
+                    boxShadow: '0 4px 12px rgba(234, 88, 12, 0.08)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: '#c2410c', fontWeight: 700, fontSize: 13 }}>
+                      <span>💼</span> Dedicated Salary Payment Bank Account
+                    </div>
+                    <div className="form-grid">
+                      <label className="full">
+                        Salary Commercial Bank Name *
+                        <select
+                          required={!signupForm.useSameAccountForSalary}
+                          value={signupForm.salaryBankName}
+                          onChange={e => setSignupForm(old => ({ ...old, salaryBankName: e.target.value }))}
+                        >
+                          {options.banks.map(bank => (
+                            <option key={bank} value={bank}>{bank}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Salary Account Number (10-Digit NUBAN) *
+                        <input
+                          required={!signupForm.useSameAccountForSalary}
+                          type="text"
+                          maxLength={10}
+                          value={signupForm.salaryAccountNumber}
+                          onChange={e => setSignupForm(old => ({ ...old, salaryAccountNumber: e.target.value.replace(/\D/g, '') }))}
+                          placeholder="0123456789"
+                        />
+                      </label>
+                      <label>
+                        Salary Account Holder Name *
+                        <input
+                          required={!signupForm.useSameAccountForSalary}
+                          value={signupForm.salaryAccountName}
+                          onChange={e => setSignupForm(old => ({ ...old, salaryAccountName: e.target.value }))}
+                          placeholder="Official name on salary account"
+                        />
+                      </label>
+                    </div>
+                    <p style={{ margin: '10px 0 0', fontSize: 11.5, color: '#64748b', lineHeight: 1.4 }}>
+                      ⚡ <strong>Payroll Segregation:</strong> All monthly payroll runs will be routed to this dedicated salary account, while operational advances and requisitions will disburse to your primary disbursement account.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px', marginTop: 14, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
-                ℹ️ <strong>Direct Bank Disbursement:</strong> Finance disburses all advances and expense reimbursements directly to this commercial NUBAN account. Your BVN assists in automated identity verification for disbursement clearance.
+                ℹ️ <strong>Direct Bank Disbursement:</strong> Finance disburses all advances and expense reimbursements directly to your commercial NUBAN account. Your BVN assists in automated identity verification for disbursement clearance.
               </div>
             </>
           )}

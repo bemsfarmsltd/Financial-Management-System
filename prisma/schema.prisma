@@ -80,6 +80,11 @@ model Employee {
   accountNumber         String?
   accountName           String?
 
+  // Dedicated Salary Banking (Optional; defaults to disbursement account)
+  salaryBankName        String?
+  salaryAccountNumber   String?
+  salaryAccountName     String?
+
   // Emergency / Next of Kin
   nextOfKinName         String?
   nextOfKinPhone        String?
