@@ -37,6 +37,7 @@ import { AiMotionEntryScreen } from "@/components/ai/AiMotionEntryScreen";
 import { UniversalClickToAskProvider } from "@/components/ai/UniversalClickToAskProvider";
 import { PeopleAccessWorkspaceModule } from "@/components/dashboard/gmd/PeopleAccessWorkspaceModule";
 import { StaffWorkspaceModule } from "@/components/dashboard/staff/StaffWorkspaceModule";
+import { NIGERIAN_STATES, NIGERIAN_STATE_LGAS, RESIDENTIAL_CITIES_AND_STATES } from "@/lib/nigeriaGeoData";
 
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -721,20 +722,45 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                   />
                 </label>
                 <label>
-                  State of Origin
-                  <input
+                  State of Origin *
+                  <select
+                    required
                     value={signupForm.stateOfOrigin}
-                    onChange={e => setSignupForm(old => ({ ...old, stateOfOrigin: e.target.value }))}
-                    placeholder="e.g. Edo State, Lagos State"
-                  />
+                    onChange={e => {
+                      const selectedState = e.target.value;
+                      setSignupForm(old => ({
+                        ...old,
+                        stateOfOrigin: selectedState,
+                        lga: '',
+                      }));
+                    }}
+                  >
+                    <option value="">Select State of Origin...</option>
+                    {NIGERIAN_STATES.map(s => (
+                      <option key={s} value={s}>{s} State</option>
+                    ))}
+                  </select>
                 </label>
                 <label>
-                  Local Govt Area (LGA)
-                  <input
-                    value={signupForm.lga}
-                    onChange={e => setSignupForm(old => ({ ...old, lga: e.target.value }))}
-                    placeholder="e.g. Oredo, Ikeja, Egor"
-                  />
+                  Local Govt Area (LGA) *
+                  {signupForm.stateOfOrigin && NIGERIAN_STATE_LGAS[signupForm.stateOfOrigin]?.length > 0 ? (
+                    <select
+                      value={signupForm.lga}
+                      onChange={e => setSignupForm(old => ({ ...old, lga: e.target.value }))}
+                    >
+                      <option value="">Select Local Govt Area...</option>
+                      {NIGERIAN_STATE_LGAS[signupForm.stateOfOrigin].map(lgaName => (
+                        <option key={lgaName} value={lgaName}>{lgaName}</option>
+                      ))}
+                      <option value="Other LGA">Other / Not listed</option>
+                    </select>
+                  ) : (
+                    <input
+                      value={signupForm.lga}
+                      onChange={e => setSignupForm(old => ({ ...old, lga: e.target.value }))}
+                      placeholder={signupForm.stateOfOrigin ? "Enter LGA name" : "Select State of Origin first"}
+                    />
+                  )}
                 </label>
                 <label className="full">
                   Residential Street Address
@@ -745,12 +771,16 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                   />
                 </label>
                 <label className="full">
-                  City & State of Residence
-                  <input
+                  City & State of Residence *
+                  <select
                     value={signupForm.cityState}
                     onChange={e => setSignupForm(old => ({ ...old, cityState: e.target.value }))}
-                    placeholder="e.g. Ikeja, Lagos State or Benin City, Edo State"
-                  />
+                  >
+                    <option value="">Select City & State of Residence...</option>
+                    {RESIDENTIAL_CITIES_AND_STATES.map(c => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
                 </label>
               </div>
             </>

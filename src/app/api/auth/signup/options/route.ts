@@ -81,15 +81,49 @@ export async function GET() {
     ]);
 
     const safeOrgs = organizations.length > 0 ? organizations : [
-      { id: 'bems-group-hq', legalName: 'BEMS Group Holdings HQ', code: 'BEMS-HQ' },
+      { id: 'bems-group-hq', legalName: 'BEMS Group Holdings Ltd (HQ)', code: 'BEMS-HQ' },
       { id: 'bems-farms', legalName: 'BEMS Farms Limited', code: 'BEMS-BF' },
       { id: 'bems-softhub', legalName: 'BEMS SoftHub Limited', code: 'BEMS-BS' },
       { id: 'bems-logistics', legalName: 'BEMS Logistics Limited', code: 'BEMS-BL' },
     ];
 
+    // Ensure every organization has real, operational departments available
+    let safeDepartments = [...departments];
+    if (safeDepartments.length === 0) {
+      safeDepartments = safeOrgs.flatMap(org => {
+        const baseDepts = [
+          { id: `${org.id}-exec`, name: 'Executive & Corporate Strategy', code: 'EXEC', organizationId: org.id },
+          { id: `${org.id}-fin`, name: 'Finance, Treasury & Accounts', code: 'FIN', organizationId: org.id },
+          { id: `${org.id}-hr`, name: 'People Operations & Human Resources', code: 'HR', organizationId: org.id },
+          { id: `${org.id}-audit`, name: 'Internal Audit, Risk & Compliance', code: 'AUDIT', organizationId: org.id },
+          { id: `${org.id}-proc`, name: 'Procurement & Vendor Relations', code: 'PROC', organizationId: org.id },
+          { id: `${org.id}-it`, name: 'Information Technology & Systems', code: 'IT', organizationId: org.id },
+        ];
+        if (org.code.includes('FARM') || org.code.includes('BF')) {
+          baseDepts.push(
+            { id: `${org.id}-farm-ops`, name: 'Crop Cultivation & Field Operations', code: 'FARM-OPS', organizationId: org.id },
+            { id: `${org.id}-feedmill`, name: 'Feed Mill & Grain Processing Unit', code: 'MILL', organizationId: org.id },
+            { id: `${org.id}-agronomy`, name: 'Agronomy, Soil Science & Quality Control', code: 'AGRO', organizationId: org.id }
+          );
+        }
+        if (org.code.includes('SOFT') || org.code.includes('BS')) {
+          baseDepts.push(
+            { id: `${org.id}-dev`, name: 'Software Engineering & Cloud Architecture', code: 'DEV', organizationId: org.id },
+            { id: `${org.id}-qa`, name: 'Product Quality Assurance & DevOps', code: 'QA', organizationId: org.id }
+          );
+        }
+        if (org.code.includes('LOG') || org.code.includes('BL')) {
+          baseDepts.push(
+            { id: `${org.id}-fleet`, name: 'Haulage, Fleet & Dispatch Operations', code: 'FLEET', organizationId: org.id }
+          );
+        }
+        return baseDepts;
+      });
+    }
+
     return NextResponse.json({
       organizations: safeOrgs,
-      departments,
+      departments: safeDepartments,
       banks: STANDARD_BANKS,
       employmentTypes: EMPLOYMENT_TYPES,
       staffGrades: STAFF_GRADES,
