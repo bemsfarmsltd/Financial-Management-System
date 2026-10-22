@@ -13,6 +13,9 @@ import {
   ArrowRight,
   ShieldAlert,
   Sparkles,
+  Calendar,
+  ExternalLink,
+  ChevronRight,
 } from 'lucide-react';
 
 interface FormattedAiMessageProps {
@@ -42,12 +45,12 @@ export function FormattedAiMessage({
 
   // Parse markdown bold and inline tokens
   const renderInlineFormatted = (text: string) => {
-    // Match **bold** or `code` or ₦amount
+    // Match **bold** or `code`
     const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
     return parts.map((part, idx) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         return (
-          <strong key={idx} style={{ fontWeight: 600, color: '#0f172a' }}>
+          <strong key={idx} style={{ fontWeight: 700, color: '#0f172a' }}>
             {part.slice(2, -2)}
           </strong>
         );
@@ -85,37 +88,66 @@ export function FormattedAiMessage({
     const rawLine = lines[i].trim();
     if (!rawLine) continue;
 
-    // Check for section header: **Header** or ### Header
-    const isHeader =
-      (rawLine.startsWith('**') && rawLine.endsWith('**') && rawLine.length < 90 && !rawLine.includes(':')) ||
-      rawLine.startsWith('### ') ||
-      rawLine.startsWith('## ');
+    const isBullet = rawLine.startsWith('-') || rawLine.startsWith('*') || rawLine.startsWith('•');
+
+    // Advanced Section Header Detection:
+    // 1. Markdown headers (### Header)
+    // 2. Bold headers (**Header** or **Header:**)
+    // 3. Short colon headers (Needs action:, In progress:, Next steps:, Treasury Status:)
+    // 4. Numbered headers (1. Requests (5 in total, ₦5,550,000))
+    const isMarkdownHeader = rawLine.startsWith('#');
+    const isBoldHeader =
+      (rawLine.startsWith('**') && rawLine.endsWith('**') && rawLine.length < 90) ||
+      (rawLine.startsWith('**') && rawLine.includes('**') && rawLine.endsWith(':') && rawLine.length < 90);
+    const isColonHeader = !isBullet && rawLine.endsWith(':') && rawLine.length < 65 && !rawLine.includes('₦');
+    const isNumberedHeader = !isBullet && /^\d+\.\s+[A-Za-z]/.test(rawLine) && (rawLine.includes('(') || rawLine.length < 80);
+
+    const isHeader = isMarkdownHeader || isBoldHeader || isColonHeader || isNumberedHeader;
 
     if (isHeader) {
       if (currentSection) {
         sections.push(currentSection);
       }
-      const title = rawLine.replace(/^#+\s*/, '').replace(/^\*\*|\*\*$/g, '').trim();
+      // Clean up title
+      let title = rawLine
+        .replace(/^#+\s*/, '')
+        .replace(/^\*\*|\*\*$/g, '')
+        .replace(/^\*\*|\*\*:$/g, '')
+        .replace(/:$/, '')
+        .trim();
+
       const lower = title.toLowerCase();
 
       let type: ParsedSection['type'] = 'general';
-      if (lower.includes('decision') || lower.includes('pending') || lower.includes('action')) {
+      if (
+        lower.includes('action') ||
+        lower.includes('decision') ||
+        lower.includes('pending') ||
+        lower.includes('urgent') ||
+        lower.includes('needs action')
+      ) {
         type = 'decision';
-      } else if (lower.includes('unpaid') || lower.includes('not yet paid') || lower.includes('payment')) {
-        type = 'unpaid';
-      } else if (lower.includes('confirmation') || lower.includes('confirm') || lower.includes('transfer')) {
+      } else if (
+        lower.includes('in progress') ||
+        lower.includes('progress') ||
+        lower.includes('flight') ||
+        lower.includes('confirm') ||
+        lower.includes('awaiting')
+      ) {
         type = 'confirmation';
-      } else if (lower.includes('accountability') || lower.includes('retirement') || lower.includes('sla')) {
+      } else if (lower.includes('unpaid') || lower.includes('not yet paid') || lower.includes('payment') || lower.includes('disburse')) {
+        type = 'unpaid';
+      } else if (lower.includes('accountability') || lower.includes('retirement') || lower.includes('sla') || lower.includes('receipt')) {
         type = 'accountability';
-      } else if (lower.includes('budget') || lower.includes('allocation') || lower.includes('capital')) {
+      } else if (lower.includes('budget') || lower.includes('allocation') || lower.includes('capital') || lower.includes('treasury') || lower.includes('balance')) {
         type = 'budget';
-      } else if (lower.includes('review') || lower.includes('audit') || lower.includes('worth a look')) {
+      } else if (lower.includes('review') || lower.includes('audit') || lower.includes('advisory')) {
         type = 'audit';
       }
 
       currentSection = { title, type, lines: [] };
     } else if (currentSection) {
-      // Check if this is the final outro question (e.g., "Would you like me to look at any of these?")
+      // Check if this is the final outro question
       if (
         i >= lines.length - 2 &&
         (rawLine.toLowerCase().startsWith('would you like') ||
@@ -127,7 +159,12 @@ export function FormattedAiMessage({
         currentSection.lines.push(rawLine);
       }
     } else {
-      introLines.push(rawLine);
+      // If we see a bullet line before any header was declared, create a default "Summary Updates" section
+      if (isBullet && !currentSection) {
+        currentSection = { title: 'Executive Overview', type: 'general', lines: [rawLine] };
+      } else {
+        introLines.push(rawLine);
+      }
     }
   }
 
@@ -149,6 +186,17 @@ export function FormattedAiMessage({
           icon: AlertTriangle,
           badgeLabel: 'ACTION REQUIRED',
         };
+      case 'confirmation':
+        return {
+          border: '1px solid #bae6fd',
+          bg: '#f0f9ff',
+          headerBg: '#e0f2fe',
+          text: '#0369a1',
+          pillBg: '#0284c7',
+          pillText: '#ffffff',
+          icon: Clock,
+          badgeLabel: 'IN PROGRESS · IN FLIGHT',
+        };
       case 'unpaid':
         return {
           border: '1px solid #bfdbfe',
@@ -159,17 +207,6 @@ export function FormattedAiMessage({
           pillText: '#ffffff',
           icon: CreditCard,
           badgeLabel: 'APPROVED · UNPAID',
-        };
-      case 'confirmation':
-        return {
-          border: '1px solid #ddd6fe',
-          bg: '#fbfaff',
-          headerBg: '#f3e8ff',
-          text: '#6b21a8',
-          pillBg: '#7c3aed',
-          pillText: '#ffffff',
-          icon: Clock,
-          badgeLabel: 'CONFIRMATION PENDING',
         };
       case 'accountability':
         return {
@@ -191,7 +228,7 @@ export function FormattedAiMessage({
           pillBg: '#475569',
           pillText: '#ffffff',
           icon: PieChart,
-          badgeLabel: 'BUDGET PORTFOLIO',
+          badgeLabel: 'CAPITAL & RESERVES',
         };
       case 'audit':
         return {
@@ -213,37 +250,117 @@ export function FormattedAiMessage({
           pillBg: '#64748b',
           pillText: '#ffffff',
           icon: FileText,
-          badgeLabel: 'UPDATE',
+          badgeLabel: 'OVERVIEW',
         };
     }
   };
 
-  // Helper to extract REQ-2026-XXXX and Naira amounts from bullet lines
-  const parseRequisitionLine = (line: string) => {
-    const clean = line.replace(/^[-*•]\s*/, '').replace(/^\d+\.\s*/, '');
-    const reqMatch = clean.match(/(REQ-\d{4}-\d{4,5})/i);
+  // Structured Requisition Line Parser
+  const parseRequisitionDetails = (line: string) => {
+    const clean = line.replace(/^[-*•]\s*/, '').replace(/^\d+\.\s*/, '').trim();
+    const reqMatch = clean.match(/(REQ-\d{4}-\d{3,5})/i);
     const amountMatch = clean.match(/(₦[\d,]+(?:\.\d+)?(?:m|k|b)?)/i);
 
+    if (!reqMatch) {
+      return null;
+    }
+
+    const reqNumber = reqMatch[1].toUpperCase();
+    const amount = amountMatch ? amountMatch[1] : null;
+
+    // Extract parentheses (e.g. "(Microsoft Cloud Developer Licenses Q4, BemsSoft Hub)")
+    let title = '';
+    let subsidiary = '';
+    const parenMatch = clean.match(/\(([^)]+)\)/);
+
+    if (parenMatch) {
+      const insideParens = parenMatch[1].trim();
+      const parts = insideParens.split(',').map((p) => p.trim());
+      if (parts.length > 1) {
+        title = parts[0];
+        subsidiary = parts.slice(1).join(', ');
+      } else {
+        title = insideParens;
+      }
+    }
+
+    // Extract date/deadline if present (e.g. "Needed by 26 Oct", "due 24 Oct", "paid on 19 Oct")
+    let deadline = '';
+    const dateMatch = clean.match(/(needed by [^,.:;\n]+|due [^,.:;\n]+|recorded as paid on [^,.:;\n]+|on \d{1,2} [A-Za-z]{3})/i);
+    if (dateMatch) {
+      deadline = dateMatch[1].trim();
+    }
+
+    // Clean remaining narrative
+    let narrative = clean
+      .replace(reqMatch[0], '')
+      .replace(parenMatch ? parenMatch[0] : '', '')
+      .replace(amountMatch ? amountMatch[0] : '', '')
+      .trim();
+
+    // Clean punctuation artifacts (e.g. leading commas, colons, double dots)
+    narrative = narrative
+      .replace(/^[\s,.:;—-]+/, '')
+      .replace(/[\s,.:;—-]+$/, '')
+      .replace(/:\s*\./g, '.')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    // Detect status badge
+    const lowerNarrative = clean.toLowerCase();
+    let statusLabel = 'ACTIVE';
+    let statusBg = '#eff6ff';
+    let statusColor = '#1d4ed8';
+
+    if (lowerNarrative.includes('submitted but no approval') || lowerNarrative.includes('no approver has been asked')) {
+      statusLabel = 'ROUTING MISSING';
+      statusBg = '#fef2f2';
+      statusColor = '#dc2626';
+    } else if (lowerNarrative.includes('requires clarification')) {
+      statusLabel = 'CLARIFICATION NEEDED';
+      statusBg = '#fff7ed';
+      statusColor = '#c2410c';
+    } else if (lowerNarrative.includes('approved and unpaid')) {
+      statusLabel = 'READY FOR PAYMENT';
+      statusBg = '#f0fdf4';
+      statusColor = '#15803d';
+    } else if (lowerNarrative.includes('awaiting the recipient') || lowerNarrative.includes('awaiting confirmation')) {
+      statusLabel = 'AWAITING RECIPIENT PROOF';
+      statusBg = '#faf5ff';
+      statusColor = '#7e22ce';
+    } else if (lowerNarrative.includes('evidence has been submitted')) {
+      statusLabel = 'EVIDENCE SUBMITTED';
+      statusBg = '#ecfdf5';
+      statusColor = '#047857';
+    }
+
     return {
-      reqNumber: reqMatch ? reqMatch[1] : null,
-      amount: amountMatch ? amountMatch[1] : null,
-      raw: clean,
+      reqNumber,
+      amount,
+      title: title || reqNumber,
+      subsidiary,
+      narrative,
+      deadline,
+      statusLabel,
+      statusBg,
+      statusColor,
     };
   };
 
   return (
-    <div className="formatted-ai-response" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      {/* 1. Intro greeting / preamble */}
+    <div className="formatted-ai-response" style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
+      {/* 1. Intro greeting / executive preamble */}
       {introLines.length > 0 && (
         <div
           style={{
-            fontSize: '12.5px',
+            fontSize: '13px',
             color: '#1e293b',
-            lineHeight: 1.55,
+            lineHeight: 1.6,
             fontWeight: 500,
             display: 'flex',
             flexDirection: 'column',
-            gap: '4px',
+            gap: '6px',
+            padding: '2px 4px',
           }}
         >
           {introLines.map((line, idx) => (
@@ -265,16 +382,18 @@ export function FormattedAiMessage({
             style={{
               background: theme.bg,
               border: theme.border,
-              borderRadius: '10px',
+              borderRadius: '14px',
               overflow: 'hidden',
-              boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
+              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.05)',
+              display: 'flex',
+              flexDirection: 'column',
             }}
           >
             {/* Section Header Bar */}
             <div
               style={{
                 background: theme.headerBg,
-                padding: '7px 12px',
+                padding: '9px 16px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -282,8 +401,8 @@ export function FormattedAiMessage({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <IconComp style={{ width: 14, height: 14, color: theme.text }} />
-                <span style={{ fontSize: '12px', fontWeight: 700, color: theme.text, letterSpacing: '0.01em' }}>
+                <IconComp style={{ width: 15, height: 15, color: theme.text }} />
+                <span style={{ fontSize: '13px', fontWeight: 800, color: theme.text, letterSpacing: '-0.01em' }}>
                   {section.title}
                 </span>
               </div>
@@ -292,10 +411,10 @@ export function FormattedAiMessage({
                   background: theme.pillBg,
                   color: theme.pillText,
                   fontSize: '9.5px',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   letterSpacing: '0.06em',
-                  padding: '2px 7px',
-                  borderRadius: '10px',
+                  padding: '3px 8px',
+                  borderRadius: '999px',
                   textTransform: 'uppercase',
                 }}
               >
@@ -304,115 +423,172 @@ export function FormattedAiMessage({
             </div>
 
             {/* Section Items */}
-            <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {section.lines.map((line, lIdx) => {
-                const isBullet = line.trim().startsWith('-') || line.trim().startsWith('*') || line.trim().startsWith('•');
-                const isNumbered = /^\d+\./.test(line.trim());
-                const parsed = parseRequisitionLine(line);
+                const reqData = parseRequisitionDetails(line);
 
-                // Highlighted Requisition Card
-                if (parsed.reqNumber) {
+                // HIGH-END STRUCTURED REQUISITION CARD
+                if (reqData) {
                   return (
                     <div
                       key={lIdx}
                       style={{
                         background: '#ffffff',
-                        border: '1px solid rgba(226, 232, 240, 0.9)',
-                        borderRadius: '7px',
-                        padding: '8px 10px',
+                        border: '1px solid rgba(226, 232, 240, 0.95)',
+                        borderRadius: '10px',
+                        padding: '12px 14px',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '4px',
-                        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)',
+                        gap: '8px',
+                        boxShadow: '0 2px 6px rgba(15, 23, 42, 0.03)',
+                        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span
-                            onClick={() => onNavigateToRequest && onNavigateToRequest(parsed.reqNumber!)}
+                      {/* Top Bar: Identifier, Subsidiary, Amount */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => onNavigateToRequest && onNavigateToRequest(reqData.reqNumber)}
+                            title="Open requisition details"
                             style={{
                               fontFamily: 'monospace',
-                              fontWeight: 700,
-                              fontSize: '11px',
+                              fontWeight: 800,
+                              fontSize: '11.5px',
                               color: '#ea580c',
                               background: '#fff7ed',
-                              border: '1px solid #ffedd5',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
+                              border: '1px solid #fed7aa',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
                               cursor: onNavigateToRequest ? 'pointer' : 'default',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
                             }}
                           >
-                            {parsed.reqNumber}
-                          </span>
+                            <span>{reqData.reqNumber}</span>
+                            {onNavigateToRequest && <ExternalLink size={10} />}
+                          </button>
+
+                          {reqData.subsidiary && (
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 650,
+                                color: '#475569',
+                                background: '#f8fafc',
+                                border: '1px solid #e2e8f0',
+                                padding: '2px 7px',
+                                borderRadius: '5px',
+                              }}
+                            >
+                              <Building2 size={10} style={{ display: 'inline', marginRight: '3px', verticalAlign: '-1px' }} />
+                              {reqData.subsidiary}
+                            </span>
+                          )}
                         </div>
-                        {parsed.amount && (
+
+                        {reqData.amount && (
                           <span
                             style={{
                               fontFamily: 'system-ui, -apple-system, sans-serif',
-                              fontWeight: 700,
-                              fontSize: '12px',
+                              fontWeight: 800,
+                              fontSize: '13.5px',
                               color: '#0f172a',
-                              background: '#f1f5f9',
-                              padding: '2px 7px',
-                              borderRadius: '5px',
+                              background: '#f8fafc',
+                              border: '1px solid #e2e8f0',
+                              padding: '2px 9px',
+                              borderRadius: '6px',
+                              letterSpacing: '-0.01em',
                             }}
                           >
-                            {parsed.amount}
+                            {reqData.amount}
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: '11.5px', color: '#334155', lineHeight: 1.45 }}>
-                        {renderInlineFormatted(parsed.raw.replace(parsed.reqNumber, '').replace(parsed.amount || '', ''))}
+
+                      {/* Title / Purpose */}
+                      {reqData.title && (
+                        <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0f172a', lineHeight: 1.35 }}>
+                          {reqData.title}
+                        </div>
+                      )}
+
+                      {/* Executive Narrative */}
+                      {reqData.narrative && (
+                        <div style={{ fontSize: '12px', color: '#334155', lineHeight: 1.5 }}>
+                          {renderInlineFormatted(reqData.narrative)}
+                        </div>
+                      )}
+
+                      {/* Meta Footer: Status Tag & Deadline */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: '6px',
+                          paddingTop: '6px',
+                          borderTop: '1px dashed #f1f5f9',
+                          marginTop: '2px',
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            letterSpacing: '0.04em',
+                            padding: '2px 7px',
+                            borderRadius: '4px',
+                            background: reqData.statusBg,
+                            color: reqData.statusColor,
+                          }}
+                        >
+                          {reqData.statusLabel}
+                        </span>
+
+                        {reqData.deadline && (
+                          <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Calendar size={11} color="#94a3b8" />
+                            <span>{reqData.deadline}</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
                 }
 
-                // Numbered list item
-                if (isNumbered) {
-                  const numberMatch = line.match(/^(\d+)\.\s*(.*)/);
-                  const num = numberMatch ? numberMatch[1] : `${lIdx + 1}`;
-                  const rest = numberMatch ? numberMatch[2] : line;
+                // Standard Bullet Line
+                const isBullet = line.trim().startsWith('-') || line.trim().startsWith('*') || line.trim().startsWith('•');
+                const cleanBullet = line.replace(/^[-*•]\s*/, '').replace(/^\d+\.\s*/, '');
 
-                  return (
-                    <div key={lIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12px', color: '#334155' }}>
-                      <span
-                        style={{
-                          background: theme.headerBg,
-                          color: theme.text,
-                          fontWeight: 700,
-                          fontSize: '10px',
-                          width: '18px',
-                          height: '18px',
-                          borderRadius: '50%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                          marginTop: '2px',
-                        }}
-                      >
-                        {num}
-                      </span>
-                      <div style={{ flex: 1, lineHeight: 1.45 }}>{renderInlineFormatted(rest)}</div>
-                    </div>
-                  );
-                }
-
-                // Standard bullet line
                 return (
-                  <div key={lIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12px', color: '#334155' }}>
+                  <div
+                    key={lIdx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '9px',
+                      fontSize: '12.5px',
+                      color: '#334155',
+                      background: '#ffffff',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(226, 232, 240, 0.7)',
+                    }}
+                  >
                     <div
                       style={{
-                        width: '5px',
-                        height: '5px',
+                        width: '6px',
+                        height: '6px',
                         borderRadius: '50%',
                         background: theme.pillBg,
                         marginTop: '6px',
                         flexShrink: 0,
                       }}
                     />
-                    <div style={{ flex: 1, lineHeight: 1.45 }}>{renderInlineFormatted(line.replace(/^[-*•]\s*/, ''))}</div>
+                    <div style={{ flex: 1, lineHeight: 1.5 }}>{renderInlineFormatted(cleanBullet)}</div>
                   </div>
                 );
               })}
@@ -425,26 +601,26 @@ export function FormattedAiMessage({
       {outroLines.length > 0 && (
         <div
           style={{
-            padding: '8px 12px',
-            background: 'rgba(255, 255, 255, 0.7)',
-            border: '1px solid rgba(226, 232, 240, 0.8)',
-            borderRadius: '8px',
-            fontSize: '12px',
+            padding: '10px 14px',
+            background: 'rgba(255, 255, 255, 0.75)',
+            border: '1px solid rgba(226, 232, 240, 0.85)',
+            borderRadius: '10px',
+            fontSize: '12.5px',
             color: '#1e293b',
-            fontWeight: 600,
+            fontWeight: 650,
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
+            gap: '8px',
           }}
         >
-          <Sparkles style={{ width: 14, height: 14, color: '#ea580c', flexShrink: 0 }} />
+          <Sparkles style={{ width: 15, height: 15, color: '#ea580c', flexShrink: 0 }} />
           <span>{outroLines.join(' ')}</span>
         </div>
       )}
 
       {/* 4. Clickable Quick-Reply Chips */}
       {quickReplies.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px', marginTop: '4px' }}>
           {quickReplies.map((qr, qIdx) => (
             <button
               key={qIdx}
@@ -453,14 +629,14 @@ export function FormattedAiMessage({
                 background: '#ffffff',
                 border: '1px solid #fed7aa',
                 color: '#c2410c',
-                fontSize: '11px',
-                fontWeight: 600,
-                padding: '5px 11px',
-                borderRadius: '16px',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                padding: '6px 12px',
+                borderRadius: '999px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
+                gap: '6px',
                 boxShadow: '0 1px 3px rgba(234, 88, 12, 0.08)',
                 transition: 'all 0.15s ease',
               }}
@@ -476,7 +652,7 @@ export function FormattedAiMessage({
               }}
             >
               <span>{qr}</span>
-              <ArrowRight style={{ width: 11, height: 11 }} />
+              <ArrowRight style={{ width: 12, height: 12 }} />
             </button>
           ))}
         </div>

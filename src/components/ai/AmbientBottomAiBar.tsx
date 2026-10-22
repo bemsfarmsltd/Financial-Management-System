@@ -101,7 +101,7 @@ export function AmbientBottomAiBar({
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 9950,
-        width: 'min(940px, calc(100vw - 32px))',
+        width: 'min(1120px, calc(100vw - 32px))',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -115,7 +115,7 @@ export function AmbientBottomAiBar({
           style={{
             pointerEvents: 'auto',
             width: '100%',
-            maxHeight: '480px',
+            maxHeight: '620px',
             marginBottom: '10px',
             background: 'rgba(255, 255, 255, 0.58)',
             backdropFilter: 'blur(30px) saturate(190%)',
@@ -211,7 +211,7 @@ export function AmbientBottomAiBar({
             style={{
               padding: '16px',
               overflowY: 'auto',
-              maxHeight: '380px',
+              maxHeight: '500px',
               display: 'flex',
               flexDirection: 'column',
               gap: '12px',

@@ -117,8 +117,9 @@ export function AiFinancialManagerDrawer({
     setInputText('');
   };
 
-  const modalWidth = isExpanded ? '1180px' : '840px';
-  const modalHeight = isExpanded ? '92vh' : '86vh';
+  const modalWidth = isExpanded ? 'min(1560px, calc(100vw - 28px))' : 'min(1240px, calc(100vw - 48px))';
+  const modalHeight = isExpanded ? '96vh' : '90vh';
+  const modalMaxHeight = isExpanded ? '1040px' : '940px';
 
   return (
     <div
@@ -126,9 +127,9 @@ export function AiFinancialManagerDrawer({
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        background: 'rgba(15, 23, 42, 0.32)',
-        backdropFilter: 'blur(3px)',
-        WebkitBackdropFilter: 'blur(3px)',
+        background: 'rgba(15, 23, 42, 0.42)',
+        backdropFilter: 'blur(5px)',
+        WebkitBackdropFilter: 'blur(5px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -144,7 +145,7 @@ export function AiFinancialManagerDrawer({
           width: modalWidth,
           maxWidth: 'calc(100vw - 32px)',
           height: modalHeight,
-          maxHeight: '880px',
+          maxHeight: modalMaxHeight,
           background: 'rgba(255, 255, 255, 0.52)',
           backdropFilter: 'blur(28px) saturate(190%)',
           WebkitBackdropFilter: 'blur(28px) saturate(190%)',
