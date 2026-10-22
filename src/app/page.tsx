@@ -2839,7 +2839,7 @@ export default function Home() {
     } catch (err) {
       console.error('Logout error:', err);
     }
-    window.location.replace('/api/auth/logout');
+    window.location.replace('/');
   };
 
   const complete=(data:OnboardingData)=>{

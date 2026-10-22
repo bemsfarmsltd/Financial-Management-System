@@ -2,13 +2,16 @@ import { NextResponse } from 'next/server';
 import { destroyEmployeeSession } from '@/lib/auth';
 
 function getPublicRedirectUrl(request: Request): string {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
+  if (envUrl) {
+    return envUrl.endsWith('/') ? envUrl : `${envUrl}/`;
+  }
   const forwardedHost = request.headers.get('x-forwarded-host');
-  const host = forwardedHost || request.headers.get('host') || 'bemserp.work';
-  const proto = request.headers.get('x-forwarded-proto') || 'https';
-  const cleanHost = (host.includes('0.0.0.0') || host.includes('localhost') && process.env.NODE_ENV === 'production')
-    ? 'bemserp.work'
-    : host;
-  return `${proto}://${cleanHost}/`;
+  if (forwardedHost && !forwardedHost.includes('0.0.0.0') && !forwardedHost.includes('localhost')) {
+    const proto = request.headers.get('x-forwarded-proto') || 'https';
+    return `${proto}://${forwardedHost}/`;
+  }
+  return 'https://bemserp.work/';
 }
 
 function makeLogoutResponse(redirectUrl?: string) {

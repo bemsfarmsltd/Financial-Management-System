@@ -411,7 +411,7 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
                       try {
                         await fetch('/api/auth/logout', { method: 'POST' });
                       } catch {}
-                      if (typeof window !== 'undefined') window.location.replace('/api/auth/logout');
+                      if (typeof window !== 'undefined') window.location.replace('/');
                     }}
                     style={{
                       width: '100%',
