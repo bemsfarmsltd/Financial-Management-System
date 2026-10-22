@@ -405,10 +405,13 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
                   <button
                     type="button"
                     onClick={async () => {
+                      if (typeof document !== 'undefined') {
+                        document.cookie = 'bems_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Max-Age=0;';
+                      }
                       try {
                         await fetch('/api/auth/logout', { method: 'POST' });
                       } catch {}
-                      if (typeof window !== 'undefined') window.location.href = '/';
+                      if (typeof window !== 'undefined') window.location.replace('/api/auth/logout');
                     }}
                     style={{
                       width: '100%',

@@ -33,7 +33,6 @@ import { AiFinancialManagerDrawer } from "@/components/ai/AiFinancialManagerDraw
 import { AmbientBottomAiBar } from "@/components/ai/AmbientBottomAiBar";
 import { AiScreenEdgeGlow, notifyAiInteraction } from "@/components/ai/AiScreenEdgeGlow";
 import { useAiFinancialManager } from "@/components/ai/useAiFinancialManager";
-import { AiMotionEntryScreen } from "@/components/ai/AiMotionEntryScreen";
 import { UniversalClickToAskProvider } from "@/components/ai/UniversalClickToAskProvider";
 import { PeopleAccessWorkspaceModule } from "@/components/dashboard/gmd/PeopleAccessWorkspaceModule";
 import { StaffWorkspaceModule } from "@/components/dashboard/staff/StaffWorkspaceModule";
@@ -2342,7 +2341,6 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     setCases(old=>[{id,customerName:input.customerName,initials:initialsOf(input.customerName),channel:'WhatsApp',subject:input.subject,status:'Within SLA',owner:'Operations',slaTarget:'4 hours',time:'Just now'},...old]);
   },[]);
   const [search,setSearch]=useState('');
-  const [switching,setSwitching]=useState<Business|null>(null);
   const [marketplaceOpen,setMarketplaceOpen]=useState(false);
   const [marketplaceBusinessId,setMarketplaceBusinessId]=useState(currentId);
   const [topPanel,setTopPanel]=useState<'notifications'|'account'|null>(null);
@@ -2388,7 +2386,17 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   const fullyOnboardedDemo=true;
   const isLocked=(_name:string)=>false;
   const openModule=(name:string)=>{setActive(name);setSearch('')};
-  const selectBusiness=useCallback((id:string)=>{const next=businesses.find(b=>b.id===id);if(!next||next.id===current.id){setSwitcher(false);return;}setSwitcher(false);setSwitching(next);setTimeout(()=>{setCurrentId(id);setActive('Overview');setSwitching(null);setNotice(`${next.name} loaded as a separate workspace.`)},700)},[businesses,current.id,setCurrentId,setNotice]);
+  const selectBusiness = useCallback((id: string) => {
+    const next = businesses.find(b => b.id === id);
+    if (!next || next.id === current.id) {
+      setSwitcher(false);
+      return;
+    }
+    setSwitcher(false);
+    setCurrentId(id);
+    setActive('Overview');
+    setNotice(`${next.name} loaded as a separate workspace.`);
+  }, [businesses, current.id, setCurrentId, setNotice]);
   const searchResults=navigation.flatMap(g=>g.items.map(([name])=>name)).filter(name=>search&&name.toLowerCase().includes(search.toLowerCase())).slice(0,6);
   const [dataResults,setDataResults]=useState<{type:string;label:string;sublabel:string;navigate:string}[]>([]);
   useEffect(()=>{
@@ -2701,15 +2709,6 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
             {content}
           </div>
         </section>
-        {switching && (
-          <AiMotionEntryScreen
-            onComplete={() => setSwitching(null)}
-            businessName="BEMS Group"
-            userName={safeUser.fullName}
-            userRole={safeUser.role}
-            mode="reload"
-          />
-        )}
         {isAiAuthorized && (
           <>
             <AiScreenEdgeGlow isActive={true} isProcessing={aiManager.isTyping} />
@@ -2764,9 +2763,6 @@ export default function Home() {
   const [businesses,setBusinesses]=useState<Business[]>(defaultBemsBusinesses);
   const [currentId,setCurrentId]=useState('bems-group-hq');
   const [status,setStatus]=useState<'loading'|'ready'|'error'>('ready');
-  const [showAiEntry, setShowAiEntry] = useState(false);
-  const [entryMode, setEntryMode] = useState<'login' | 'reload'>('reload');
-
   const checkAuth = () => {
     fetch('/api/auth/session', { credentials: 'include' })
       .then(r => r.json())
@@ -2774,14 +2770,10 @@ export default function Home() {
         const nextUser = data?.user as AuthUser | null;
         setUser(nextUser);
         setAuthStatus(nextUser ? 'signed-in' : 'signed-out');
-        if (nextUser) {
-          setShowAiEntry(true);
-        }
       })
       .catch(() => {
         setUser(null);
         setAuthStatus('signed-out');
-        setShowAiEntry(false);
       });
   };
   useEffect(() => {
@@ -2816,9 +2808,8 @@ export default function Home() {
     }
   }, [authStatus, user]);
 
-  const onAuthed=(u:AuthUser)=>{
+  const onAuthed = (u: AuthUser) => {
     setUser(u);
-    setEntryMode('login');
     window.dispatchEvent(new Event('bems-session-changed'));
     setStatus('ready');
     setAuthStatus('signed-in');
@@ -2826,22 +2817,29 @@ export default function Home() {
       window.location.href = '/staff';
       return;
     }
-    setShowAiEntry(true);
   };
+
   const signOut = async () => {
-    setShowAiEntry(false);
     setUser(null);
     setAuthStatus('signed-out');
     setBusinesses([]);
     setCurrentId('');
     setAddingBusiness(false);
     window.dispatchEvent(new Event('bems-session-changed'));
+    if (typeof document !== 'undefined') {
+      document.cookie = 'bems_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Max-Age=0;';
+    }
     try {
-      await authRequest('/api/auth/logout');
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
     } catch (err) {
       console.error('Logout error:', err);
     }
-    window.location.href = '/';
+    window.location.replace('/api/auth/logout');
   };
 
   const complete=(data:OnboardingData)=>{
@@ -2883,13 +2881,9 @@ export default function Home() {
     return updated;
   });
 
-  // 1. Session verification in progress
+  // 1. Session verification in progress: zero reload screen
   if (authStatus === 'checking') {
-    return (
-      <main className="app-loading" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b1220' }}>
-        <img src="/bems-mark.png" alt="BEMS Group" style={{ width: 48, height: 48, opacity: 0.8 }} />
-      </main>
-    );
+    return null;
   }
 
   // 2. Unauthenticated or signed out: strictly present sign-in / registration
@@ -2897,20 +2891,7 @@ export default function Home() {
     return <AuthGate onAuthed={onAuthed} />;
   }
 
-  // 3. Show dynamic welcome animation only for authenticated users
-  if (showAiEntry) {
-    return (
-      <AiMotionEntryScreen
-        key={`ai-entry-${entryMode}-${user.id}`}
-        onComplete={() => setShowAiEntry(false)}
-        businessName="BEMS Group"
-        userName={user.fullName || 'Staff Member'}
-        userRole={user.role || 'STAFF'}
-        mode={entryMode}
-      />
-    );
-  }
-  if (status === 'error') return <main className="app-loading error"><img src="/bems-mark.png" alt="BEMS Group"/><p>Could not reach the BEMS Group API. Confirm the backend is running on port 4001.</p><button onClick={retryLoad}>Retry →</button></main>;
+  if (status === 'error') return <main className="app-loading error"><p>Could not reach the BEMS Group API. Confirm the backend is running on port 4001.</p><button onClick={retryLoad}>Retry →</button></main>;
   if (addingBusiness) return <Onboarding onCancel={businesses.length?()=>setAddingBusiness(false):undefined} onComplete={complete}/>;
   if (businesses.length === 0 && authStatus === 'signed-in') return <Onboarding onComplete={complete}/>;
   return <AppWorkspace user={user} onSignOut={signOut} onAddBusiness={()=>setAddingBusiness(true)} businesses={businesses} currentId={currentId||businesses[0].id} setCurrentId={setCurrentId} onUpdateBusiness={updateBusiness}/>;
