@@ -135,14 +135,14 @@ export async function GET(request: Request) {
       }
 
       // Department name from requester assignment
-      const primaryAssignment = req.requester.assignments.find((a) => a.isPrimary) || req.requester.assignments[0];
+      const primaryAssignment = req.requester?.assignments?.find((a) => a.isPrimary) || req.requester?.assignments?.[0];
       const departmentName = primaryAssignment?.department?.name || "Corporate Operations";
 
       // Comments from channel
-      const comments = req.channel?.messages.map((m) => `${m.authorName}: ${m.body}`) || [];
+      const comments = (req.channel?.messages || []).map((m) => `${m.authorName}: ${m.body}`);
 
       // Rejection reason if any
-      const rejectedStep = req.approvalSteps.find((s) => s.status === "REJECTED");
+      const rejectedStep = req.approvalSteps?.find((s) => s.status === "REJECTED");
       const rejectionReason = rejectedStep?.decisionReason || null;
 
       const needsRetirement = (req.requestType === "ADVANCE" || req.category.includes("ADVANCE") || req.category.includes("TRAVEL")) &&
@@ -156,17 +156,17 @@ export async function GET(request: Request) {
         category: req.category,
         amount: Number(req.amountMinor) / 100,
         amountMinor: Number(req.amountMinor),
-        currency: req.currency,
+        currency: req.currency || "NGN",
         status: req.approvalStatus,
         statusLabel,
         stepIndex,
-        submittedDate: req.createdAt.toLocaleDateString("en-NG", {
+        submittedDate: req.createdAt ? new Date(req.createdAt).toLocaleDateString("en-NG", {
           year: "numeric",
           month: "short",
           day: "numeric",
-        }),
-        createdAt: req.createdAt.toISOString(),
-        subsidiaryName: req.subsidiary.legalName,
+        }) : new Date().toLocaleDateString("en-NG"),
+        createdAt: req.createdAt ? new Date(req.createdAt).toISOString() : new Date().toISOString(),
+        subsidiaryName: req.subsidiary?.legalName || "BEMS Group",
         departmentName,
         needsRetirement,
         rejectionReason,

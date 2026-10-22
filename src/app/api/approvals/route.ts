@@ -86,7 +86,7 @@ export async function GET(request: Request) {
       const tierLabel = tierLevel === 3 ? 'Tier 3 (GMD Escalation)' : tierLevel === 2 ? 'Tier 2 (Executive COO)' : 'Tier 1 (HOD Direct)';
 
       // Department & Requester info
-      const assignment = req.requester.assignments?.[0];
+      const assignment = req.requester?.assignments?.[0];
       const departmentName = assignment?.department?.name || 'General Operations';
 
       // 3-way matching simulation based on vendor & amount
@@ -107,11 +107,11 @@ export async function GET(request: Request) {
         title: req.title,
         amount: amountNgn,
         amountFormatted: `₦${amountNgn.toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
-        currency: req.currency,
+        currency: req.currency || 'NGN',
         category: req.category,
         justification: req.justification,
         deliverable: req.deliverable,
-        neededBy: req.neededBy.toISOString(),
+        neededBy: req.neededBy ? new Date(req.neededBy).toISOString() : new Date().toISOString(),
         hoursRemaining,
         isUrgent,
         tierLevel,
@@ -121,17 +121,17 @@ export async function GET(request: Request) {
         accountabilityStatus: req.accountabilityStatus,
         isRecurring: req.isRecurring,
         recurringInterval: req.recurringInterval,
-        createdAt: req.createdAt.toISOString(),
+        createdAt: req.createdAt ? new Date(req.createdAt).toISOString() : new Date().toISOString(),
         subsidiary: {
-          id: req.subsidiary.id,
-          code: req.subsidiary.code,
-          name: req.subsidiary.legalName,
+          id: req.subsidiary?.id || req.subsidiaryId || '',
+          code: req.subsidiary?.code || '',
+          name: req.subsidiary?.legalName || 'BEMS Group',
         },
         requester: {
-          id: req.requester.id,
-          name: req.requester.legalName,
-          role: req.requester.role,
-          employeeNumber: req.requester.employeeNumber,
+          id: req.requester?.id || '',
+          name: req.requester?.legalName || 'Requester',
+          role: req.requester?.role || 'STAFF',
+          employeeNumber: req.requester?.employeeNumber || '',
           department: departmentName,
         },
         vendor: req.vendor
@@ -160,22 +160,22 @@ export async function GET(request: Request) {
           remainingAfter: Math.max(0, budgetCap - spentSoFar - amountNgn),
           percentOfBudget: Math.min(100, Math.round((amountNgn / budgetCap) * 100)),
         },
-        approvalSteps: req.approvalSteps.map((s) => ({
+        approvalSteps: (req.approvalSteps || []).map((s) => ({
           id: s.id,
           stageIndex: s.stageIndex,
           assignedRole: s.assignedRole,
           approverName: s.approverName,
           status: s.status,
-          decidedAt: s.decidedAt ? s.decidedAt.toISOString() : null,
+          decidedAt: s.decidedAt ? new Date(s.decidedAt).toISOString() : null,
           decisionReason: s.decisionReason,
         })),
-        recentMessages: req.channel?.messages.map((m) => ({
+        recentMessages: (req.channel?.messages || []).map((m) => ({
           id: m.id,
           authorName: m.authorName,
           authorRole: m.authorRole,
           body: m.body,
-          createdAt: m.createdAt.toISOString(),
-        })) || [],
+          createdAt: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString(),
+        })),
       };
     });
 

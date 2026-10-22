@@ -53,6 +53,45 @@ export async function createEmployeeSession(employeeId: string) {
   return { token, expiresAt };
 }
 
+// In-memory session cache to eliminate redundant DB lookups on concurrent requests
+type CachedSession = {
+  employee: AuthenticatedEmployee;
+  expiresAt: number;
+};
+const sessionMemoryCache = new Map<string, CachedSession>();
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+function getCachedSession(tokenHash: string): AuthenticatedEmployee | null {
+  const cached = sessionMemoryCache.get(tokenHash);
+  if (!cached) return null;
+  if (Date.now() > cached.expiresAt) {
+    sessionMemoryCache.delete(tokenHash);
+    return null;
+  }
+  return cached.employee;
+}
+
+function setCachedSession(tokenHash: string, employee: AuthenticatedEmployee) {
+  if (sessionMemoryCache.size > 500) {
+    const now = Date.now();
+    for (const [key, val] of sessionMemoryCache.entries()) {
+      if (now > val.expiresAt) sessionMemoryCache.delete(key);
+    }
+  }
+  sessionMemoryCache.set(tokenHash, {
+    employee,
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  });
+}
+
+export function invalidateSessionCache(token?: string) {
+  if (token) {
+    sessionMemoryCache.delete(hashToken(token));
+  } else {
+    sessionMemoryCache.clear();
+  }
+}
+
 export async function getAuthenticatedEmployee(): Promise<AuthenticatedEmployee | null> {
   // 1. Check Authorization Bearer header first (for n8n tools, API clients, and curl tests)
   try {
@@ -83,14 +122,18 @@ export async function getAuthenticatedEmployee(): Promise<AuthenticatedEmployee 
       }
 
       // B. Check user session token (Option A)
+      const tHash = hashToken(token);
+      const cached = getCachedSession(tHash);
+      if (cached) return cached;
+
       const session = await prisma.authSession.findUnique({
-        where: { tokenHash: hashToken(token) },
+        where: { tokenHash: tHash },
         include: { employee: true },
       });
       if (session && session.expiresAt > new Date()) {
         const employee = session.employee;
         if (employee.status === 'ACTIVE' && employee.approvalStatus === 'APPROVED') {
-          return {
+          const authEmp: AuthenticatedEmployee = {
             id: employee.id,
             employeeNumber: employee.employeeNumber,
             legalName: employee.legalName,
@@ -99,6 +142,8 @@ export async function getAuthenticatedEmployee(): Promise<AuthenticatedEmployee 
             role: employee.role,
             avatarUrl: employee.avatarUrl,
           };
+          setCachedSession(tHash, authEmp);
+          return authEmp;
         }
       }
     }
@@ -111,14 +156,18 @@ export async function getAuthenticatedEmployee(): Promise<AuthenticatedEmployee 
     const cookieStore = await cookies();
     const token = cookieStore.get(COOKIE_NAME)?.value;
     if (token) {
+      const tHash = hashToken(token);
+      const cached = getCachedSession(tHash);
+      if (cached) return cached;
+
       const session = await prisma.authSession.findUnique({
-        where: { tokenHash: hashToken(token) },
+        where: { tokenHash: tHash },
         include: { employee: true },
       });
       if (session && session.expiresAt > new Date()) {
         const employee = session.employee;
         if (employee.status === 'ACTIVE' && employee.approvalStatus === 'APPROVED') {
-          return {
+          const authEmp: AuthenticatedEmployee = {
             id: employee.id,
             employeeNumber: employee.employeeNumber,
             legalName: employee.legalName,
@@ -127,11 +176,13 @@ export async function getAuthenticatedEmployee(): Promise<AuthenticatedEmployee 
             role: employee.role,
             avatarUrl: employee.avatarUrl,
           };
+          setCachedSession(tHash, authEmp);
+          return authEmp;
         }
       }
     }
-  } catch {
-    // Cookie check non-blocking
+  } catch (err) {
+    console.error('[auth] Cookie session verification error:', err);
   }
 
   return null;
@@ -142,6 +193,7 @@ export async function destroyEmployeeSession() {
     const cookieStore = await cookies();
     const token = cookieStore.get(COOKIE_NAME)?.value;
     if (token) {
+      invalidateSessionCache(token);
       await prisma.authSession.deleteMany({ where: { tokenHash: hashToken(token) } }).catch(() => {});
     }
     cookieStore.delete(COOKIE_NAME);

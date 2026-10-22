@@ -9,10 +9,10 @@ const globalForPrisma = globalThis as unknown as {
 let connectionUrl = process.env.DATABASE_URL || "";
 if (connectionUrl && connectionUrl.includes("supabase.co:5432")) {
   connectionUrl = connectionUrl.replace(":5432", ":6543");
-  if (!connectionUrl.includes("pgbouncer=true")) {
-    const separator = connectionUrl.includes("?") ? "&" : "?";
-    connectionUrl += `${separator}pgbouncer=true&connection_limit=10&pool_timeout=20`;
-  }
+}
+if (connectionUrl && connectionUrl.includes("supabase.co:6543") && !connectionUrl.includes("pgbouncer=true")) {
+  const separator = connectionUrl.includes("?") ? "&" : "?";
+  connectionUrl += `${separator}pgbouncer=true&connection_limit=15&pool_timeout=30`;
 }
 
 export const prisma =
