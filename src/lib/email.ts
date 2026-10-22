@@ -49,7 +49,8 @@ function getTransporter() {
  */
 export async function sendEmail({ to, subject, html, text, eventType = 'GENERAL_NOTIFICATION' }: EmailOptions): Promise<{ success: boolean; simulated?: boolean; messageId?: string; error?: string }> {
   const recipientList = Array.isArray(to) ? to : [to];
-  const recipientsStr = recipientList.join(', ');
+  const recipients = recipientList.join(', ');
+  const recipientsStr = recipients;
 
   // 1. Prioritize Resend if configured
   const resend = getResendClient();

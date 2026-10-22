@@ -195,15 +195,19 @@ export async function POST(request: Request) {
     });
 
     // Dispatch formal invitation email
-    await sendAdminInvitationEmail({
-      to: workEmail,
-      role,
-      subsidiaryName: subsidiary.legalName,
-      departmentName: departmentName || undefined,
-      positionName,
-      inviteToken: token,
-      expiresInDays: 7,
-    });
+    try {
+      await sendAdminInvitationEmail({
+        to: workEmail,
+        role,
+        subsidiaryName: subsidiary.legalName,
+        departmentName: departmentName || undefined,
+        positionName,
+        inviteToken: token,
+        expiresInDays: 7,
+      });
+    } catch (mailError) {
+      console.error('Email dispatch warning (invitation record was saved):', mailError);
+    }
 
     return NextResponse.json({
       success: true,
