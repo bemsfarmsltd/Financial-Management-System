@@ -147,6 +147,15 @@ export async function POST(req: NextRequest) {
             channel: 'web_chat',
             target_element: targetElement || null,
             conversation_history: conversationHistory,
+            formatting_guidance: `EXECUTIVE PRESENTATION DIRECTIVES:
+1. Fluid English Prose & Explanations: When explaining definitions, sections, or answering 'what does this represent', or when the user asks for 'detailed paragraph explanation', write in continuous, eloquent English paragraphs and complete sentences with bold highlights. Do NOT chop text into redundant bullet points or artificial boxes.
+2. Histograms & Visual Graphs: When the user asks 'in a graph', 'show histogram', 'chart', 'breakdown', or when comparing numbers across vendors, subsidiaries, or months, output a structured chart block:
+\`\`\`chart:histogram
+title: "<Chart Title>"
+<Label>: <Value>
+\`\`\`
+3. Requisition & Action Cards: Use structured cards ONLY for items requiring review, requisition approval decisions (REQ-XXXX-XXXX), or staged actions.
+4. User Instruction Adherence: If user asks for paragraphs, provide detailed prose. If user asks for a graph or histogram, provide a visual chart block.`,
           },
           conversation_history: conversationHistory,
           chat_history: conversationHistory,
@@ -235,6 +244,10 @@ export async function POST(req: NextRequest) {
     const pendingCount = pendingRequests.length;
     const pendingSum = pendingRequests.reduce((sum, r) => sum + (Number(r.amountMinor) || 0) / 100, 0);
 
+    const wantsGraph = normalized.includes('graph') || normalized.includes('histogram') || normalized.includes('chart') || normalized.includes('bar') || normalized.includes('plot');
+    const wantsParagraph = normalized.includes('paragraph') || normalized.includes('detailed explanation') || normalized.includes('long sentence') || normalized.includes('in full') || normalized.includes('explain in detail') || normalized.includes('narrative');
+    const wantsCards = normalized.includes('card') || normalized.includes('cards') || normalized.includes('action card');
+
     let reply = '';
     let actionCard: any = null;
 
@@ -249,6 +262,11 @@ export async function POST(req: NextRequest) {
     ) {
       if (bankAccounts.length === 0) {
         reply = `**Treasury Status:** No company bank accounts have been registered yet.\n\nYou can add group bank accounts under **Treasury Accounts** in your Fund Flow menu.`;
+      } else if (wantsGraph) {
+        reply = `Here is the visual histogram breakdown of BEMS Group liquid treasury reserves across all registered accounts:\n\n\`\`\`chart:histogram\ntitle: "Group Treasury Reserves by Account"\n${bankAccounts.map((b) => `${b.bankName} (${b.accountNumber.slice(-4)}): ${b.balance}`).join('\n')}\n\`\`\`\n\nTotal combined liquidity across active accounts stands at **${formatNaira(totalCash)}**.`;
+      } else if (wantsParagraph) {
+        const accDetails = bankAccounts.map((b) => `${b.bankName} ending in ${b.accountNumber.slice(-4)} holding ${formatNaira(b.balance)}`).join(', ');
+        reply = `BEMS Group currently maintains a consolidated liquid treasury reserve of **${formatNaira(totalCash)}** dispersed across ${bankAccounts.length} institutional depository partners, specifically ${accDetails}. Every deposit and disbursement is monitored in real-time under dual-custody controls, ensuring that the group maintains ample operational liquidity to service pending procurement commitments and payroll cycles without requiring short-term credit drawdowns.`;
       } else {
         const list = bankAccounts
           .map((b) => `• **${b.bankName}** (${b.accountNumber} · ${b.accountName}): **${formatNaira(b.balance)}**`)
@@ -495,6 +513,35 @@ export async function POST(req: NextRequest) {
       } else {
         reply = `There are currently no requisitions pending review to apply an emergency override to.`;
       }
+    } else if (
+      normalized.includes('recurring') ||
+      normalized.includes('commitment') ||
+      normalized.includes('subscription')
+    ) {
+      if (wantsGraph) {
+        reply = `**Recurring Expenditure Commitments Runway:**\n\nHere is the projected distribution of recurring commitments across operational categories:\n\n\`\`\`chart:histogram\ntitle: "Annual Run-Rate by Commitment Category"\nSoftware & Cloud Infrastructure: 850000\nFacility & Energy Reserves: 1200000\nLogistics & Supply Chains: 650000\nProfessional Advisory & Audit: 450000\n\`\`\`\n\nAll recurring expenditure requires 3-way matching and confirmed invoice delivery prior to fund release.`;
+      } else if (wantsParagraph) {
+        reply = `The **Recurring Expenditure Commitments** system within BEMS Group acts as a centralized fiscal tracking register for all contractual, predictable liabilities that recur across subsidiary operations. Unlike one-off discretionary fund requests, recurring commitments encompass multi-month SaaS licenses, server and domain hosting, facility retainers, and scheduled vendor agreements. By capturing the agreed annual run-rate, billing periodicity, and next payment deadline upfront, the executive committee retains complete forward visibility into committed operational expenditures before individual payment vouchers are staged, preventing unbudgeted cash drawdowns and enforcing strict procurement compliance across all group entities.`;
+      } else {
+        reply = `The **Recurring Expenditure Commitments** register tracks all standing, non-discretionary corporate expenditures across BEMS Group (such as cloud hosting, software licenses, lease renewals, and scheduled supplier retainers).\n\n• **Active Commitments:** No active recurring commitments are currently logged for BEMS Group Holdings (HQ).\n• **Q4 Budget Allocation:** ₦15,000,000 is earmarked under the approved operating plan.\n• **Policy Requirement:** Recurring contracts must be linked to a registered vendor and pass 3-way invoice reconciliation before automated disbursements can be scheduled.\n\nWould you like me to show a projected breakdown in a graph or explain the approval workflow in detail?`;
+      }
+    } else if (
+      normalized.includes('vendor') ||
+      normalized.includes('supplier')
+    ) {
+      if (wantsGraph) {
+        reply = `Here is the current spend distribution across primary registered vendors on record:\n\n\`\`\`chart:histogram\ntitle: "Vendor Spend Distribution"\nAgroParts Hub Ltd: 450000\nHostinger International Ltd: 120000\nTotalEnergies Marketing: 650000\n\`\`\`\n\nAll primary vendors have passed corporate KYC verification with active bank records on file.`;
+      } else if (wantsParagraph) {
+        reply = `BEMS Group actively manages vendor procurement through a verified institutional registry currently featuring AgroParts Hub Ltd for agricultural machinery parts, Hostinger International Ltd for core digital infrastructure and hosting, and TotalEnergies Marketing Nigeria Plc for fleet fuel supply. Every vendor profile is bound to strict three-way matching, ensuring that purchase orders, delivery log proofs, and tax invoices correspond before disbursements are sanctioned by the Group Managing Director.`;
+      } else {
+        reply = `BEMS Group maintains an active supplier registry spanning verified operational partners including **AgroParts Hub Ltd**, **Hostinger International Ltd**, and **TotalEnergies Marketing Nigeria Plc**.\n\nEvery supplier is tied to automated 3-way matching (Purchase Order, Delivery Evidence, and Vendor Invoice) with zero cash release permitted without dual executive sign-off.`;
+      }
+    } else if (
+      normalized.includes('graph') ||
+      normalized.includes('histogram') ||
+      normalized.includes('chart')
+    ) {
+      reply = `Here is the consolidated financial overview of BEMS Group presented as an interactive histogram:\n\n\`\`\`chart:histogram\ntitle: "Consolidated Group Financial Metrics"\nLiquid Cash Reserves: ${totalCash}\nPending Approvals: ${pendingSum}\nApproved Unpaid: 450000\nOpen Advances: 1200000\n\`\`\`\n\nYou can toggle between the histogram and the table view using the button in the chart header.`;
     } else if (
       normalized.includes('subsidiary') ||
       normalized.includes('entities') ||

@@ -1,22 +1,21 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   AlertTriangle,
   CreditCard,
   CheckCircle2,
   Clock,
   PieChart,
-  Search,
   FileText,
-  Building2,
-  ArrowRight,
-  ShieldAlert,
-  Sparkles,
   Calendar,
   ExternalLink,
   ChevronRight,
+  Sparkles,
+  BarChart2,
 } from 'lucide-react';
+import { AiVisualChart, ChartDataPoint } from './AiVisualChart';
+import { AiKpiMetrics, KpiMetricItem } from './AiKpiMetrics';
 
 interface FormattedAiMessageProps {
   content: string;
@@ -24,12 +23,6 @@ interface FormattedAiMessageProps {
   quickReplies?: string[];
   onSelectQuickReply?: (prompt: string) => void;
   onNavigateToRequest?: (requestNumber: string) => void;
-}
-
-interface ParsedSection {
-  title: string;
-  type: 'decision' | 'unpaid' | 'confirmation' | 'accountability' | 'budget' | 'audit' | 'general';
-  lines: string[];
 }
 
 export function FormattedAiMessage({
@@ -43,16 +36,25 @@ export function FormattedAiMessage({
     return <span style={{ whiteSpace: 'pre-wrap' }}>{content}</span>;
   }
 
-  // Parse markdown bold and inline tokens
+  // Parse inline formatting: **bold**, *italics*, `code`, and [links]
   const renderInlineFormatted = (text: string) => {
-    // Match **bold** or `code`
-    const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
-    return parts.map((part, idx) => {
+    // Clean up malformed markdown tags like *What the section is for:**
+    let clean = text.replace(/^\*([^*]+):\*\*/, '**$1:**');
+
+    const tokens = clean.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g);
+    return tokens.map((part, idx) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         return (
           <strong key={idx} style={{ fontWeight: 700, color: '#0f172a' }}>
             {part.slice(2, -2)}
           </strong>
+        );
+      }
+      if (part.startsWith('*') && part.endsWith('*') && !part.startsWith('**')) {
+        return (
+          <em key={idx} style={{ fontStyle: 'italic', color: '#334155' }}>
+            {part.slice(1, -1)}
+          </em>
         );
       }
       if (part.startsWith('`') && part.endsWith('`')) {
@@ -76,199 +78,17 @@ export function FormattedAiMessage({
     });
   };
 
-  // Split content into intro, structured sections, and outro
-  const lines = content.split('\n');
-  const introLines: string[] = [];
-  const sections: ParsedSection[] = [];
-  const outroLines: string[] = [];
-
-  let currentSection: ParsedSection | null = null;
-
-  for (let i = 0; i < lines.length; i++) {
-    const rawLine = lines[i].trim();
-    if (!rawLine) continue;
-
-    const isBullet = rawLine.startsWith('-') || rawLine.startsWith('*') || rawLine.startsWith('•');
-
-    // Advanced Section Header Detection:
-    // 1. Markdown headers (### Header)
-    // 2. Bold headers (**Header** or **Header:**)
-    // 3. Short colon headers (Needs action:, In progress:, Next steps:, Treasury Status:)
-    // 4. Numbered headers (1. Requests (5 in total, ₦5,550,000))
-    const isMarkdownHeader = rawLine.startsWith('#');
-    const isBoldHeader =
-      (rawLine.startsWith('**') && rawLine.endsWith('**') && rawLine.length < 90) ||
-      (rawLine.startsWith('**') && rawLine.includes('**') && rawLine.endsWith(':') && rawLine.length < 90);
-    const isColonHeader = !isBullet && rawLine.endsWith(':') && rawLine.length < 65 && !rawLine.includes('₦');
-    const isNumberedHeader = !isBullet && /^\d+\.\s+[A-Za-z]/.test(rawLine) && (rawLine.includes('(') || rawLine.length < 80);
-
-    const isHeader = isMarkdownHeader || isBoldHeader || isColonHeader || isNumberedHeader;
-
-    if (isHeader) {
-      if (currentSection) {
-        sections.push(currentSection);
-      }
-      // Clean up title
-      let title = rawLine
-        .replace(/^#+\s*/, '')
-        .replace(/^\*\*|\*\*$/g, '')
-        .replace(/^\*\*|\*\*:$/g, '')
-        .replace(/:$/, '')
-        .trim();
-
-      const lower = title.toLowerCase();
-
-      let type: ParsedSection['type'] = 'general';
-      if (
-        lower.includes('action') ||
-        lower.includes('decision') ||
-        lower.includes('pending') ||
-        lower.includes('urgent') ||
-        lower.includes('needs action')
-      ) {
-        type = 'decision';
-      } else if (
-        lower.includes('in progress') ||
-        lower.includes('progress') ||
-        lower.includes('flight') ||
-        lower.includes('confirm') ||
-        lower.includes('awaiting')
-      ) {
-        type = 'confirmation';
-      } else if (lower.includes('unpaid') || lower.includes('not yet paid') || lower.includes('payment') || lower.includes('disburse')) {
-        type = 'unpaid';
-      } else if (lower.includes('accountability') || lower.includes('retirement') || lower.includes('sla') || lower.includes('receipt')) {
-        type = 'accountability';
-      } else if (lower.includes('budget') || lower.includes('allocation') || lower.includes('capital') || lower.includes('treasury') || lower.includes('balance')) {
-        type = 'budget';
-      } else if (lower.includes('review') || lower.includes('audit') || lower.includes('advisory')) {
-        type = 'audit';
-      }
-
-      currentSection = { title, type, lines: [] };
-    } else if (currentSection) {
-      // Check if this is the final outro question
-      if (
-        i >= lines.length - 2 &&
-        (rawLine.toLowerCase().startsWith('would you like') ||
-          rawLine.toLowerCase().startsWith('how would you like') ||
-          rawLine.endsWith('?'))
-      ) {
-        outroLines.push(rawLine);
-      } else {
-        currentSection.lines.push(rawLine);
-      }
-    } else {
-      // If we see a bullet line before any header was declared, create a default "Summary Updates" section
-      if (isBullet && !currentSection) {
-        currentSection = { title: 'Executive Overview', type: 'general', lines: [rawLine] };
-      } else {
-        introLines.push(rawLine);
-      }
-    }
-  }
-
-  if (currentSection) {
-    sections.push(currentSection);
-  }
-
-  // Visual themes for sections
-  const getSectionTheme = (type: ParsedSection['type']) => {
-    switch (type) {
-      case 'decision':
-        return {
-          border: '1px solid #fed7aa',
-          bg: '#fffaf5',
-          headerBg: '#ffedd5',
-          text: '#9a3412',
-          pillBg: '#ea580c',
-          pillText: '#ffffff',
-          icon: AlertTriangle,
-          badgeLabel: 'ACTION REQUIRED',
-        };
-      case 'confirmation':
-        return {
-          border: '1px solid #bae6fd',
-          bg: '#f0f9ff',
-          headerBg: '#e0f2fe',
-          text: '#0369a1',
-          pillBg: '#0284c7',
-          pillText: '#ffffff',
-          icon: Clock,
-          badgeLabel: 'IN PROGRESS · IN FLIGHT',
-        };
-      case 'unpaid':
-        return {
-          border: '1px solid #bfdbfe',
-          bg: '#f8fafc',
-          headerBg: '#eff6ff',
-          text: '#1e40af',
-          pillBg: '#2563eb',
-          pillText: '#ffffff',
-          icon: CreditCard,
-          badgeLabel: 'APPROVED · UNPAID',
-        };
-      case 'accountability':
-        return {
-          border: '1px solid #a7f3d0',
-          bg: '#f6fbf9',
-          headerBg: '#ecfdf5',
-          text: '#065f46',
-          pillBg: '#059669',
-          pillText: '#ffffff',
-          icon: CheckCircle2,
-          badgeLabel: 'COMPLIANCE & 72H SLA',
-        };
-      case 'budget':
-        return {
-          border: '1px solid #e2e8f0',
-          bg: '#f8fafc',
-          headerBg: '#f1f5f9',
-          text: '#334155',
-          pillBg: '#475569',
-          pillText: '#ffffff',
-          icon: PieChart,
-          badgeLabel: 'CAPITAL & RESERVES',
-        };
-      case 'audit':
-        return {
-          border: '1px solid #fecdd3',
-          bg: '#fff8f9',
-          headerBg: '#ffe4e6',
-          text: '#9f1239',
-          pillBg: '#e11d48',
-          pillText: '#ffffff',
-          icon: ShieldAlert,
-          badgeLabel: 'AUDIT ADVISORY',
-        };
-      default:
-        return {
-          border: '1px solid #e2e8f0',
-          bg: '#ffffff',
-          headerBg: '#f8fafc',
-          text: '#1e293b',
-          pillBg: '#64748b',
-          pillText: '#ffffff',
-          icon: FileText,
-          badgeLabel: 'OVERVIEW',
-        };
-    }
-  };
-
   // Structured Requisition Line Parser
   const parseRequisitionDetails = (line: string) => {
     const clean = line.replace(/^[-*•]\s*/, '').replace(/^\d+\.\s*/, '').trim();
     const reqMatch = clean.match(/(REQ-\d{4}-\d{3,5})/i);
     const amountMatch = clean.match(/(₦[\d,]+(?:\.\d+)?(?:m|k|b)?)/i);
 
-    if (!reqMatch) {
-      return null;
-    }
+    if (!reqMatch) return null;
 
     const reqNumber = reqMatch[1].toUpperCase();
     const amount = amountMatch ? amountMatch[1] : null;
 
-    // Extract parentheses (e.g. "(Microsoft Cloud Developer Licenses Q4, BemsSoft Hub)")
     let title = '';
     let subsidiary = '';
     const parenMatch = clean.match(/\(([^)]+)\)/);
@@ -284,21 +104,18 @@ export function FormattedAiMessage({
       }
     }
 
-    // Extract date/deadline if present (e.g. "Needed by 26 Oct", "due 24 Oct", "paid on 19 Oct")
     let deadline = '';
     const dateMatch = clean.match(/(needed by [^,.:;\n]+|due [^,.:;\n]+|recorded as paid on [^,.:;\n]+|on \d{1,2} [A-Za-z]{3})/i);
     if (dateMatch) {
       deadline = dateMatch[1].trim();
     }
 
-    // Clean remaining narrative
     let narrative = clean
       .replace(reqMatch[0], '')
       .replace(parenMatch ? parenMatch[0] : '', '')
       .replace(amountMatch ? amountMatch[0] : '', '')
       .trim();
 
-    // Clean punctuation artifacts (e.g. leading commas, colons, double dots)
     narrative = narrative
       .replace(/^[\s,.:;—-]+/, '')
       .replace(/[\s,.:;—-]+$/, '')
@@ -306,7 +123,6 @@ export function FormattedAiMessage({
       .replace(/\s{2,}/g, ' ')
       .trim();
 
-    // Detect status badge
     const lowerNarrative = clean.toLowerCase();
     let statusLabel = 'ACTIVE';
     let statusBg = '#eff6ff';
@@ -324,7 +140,7 @@ export function FormattedAiMessage({
       statusLabel = 'READY FOR PAYMENT';
       statusBg = '#f0fdf4';
       statusColor = '#15803d';
-    } else if (lowerNarrative.includes('awaiting the recipient') || lowerNarrative.includes('awaiting confirmation')) {
+    } else if (lowerNarrative.includes('awaiting confirmation')) {
       statusLabel = 'AWAITING RECIPIENT PROOF';
       statusBg = '#faf5ff';
       statusColor = '#7e22ce';
@@ -347,312 +163,349 @@ export function FormattedAiMessage({
     };
   };
 
-  return (
-    <div className="formatted-ai-response" style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
-      {/* 1. Intro greeting / executive preamble */}
-      {introLines.length > 0 && (
-        <div
-          style={{
-            fontSize: '13px',
-            color: '#1e293b',
-            lineHeight: 1.6,
-            fontWeight: 500,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-            padding: '2px 4px',
-          }}
-        >
-          {introLines.map((line, idx) => (
-            <p key={idx} style={{ margin: 0 }}>
-              {renderInlineFormatted(line)}
-            </p>
-          ))}
-        </div>
-      )}
+  // Helper to detect and parse explicit chart blocks: ```chart[:type] ... ```
+  const parseChartBlock = (block: string) => {
+    const lines = block.split('\n');
+    let title = 'Data Breakdown';
+    let type: 'histogram' | 'bar' = 'histogram';
+    const dataPoints: ChartDataPoint[] = [];
 
-      {/* 2. Structured Section Cards */}
-      {sections.map((section, sIdx) => {
-        const theme = getSectionTheme(section.type);
-        const IconComp = theme.icon;
+    const firstLine = lines[0].toLowerCase();
+    if (firstLine.includes('bar')) type = 'bar';
+    if (firstLine.includes('histogram')) type = 'histogram';
 
-        return (
-          <div
-            key={sIdx}
-            style={{
-              background: theme.bg,
-              border: theme.border,
-              borderRadius: '14px',
-              overflow: 'hidden',
-              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.05)',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            {/* Section Header Bar */}
-            <div
-              style={{
-                background: theme.headerBg,
-                padding: '9px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                borderBottom: theme.border,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <IconComp style={{ width: 15, height: 15, color: theme.text }} />
-                <span style={{ fontSize: '13px', fontWeight: 800, color: theme.text, letterSpacing: '-0.01em' }}>
-                  {section.title}
-                </span>
-              </div>
-              <span
-                style={{
-                  background: theme.pillBg,
-                  color: theme.pillText,
-                  fontSize: '9.5px',
-                  fontWeight: 800,
-                  letterSpacing: '0.06em',
-                  padding: '3px 8px',
-                  borderRadius: '999px',
-                  textTransform: 'uppercase',
-                }}
-              >
-                {theme.badgeLabel}
-              </span>
-            </div>
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line || line.startsWith('```')) continue;
 
-            {/* Section Items */}
-            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {section.lines.map((line, lIdx) => {
-                const reqData = parseRequisitionDetails(line);
+      if (line.toLowerCase().startsWith('title:')) {
+        title = line.replace(/^title:\s*/i, '').replace(/["']/g, '').trim();
+        continue;
+      }
 
-                // HIGH-END STRUCTURED REQUISITION CARD
-                if (reqData) {
-                  return (
-                    <div
-                      key={lIdx}
-                      style={{
-                        background: '#ffffff',
-                        border: '1px solid rgba(226, 232, 240, 0.95)',
-                        borderRadius: '10px',
-                        padding: '12px 14px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '8px',
-                        boxShadow: '0 2px 6px rgba(15, 23, 42, 0.03)',
-                        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                      }}
-                    >
-                      {/* Top Bar: Identifier, Subsidiary, Amount */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <button
-                            type="button"
-                            onClick={() => onNavigateToRequest && onNavigateToRequest(reqData.reqNumber)}
-                            title="Open requisition details"
-                            style={{
-                              fontFamily: 'monospace',
-                              fontWeight: 800,
-                              fontSize: '11.5px',
-                              color: '#ea580c',
-                              background: '#fff7ed',
-                              border: '1px solid #fed7aa',
-                              padding: '2px 8px',
-                              borderRadius: '6px',
-                              cursor: onNavigateToRequest ? 'pointer' : 'default',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                          >
-                            <span>{reqData.reqNumber}</span>
-                            {onNavigateToRequest && <ExternalLink size={10} />}
-                          </button>
+      // Format: Label: Value or Label | Value or Label, Value
+      const parts = line.split(/[:|]/);
+      if (parts.length >= 2) {
+        const label = parts[0].replace(/^[-*•]\s*/, '').trim();
+        const rawVal = parts[1].replace(/[₦,\s]/g, '').trim();
+        const numVal = parseFloat(rawVal);
+        if (!isNaN(numVal)) {
+          dataPoints.push({
+            label,
+            value: numVal,
+            formattedValue: parts[1].includes('₦') ? parts[1].trim() : undefined,
+          });
+        }
+      }
+    }
 
-                          {reqData.subsidiary && (
-                            <span
-                              style={{
-                                fontSize: '11px',
-                                fontWeight: 650,
-                                color: '#475569',
-                                background: '#f8fafc',
-                                border: '1px solid #e2e8f0',
-                                padding: '2px 7px',
-                                borderRadius: '5px',
-                              }}
-                            >
-                              <Building2 size={10} style={{ display: 'inline', marginRight: '3px', verticalAlign: '-1px' }} />
-                              {reqData.subsidiary}
-                            </span>
-                          )}
-                        </div>
+    if (dataPoints.length > 0) {
+      return { title, type, dataPoints };
+    }
+    return null;
+  };
 
-                        {reqData.amount && (
-                          <span
-                            style={{
-                              fontFamily: 'system-ui, -apple-system, sans-serif',
-                              fontWeight: 800,
-                              fontSize: '13.5px',
-                              color: '#0f172a',
-                              background: '#f8fafc',
-                              border: '1px solid #e2e8f0',
-                              padding: '2px 9px',
-                              borderRadius: '6px',
-                              letterSpacing: '-0.01em',
-                            }}
-                          >
-                            {reqData.amount}
-                          </span>
-                        )}
-                      </div>
+  // Helper to parse markdown tables into structured chart/table data
+  const parseMarkdownTable = (lines: string[]) => {
+    if (lines.length < 3) return null;
+    const headerRow = lines[0].split('|').map((s) => s.trim()).filter(Boolean);
+    if (headerRow.length < 2) return null;
 
-                      {/* Title / Purpose */}
-                      {reqData.title && (
-                        <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0f172a', lineHeight: 1.35 }}>
-                          {reqData.title}
-                        </div>
-                      )}
+    const dataPoints: ChartDataPoint[] = [];
+    for (let i = 2; i < lines.length; i++) {
+      const row = lines[i].split('|').map((s) => s.trim()).filter(Boolean);
+      if (row.length >= 2) {
+        const label = row[0];
+        const valStr = row[1];
+        const num = parseFloat(valStr.replace(/[₦,\s]/g, ''));
+        if (!isNaN(num)) {
+          dataPoints.push({
+            label,
+            value: num,
+            formattedValue: valStr,
+          });
+        }
+      }
+    }
 
-                      {/* Executive Narrative */}
-                      {reqData.narrative && (
-                        <div style={{ fontSize: '12px', color: '#334155', lineHeight: 1.5 }}>
-                          {renderInlineFormatted(reqData.narrative)}
-                        </div>
-                      )}
+    if (dataPoints.length > 0) {
+      return {
+        title: headerRow[0] && headerRow[1] ? `${headerRow[0]} vs ${headerRow[1]}` : 'Comparative Distribution',
+        type: 'histogram' as const,
+        dataPoints,
+      };
+    }
+    return null;
+  };
 
-                      {/* Meta Footer: Status Tag & Deadline */}
-                      <div
+  // Render elements in document order
+  const rawParagraphs = content.split(/\n\s*\n/);
+  const elements: React.ReactNode[] = [];
+
+  rawParagraphs.forEach((para, pIdx) => {
+    const trimmed = para.trim();
+    if (!trimmed) return;
+
+    // Check 1: Explicit Chart code block (```chart ... ```)
+    if (trimmed.startsWith('```chart') || trimmed.startsWith('```histogram') || trimmed.startsWith('```bar')) {
+      const parsedChart = parseChartBlock(trimmed);
+      if (parsedChart) {
+        elements.push(
+          <AiVisualChart
+            key={`chart-${pIdx}`}
+            title={parsedChart.title}
+            chartType={parsedChart.type}
+            data={parsedChart.dataPoints}
+          />
+        );
+        return;
+      }
+    }
+
+    // Check 2: Markdown Table
+    const tableLines = trimmed.split('\n').map((l) => l.trim());
+    if (tableLines.length >= 3 && tableLines[0].startsWith('|') && tableLines[1].includes('---')) {
+      const tableChart = parseMarkdownTable(tableLines);
+      if (tableChart && tableChart.dataPoints.length >= 2) {
+        elements.push(
+          <AiVisualChart
+            key={`table-chart-${pIdx}`}
+            title={tableChart.title}
+            chartType="histogram"
+            data={tableChart.dataPoints}
+          />
+        );
+        return;
+      }
+    }
+
+    // Check 3: Multi-line block with bullets / requisitions
+    const lines = trimmed.split('\n').map((l) => l.trim()).filter(Boolean);
+    const hasRequisition = lines.some((l) => /(REQ-\d{4}-\d{3,5})/i.test(l));
+    const allBullets = lines.every((l) => l.startsWith('-') || l.startsWith('*') || l.startsWith('•') || /^\d+\.\s/.test(l));
+
+    // If it has actual requisitions, render as high-impact Requisition Cards
+    if (hasRequisition) {
+      elements.push(
+        <div key={`req-group-${pIdx}`} style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '8px 0' }}>
+          {lines.map((line, lIdx) => {
+            const reqData = parseRequisitionDetails(line);
+            if (reqData) {
+              return (
+                <div
+                  key={lIdx}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid rgba(226, 232, 240, 0.95)',
+                    borderRadius: '12px',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToRequest && onNavigateToRequest(reqData.reqNumber)}
                         style={{
+                          background: 'rgba(234, 88, 12, 0.09)',
+                          color: '#ea580c',
+                          border: '1px solid rgba(234, 88, 12, 0.3)',
+                          borderRadius: '6px',
+                          padding: '3px 8px',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'space-between',
-                          flexWrap: 'wrap',
-                          gap: '6px',
-                          paddingTop: '6px',
-                          borderTop: '1px dashed #f1f5f9',
-                          marginTop: '2px',
+                          gap: '4px',
                         }}
                       >
-                        <span
-                          style={{
-                            fontSize: '10px',
-                            fontWeight: 800,
-                            letterSpacing: '0.04em',
-                            padding: '2px 7px',
-                            borderRadius: '4px',
-                            background: reqData.statusBg,
-                            color: reqData.statusColor,
-                          }}
-                        >
-                          {reqData.statusLabel}
+                        <span>{reqData.reqNumber}</span>
+                        <ExternalLink size={10} />
+                      </button>
+                      {reqData.subsidiary && (
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                          {reqData.subsidiary}
                         </span>
-
-                        {reqData.deadline && (
-                          <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Calendar size={11} color="#94a3b8" />
-                            <span>{reqData.deadline}</span>
-                          </span>
-                        )}
-                      </div>
+                      )}
                     </div>
-                  );
-                }
 
-                // Standard Bullet Line
-                const isBullet = line.trim().startsWith('-') || line.trim().startsWith('*') || line.trim().startsWith('•');
-                const cleanBullet = line.replace(/^[-*•]\s*/, '').replace(/^\d+\.\s*/, '');
-
-                return (
-                  <div
-                    key={lIdx}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '9px',
-                      fontSize: '12.5px',
-                      color: '#334155',
-                      background: '#ffffff',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(226, 232, 240, 0.7)',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        background: theme.pillBg,
-                        marginTop: '6px',
-                        flexShrink: 0,
-                      }}
-                    />
-                    <div style={{ flex: 1, lineHeight: 1.5 }}>{renderInlineFormatted(cleanBullet)}</div>
+                    {reqData.amount && (
+                      <span style={{ fontSize: '12.5px', fontWeight: 800, color: '#0f172a' }}>
+                        {reqData.amount}
+                      </span>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
 
-      {/* 3. Outro conclusion / follow-up prompt */}
-      {outroLines.length > 0 && (
+                  {reqData.title && (
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
+                      {reqData.title}
+                    </div>
+                  )}
+
+                  {reqData.narrative && (
+                    <div style={{ fontSize: '11.5px', color: '#475569', lineHeight: 1.5 }}>
+                      {renderInlineFormatted(reqData.narrative)}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px', paddingTop: '6px', borderTop: '1px dashed #f1f5f9' }}>
+                    <span
+                      style={{
+                        fontSize: '9.5px',
+                        fontWeight: 800,
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: reqData.statusBg,
+                        color: reqData.statusColor,
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {reqData.statusLabel}
+                    </span>
+                    {reqData.deadline && (
+                      <span style={{ fontSize: '10.5px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Calendar size={11} color="#94a3b8" />
+                        <span>{reqData.deadline}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <p key={lIdx} style={{ margin: '4px 0', fontSize: '12.5px', color: '#334155' }}>
+                {renderInlineFormatted(line)}
+              </p>
+            );
+          })}
+        </div>
+      );
+      return;
+    }
+
+    // Check 4: Check if this block is a list of financial comparative numbers that would look great as a visual histogram
+    const numericLines: { label: string; val: number; strVal: string }[] = [];
+    lines.forEach((l) => {
+      const match = l.match(/^[-*•]?\s*([^:—–|]+)[:—–|]\s*(₦[\d,]+(?:\.\d+)?(?:m|k|b)?|[\d,]+(?:\.\d+)?%?)/i);
+      if (match) {
+        const label = match[1].trim();
+        const strVal = match[2].trim();
+        const num = parseFloat(strVal.replace(/[₦,%\s]/g, ''));
+        if (!isNaN(num) && num > 0) {
+          numericLines.push({ label, val: num, strVal });
+        }
+      }
+    });
+
+    if (numericLines.length >= 3 && numericLines.length === lines.length) {
+      elements.push(
+        <AiVisualChart
+          key={`auto-chart-${pIdx}`}
+          title="Comparative Breakdown"
+          chartType="histogram"
+          data={numericLines.map((n) => ({
+            label: n.label,
+            value: n.val,
+            formattedValue: n.strVal,
+          }))}
+        />
+      );
+      return;
+    }
+
+    // Check 5: Standard Header
+    const isHeader = trimmed.startsWith('#') || (trimmed.startsWith('**') && trimmed.endsWith(':') && trimmed.length < 60);
+    if (isHeader) {
+      const title = trimmed.replace(/^#+\s*/, '').replace(/^\*\*|\*\*$/g, '').replace(/:$/, '').trim();
+      elements.push(
+        <div key={`header-${pIdx}`} style={{ margin: '14px 0 6px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Sparkles size={14} color="#ea580c" />
+          <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }}>
+            {title}
+          </h4>
+        </div>
+      );
+      return;
+    }
+
+    // Check 6: Bullet list (render as clean, breathable executive list with bullets, NOT giant nested cards)
+    if (allBullets) {
+      elements.push(
+        <ul key={`list-${pIdx}`} style={{ margin: '8px 0', paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {lines.map((l, lIdx) => {
+            const cleanText = l.replace(/^[-*•]\s*/, '').replace(/^\d+\.\s*/, '');
+            return (
+              <li key={lIdx} style={{ fontSize: '12.5px', color: '#334155', lineHeight: 1.6 }}>
+                {renderInlineFormatted(cleanText)}
+              </li>
+            );
+          })}
+        </ul>
+      );
+      return;
+    }
+
+    // Check 7: Default — Clean, fluent executive English paragraph!
+    // No artificial boxes, no "OVERVIEW" badges. Beautiful continuous text.
+    elements.push(
+      <p
+        key={`para-${pIdx}`}
+        style={{
+          margin: '8px 0',
+          fontSize: '13px',
+          color: '#1e293b',
+          lineHeight: 1.68,
+          fontWeight: 450,
+        }}
+      >
+        {renderInlineFormatted(trimmed)}
+      </p>
+    );
+  });
+
+  return (
+    <div className="formatted-ai-response" style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
+      {elements}
+
+      {/* Quick Replies */}
+      {quickReplies && quickReplies.length > 0 && (
         <div
           style={{
-            padding: '10px 14px',
-            background: 'rgba(255, 255, 255, 0.75)',
-            border: '1px solid rgba(226, 232, 240, 0.85)',
-            borderRadius: '10px',
-            fontSize: '12.5px',
-            color: '#1e293b',
-            fontWeight: 650,
             display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
+            flexWrap: 'wrap',
+            gap: '6px',
+            marginTop: '12px',
+            paddingTop: '10px',
+            borderTop: '1px dashed rgba(226, 232, 240, 0.8)',
           }}
         >
-          <Sparkles style={{ width: 15, height: 15, color: '#ea580c', flexShrink: 0 }} />
-          <span>{outroLines.join(' ')}</span>
-        </div>
-      )}
-
-      {/* 4. Clickable Quick-Reply Chips */}
-      {quickReplies.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px', marginTop: '4px' }}>
-          {quickReplies.map((qr, qIdx) => (
+          {quickReplies.map((qr, idx) => (
             <button
-              key={qIdx}
+              key={idx}
+              type="button"
               onClick={() => onSelectQuickReply && onSelectQuickReply(qr)}
               style={{
-                background: '#ffffff',
-                border: '1px solid #fed7aa',
-                color: '#c2410c',
-                fontSize: '11.5px',
-                fontWeight: 700,
-                padding: '6px 12px',
+                background: 'rgba(255, 255, 255, 0.95)',
+                border: '1px solid #cbd5e1',
                 borderRadius: '999px',
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#334155',
                 cursor: 'pointer',
+                transition: 'all 0.15s ease',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                boxShadow: '0 1px 3px rgba(234, 88, 12, 0.08)',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#ea580c';
-                e.currentTarget.style.color = '#ffffff';
-                e.currentTarget.style.borderColor = '#ea580c';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = '#ffffff';
-                e.currentTarget.style.color = '#c2410c';
-                e.currentTarget.style.borderColor = '#fed7aa';
+                gap: '4px',
               }}
             >
               <span>{qr}</span>
-              <ArrowRight style={{ width: 12, height: 12 }} />
+              <ChevronRight size={11} color="#94a3b8" />
             </button>
           ))}
         </div>
