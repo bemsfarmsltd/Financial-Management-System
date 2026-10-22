@@ -45,24 +45,37 @@ export function RecurringCommitmentsView({ businessName }: { businessName: strin
   const load = async () => {
     setLoading(true);
     setError('');
-    try {
-      let response = await fetch(`/api/recurring?_t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
-      if (response.status === 401) {
-        await new Promise((r) => setTimeout(r, 400));
-        response = await fetch(`/api/recurring?_t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
+    let lastError = '';
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (attempt > 0) {
+          await new Promise((r) => setTimeout(r, attempt * 400));
+        }
+        const response = await fetch(`/api/recurring?_t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
+        if (response.status === 401) {
+          lastError = 'Sign in to view recurring commitments.';
+          continue;
+        }
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          lastError = 'The recurring requests service returned an unexpected response.';
+          continue;
+        }
+        const result = await response.json();
+        if (!response.ok) {
+          lastError = result.error || 'Could not load recurring commitments.';
+          continue;
+        }
+        setData(result);
+        setError('');
+        setLoading(false);
+        return;
+      } catch (reason) {
+        lastError = reason instanceof Error ? reason.message : 'Could not load recurring commitments.';
       }
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        throw new Error('The recurring requests service returned an unexpected response. Refresh the page and sign in again if needed.');
-      }
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Could not load recurring commitments.');
-      setData(result);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not load recurring commitments.');
-    } finally {
-      setLoading(false);
     }
+    setError(lastError || 'Could not load recurring commitments.');
+    setLoading(false);
   };
 
   useEffect(() => { void load(); }, []);
