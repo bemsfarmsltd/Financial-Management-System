@@ -91,7 +91,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true;
     const loadSession = () => {
-      fetch('/api/auth/session', { credentials: 'include' })
+      fetch('/api/auth/session?_t=' + Date.now(), { credentials: 'include', cache: 'no-store' })
         .then((response) => response.json())
         .then((data) => {
           if (!active || !data?.user) return;

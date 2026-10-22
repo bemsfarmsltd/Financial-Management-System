@@ -2768,7 +2768,7 @@ export default function Home() {
   const [entryMode, setEntryMode] = useState<'login' | 'reload'>('reload');
 
   const checkAuth = () => {
-    fetch('/api/auth/session', { credentials: 'include', cache: 'no-store' })
+    fetch('/api/auth/session?_t=' + Date.now(), { credentials: 'include', cache: 'no-store' })
       .then(r => r.json())
       .then(data => {
         const nextUser = data?.user as AuthUser | null;
