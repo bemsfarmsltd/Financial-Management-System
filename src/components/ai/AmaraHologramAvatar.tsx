@@ -306,152 +306,115 @@ export function AmaraHologramAvatar({
         }}
       />
 
-      {/* Cybernetic Amara Holographic SVG Model */}
+      {/* Photorealistic Cybernetic Amara Human Avatar */}
       <div
         style={{
           position: 'relative',
           zIndex: 2,
-          width: `${size * 0.72}px`,
-          height: `${size * 0.82}px`,
+          width: `${size * 0.76}px`,
+          height: `${size * 0.76}px`,
           transform: `translate3d(${mouseOffset.x}px, ${mouseOffset.y + breathingOffset}px, 0) scale(${state === 'awakening' ? 0.95 : 1.0})`,
           opacity: state === 'dissolving' ? 0.1 : 1,
           transition: 'transform 0.25s ease-out, opacity 0.5s ease',
-          filter: 'drop-shadow(0 0 35px rgba(56, 189, 248, 0.35)) drop-shadow(0 15px 45px rgba(234, 88, 12, 0.25))',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
-        <svg
-          viewBox="0 0 400 480"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          style={{ width: '100%', height: '100%' }}
+        <div
+          style={{
+            position: 'relative',
+            width: '100%',
+            height: '100%',
+            overflow: 'visible',
+            filter: 'drop-shadow(0 0 55px rgba(56, 189, 248, 0.45)) drop-shadow(0 25px 75px rgba(234, 88, 12, 0.35))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
         >
-          <defs>
-            {/* Holographic Gradients */}
-            <radialGradient id="amaraSkin" cx="50%" cy="38%" r="60%">
-              <stop offset="0%" stopColor="#2c1a16" />
-              <stop offset="55%" stopColor="#190e0c" />
-              <stop offset="90%" stopColor="#0b0808" />
-              <stop offset="100%" stopColor="#050508" />
-            </radialGradient>
+          {/* Real Human Avatar Picture with Seamless Feathered Hologram Edge */}
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              height: '100%',
+              WebkitMaskImage: 'radial-gradient(ellipse at 50% 48%, black 56%, rgba(0,0,0,0.7) 74%, transparent 98%)',
+              maskImage: 'radial-gradient(ellipse at 50% 48%, black 56%, rgba(0,0,0,0.7) 74%, transparent 98%)',
+            }}
+          >
+            <img
+              src="/amara-avatar.png"
+              alt="Amara Executive AI"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                filter: 'contrast(1.08) brightness(1.04)',
+                display: 'block',
+              }}
+            />
 
-            <linearGradient id="cyberBronze" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#d97706" />
-              <stop offset="35%" stopColor="#92400e" />
-              <stop offset="70%" stopColor="#451a03" />
-              <stop offset="100%" stopColor="#1c1917" />
-            </linearGradient>
+            {/* Subtle holographic cybernetic eye beacon pulses */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '42.5%',
+                left: '42.8%',
+                width: '14px',
+                height: '14px',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(56, 189, 248, 0.9) 0%, rgba(56, 189, 248, 0.4) 60%, transparent 80%)',
+                filter: 'blur(1.5px)',
+                pointerEvents: 'none',
+                opacity: isBlinking ? 0 : 0.85,
+                transition: 'opacity 0.12s ease',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                top: '42.5%',
+                right: '42.8%',
+                width: '14px',
+                height: '14px',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(56, 189, 248, 0.9) 0%, rgba(56, 189, 248, 0.4) 60%, transparent 80%)',
+                filter: 'blur(1.5px)',
+                pointerEvents: 'none',
+                opacity: isBlinking ? 0 : 0.85,
+                transition: 'opacity 0.12s ease',
+              }}
+            />
 
-            <linearGradient id="neonCyanGlow" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#38bdf8" />
-              <stop offset="100%" stopColor="#0284c7" />
-            </linearGradient>
+            {/* Ambient Holographic Vignette & Scan Overlay */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'linear-gradient(180deg, rgba(8, 12, 24, 0.1) 0%, transparent 35%, rgba(4, 7, 17, 0.45) 100%)',
+                pointerEvents: 'none',
+              }}
+            />
 
-            <filter id="eyeGlow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3.5" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
-          {/* Shoulders & Cybernetic Torso Armor */}
-          <path
-            d="M80 470 C 95 380, 140 330, 175 320 L 225 320 C 260 330, 305 380, 320 470 Z"
-            fill="url(#cyberBronze)"
-            stroke="#f59e0b"
-            strokeWidth="1.2"
-            opacity="0.9"
-          />
-
-          {/* Cybernetic Neck & Collar Mesh */}
-          <path
-            d="M172 260 C 168 285, 168 310, 175 325 L 225 325 C 232 310, 232 285, 228 260 Z"
-            fill="#1e1b18"
-            stroke="url(#neonCyanGlow)"
-            strokeWidth="1.2"
-          />
-          {/* Neck conduits */}
-          <line x1="188" y1="265" x2="188" y2="320" stroke="#38bdf8" strokeWidth="1" strokeDasharray="3 3" opacity="0.8" />
-          <line x1="212" y1="265" x2="212" y2="320" stroke="#38bdf8" strokeWidth="1" strokeDasharray="3 3" opacity="0.8" />
-
-          {/* Head & Facial Sculpt (Black African Android Feature Aesthetics) */}
-          <ellipse cx="200" cy="180" rx="68" ry="86" fill="url(#amaraSkin)" stroke="#78350f" strokeWidth="0.8" />
-
-          {/* Specular Cheek & Brow Bone Highlights */}
-          <path
-            d="M152 170 C 158 190, 168 206, 185 214"
-            stroke="#ea580c"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            opacity="0.45"
-            fill="none"
-          />
-          <path
-            d="M248 170 C 242 190, 232 206, 215 214"
-            stroke="#ea580c"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            opacity="0.45"
-            fill="none"
-          />
-
-          {/* Sculpted Lips with Subtle Motion */}
-          <path
-            d={
-              state === 'speaking'
-                ? "M182 226 Q 200 234 218 226 Q 200 240 182 226" // open expressive speaking
-                : "M184 228 Q 200 233 216 228 Q 200 236 184 228" // serene warm smile
-            }
-            fill="#831843"
-            stroke="#fb7185"
-            strokeWidth="0.8"
-            opacity="0.85"
-            style={{ transition: 'd 0.2s ease' }}
-          />
-
-          {/* Cybernetic Forehead Circuit Inlay */}
-          <path
-            d="M194 116 L 200 124 L 206 116 L 200 108 Z"
-            fill="#38bdf8"
-            filter="url(#eyeGlow)"
-            opacity="0.9"
-          />
-
-          {/* Luminous Electric-Blue Eyes */}
-          {/* Left Eye */}
-          <g transform="translate(162, 165)">
-            <ellipse cx="0" cy="0" rx="16" ry="7.5" fill="#080c14" stroke="#0284c7" strokeWidth="0.8" />
-            {!isBlinking && state !== 'dissolving' ? (
-              <>
-                <circle cx="0" cy="0" r="6.5" fill="#38bdf8" filter="url(#eyeGlow)" />
-                <circle cx="0" cy="0" r="3.2" fill="#0f172a" />
-                <circle cx="2" cy="-2" r="1.4" fill="#ffffff" />
-              </>
-            ) : (
-              <line x1="-15" y1="0" x2="15" y2="0" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
-            )}
-          </g>
-
-          {/* Right Eye */}
-          <g transform="translate(238, 165)">
-            <ellipse cx="0" cy="0" rx="16" ry="7.5" fill="#080c14" stroke="#0284c7" strokeWidth="0.8" />
-            {!isBlinking && state !== 'dissolving' ? (
-              <>
-                <circle cx="0" cy="0" r="6.5" fill="#38bdf8" filter="url(#eyeGlow)" />
-                <circle cx="0" cy="0" r="3.2" fill="#0f172a" />
-                <circle cx="2" cy="-2" r="1.4" fill="#ffffff" />
-              </>
-            ) : (
-              <line x1="-15" y1="0" x2="15" y2="0" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
-            )}
-          </g>
-
-          {/* Central Holographic Heart Core Glow */}
-          <circle cx="200" cy="380" r="22" fill="#0284c7" opacity="0.3" filter="url(#eyeGlow)" />
-          <circle cx="200" cy="380" r="10" fill="#38bdf8" filter="url(#eyeGlow)" />
-          <circle cx="200" cy="380" r="4" fill="#ffffff" />
-        </svg>
+            {/* Cyan Glow Pulse on Chest Reactor Core */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '10%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: '68px',
+                height: '68px',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(56, 189, 248, 0.85) 0%, rgba(234, 88, 12, 0.4) 55%, transparent 75%)',
+                filter: 'blur(7px)',
+                pointerEvents: 'none',
+                animation: 'corePulse 2.4s infinite alternate ease-in-out',
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Interactive Subtitle Bar (Kingsley Orji Style) */}
