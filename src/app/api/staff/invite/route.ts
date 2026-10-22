@@ -15,6 +15,7 @@ const ALLOWED_INVITE_ROLES = [
   'VERIFIER',
   'DEPT_HEAD',
   'HR',
+  'DIRECTOR',
 ];
 
 // GET: Validate an invitation token OR list pending invitations for administrators
@@ -75,7 +76,7 @@ export async function GET(request: Request) {
 
     // 2. Otherwise, this is an authenticated admin fetching the pending invitations list
     const actor = await getAuthenticatedEmployee();
-    if (!actor || !['SYSTEM_ADMIN', 'GMD', 'HR'].includes(actor.role)) {
+    if (!actor || !['SYSTEM_ADMIN', 'GMD', 'COO', 'HEAD_OF_ADMIN', 'HR', 'DIRECTOR'].includes(actor.role)) {
       return NextResponse.json({ error: 'Administrative access required to list invitations.' }, { status: 403 });
     }
 
@@ -98,7 +99,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee();
-    if (!actor || !['SYSTEM_ADMIN', 'GMD', 'HR'].includes(actor.role)) {
+    if (!actor || !['SYSTEM_ADMIN', 'GMD', 'COO', 'HEAD_OF_ADMIN', 'HR', 'DIRECTOR'].includes(actor.role)) {
       return NextResponse.json({ error: 'Administrative authorization is required to send role invitations.' }, { status: 403 });
     }
 
@@ -224,7 +225,7 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee();
-    if (!actor || !['SYSTEM_ADMIN', 'GMD', 'HR'].includes(actor.role)) {
+    if (!actor || !['SYSTEM_ADMIN', 'GMD', 'COO', 'HEAD_OF_ADMIN', 'HR', 'DIRECTOR'].includes(actor.role)) {
       return NextResponse.json({ error: 'Administrative authorization is required.' }, { status: 403 });
     }
 

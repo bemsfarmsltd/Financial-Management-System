@@ -5,11 +5,11 @@ import { sendStaffLoginReadyEmail } from '@/lib/email';
 
 export async function GET() {
   const actor = await getAuthenticatedEmployee();
-  if (!actor || !['SYSTEM_ADMIN', 'GMD'].includes(actor.role)) {
+  if (!actor || !['SYSTEM_ADMIN', 'GMD', 'COO', 'HEAD_OF_ADMIN', 'HR', 'FINANCE', 'DIRECTOR'].includes(actor.role)) {
     return NextResponse.json({ error: 'Executive or System Admin access required.' }, { status: 403 });
   }
 
-  const [employees, organizations, departments] = await Promise.all([
+  const [employees, organizations, departments, activeGmd] = await Promise.all([
     prisma.employee.findMany({
       where: { approvalStatus: 'PENDING_APPROVAL' },
       select: {
@@ -61,7 +61,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const actor = await getAuthenticatedEmployee();
-  if (!actor || !['SYSTEM_ADMIN', 'GMD'].includes(actor.role)) {
+  if (!actor || !['SYSTEM_ADMIN', 'GMD', 'COO', 'HEAD_OF_ADMIN', 'HR'].includes(actor.role)) {
     return NextResponse.json({ error: 'Executive or System Admin access required.' }, { status: 403 });
   }
 

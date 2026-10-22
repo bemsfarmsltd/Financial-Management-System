@@ -49,6 +49,7 @@ const ADMIN_ROLES = [
   { value: 'HEAD_OF_ADMIN', label: 'Head of Administration' },
   { value: 'HR', label: 'HR — Human Resources Lead' },
   { value: 'COO', label: 'COO — Chief Operating Officer' },
+  { value: 'DIRECTOR', label: 'Board Member / Director' },
   { value: 'SYSTEM_ADMIN', label: 'System Administrator' },
   { value: 'GMD', label: 'GMD — Group Managing Director' },
 ];
@@ -90,33 +91,59 @@ export function PeopleAccessWorkspaceModule({
     setLoading(true);
     setError('');
     try {
-      const [approvalRes, inviteRes] = await Promise.all([
-        fetch('/api/auth/approvals', { credentials: 'include' }),
+      const [approvalRes, inviteRes, orgsRes] = await Promise.all([
+        fetch('/api/auth/approvals', { credentials: 'include' }).catch(() => null),
         fetch('/api/staff/invite', { credentials: 'include' }).catch(() => null),
+        fetch('/api/organizations', { credentials: 'include' }).catch(() => null),
       ]);
 
-      const approvalData = await approvalRes.json();
-      if (!approvalRes.ok) throw new Error(approvalData.error || 'Could not load pending signups.');
+      let orgList: Org[] = [];
+      let deptList: Dept[] = [];
 
-      setEmployees(approvalData.employees || []);
-      setOrganizations(approvalData.organizations || []);
-      setDepartments(approvalData.departments || []);
-      if (approvalData.activeGmd) setActiveGmd(approvalData.activeGmd);
+      if (approvalRes && approvalRes.ok) {
+        const approvalData = await approvalRes.json();
+        setEmployees(approvalData.employees || []);
+        if (Array.isArray(approvalData.organizations) && approvalData.organizations.length > 0) {
+          orgList = approvalData.organizations;
+        }
+        if (Array.isArray(approvalData.departments) && approvalData.departments.length > 0) {
+          deptList = approvalData.departments;
+        }
+        if (approvalData.activeGmd) setActiveGmd(approvalData.activeGmd);
+      }
+
+      // Resilient fallback: If approval didn't supply organizations, read from /api/organizations
+      if (orgList.length === 0 && orgsRes && orgsRes.ok) {
+        const orgData = await orgsRes.json();
+        const rawOrgs = orgData?.organizations || [];
+        orgList = rawOrgs.map((o: any) => ({
+          id: o.id,
+          legalName: o.name || o.legalName || 'BEMS Subsidiary',
+          code: o.code || '',
+          type: o.type || 'SUBSIDIARY',
+        }));
+      }
+
+      setOrganizations(orgList);
+      setDepartments(deptList);
 
       if (inviteRes && inviteRes.ok) {
         const inviteData = await inviteRes.json();
         setInvitations(inviteData.invitations || []);
       }
 
-      if (approvalData.organizations?.length && !inviteForm.subsidiaryId) {
-        setInviteForm((prev) => ({ ...prev, subsidiaryId: approvalData.organizations[0].id }));
+      if (orgList.length > 0) {
+        setInviteForm((prev) => ({
+          ...prev,
+          subsidiaryId: prev.subsidiaryId || orgList[0].id,
+        }));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load administration records.');
     } finally {
       setLoading(false);
     }
-  }, [inviteForm.subsidiaryId]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -237,7 +264,14 @@ export function PeopleAccessWorkspaceModule({
 
           <button
             type="button"
-            onClick={() => setShowInviteModal(true)}
+            onClick={() => {
+              setInviteError('');
+              setInviteForm((prev) => ({
+                ...prev,
+                subsidiaryId: prev.subsidiaryId || (organizations[0]?.id ?? ''),
+              }));
+              setShowInviteModal(true);
+            }}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -590,13 +624,21 @@ export function PeopleAccessWorkspaceModule({
                     Subsidiary Entity *
                   </label>
                   <select
+                    required
                     value={inviteForm.subsidiaryId}
                     onChange={(e) => setInviteForm({ ...inviteForm, subsidiaryId: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13.5, background: '#fff', boxSizing: 'border-box' }}
                   >
-                    {organizations.map((org) => (
-                      <option key={org.id} value={org.id}>{org.legalName}</option>
-                    ))}
+                    {organizations.length === 0 ? (
+                      <option value="" disabled>Loading subsidiaries...</option>
+                    ) : (
+                      <>
+                        <option value="" disabled>Select Subsidiary Entity</option>
+                        {organizations.map((org) => (
+                          <option key={org.id} value={org.id}>{org.legalName}</option>
+                        ))}
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
