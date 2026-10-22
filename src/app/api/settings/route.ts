@@ -4,7 +4,7 @@ import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
-const editableKeys = new Set(['approval.controls', 'notifications.preferences', 'data.retention']);
+const editableKeys = new Set(['approval.controls', 'notifications.preferences', 'data.retention', 'ai.access']);
 
 export async function GET(request: Request) {
   const actor = await getAuthenticatedEmployee();

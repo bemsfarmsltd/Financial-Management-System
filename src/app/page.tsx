@@ -34,6 +34,7 @@ import { AmbientBottomAiBar } from "@/components/ai/AmbientBottomAiBar";
 import { AiScreenEdgeGlow, notifyAiInteraction } from "@/components/ai/AiScreenEdgeGlow";
 import { useAiFinancialManager } from "@/components/ai/useAiFinancialManager";
 import { AiMotionEntryScreen } from "@/components/ai/AiMotionEntryScreen";
+import { AiChatWorkspaceView } from "@/components/ai/AiChatWorkspaceView";
 import { UniversalClickToAskProvider } from "@/components/ai/UniversalClickToAskProvider";
 import { PeopleAccessWorkspaceModule } from "@/components/dashboard/gmd/PeopleAccessWorkspaceModule";
 import { StaffWorkspaceModule } from "@/components/dashboard/staff/StaffWorkspaceModule";
@@ -231,9 +232,10 @@ const gmdNavGroups = [
 
 const aiAnalystNavGroups = [
   {
-    label: 'AI INTELLIGENCE & BRIEFINGS',
+    label: 'AI INTELLIGENCE & COPILOT',
     items: [
-      ['Executive briefing', '✦'],
+      ['AI Copilot & Chat', '✦'],
+      ['Executive briefing', '◈'],
       ['Request channels', '◎'],
     ]
   },
@@ -2332,8 +2334,10 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   const isAiOnly = (safeUser.role as string) === 'AI_ANALYST';
   const [currentRole, setCurrentRole] = useState<SystemRole>((safeUser.role as SystemRole) || 'GMD');
   const isStaff = (currentRole as string) === 'STAFF' || (safeUser.role as string) === 'STAFF';
-  const [active,setActive]=useState(isAiOnly ? 'Executive briefing' : 'Overview');
+  const [active,setActive]=useState(isAiOnly ? 'AI Copilot & Chat' : 'Overview');
   const [collapsed,setCollapsed]=useState(false);
+  const [allowAiAnalystChat, setAllowAiAnalystChat] = useState(true);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -2341,6 +2345,20 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
       if (tabParam) setActive(tabParam);
     }
   }, []);
+
+  useEffect(() => {
+    if (current?.id) {
+      fetch(`/api/settings?organizationId=${encodeURIComponent(current.id)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.settings?.['ai.access']?.allowAiAnalystChat !== undefined) {
+            setAllowAiAnalystChat(Boolean(data.settings['ai.access'].allowAiAnalystChat));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [current?.id]);
+
   const [switcher,setSwitcher]=useState(false);
   const [notices,setNotices]=useState<{id:number;message:string}[]>([]);
   const noticeIdRef=useRef(0);
@@ -2366,7 +2384,12 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   const [activeAiPrompt, setActiveAiPrompt] = useState<string | undefined>(undefined);
   const [isInspectMode, setIsInspectMode] = useState(false);
   const toggleInspectMode = useCallback(() => setIsInspectMode((prev) => !prev), []);
-  const isAiAuthorized = !isStaff && (currentRole === 'GMD' || (safeUser.role as string) === 'GMD' || (safeUser.role as string) === 'SYSTEM_ADMIN');
+  const isAiAuthorized = !isStaff && (
+    currentRole === 'GMD' ||
+    (safeUser.role as string) === 'GMD' ||
+    (safeUser.role as string) === 'SYSTEM_ADMIN' ||
+    (isAiOnly && allowAiAnalystChat)
+  );
 
   const aiManager = useAiFinancialManager({
     userRole: currentRole,
@@ -2437,6 +2460,10 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
       'portfolio': 'Subsidiary portfolio',
       '/briefing': 'Executive briefing',
       'briefing': 'Executive briefing',
+      '/ai-chat': 'AI Copilot & Chat',
+      'ai-chat': 'AI Copilot & Chat',
+      '/chat': 'AI Copilot & Chat',
+      'chat': 'AI Copilot & Chat',
     };
     const target = navAliases[active] || active;
 
@@ -2630,9 +2657,34 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
 
     if (isAiOnly) {
       if (target === 'Request channels') {
-        return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={(p) => p === '/requests' ? setActive('Executive briefing') : window.location.href = p} />;
+        return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={(p) => p === '/requests' ? setActive('AI Copilot & Chat') : window.location.href = p} />;
       }
-      return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p) => setActive(p)} />;
+      if (target === 'Executive briefing') {
+        return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p) => setActive(p)} />;
+      }
+      return (
+        <AiChatWorkspaceView
+          businessName={current.name}
+          businessId={current.id}
+          userName={safeUser.fullName || 'AI Analyst'}
+          userRole={currentRole}
+          isChatEnabled={allowAiAnalystChat}
+          onNavigate={(p) => setActive(p)}
+        />
+      );
+    }
+
+    if (target === 'AI Copilot & Chat') {
+      return (
+        <AiChatWorkspaceView
+          businessName={current.name}
+          businessId={current.id}
+          userName={safeUser.fullName || 'User'}
+          userRole={currentRole}
+          isChatEnabled={true}
+          onNavigate={(p) => setActive(p)}
+        />
+      );
     }
 
     if(target==='Overview') return <RoleOverviewModule role={currentRole} business={current} user={safeUser} cases={cases} setActive={setActive} setNotice={setNotice} onRoleChange={(r) => setCurrentRole(r)}/>;

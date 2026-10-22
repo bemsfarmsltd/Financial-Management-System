@@ -62,6 +62,22 @@ export async function POST(req: NextRequest) {
     const userName = actor ? actor.legalName.split(' ')[0] : 'GMD';
     const normalized = message.toLowerCase();
 
+    // Check if AI Analyst chat access is paused by admin
+    if (actor && actor.role === 'AI_ANALYST') {
+      const aiSetting = await prisma.workspaceSetting.findFirst({
+        where: { key: 'ai.access' },
+      });
+      if (aiSetting && typeof aiSetting.value === 'object' && aiSetting.value !== null) {
+        const val = aiSetting.value as Record<string, any>;
+        if (val.allowAiAnalystChat === false) {
+          return NextResponse.json(
+            { error: 'AI Chat access for the AI Analyst role is currently paused by the administrator in Settings.' },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
     // 0. Forward to external n8n AI Agent if configured (BEMS AI Backend Contract Section 02)
     const n8nWebhookUrl = process.env.N8N_AI_WEBHOOK_URL;
     if (n8nWebhookUrl && actor) {
