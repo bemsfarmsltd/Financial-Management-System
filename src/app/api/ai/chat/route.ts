@@ -108,6 +108,12 @@ export async function POST(req: NextRequest) {
 
         const webhookSecret = process.env.BEMS_N8N_SHARED_SECRET || 'bems_n8n_sec_88491029384756102938475';
 
+        const targetElement = body.context?.target_element;
+        let queryText = message;
+        if (targetElement) {
+          queryText = `[User clicked element: "${targetElement.label}" with value "${targetElement.value || 'N/A'}" under section "${targetElement.section || 'General'}" on page "${targetElement.page}" for subsidiary "${targetElement.subsidiary}"]: ${message}`;
+        }
+
         const n8nPayload = {
           session_id: sessionId,
           user: {
@@ -117,12 +123,13 @@ export async function POST(req: NextRequest) {
             role: actor.role,
             permissions: ['all'],
           },
-          query: message,
-          message,
+          query: queryText,
+          message: queryText,
           timestamp: new Date().toISOString(),
           context: {
             active_business_id: (body.context && body.context.active_business_id) || '',
             channel: 'web_chat',
+            target_element: targetElement || null,
             conversation_history: conversationHistory,
           },
           conversation_history: conversationHistory,

@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { AiMessage, AiRole, BriefingCardData, ApprovalDecisionCardData, BudgetProposalCardData, SalaryAdjustmentCardData, DisbursementRecordCardData, ScenarioSimulatorCardData } from './types';
+import { ElementContextPayload } from './useUniversalContextHarvester';
 
 interface UseAiOptions {
   userRole: string;
@@ -25,12 +26,16 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
 
   // Send a user prompt and generate an intelligent response with interactive action cards
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, elementContext?: ElementContextPayload) => {
+      const displayContent = elementContext
+        ? `[Re: ${elementContext.label}${elementContext.value ? ` · ${elementContext.value}` : ''}] ${text}`
+        : text;
+
       const userMsg: AiMessage = {
         id: `user-${Date.now()}`,
         sender: 'user',
         timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-        content: text,
+        content: displayContent,
       };
 
       setMessages((prev) => [...prev, userMsg]);
@@ -46,6 +51,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
             message: text,
             context: {
               active_business_id: businessId,
+              target_element: elementContext,
             },
           }),
         });

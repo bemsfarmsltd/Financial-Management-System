@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { KineticAiOrb } from './KineticAiOrb';
 import { useAmbientTelemetry } from './useAmbientTelemetry';
 import { AiMessage } from './types';
-import { Send, Maximize2, Minimize2, X, Trash2, Sparkles, ChevronUp, ChevronDown } from 'lucide-react';
+import { Send, Maximize2, Minimize2, X, Trash2, Sparkles, ChevronUp, ChevronDown, Target } from 'lucide-react';
 import { BriefingActionCard } from './cards/BriefingActionCard';
 import { ApprovalDecisionCard } from './cards/ApprovalDecisionCard';
 import { BudgetProposalCard } from './cards/BudgetProposalCard';
@@ -21,6 +21,8 @@ interface Props {
   userRole: string;
   messages: AiMessage[];
   isTyping: boolean;
+  isInspectMode?: boolean;
+  onToggleInspectMode?: () => void;
   onSendMessage: (text: string) => void;
   onConfirmAction: (messageId: string, actionType: string, payload: any) => void;
   onOpenFullCockpit: (initialPrompt?: string) => void;
@@ -34,6 +36,8 @@ export function AmbientBottomAiBar({
   userRole,
   messages,
   isTyping,
+  isInspectMode = false,
+  onToggleInspectMode,
   onSendMessage,
   onConfirmAction,
   onOpenFullCockpit,
@@ -472,6 +476,37 @@ export function AmbientBottomAiBar({
           >
             <span>⚡</span>
             <span>{telemetry.actionLabel}</span>
+          </button>
+        )}
+
+        {/* Universal Point & Ask AI Mode Toggle */}
+        {onToggleInspectMode && (
+          <button
+            type="button"
+            onClick={onToggleInspectMode}
+            title={isInspectMode ? 'Click anywhere on screen to inspect (or press Esc to cancel)' : 'Click to inspect & ask question about anything on screen (Shortcut: Option+Click)'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '4px 10px',
+              borderRadius: '999px',
+              background: isInspectMode
+                ? 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)'
+                : 'rgba(255, 255, 255, 0.75)',
+              border: isInspectMode ? '1px solid #c2410c' : '1px solid rgba(226, 232, 240, 0.9)',
+              color: isInspectMode ? '#ffffff' : '#334155',
+              fontSize: '10.5px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              boxShadow: isInspectMode ? '0 0 12px rgba(234, 88, 12, 0.45)' : '0 1px 2px rgba(0,0,0,0.03)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Target size={12} />
+            <span>{isInspectMode ? 'Click Anything to Ask' : 'Point & Ask'}</span>
           </button>
         )}
 

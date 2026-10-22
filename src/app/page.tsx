@@ -34,6 +34,7 @@ import { AmbientBottomAiBar } from "@/components/ai/AmbientBottomAiBar";
 import { AiScreenEdgeGlow, notifyAiInteraction } from "@/components/ai/AiScreenEdgeGlow";
 import { useAiFinancialManager } from "@/components/ai/useAiFinancialManager";
 import { AiMotionEntryScreen } from "@/components/ai/AiMotionEntryScreen";
+import { UniversalClickToAskProvider } from "@/components/ai/UniversalClickToAskProvider";
 import { PeopleAccessWorkspaceModule } from "@/components/dashboard/gmd/PeopleAccessWorkspaceModule";
 import { StaffWorkspaceModule } from "@/components/dashboard/staff/StaffWorkspaceModule";
 
@@ -2243,6 +2244,8 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   const current = (businesses && businesses.length > 0 ? (businesses.find(b=>b.id===currentId) || businesses[0]) : defaultBemsBusinesses[0]) || defaultBemsBusinesses[0];
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [activeAiPrompt, setActiveAiPrompt] = useState<string | undefined>(undefined);
+  const [isInspectMode, setIsInspectMode] = useState(false);
+  const toggleInspectMode = useCallback(() => setIsInspectMode((prev) => !prev), []);
   const isAiAuthorized = !isStaff && (currentRole === 'GMD' || (safeUser.role as string) === 'GMD' || (safeUser.role as string) === 'SYSTEM_ADMIN');
 
   const aiManager = useAiFinancialManager({
@@ -2546,92 +2549,107 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
 
   if(marketplaceOpen){const destination=businesses.find(b=>b.id===marketplaceBusinessId)||current;return <main className="marketplace-portal"><header><button className="marketplace-brand" onClick={()=>setMarketplaceOpen(false)}><img src="/bems-mark.png" alt=""/><div><strong>BEMS</strong><span>Fund Request Desk</span></div></button><div className="marketplace-destination"><span>IMPORT DESTINATION</span><select value={destination.id} onChange={e=>setMarketplaceBusinessId(e.target.value)}>{businesses.map(b=><option value={b.id} key={b.id}>{b.name} · {b.industry}</option>)}</select></div><div><button className="market-library">My library</button><button className="market-cart">Cart · 0</button><button className="marketplace-close" onClick={()=>setMarketplaceOpen(false)}>Return to workspace →</button></div></header><div className="marketplace-content">{notices.length>0&&<div className="marketplace-toast">✓ {notices[notices.length-1].message}<button onClick={()=>dismissNotice(notices[notices.length-1].id)}>×</button></div>}<TemplateMarketplace key={destination.id} business={destination} setNotice={setNotice}/></div></main>}
   const shellClass=`app-shell ${collapsed?'collapsed ':''}${isStaff ? 'staff-view ' : currentRole === 'GMD' ? 'gmd-view' : ''}`;
-  return <main className={shellClass}>
-    <aside className="sidebar">
-      <div className="sidebar-circuit" aria-hidden="true"><i/><i/><i/><i/><i/><i/></div>
-      <div className="side-brand"><img src="/bems-mark.png" alt="BEMS logo"/><div className="brand-title-wrap" style={{display:'inline-flex',flexDirection:'row',alignItems:'baseline',gap:'6px',whiteSpace:'nowrap',margin:0,padding:0}}><span className="brand-name" style={{display:'inline-block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'16px',fontWeight:850,letterSpacing:'-0.02em',color:'#ffffff',lineHeight:1,margin:0,padding:0}}>BEMS</span><span className="brand-sub" style={{display:'inline-block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'15px',fontWeight:800,letterSpacing:'0.04em',color:'#f97316',lineHeight:1,margin:0,padding:0}}>GROUP</span></div><button aria-label={collapsed?'Expand navigation':'Collapse navigation'} title={collapsed?'Expand navigation':'Collapse navigation'} onClick={()=>setCollapsed(!collapsed)}>{collapsed?'›':'‹'}</button></div>
-      <nav aria-label="Product navigation">{navigation.map(group=><div className="nav-group" key={group.label}><p>{group.label}</p>{group.items.map(([name,icon])=>{const locked=isLocked(name);return <button type="button" title={locked?`${name} — locked`:collapsed?name:undefined} aria-current={active===name?'page':undefined} className={`${active===name?'nav-item active':'nav-item'}${locked?' locked':''}`} onClick={()=>{openModule(name);setTopPanel(null);setSwitcher(false)}} key={name}><span>{icon}</span><b>{name}</b>{locked?<em>⌾</em>:name==='Inbox'&&<small>3</small>}</button>})}</div>)}</nav>
-      <button type="button" className="help-button" onClick={()=>setNotice('Help centre opened. Guides and support are available here.')}><span>?</span><div><strong>Need help?</strong><small>Guides and support</small></div></button>
-    </aside>
-    <section className="workspace">
-      <header className="topbar">
-        <div className="business-switch-wrap"><button className="business-switch" onClick={()=>{setSwitcher(!switcher);setTopPanel(null)}}><span style={{background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:'8px',padding:'2px',display:'inline-flex',alignItems:'center',justifyContent:'center',overflow:'hidden',width:36,height:36,flexShrink:0}}><img src="/bems-mark.png" alt="BEMS logo" style={{width:'100%',height:'100%',objectFit:'contain'}}/></span><div><strong>{current.name}</strong><small>{current.industry}</small></div><b>⌄</b></button>{switcher&&<div className="switch-menu"><p>SWITCH WORKSPACE</p>{businesses.map(b=><button className={b.id===current.id?'selected':''} key={b.id} onClick={()=>selectBusiness(b.id)}><span style={{background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:'6px',padding:'2px',display:'inline-flex',alignItems:'center',justifyContent:'center',overflow:'hidden',width:28,height:28,flexShrink:0}}><img src="/bems-mark.png" alt="" style={{width:'100%',height:'100%',objectFit:'contain'}}/></span><div><strong>{b.name}</strong><small>{b.industry} · {b.readiness}% ready</small></div>{b.id===current.id&&<b>✓</b>}</button>)}<button className="switch-add" onClick={()=>{setSwitcher(false);setActive('Settings')}}>⚙ Manage businesses in Settings</button></div>}</div><div className="global-search"><span>⌕</span><input aria-label="Search workspace" value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Search ${current.name}`}/><kbd>⌘ K</kbd>{search&&<div className="search-results">{(searchResults.length||dataResults.length)?<>{searchResults.map(name=><button key={`nav-${name}`} onClick={()=>openModule(name)}><span>{isLocked(name)?'⌾':'→'}</span><div><strong>{name}</strong><small>{isLocked(name)?'Locked in current environment':'Open in this workspace'}</small></div></button>)}{dataResults.map((r,i)=><button key={`data-${i}`} onClick={()=>openModule(r.navigate)}><span>◎</span><div><strong>{r.label}</strong><small>{r.type} · {r.sublabel}</small></div></button>)}</>:<p>No workspace results</p>}</div>}</div>
-        <div className="top-actions">
-          {isStaff && (
-            <button
-              className="templates-top"
-              onClick={() => {
-                if (typeof window !== 'undefined') window.location.href = '/requests/new';
+  return (
+    <UniversalClickToAskProvider
+      currentPage={active}
+      businessName={current.name}
+      isInspectMode={isInspectMode}
+      onToggleInspectMode={toggleInspectMode}
+      onAskContextualQuestion={(question, elementContext) => {
+        notifyAiInteraction();
+        aiManager.sendMessage(question, elementContext);
+      }}
+    >
+      <main className={shellClass}>
+        <aside className="sidebar">
+          <div className="sidebar-circuit" aria-hidden="true"><i/><i/><i/><i/><i/><i/></div>
+          <div className="side-brand"><img src="/bems-mark.png" alt="BEMS logo"/><div className="brand-title-wrap" style={{display:'inline-flex',flexDirection:'row',alignItems:'baseline',gap:'6px',whiteSpace:'nowrap',margin:0,padding:0}}><span className="brand-name" style={{display:'inline-block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'16px',fontWeight:850,letterSpacing:'-0.02em',color:'#ffffff',lineHeight:1,margin:0,padding:0}}>BEMS</span><span className="brand-sub" style={{display:'inline-block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'15px',fontWeight:800,letterSpacing:'0.04em',color:'#f97316',lineHeight:1,margin:0,padding:0}}>GROUP</span></div><button aria-label={collapsed?'Expand navigation':'Collapse navigation'} title={collapsed?'Expand navigation':'Collapse navigation'} onClick={()=>setCollapsed(!collapsed)}>{collapsed?'›':'‹'}</button></div>
+          <nav aria-label="Product navigation">{navigation.map(group=><div className="nav-group" key={group.label}><p>{group.label}</p>{group.items.map(([name,icon])=>{const locked=isLocked(name);return <button type="button" title={locked?`${name} — locked`:collapsed?name:undefined} aria-current={active===name?'page':undefined} className={`${active===name?'nav-item active':'nav-item'}${locked?' locked':''}`} onClick={()=>{openModule(name);setTopPanel(null);setSwitcher(false)}} key={name}><span>{icon}</span><b>{name}</b>{locked?<em>⌾</em>:name==='Inbox'&&<small>3</small>}</button>})}</div>)}</nav>
+          <button type="button" className="help-button" onClick={()=>setNotice('Help centre opened. Guides and support are available here.')}><span>?</span><div><strong>Need help?</strong><small>Guides and support</small></div></button>
+        </aside>
+        <section className="workspace">
+          <header className="topbar">
+            <div className="business-switch-wrap"><button className="business-switch" onClick={()=>{setSwitcher(!switcher);setTopPanel(null)}}><span style={{background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:'8px',padding:'2px',display:'inline-flex',alignItems:'center',justifyContent:'center',overflow:'hidden',width:36,height:36,flexShrink:0}}><img src="/bems-mark.png" alt="BEMS logo" style={{width:'100%',height:'100%',objectFit:'contain'}}/></span><div><strong>{current.name}</strong><small>{current.industry}</small></div><b>⌄</b></button>{switcher&&<div className="switch-menu"><p>SWITCH WORKSPACE</p>{businesses.map(b=><button className={b.id===current.id?'selected':''} key={b.id} onClick={()=>selectBusiness(b.id)}><span style={{background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:'6px',padding:'2px',display:'inline-flex',alignItems:'center',justifyContent:'center',overflow:'hidden',width:28,height:28,flexShrink:0}}><img src="/bems-mark.png" alt="" style={{width:'100%',height:'100%',objectFit:'contain'}}/></span><div><strong>{b.name}</strong><small>{b.industry} · {b.readiness}% ready</small></div>{b.id===current.id&&<b>✓</b>}</button>)}<button className="switch-add" onClick={()=>{setSwitcher(false);setActive('Settings')}}>⚙ Manage businesses in Settings</button></div>}</div><div className="global-search"><span>⌕</span><input aria-label="Search workspace" value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Search ${current.name}`}/><kbd>⌘ K</kbd>{search&&<div className="search-results">{(searchResults.length||dataResults.length)?<>{searchResults.map(name=><button key={`nav-${name}`} onClick={()=>openModule(name)}><span>{isLocked(name)?'⌾':'→'}</span><div><strong>{name}</strong><small>{isLocked(name)?'Locked in current environment':'Open in this workspace'}</small></div></button>)}{dataResults.map((r,i)=><button key={`data-${i}`} onClick={()=>openModule(r.navigate)}><span>◎</span><div><strong>{r.label}</strong><small>{r.type} · {r.sublabel}</small></div></button>)}</>:<p>No workspace results</p>}</div>}</div>
+            <div className="top-actions">
+              {isStaff && (
+                <button
+                  className="templates-top"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') window.location.href = '/requests/new';
+                  }}
+                  style={{ background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)', color: '#fff', border: 'none' }}
+                >
+                  <span>＋</span>
+                  <div>
+                    <strong>New Fund Request</strong>
+                    <small>Submit for approval</small>
+                  </div>
+                  <b>Create ＋</b>
+                </button>
+              )}
+              <div className="top-popover-wrap"><button className="top-icon notification" aria-label="Notifications" aria-expanded={topPanel==='notifications'} onClick={()=>setTopPanel(topPanel==='notifications'?null:'notifications')}>♧{!notificationsRead&&<i/>}</button>{topPanel==='notifications'&&<div className={notificationsRead?'top-popover notifications-panel read':'top-popover notifications-panel'}><header><strong>Notifications</strong><button onClick={()=>setTopPanel(null)}>×</button></header><button onClick={()=>{setActive('Setup & launch');setTopPanel(null)}}><span>!</span><div><strong>Finish channel review</strong><small>Required before your first launch</small></div></button><button onClick={()=>{setActive('Test centre');setTopPanel(null)}}><span>✓</span><div><strong>46 tests are passing</strong><small>5 checks still need attention</small></div></button><button onClick={()=>{setActive('Billing & usage');setTopPanel(null)}}><span>₦</span><div><strong>Usage is within estimate</strong><small>66% of this month’s budget</small></div></button><footer onClick={()=>{setNotificationsRead(true);setNotice('All notifications marked as read.');setTopPanel(null)}}>Mark all as read</footer></div>}</div>
+              <div className="top-popover-wrap"><button className="avatar" aria-label="Account menu" aria-expanded={topPanel==='account'} onClick={()=>setTopPanel(topPanel==='account'?null:'account')}>{initialsOf(safeUser.fullName)}</button>{topPanel==='account'&&<div className="top-popover account-panel"><div><span>{initialsOf(safeUser.fullName)}</span><strong>{safeUser.fullName}</strong><small>{safeUser.email}</small></div><button onClick={()=>{setActive('Settings');setTopPanel(null)}}>Account & business settings</button><button onClick={()=>{setActive('Team & access');setTopPanel(null)}}>Team and access</button><button onClick={()=>{setNotice('Help centre opened.');setTopPanel(null)}}>Help centre</button><button onClick={onSignOut}>Sign out</button></div>}</div>
+            </div>
+          </header>
+          <div className="content">
+            {notices.length>0&&<div className="notice-stack">{notices.map(n=><div className="notice" key={n.id}><span>i</span>{n.message}<button onClick={()=>dismissNotice(n.id)}>×</button></div>)}</div>}
+            {content}
+          </div>
+        </section>
+        {switching && (
+          <AiMotionEntryScreen
+            onComplete={() => setSwitching(null)}
+            businessName="BEMS Group"
+            userName={safeUser.fullName}
+            userRole={safeUser.role}
+            mode="reload"
+          />
+        )}
+        {isAiAuthorized && (
+          <>
+            <AiScreenEdgeGlow isActive={true} isProcessing={aiManager.isTyping} />
+            <AmbientBottomAiBar
+              currentPage={active}
+              businessName={current.name}
+              userName={safeUser.fullName}
+              userRole={currentRole}
+              messages={aiManager.messages}
+              isTyping={aiManager.isTyping}
+              isInspectMode={isInspectMode}
+              onToggleInspectMode={toggleInspectMode}
+              onSendMessage={aiManager.sendMessage}
+              onConfirmAction={aiManager.handleConfirmAction}
+              onOpenFullCockpit={handleOpenAiDrawer}
+              onNavigate={(tab) => {
+                openModule(tab);
               }}
-              style={{ background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)', color: '#fff', border: 'none' }}
-            >
-              <span>＋</span>
-              <div>
-                <strong>New Fund Request</strong>
-                <small>Submit for approval</small>
-              </div>
-              <b>Create ＋</b>
-            </button>
-          )}
-          <div className="top-popover-wrap"><button className="top-icon notification" aria-label="Notifications" aria-expanded={topPanel==='notifications'} onClick={()=>setTopPanel(topPanel==='notifications'?null:'notifications')}>♧{!notificationsRead&&<i/>}</button>{topPanel==='notifications'&&<div className={notificationsRead?'top-popover notifications-panel read':'top-popover notifications-panel'}><header><strong>Notifications</strong><button onClick={()=>setTopPanel(null)}>×</button></header><button onClick={()=>{setActive('Setup & launch');setTopPanel(null)}}><span>!</span><div><strong>Finish channel review</strong><small>Required before your first launch</small></div></button><button onClick={()=>{setActive('Test centre');setTopPanel(null)}}><span>✓</span><div><strong>46 tests are passing</strong><small>5 checks still need attention</small></div></button><button onClick={()=>{setActive('Billing & usage');setTopPanel(null)}}><span>₦</span><div><strong>Usage is within estimate</strong><small>66% of this month’s budget</small></div></button><footer onClick={()=>{setNotificationsRead(true);setNotice('All notifications marked as read.');setTopPanel(null)}}>Mark all as read</footer></div>}</div>
-          <div className="top-popover-wrap"><button className="avatar" aria-label="Account menu" aria-expanded={topPanel==='account'} onClick={()=>setTopPanel(topPanel==='account'?null:'account')}>{initialsOf(safeUser.fullName)}</button>{topPanel==='account'&&<div className="top-popover account-panel"><div><span>{initialsOf(safeUser.fullName)}</span><strong>{safeUser.fullName}</strong><small>{safeUser.email}</small></div><button onClick={()=>{setActive('Settings');setTopPanel(null)}}>Account & business settings</button><button onClick={()=>{setActive('Team & access');setTopPanel(null)}}>Team and access</button><button onClick={()=>{setNotice('Help centre opened.');setTopPanel(null)}}>Help centre</button><button onClick={onSignOut}>Sign out</button></div>}</div>
-        </div>
-      </header>
-      <div className="content">
-        {notices.length>0&&<div className="notice-stack">{notices.map(n=><div className="notice" key={n.id}><span>i</span>{n.message}<button onClick={()=>dismissNotice(n.id)}>×</button></div>)}</div>}
-        {content}
-      </div>
-    </section>
-    {switching && (
-      <AiMotionEntryScreen
-        onComplete={() => setSwitching(null)}
-        businessName="BEMS Group"
-        userName={safeUser.fullName}
-        userRole={safeUser.role}
-        mode="reload"
-      />
-    )}
-    {isAiAuthorized && (
-      <>
-        <AiScreenEdgeGlow isActive={true} isProcessing={aiManager.isTyping} />
-        <AmbientBottomAiBar
-          currentPage={active}
-          businessName={current.name}
-          userName={safeUser.fullName}
-          userRole={currentRole}
-          messages={aiManager.messages}
-          isTyping={aiManager.isTyping}
-          onSendMessage={aiManager.sendMessage}
-          onConfirmAction={aiManager.handleConfirmAction}
-          onOpenFullCockpit={handleOpenAiDrawer}
-          onNavigate={(tab) => {
-            openModule(tab);
-          }}
-        />
-        <AiFinancialManagerDrawer
-          isOpen={aiDrawerOpen}
-          onClose={() => {
-            setAiDrawerOpen(false);
-            setActiveAiPrompt(undefined);
-          }}
-          userRole={currentRole}
-          userName={safeUser.fullName}
-          businessName={current.name}
-          businessId={current.id}
-          currentPage={active}
-          initialPrompt={activeAiPrompt}
-          onNavigate={(tab) => {
-            openModule(tab);
-            setAiDrawerOpen(false);
-          }}
-          sharedMessages={aiManager.messages}
-          sharedIsTyping={aiManager.isTyping}
-          onSendMessage={aiManager.sendMessage}
-          onConfirmAction={aiManager.handleConfirmAction}
-        />
-      </>
-    )}
-  </main>;
+            />
+            <AiFinancialManagerDrawer
+              isOpen={aiDrawerOpen}
+              onClose={() => {
+                setAiDrawerOpen(false);
+                setActiveAiPrompt(undefined);
+              }}
+              userRole={currentRole}
+              userName={safeUser.fullName}
+              businessName={current.name}
+              businessId={current.id}
+              currentPage={active}
+              initialPrompt={activeAiPrompt}
+              onNavigate={(tab) => {
+                openModule(tab);
+                setAiDrawerOpen(false);
+              }}
+              sharedMessages={aiManager.messages}
+              sharedIsTyping={aiManager.isTyping}
+              onSendMessage={aiManager.sendMessage}
+              onConfirmAction={aiManager.handleConfirmAction}
+            />
+          </>
+        )}
+      </main>
+    </UniversalClickToAskProvider>
+  );
 }
 
 export default function Home() {
