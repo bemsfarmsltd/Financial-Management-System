@@ -16,6 +16,7 @@ const ALLOWED_INVITE_ROLES = [
   'DEPT_HEAD',
   'HR',
   'DIRECTOR',
+  'AI_ANALYST',
 ];
 
 // GET: Validate an invitation token OR list pending invitations for administrators

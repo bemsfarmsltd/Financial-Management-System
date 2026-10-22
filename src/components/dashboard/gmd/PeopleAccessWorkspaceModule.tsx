@@ -50,6 +50,7 @@ const ADMIN_ROLES = [
   { value: 'HR', label: 'HR — Human Resources Lead' },
   { value: 'COO', label: 'COO — Chief Operating Officer' },
   { value: 'DIRECTOR', label: 'Board Member / Director' },
+  { value: 'AI_ANALYST', label: 'AI Intelligence & Copilot (AI Only)' },
   { value: 'SYSTEM_ADMIN', label: 'System Administrator' },
   { value: 'GMD', label: 'GMD — Group Managing Director' },
 ];

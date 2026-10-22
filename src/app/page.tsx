@@ -152,7 +152,7 @@ const goalPresets: Record<string, string[]> = {
 const defaultGoals = ['Answer customer questions', 'Collect information', 'Process payments', 'Book appointments', 'Send notifications', 'Handle support cases'];
 
 
-type SystemRole = 'GMD' | 'SYSTEM_ADMIN' | 'STAFF';
+type SystemRole = 'GMD' | 'SYSTEM_ADMIN' | 'STAFF' | 'DIRECTOR' | 'AI_ANALYST';
 
 interface RoleProfile {
   role: SystemRole;
@@ -162,10 +162,12 @@ interface RoleProfile {
   avatarColor: string;
 }
 
-const roleProfiles: Record<SystemRole, RoleProfile> = {
+const roleProfiles: Record<string, RoleProfile> = {
   GMD: { role: 'GMD', title: 'Group Managing Director', badge: 'Super Executive', platform: 'Executive Command Center', avatarColor: '#ea580c' },
   SYSTEM_ADMIN: { role: 'SYSTEM_ADMIN', title: 'System Administrator', badge: 'Super Executive', platform: 'Executive Command Center', avatarColor: '#ea580c' },
   STAFF: { role: 'STAFF', title: 'Staff Member', badge: 'Self-Service', platform: 'Staff Requisition & Accountability Portal', avatarColor: '#2563eb' },
+  DIRECTOR: { role: 'DIRECTOR', title: 'Board Member / Director', badge: 'Executive Board', platform: 'Board Governance Center', avatarColor: '#0d9488' },
+  AI_ANALYST: { role: 'AI_ANALYST', title: 'AI Copilot Specialist', badge: 'AI Intelligence Only', platform: 'AI Intelligence Command', avatarColor: '#8b5cf6' },
 };
 
 const staffNavGroups = [
@@ -227,7 +229,20 @@ const gmdNavGroups = [
   },
 ];
 
+const aiAnalystNavGroups = [
+  {
+    label: 'AI INTELLIGENCE & BRIEFINGS',
+    items: [
+      ['Executive briefing', '✦'],
+      ['Request channels', '◎'],
+    ]
+  },
+];
+
 function getRoleNavigation(role?: string) {
+  if (role === 'AI_ANALYST') {
+    return aiAnalystNavGroups;
+  }
   if (role === 'STAFF') {
     return staffNavGroups;
   }
@@ -2314,9 +2329,10 @@ function VendorsModule({business,setNotice,onNavigate}:{business:Business;setNot
 
 function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurrentId,onUpdateBusiness}:{user:AuthUser;onSignOut:()=>void;onAddBusiness:()=>void;businesses:Business[];currentId:string;setCurrentId:(value:string)=>void;onUpdateBusiness:(id:string,patch:Partial<Business>)=>Promise<Business>}) {
   const safeUser: AuthUser = user;
+  const isAiOnly = (safeUser.role as string) === 'AI_ANALYST';
   const [currentRole, setCurrentRole] = useState<SystemRole>((safeUser.role as SystemRole) || 'GMD');
   const isStaff = (currentRole as string) === 'STAFF' || (safeUser.role as string) === 'STAFF';
-  const [active,setActive]=useState('Overview');
+  const [active,setActive]=useState(isAiOnly ? 'Executive briefing' : 'Overview');
   const [collapsed,setCollapsed]=useState(false);
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -2610,6 +2626,13 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           />
         );
       }
+    }
+
+    if (isAiOnly) {
+      if (target === 'Request channels') {
+        return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={(p) => p === '/requests' ? setActive('Executive briefing') : window.location.href = p} />;
+      }
+      return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p) => setActive(p)} />;
     }
 
     if(target==='Overview') return <RoleOverviewModule role={currentRole} business={current} user={safeUser} cases={cases} setActive={setActive} setNotice={setNotice} onRoleChange={(r) => setCurrentRole(r)}/>;
