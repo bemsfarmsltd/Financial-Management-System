@@ -20,8 +20,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'This account is not active. Contact your System Admin.' }, { status: 403 });
     }
 
-    await createEmployeeSession(employee.id);
-    return NextResponse.json({ user: publicEmployee(employee) });
+    const session = await createEmployeeSession(employee.id);
+    const res = NextResponse.json({ user: publicEmployee(employee) });
+    res.cookies.set('bems_session', session.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      expires: session.expiresAt,
+    });
+    return res;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json({ error: 'Could not sign in.' }, { status: 500 });

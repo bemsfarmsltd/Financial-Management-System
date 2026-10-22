@@ -49,6 +49,7 @@ export async function createEmployeeSession(employeeId: string) {
     path: '/',
     expires: expiresAt,
   });
+  return { token, expiresAt };
 }
 
 export async function getAuthenticatedEmployee(): Promise<AuthenticatedEmployee | null> {
