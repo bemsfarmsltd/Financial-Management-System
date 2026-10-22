@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { Check, RefreshCw, ShieldCheck, UserPlus, UserRound, X, Mail, Clock, Send, Trash2, Building2 } from 'lucide-react';
+import { Check, RefreshCw, ShieldCheck, UserPlus, UserRound, X, Mail, Clock, Send, Trash2, Building2, Copy, CheckCheck } from 'lucide-react';
 
 type PendingSignup = {
   id: string;
@@ -34,6 +34,7 @@ type AdminInvitationItem = {
   subsidiary?: { id: string; legalName: string };
   departmentId?: string | null;
   positionName?: string | null;
+  token: string;
   status: 'PENDING' | 'COMPLETED' | 'EXPIRED' | 'REVOKED';
   expiresAt: string;
   createdAt: string;
@@ -70,6 +71,7 @@ export function PeopleAccessWorkspaceModule({
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
+  const [copiedId, setCopiedId] = useState('');
 
   // Row approval configuration state
   const [approvalRoles, setApprovalRoles] = useState<Record<string, string>>({});
@@ -203,6 +205,18 @@ export function PeopleAccessWorkspaceModule({
       setInviteError(err.message || 'Failed to send invitation.');
     } finally {
       setInviteBusy(false);
+    }
+  };
+
+  const copyInviteLink = async (token: string, id: string) => {
+    const url = `${typeof window !== 'undefined' ? window.location.origin : 'https://bemserp.work'}/onboard?token=${encodeURIComponent(token)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(id);
+      setNotice('Onboarding link copied to clipboard!');
+      setTimeout(() => setCopiedId(''), 3000);
+    } catch {
+      setNotice(`Invite Link: ${url}`);
     }
   };
 
@@ -356,6 +370,28 @@ export function PeopleAccessWorkspaceModule({
                     <Clock size={13} />
                     <span>Expires {new Date(inv.expiresAt).toLocaleDateString('en-GB')}</span>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => void copyInviteLink(inv.token, inv.id)}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      color: '#0f172a',
+                      padding: '5px 12px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    {copiedId === inv.id ? <CheckCheck size={13} color="#16a34a" /> : <Copy size={13} />}
+                    {copiedId === inv.id ? 'Copied Link!' : 'Copy Link'}
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => void revokeInvitation(inv.id)}

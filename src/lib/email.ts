@@ -10,7 +10,9 @@ export interface EmailOptions {
   eventType?: string;
 }
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://bemserp.work';
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL && !process.env.NEXT_PUBLIC_APP_URL.includes('hostingersite.com'))
+  ? process.env.NEXT_PUBLIC_APP_URL
+  : 'https://bemserp.work';
 const SMTP_FROM = process.env.SMTP_FROM || 'BEMS Group Notifications <notifications@bemserp.work>';
 const RESEND_FROM = process.env.RESEND_FROM || 'BEMS Group Notifications <notifications@bemserp.work>';
 
