@@ -11,7 +11,7 @@ export async function GET() {
   try {
     const actor = await getAuthenticatedEmployee();
     if (!actor) return NextResponse.json({ error: 'Sign in to view recurring commitments.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR'])) {
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR', 'COO', 'FINANCE', 'DIRECTOR', 'HEAD_OF_ADMIN', 'AI_ANALYST', 'FINANCE_CONTROLLER'])) {
       return NextResponse.json({ error: 'You do not have access to group recurring commitments.' }, { status: 403 });
     }
 
@@ -40,7 +40,9 @@ export async function GET() {
     });
 
     const approved = requests.filter((request) => request.approvalStatus === 'APPROVED');
-    const nextDue = approved.filter((request) => request.neededBy.getTime() >= Date.now()).sort((a, b) => a.neededBy.getTime() - b.neededBy.getTime())[0];
+    const nextDue = approved
+      .filter((request) => request.neededBy && new Date(request.neededBy).getTime() >= Date.now())
+      .sort((a, b) => new Date(a.neededBy).getTime() - new Date(b.neededBy).getTime())[0];
     const annualRunRateMinor = approved.reduce((total, request) => {
       const multiplier = request.recurringInterval ? annualMultipliers[request.recurringInterval] : undefined;
       return total + (multiplier ? request.amountMinor * multiplier : BigInt(0));
@@ -51,6 +53,8 @@ export async function GET() {
         ...request,
         systemId: toSystemRequestId(request.id),
         amountMinor: request.amountMinor.toString(),
+        createdAt: request.createdAt ? new Date(request.createdAt).toISOString() : new Date().toISOString(),
+        neededBy: request.neededBy ? new Date(request.neededBy).toISOString() : new Date().toISOString(),
       })),
       summary: {
         approvedCount: approved.length,

@@ -202,7 +202,7 @@ export function SubsidiaryPortfolioView({
   const [creatingSub, setCreatingSub] = useState(false);
 
   const loadData = () => {
-    fetch('/api/portfolio')
+    fetch('/api/portfolio', { credentials: 'include' })
       .then((res) => res.json())
       .then((json) => {
         if (json.portfolio) {

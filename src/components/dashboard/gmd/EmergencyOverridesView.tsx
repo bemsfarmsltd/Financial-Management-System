@@ -78,8 +78,8 @@ export function EmergencyOverridesView({
     try {
       setLoading(true);
       const [res, orgRes] = await Promise.all([
-        fetch('/api/emergency'),
-        fetch('/api/organizations')
+        fetch('/api/emergency', { credentials: 'include' }),
+        fetch('/api/organizations', { credentials: 'include' })
       ]);
       const json = await res.json();
       const orgJson = await orgRes.json();

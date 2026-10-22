@@ -78,7 +78,7 @@ export function TreasuryAccountsView({
   const fetchTreasury = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/treasury');
+      const res = await fetch('/api/treasury', { credentials: 'include' });
       const data = await res.json();
       if (data) {
         setAccounts(data.accounts || []);
@@ -111,6 +111,7 @@ export function TreasuryAccountsView({
       setSubmitting(true);
       const res = await fetch('/api/treasury', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
@@ -146,7 +147,8 @@ export function TreasuryAccountsView({
     if (!confirm(`Are you sure you want to remove ${name}?`)) return;
     try {
       const res = await fetch(`/api/treasury?id=${encodeURIComponent(id)}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include'
       });
       if (res.ok) {
         setNotice('Bank account removed.');

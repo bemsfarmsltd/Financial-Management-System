@@ -140,7 +140,7 @@ export function DisbursementsDeskView({
   const fetchDisbursements = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/disbursements?subsidiary=ALL');
+      const res = await fetch('/api/disbursements?subsidiary=ALL', { credentials: 'include' });
       const data = await res.json();
       if (data) {
         setReadyRequests(data.readyForTransfer || []);

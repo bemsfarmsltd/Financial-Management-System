@@ -29,8 +29,8 @@ export function FundFlowWorkspace({
     setRefreshing(true);
     try {
       const [approvalsResponse, paymentsResponse] = await Promise.all([
-        fetch('/api/approvals?subsidiary=ALL'),
-        fetch('/api/disbursements?subsidiary=ALL'),
+        fetch('/api/approvals?subsidiary=ALL', { credentials: 'include' }),
+        fetch('/api/disbursements?subsidiary=ALL', { credentials: 'include' }),
       ]);
       if (approvalsResponse.ok) {
         const approvals = await approvalsResponse.json();

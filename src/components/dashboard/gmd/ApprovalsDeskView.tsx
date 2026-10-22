@@ -185,7 +185,7 @@ export function ApprovalsDeskView({
     try {
       setLoading(true);
       const url = `/api/approvals?subsidiary=${encodeURIComponent(selectedSubsidiary)}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to load approvals queue');
       const data = await res.json();
       setRequests(data.requests || []);
@@ -207,7 +207,7 @@ export function ApprovalsDeskView({
   }, [selectedSubsidiary]);
 
   useEffect(() => {
-    fetch('/api/disbursements/assignees')
+    fetch('/api/disbursements/assignees', { credentials: 'include' })
       .then(async (response) => response.ok ? response.json() : null)
       .then((data) => {
         if (!data) return;
@@ -299,6 +299,7 @@ export function ApprovalsDeskView({
 
       const res = await fetch('/api/approvals/decide', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });

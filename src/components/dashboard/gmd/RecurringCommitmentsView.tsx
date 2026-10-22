@@ -46,7 +46,11 @@ export function RecurringCommitmentsView({ businessName }: { businessName: strin
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/recurring');
+      let response = await fetch('/api/recurring', { credentials: 'include' });
+      if (response.status === 401) {
+        await new Promise((r) => setTimeout(r, 350));
+        response = await fetch('/api/recurring', { credentials: 'include' });
+      }
       const contentType = response.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
         throw new Error('The recurring requests service returned an unexpected response. Refresh the page and sign in again if needed.');
