@@ -35,7 +35,7 @@ function bucketLabel(key: string, granularity: 'day' | 'week' | 'month') {
 }
 
 export async function GET(request: Request) {
-  const actor = await getAuthenticatedEmployee();
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to view group analytics.' }, { status: 401 });
   const isStaff = actor.role === 'STAFF';
 

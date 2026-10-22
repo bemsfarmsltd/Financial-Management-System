@@ -40,9 +40,9 @@ function formatNaira(amount: number): string {
 
 export async function GET(req: NextRequest) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view treasury information.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE'])) {
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'COO', 'DIRECTOR', 'HEAD_OF_ADMIN', 'AI_ANALYST', 'FINANCE_CONTROLLER', 'HR'])) {
       return NextResponse.json({ error: 'Executive or finance access is required.' }, { status: 403 });
     }
 
@@ -93,9 +93,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to configure treasury accounts.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE'])) {
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'COO', 'FINANCE_CONTROLLER'])) {
       return NextResponse.json({ error: 'Only GMD, System Admin, or Finance can add company bank accounts.' }, { status: 403 });
     }
 
@@ -157,9 +157,9 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to configure treasury accounts.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) {
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'COO'])) {
       return NextResponse.json({ error: 'Only GMD or System Admin can delete bank accounts.' }, { status: 403 });
     }
 

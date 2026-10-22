@@ -6,7 +6,7 @@ import { notifyApprovalRequired } from "@/lib/notifications/bridge";
 
 export async function POST(request: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: "Sign in to submit a fund request." }, { status: 401 });
     if (actor.role === "GMD") return NextResponse.json({ error: "The GMD reviews requests and does not submit fund requests." }, { status: 403 });
 

@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to view requests.' }, { status: 401 });
     const { searchParams } = new URL(request.url);
     const subsidiaryCode = searchParams.get('subsidiary');

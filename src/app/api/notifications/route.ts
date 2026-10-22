@@ -3,7 +3,7 @@ import { getAuthenticatedEmployee } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(request: Request) {
-  let actor = await getAuthenticatedEmployee();
+  let actor = await getAuthenticatedEmployee(request);
   if (!actor) {
     const mobileRole = request.headers.get('x-bems-mobile-role');
     if (mobileRole === 'GMD' || mobileRole === 'SYSTEM_ADMIN') {
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const actor = await getAuthenticatedEmployee();
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to update notifications.' }, { status: 401 });
   try {
     const body = await request.json();

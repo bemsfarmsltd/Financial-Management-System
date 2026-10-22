@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    let actor = await getAuthenticatedEmployee();
+    let actor = await getAuthenticatedEmployee(request);
     if (!actor) {
       const mobileRole = request.headers.get('x-bems-mobile-role');
       if (mobileRole === 'GMD' || mobileRole === 'SYSTEM_ADMIN') {

@@ -7,7 +7,7 @@ export const revalidate = 0;
 
 export async function GET(req: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view staff records.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'COO', 'HEAD_OF_ADMIN', 'HR', 'DIRECTOR', 'FINANCE'])) {
       return NextResponse.json({ error: 'HR or executive access is required to view staff and salary records.' }, { status: 403 });

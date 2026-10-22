@@ -6,9 +6,9 @@ export const dynamic = 'force-dynamic';
 
 const disbursementRoles = ['SYSTEM_ADMIN', 'GMD', 'FINANCE'];
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to assign disbursement recording.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) {
       return NextResponse.json({ error: 'Only the GMD or System Admin can assign disbursement recording.' }, { status: 403 });

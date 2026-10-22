@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 const editableKeys = new Set(['approval.controls', 'notifications.preferences', 'data.retention', 'ai.access']);
 
 export async function GET(request: Request) {
-  const actor = await getAuthenticatedEmployee();
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to view workspace settings.' }, { status: 401 });
   const organizationId = new URL(request.url).searchParams.get('organizationId');
   if (!organizationId) return NextResponse.json({ error: 'organizationId is required.' }, { status: 400 });
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const actor = await getAuthenticatedEmployee();
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to change workspace settings.' }, { status: 401 });
   if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Only the GMD or System Admin can change workspace settings.' }, { status: 403 });
   const body = await request.json().catch(() => ({}));

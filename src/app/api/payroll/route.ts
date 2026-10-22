@@ -16,7 +16,7 @@ function formatNaira(minor: bigint | number): string {
 
 export async function GET(req: NextRequest) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view payroll.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR'])) return NextResponse.json({ error: 'HR or executive access is required to view payroll.' }, { status: 403 });
     const requestedYear = req.nextUrl.searchParams.get('year');
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to approve payroll.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Only the System Admin or GMD can approve payroll.' }, { status: 403 });
     const body = await req.json();

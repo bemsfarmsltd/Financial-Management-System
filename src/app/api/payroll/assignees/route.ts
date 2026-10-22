@@ -4,8 +4,8 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const actor = await getAuthenticatedEmployee();
+export async function GET(request: Request) {
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to assign payroll payment recording.' }, { status: 401 });
   if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Only the GMD or System Admin can assign payroll payment recording.' }, { status: 403 });
 

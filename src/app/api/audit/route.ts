@@ -4,7 +4,7 @@ import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 
 export async function GET(request: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to view audit history.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive audit access is required.' }, { status: 403 });
     const { searchParams } = new URL(request.url);

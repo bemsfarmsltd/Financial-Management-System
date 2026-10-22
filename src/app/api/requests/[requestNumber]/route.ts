@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ requestNumber?: string; id?: string }> }
 ) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(request);
     const resolvedParams = await params;
     const id = resolvedParams.requestNumber || resolvedParams.id;
 

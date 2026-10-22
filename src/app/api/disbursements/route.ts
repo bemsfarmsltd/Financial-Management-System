@@ -17,7 +17,7 @@ function formatNaira(minor: bigint | number): string {
 
 export async function GET(req: NextRequest) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view disbursements.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'VERIFIER'])) return NextResponse.json({ error: 'Finance access is required.' }, { status: 403 });
     const { searchParams } = new URL(req.url);
@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
 // Finance/GMD/System Admin records an off-platform bank transfer and notifies its requester.
 export async function POST(req: NextRequest) {
   try {
-    const maker = await getAuthenticatedEmployee();
+    const maker = await getAuthenticatedEmployee(req);
     if (!maker) return NextResponse.json({ error: 'Sign in to record a payment.' }, { status: 401 });
     if (!hasAnyRole(maker, ['SYSTEM_ADMIN', 'GMD', 'FINANCE'])) return NextResponse.json({ error: 'Finance or GMD access is required to record a payment.' }, { status: 403 });
     const body = await req.formData();

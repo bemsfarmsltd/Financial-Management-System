@@ -7,9 +7,9 @@ export const dynamic = 'force-dynamic';
 
 const annualMultipliers: Record<string, bigint> = { MONTHLY: BigInt(12), QUARTERLY: BigInt(4), ANNUAL: BigInt(1) };
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to view recurring commitments.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR', 'COO', 'FINANCE', 'DIRECTOR', 'HEAD_OF_ADMIN', 'AI_ANALYST', 'FINANCE_CONTROLLER'])) {
       return NextResponse.json({ error: 'You do not have access to group recurring commitments.' }, { status: 403 });

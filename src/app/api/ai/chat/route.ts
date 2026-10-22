@@ -32,7 +32,7 @@ function formatNaira(amount: number): string {
 
 export async function POST(req: NextRequest) {
   try {
-    let actor = await getAuthenticatedEmployee();
+    let actor = await getAuthenticatedEmployee(req);
     if (!actor) {
       const mobileRole = req.headers.get('x-bems-mobile-role');
       if (mobileRole === 'GMD' || mobileRole === 'SYSTEM_ADMIN') {

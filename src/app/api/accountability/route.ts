@@ -5,10 +5,12 @@ import { toSystemRequestId } from '@/lib/request-id';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const actor = await getAuthenticatedEmployee();
+export async function GET(request: Request) {
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to view accountability cases.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR', 'STAFF'])) return NextResponse.json({ error: 'Accountability access is required.' }, { status: 403 });
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR', 'STAFF', 'COO', 'FINANCE', 'DIRECTOR', 'HEAD_OF_ADMIN', 'AI_ANALYST', 'FINANCE_CONTROLLER'])) {
+    return NextResponse.json({ error: 'Accountability access is required.' }, { status: 403 });
+  }
 
   // Staff can see and submit proof only for requests they own or requested.
   const ownCasesOnly = actor.role === 'STAFF';

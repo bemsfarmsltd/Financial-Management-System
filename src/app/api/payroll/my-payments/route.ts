@@ -8,8 +8,8 @@ function formatNaira(minor: bigint) {
   return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(Number(minor) / 100);
 }
 
-export async function GET() {
-  const actor = await getAuthenticatedEmployee();
+export async function GET(request: Request) {
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to review your payroll payments.' }, { status: 401 });
   const payments = await prisma.disbursement.findMany({
     where: { beneficiaryEmployeeId: actor.id, payrollItemId: { not: null } },
