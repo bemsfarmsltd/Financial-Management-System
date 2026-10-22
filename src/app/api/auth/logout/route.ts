@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server';
 import { destroyEmployeeSession } from '@/lib/auth';
 
+function getPublicRedirectUrl(request: Request): string {
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const host = forwardedHost || request.headers.get('host') || 'bemserp.work';
+  const proto = request.headers.get('x-forwarded-proto') || 'https';
+  const cleanHost = (host.includes('0.0.0.0') || host.includes('localhost') && process.env.NODE_ENV === 'production')
+    ? 'bemserp.work'
+    : host;
+  return `${proto}://${cleanHost}/`;
+}
+
 function makeLogoutResponse(redirectUrl?: string) {
   const res = redirectUrl
     ? NextResponse.redirect(redirectUrl)
@@ -38,6 +48,6 @@ export async function POST() {
 
 export async function GET(request: Request) {
   await destroyEmployeeSession();
-  const resUrl = new URL('/', request.url);
-  return makeLogoutResponse(resUrl.toString());
+  const targetUrl = getPublicRedirectUrl(request);
+  return makeLogoutResponse(targetUrl);
 }
