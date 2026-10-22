@@ -136,12 +136,24 @@ export async function getAuthenticatedEmployee(): Promise<AuthenticatedEmployee 
 }
 
 export async function destroyEmployeeSession() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
-  if (token) {
-    await prisma.authSession.deleteMany({ where: { tokenHash: hashToken(token) } });
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get(COOKIE_NAME)?.value;
+    if (token) {
+      await prisma.authSession.deleteMany({ where: { tokenHash: hashToken(token) } }).catch(() => {});
+    }
+    cookieStore.delete(COOKIE_NAME);
+    cookieStore.set(COOKIE_NAME, '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 0,
+      expires: new Date(0),
+    });
+  } catch (err) {
+    console.error('Error destroying session:', err);
   }
-  cookieStore.set(COOKIE_NAME, '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 0 });
 }
 
 export function publicEmployee(employee: AuthenticatedEmployee) {

@@ -2313,7 +2313,7 @@ function VendorsModule({business,setNotice,onNavigate}:{business:Business;setNot
 }
 
 function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurrentId,onUpdateBusiness}:{user:AuthUser;onSignOut:()=>void;onAddBusiness:()=>void;businesses:Business[];currentId:string;setCurrentId:(value:string)=>void;onUpdateBusiness:(id:string,patch:Partial<Business>)=>Promise<Business>}) {
-  const safeUser: AuthUser = user || { id: 'auth-user', fullName: 'Authorized User', email: '', role: 'GMD' };
+  const safeUser: AuthUser = user;
   const [currentRole, setCurrentRole] = useState<SystemRole>((safeUser.role as SystemRole) || 'GMD');
   const isStaff = (currentRole as string) === 'STAFF' || (safeUser.role as string) === 'STAFF';
   const [active,setActive]=useState('Overview');
@@ -2355,7 +2355,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
 
   const aiManager = useAiFinancialManager({
     userRole: currentRole,
-    userName: safeUser?.fullName || 'Dr Pastra',
+    userName: safeUser.fullName || 'User',
     businessName: current?.name || 'BEMS Group',
     businessId: current?.id || 'bems-group-hq',
     currentPage: active,
@@ -2764,18 +2764,25 @@ export default function Home() {
   const [businesses,setBusinesses]=useState<Business[]>(defaultBemsBusinesses);
   const [currentId,setCurrentId]=useState('bems-group-hq');
   const [status,setStatus]=useState<'loading'|'ready'|'error'>('ready');
-  const [showAiEntry, setShowAiEntry] = useState(true);
+  const [showAiEntry, setShowAiEntry] = useState(false);
   const [entryMode, setEntryMode] = useState<'login' | 'reload'>('reload');
 
-  const checkAuth=()=>{
+  const checkAuth = () => {
     fetch('/api/auth/session', { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
         const nextUser = data?.user as AuthUser | null;
         setUser(nextUser);
         setAuthStatus(nextUser ? 'signed-in' : 'signed-out');
+        if (nextUser) {
+          setShowAiEntry(true);
+        }
       })
-      .catch(() => { setUser(null); setAuthStatus('signed-out'); });
+      .catch(() => {
+        setUser(null);
+        setAuthStatus('signed-out');
+        setShowAiEntry(false);
+      });
   };
   useEffect(() => {
     checkAuth();
@@ -2821,7 +2828,7 @@ export default function Home() {
     }
     setShowAiEntry(true);
   };
-  const signOut=()=>{
+  const signOut = async () => {
     setShowAiEntry(false);
     setUser(null);
     setAuthStatus('signed-out');
@@ -2829,7 +2836,12 @@ export default function Home() {
     setCurrentId('');
     setAddingBusiness(false);
     window.dispatchEvent(new Event('bems-session-changed'));
-    authRequest('/api/auth/logout').catch(err => console.error('Logout error:', err));
+    try {
+      await authRequest('/api/auth/logout');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+    window.location.href = '/';
   };
 
   const complete=(data:OnboardingData)=>{
@@ -2871,26 +2883,7 @@ export default function Home() {
     return updated;
   });
 
-  // 1. If signed out, take user directly to Login Page (AuthGate) without any animation
-  if (authStatus === 'signed-out' || (!user && authStatus !== 'checking' && !showAiEntry)) {
-    return <AuthGate onAuthed={onAuthed} />;
-  }
-
-  // 2. Show AI Dynamic Motion Screen on reload or fresh login
-  if (showAiEntry) {
-    return (
-      <AiMotionEntryScreen
-        key={`ai-entry-${entryMode}-${user?.id || 'active'}`}
-        onComplete={() => setShowAiEntry(false)}
-        businessName="BEMS Group"
-        userName={user?.fullName || ''}
-        userRole={user?.role || ''}
-        mode={entryMode}
-      />
-    );
-  }
-
-  // 3. Auth checking indicator
+  // 1. Session verification in progress
   if (authStatus === 'checking') {
     return (
       <main className="app-loading" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b1220' }}>
@@ -2898,7 +2891,25 @@ export default function Home() {
       </main>
     );
   }
-  if (!user) return <AuthGate onAuthed={onAuthed} />;
+
+  // 2. Unauthenticated or signed out: strictly present sign-in / registration
+  if (!user || authStatus === 'signed-out') {
+    return <AuthGate onAuthed={onAuthed} />;
+  }
+
+  // 3. Show dynamic welcome animation only for authenticated users
+  if (showAiEntry) {
+    return (
+      <AiMotionEntryScreen
+        key={`ai-entry-${entryMode}-${user.id}`}
+        onComplete={() => setShowAiEntry(false)}
+        businessName="BEMS Group"
+        userName={user.fullName || 'Staff Member'}
+        userRole={user.role || 'STAFF'}
+        mode={entryMode}
+      />
+    );
+  }
   if (status === 'error') return <main className="app-loading error"><img src="/bems-mark.png" alt="BEMS Group"/><p>Could not reach the BEMS Group API. Confirm the backend is running on port 4001.</p><button onClick={retryLoad}>Retry →</button></main>;
   if (addingBusiness) return <Onboarding onCancel={businesses.length?()=>setAddingBusiness(false):undefined} onComplete={complete}/>;
   if (businesses.length === 0 && authStatus === 'signed-in') return <Onboarding onComplete={complete}/>;
