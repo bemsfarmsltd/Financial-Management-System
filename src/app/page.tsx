@@ -2412,16 +2412,45 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   const isAiOnly = (safeUser.role as string) === 'AI_ANALYST';
   const [currentRole, setCurrentRole] = useState<SystemRole>((safeUser.role as SystemRole) || 'GMD');
   const isStaff = (currentRole as string) === 'STAFF' || (safeUser.role as string) === 'STAFF';
-  const [active,setActive]=useState(isAiOnly ? 'AI Copilot & Chat' : 'Overview');
-  const [collapsed,setCollapsed]=useState(false);
-  const [allowAiAnalystChat, setAllowAiAnalystChat] = useState(true);
-
-  useEffect(() => {
+  const [active, setActive] = useState<string>(() => {
+    if (isAiOnly) return 'AI Copilot & Chat';
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      if (tabParam) setActive(tabParam);
+      if (tabParam) return tabParam;
+      const hashTab = window.location.hash.replace(/^#/, '');
+      if (hashTab) return decodeURIComponent(hashTab);
+      const stored = localStorage.getItem('bems_active_tab');
+      if (stored) return stored;
     }
+    return 'Overview';
+  });
+  const [collapsed, setCollapsed] = useState(false);
+  const [allowAiAnalystChat, setAllowAiAnalystChat] = useState(true);
+
+  // Sync active tab to URL parameter and localStorage so reload stays on the current page
+  useEffect(() => {
+    if (typeof window !== 'undefined' && active) {
+      try {
+        localStorage.setItem('bems_active_tab', active);
+        const currentUrl = new URL(window.location.href);
+        if (currentUrl.searchParams.get('tab') !== active) {
+          currentUrl.searchParams.set('tab', active);
+          window.history.replaceState(null, '', currentUrl.toString());
+        }
+      } catch {}
+    }
+  }, [active]);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handlePopState = () => {
+      const tab = new URLSearchParams(window.location.search).get('tab');
+      if (tab) setActive(tab);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   useEffect(() => {
@@ -2914,7 +2943,28 @@ export default function Home() {
   const [user,setUser]=useState<AuthUser|null>(null);
   const [addingBusiness,setAddingBusiness]=useState(false);
   const [businesses,setBusinesses]=useState<Business[]>(defaultBemsBusinesses);
-  const [currentId,setCurrentId]=useState('bems-group-hq');
+  const [currentId, setCurrentId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const orgParam = new URLSearchParams(window.location.search).get('org');
+      if (orgParam) return orgParam;
+      const stored = localStorage.getItem('bems_active_org');
+      if (stored) return stored;
+    }
+    return 'bems-group-hq';
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && currentId) {
+      try {
+        localStorage.setItem('bems_active_org', currentId);
+        const currentUrl = new URL(window.location.href);
+        if (currentUrl.searchParams.get('org') !== currentId) {
+          currentUrl.searchParams.set('org', currentId);
+          window.history.replaceState(null, '', currentUrl.toString());
+        }
+      } catch {}
+    }
+  }, [currentId]);
   const [status,setStatus]=useState<'loading'|'ready'|'error'>('ready');
   const [showAiEntry, setShowAiEntry] = useState(false);
   const [entryMode, setEntryMode] = useState<'login' | 'reload'>('reload');
