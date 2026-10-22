@@ -17,11 +17,14 @@ export async function GET(request: Request) {
     const whereCondition: any = {};
     if (actor.role === 'STAFF') {
       whereCondition.requestedById = actor.id;
-    } else if (!['SYSTEM_ADMIN', 'GMD', 'HR'].includes(actor.role)) {
+    } else if (!['SYSTEM_ADMIN', 'GMD', 'HR', 'COO', 'FINANCE', 'DIRECTOR', 'HEAD_OF_ADMIN', 'AI_ANALYST', 'FINANCE_CONTROLLER'].includes(actor.role)) {
       return NextResponse.json({ error: 'You do not have access to request records.' }, { status: 403 });
     }
     if (subsidiaryCode && subsidiaryCode !== 'ALL') {
-      whereCondition.subsidiary = { code: subsidiaryCode };
+      whereCondition.OR = [
+        { subsidiary: { code: subsidiaryCode } },
+        { subsidiaryId: subsidiaryCode },
+      ];
     }
 
     if (statusParam && statusParam !== 'ALL') {

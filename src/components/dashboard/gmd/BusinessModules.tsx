@@ -4,11 +4,24 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { RequestDossierModal, type RequestDossier } from '@/components/requests/RequestDossierModal';
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, { credentials: 'include', ...init });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Could not complete ${init?.method || 'request'} (${response.status}).`);
-  return data as T;
+async function api<T>(path: string, init?: RequestInit, retries = 1): Promise<T> {
+  let lastError: unknown;
+  const isGet = !init?.method || init.method.toUpperCase() === 'GET';
+  const maxAttempts = isGet ? retries : 0;
+  for (let attempt = 0; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(path, { credentials: 'include', ...init });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Could not complete ${init?.method || 'request'} (${response.status}).`);
+      return data as T;
+    } catch (err: unknown) {
+      lastError = err;
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Request failed');
 }
 
 const card: CSSProperties = { background: '#fff', border: '1px solid #dce5f1', borderRadius: 14, padding: 18 };

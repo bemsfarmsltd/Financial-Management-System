@@ -44,10 +44,24 @@ import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState 
 
 const API_BASE = "";
 
-async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { credentials: 'include' });
-  if (!res.ok) throw new Error(`GET ${path} failed`);
-  return res.json();
+async function apiGet<T>(path: string, retries = 2): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, { credentials: 'include' });
+      if (res.ok) return (await res.json()) as T;
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(`GET ${path} returned ${res.status}`);
+      }
+      lastError = new Error(`GET ${path} failed with status ${res.status}`);
+    } catch (err: unknown) {
+      lastError = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(`GET ${path} failed`);
 }
 
 async function apiPost<T>(path: string, body?: unknown): Promise<T> {
