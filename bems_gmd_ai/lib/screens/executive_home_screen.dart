@@ -275,7 +275,7 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                 ),
               ),
 
-              const SizedBox(height: 14),
+              const Spacer(),
 
               // Giant Hero Typography (Matching user's reference exactly)
               Padding(
