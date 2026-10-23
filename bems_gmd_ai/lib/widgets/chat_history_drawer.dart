@@ -112,7 +112,7 @@ class _ChatHistoryDrawerState extends State<ChatHistoryDrawer> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'CHAT HISTORY',
+                  'BEMi CHAT HISTORY',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,

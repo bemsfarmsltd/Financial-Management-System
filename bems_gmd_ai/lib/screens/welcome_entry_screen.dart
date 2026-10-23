@@ -95,7 +95,7 @@ class _WelcomeEntryScreenState extends State<WelcomeEntryScreen> {
                       ),
                       const SizedBox(width: 8),
                       const Text(
-                        'BEMS AI · AUTONOMOUS LEDGER GOVERNANCE',
+                        'BEMi · AUTONOMOUS LEDGER GOVERNANCE',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,

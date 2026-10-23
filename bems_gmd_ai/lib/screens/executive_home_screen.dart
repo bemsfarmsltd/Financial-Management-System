@@ -27,8 +27,8 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
   final GlobalKey<ScaffoldState> _homeScaffoldKey = GlobalKey<ScaffoldState>();
   AuthUser? _authUser;
   late String _activeMode;
-  String _selectedModel = 'BEMS 2.5';
-  final List<String> _models = ['BEMS 2.5', 'Opus 4.8', 'Claude 3.7', 'GPT-4o'];
+  String _selectedModel = 'BEMi 2.5';
+  final List<String> _models = ['BEMi 2.5', 'Opus 4.8', 'Claude 3.7', 'GPT-4o'];
 
   @override
   void initState() {
@@ -46,9 +46,9 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
 
   final List<Map<String, String>> _suggestionCards = [
     {
-      'title': 'Deploy autonomous AI agent',
+      'title': 'Deploy autonomous BEMi agent',
       'subtitle': 'Monitor group bank liquidity & cash reserves',
-      'prompt': 'Deploy an autonomous AI agent to monitor liquidity pools across Access & Zenith banks.',
+      'prompt': 'Deploy an autonomous BEMi agent to monitor liquidity pools across Access & Zenith banks.',
     },
     {
       'title': 'Optimize cash reserves',
@@ -230,7 +230,7 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                               Icon(Icons.auto_awesome_rounded, size: 14, color: Colors.white),
                               SizedBox(width: 6),
                               Text(
-                                'AI Copilot',
+                                'BEMi Copilot',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w800,
@@ -359,7 +359,7 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Ask AI a question or describe your idea…',
+                          'Ask BEMi a question or instruct…',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.45),
                             fontSize: 15,

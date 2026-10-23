@@ -153,7 +153,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                     const Icon(Icons.auto_awesome_rounded, size: 14, color: Colors.white70),
                     const SizedBox(width: 6),
                     Text(
-                      'AI Copilot',
+                      'BEMi Copilot',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -676,7 +676,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
             ),
             const SizedBox(width: 10),
             const Text(
-              'Ask Copilot to analyze dashboard...',
+              'Ask BEMi to analyze dashboard...',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,

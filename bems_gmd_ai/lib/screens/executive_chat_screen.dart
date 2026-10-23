@@ -50,7 +50,7 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
           id: 'msg-0',
           sender: 'assistant',
           timestamp: 'Just now',
-          content: 'Good day, Executive. I am your BEMS Copilot. How may I assist your treasury, approvals, or operational oversight today?',
+          content: 'Good day, Executive. I am BEMi (Bems Enterprise Machine Intelligence). How may I assist your treasury, approvals, or operational oversight today?',
         ),
       );
       _currentSession.messages = List.from(_messages);
@@ -95,7 +95,7 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
           id: 'msg-0',
           sender: 'assistant',
           timestamp: 'Just now',
-          content: 'Good day, Executive. Starting a new session. How can I assist you?',
+          content: 'Good day, Executive. Starting a new session with BEMi. How can I assist you?',
         ),
       );
       _currentSession.messages = List.from(_messages);
@@ -291,7 +291,7 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Copilot analyzing group records...',
+                        'BEMi analyzing group records...',
                         style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.5)),
                       ),
                     ],
@@ -346,12 +346,12 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
                   gradient: LinearGradient(colors: [Color(0xFFEA580C), Color(0xFF9A3412)]),
                 ),
                 child: const Center(
-                  child: Text('AI', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                  child: Text('BEMi', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ),
               const SizedBox(width: 8),
               Text(
-                'BEMS Copilot',
+                'BEMi',
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white.withOpacity(0.6)),
               ),
             ],
@@ -416,7 +416,7 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
                 controller: _textController,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: 'Ask Copilot or instruct...',
+                  hintText: 'Ask BEMi or instruct...',
                   hintStyle: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 13),
                   border: InputBorder.none,
                 ),

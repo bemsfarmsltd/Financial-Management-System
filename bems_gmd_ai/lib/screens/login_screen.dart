@@ -138,22 +138,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Brand Title
                   const Text(
-                    'BEMS Executive AI',
+                    'BEMi',
                     style: TextStyle(
-                      fontSize: 26,
+                      fontSize: 34,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
-                      letterSpacing: -0.6,
+                      letterSpacing: -0.8,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Autonomous Ledger Governance & Mobile Copilot',
+                    'Bems Enterprise Machine Intelligence',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white.withOpacity(0.65),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFFFB923C).withOpacity(0.9),
                     ),
                   ),
 
@@ -263,7 +263,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             )
                           : const Text(
-                              'Sign In to BEMS Copilot',
+                              'Sign In to BEMi',
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
