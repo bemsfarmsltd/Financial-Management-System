@@ -105,209 +105,223 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF04060C),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0B132B),
+        backgroundColor: Colors.white,
         elevation: 0,
         title: const Text(
-          'New Fund Request',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
+          'New Fund Requisition',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: Colors.white),
+          icon: const Icon(Icons.close_rounded, color: Color(0xFF0F172A)),
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0, -0.6),
-            radius: 1.4,
-            colors: [
-              Color(0xFF381404),
-              Color(0xFF140803),
-              Color(0xFF04060C),
-            ],
-            stops: [0.0, 0.45, 1.0],
-          ),
-        ),
-        child: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              // Amount Input
-              _buildSectionLabel('REQUISITION AMOUNT (NGN)'),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.4)),
-                ),
-                child: Row(
-                  children: [
-                    const Text(
-                      '₦',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFFFB923C)),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _amountController,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: '0',
-                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.25)),
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Title / Purpose
-              _buildSectionLabel('EXPENDITURE PURPOSE'),
-              const SizedBox(height: 6),
-              _buildTextField(
-                controller: _titleController,
-                hintText: 'e.g. Bulk procurement of yellow maize (Batch 43)',
-                icon: Icons.title_rounded,
-              ),
-
-              const SizedBox(height: 20),
-
-              // Subsidiary Selector
-              _buildSectionLabel('TARGET SUBSIDIARY ENTITY'),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedSubsidiary,
-                    isExpanded: true,
-                    dropdownColor: const Color(0xFF0F172A),
-                    icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70),
-                    items: const [
-                      DropdownMenuItem(value: 'BEMS Farms Ltd', child: Text('BEMS Farms Ltd', style: TextStyle(color: Colors.white, fontSize: 13))),
-                      DropdownMenuItem(value: 'BEMS Feed Mill Operations', child: Text('BEMS Feed Mill Operations', style: TextStyle(color: Colors.white, fontSize: 13))),
-                      DropdownMenuItem(value: 'BEMS Logistics & Haulage', child: Text('BEMS Logistics & Haulage', style: TextStyle(color: Colors.white, fontSize: 13))),
-                      DropdownMenuItem(value: 'BEMS Group Holdings', child: Text('BEMS Group Holdings', style: TextStyle(color: Colors.white, fontSize: 13))),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setState(() => _selectedSubsidiary = val);
-                    },
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            // Amount Input Card
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.3)),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFEA580C).withOpacity(0.06),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
                   ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Category Selector
-              _buildSectionLabel('BUDGET EXPENSE CATEGORY'),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedCategory,
-                    isExpanded: true,
-                    dropdownColor: const Color(0xFF0F172A),
-                    icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70),
-                    items: _categories.map((c) {
-                      return DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(color: Colors.white, fontSize: 13)));
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => _selectedCategory = val);
-                    },
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Business Justification
-              _buildSectionLabel('BUSINESS JUSTIFICATION'),
-              const SizedBox(height: 6),
-              _buildTextField(
-                controller: _justificationController,
-                hintText: 'Explain why this expenditure is required and operational impact...',
-                maxLines: 3,
-                icon: Icons.notes_rounded,
-              ),
-
-              const SizedBox(height: 20),
-
-              // Expected Deliverable Proof
-              _buildSectionLabel('MANDATORY VERIFICATION PROOF (72H RETIREMENT)'),
-              const SizedBox(height: 6),
-              _buildTextField(
-                controller: _deliverableController,
-                hintText: 'e.g. Weighbridge ticket, physical GRN note, mechanic receipt',
-                icon: Icons.verified_outlined,
-              ),
-
-              const SizedBox(height: 20),
-
-              // Urgency Level
-              _buildSectionLabel('OPERATIONAL URGENCY'),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _buildUrgencyChip('NORMAL', 'Normal (48h)', const Color(0xFF10B981)),
-                  const SizedBox(width: 8),
-                  _buildUrgencyChip('HIGH', 'High (24h)', const Color(0xFFFB923C)),
-                  const SizedBox(width: 8),
-                  _buildUrgencyChip('CRITICAL', 'Emergency', const Color(0xFFEF4444)),
                 ],
               ),
-
-              const SizedBox(height: 32),
-
-              // Submit Button
-              ElevatedButton(
-                onPressed: _isSubmitting ? null : _submitRequest,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEA580C),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 0,
-                ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.send_rounded, size: 18),
-                          SizedBox(width: 8),
-                          Text(
-                            'Submit Fund Request',
-                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
-                          ),
-                        ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'REQUISITION AMOUNT (NGN)',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFFEA580C), letterSpacing: 0.8),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Text(
+                        '₦',
+                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFFEA580C)),
                       ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _amountController,
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                          decoration: const InputDecoration(
+                            hintText: '0',
+                            hintStyle: TextStyle(color: Color(0xFFCBD5E1)),
+                            border: InputBorder.none,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+
+            const SizedBox(height: 18),
+
+            // Form Fields Card
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title
+                  _buildSectionLabel('EXPENDITURE PURPOSE'),
+                  const SizedBox(height: 6),
+                  _buildTextField(
+                    controller: _titleController,
+                    hintText: 'e.g. Bulk procurement of yellow maize (Batch 43)',
+                    icon: Icons.title_rounded,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Subsidiary
+                  _buildSectionLabel('TARGET SUBSIDIARY ENTITY'),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedSubsidiary,
+                        isExpanded: true,
+                        dropdownColor: Colors.white,
+                        items: const [
+                          DropdownMenuItem(value: 'BEMS Farms Ltd', child: Text('BEMS Farms Ltd', style: TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600))),
+                          DropdownMenuItem(value: 'BEMS Feed Mill Operations', child: Text('BEMS Feed Mill Operations', style: TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600))),
+                          DropdownMenuItem(value: 'BEMS Logistics & Haulage', child: Text('BEMS Logistics & Haulage', style: TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600))),
+                          DropdownMenuItem(value: 'BEMS Group Holdings', child: Text('BEMS Group Holdings', style: TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600))),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) setState(() => _selectedSubsidiary = val);
+                        },
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Category
+                  _buildSectionLabel('BUDGET EXPENSE CATEGORY'),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedCategory,
+                        isExpanded: true,
+                        dropdownColor: Colors.white,
+                        items: _categories.map((c) {
+                          return DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600)));
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _selectedCategory = val);
+                        },
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Justification
+                  _buildSectionLabel('BUSINESS JUSTIFICATION'),
+                  const SizedBox(height: 6),
+                  _buildTextField(
+                    controller: _justificationController,
+                    hintText: 'Explain why this expenditure is required and operational impact...',
+                    maxLines: 3,
+                    icon: Icons.notes_rounded,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Deliverable
+                  _buildSectionLabel('MANDATORY VERIFICATION PROOF (72H RETIREMENT)'),
+                  const SizedBox(height: 6),
+                  _buildTextField(
+                    controller: _deliverableController,
+                    hintText: 'e.g. Weighbridge ticket, physical GRN note, mechanic receipt',
+                    icon: Icons.verified_outlined,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Urgency
+                  _buildSectionLabel('OPERATIONAL URGENCY'),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _buildUrgencyChip('NORMAL', 'Normal (48h)', const Color(0xFF10B981)),
+                      const SizedBox(width: 8),
+                      _buildUrgencyChip('HIGH', 'High (24h)', const Color(0xFFEA580C)),
+                      const SizedBox(width: 8),
+                      _buildUrgencyChip('CRITICAL', 'Emergency', const Color(0xFFEF4444)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Submit Button
+            ElevatedButton(
+              onPressed: _isSubmitting ? null : _submitRequest,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEA580C),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 2,
+                shadowColor: const Color(0xFFEA580C).withOpacity(0.4),
+              ),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.send_rounded, size: 18),
+                        SizedBox(width: 8),
+                        Text(
+                          'Submit Fund Requisition',
+                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+                        ),
+                      ],
+                    ),
+            ),
+          ],
         ),
       ),
     );
@@ -316,11 +330,11 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
   Widget _buildSectionLabel(String text) {
     return Text(
       text,
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: 10,
         fontWeight: FontWeight.w800,
-        letterSpacing: 1.1,
-        color: const Color(0xFFFB923C).withOpacity(0.9),
+        letterSpacing: 0.8,
+        color: Color(0xFF64748B),
       ),
     );
   }
@@ -333,20 +347,20 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: TextField(
         controller: controller,
         maxLines: maxLines,
-        style: const TextStyle(color: Colors.white, fontSize: 13),
+        style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600),
         decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: Colors.white54, size: 18),
+          prefixIcon: Icon(icon, color: const Color(0xFF94A3B8), size: 18),
           hintText: hintText,
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 13),
+          hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         ),
       ),
     );
@@ -360,10 +374,10 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? color.withOpacity(0.2) : Colors.white.withOpacity(0.04),
+            color: isSelected ? color.withOpacity(0.12) : const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? color : Colors.white.withOpacity(0.1),
+              color: isSelected ? color : const Color(0xFFE2E8F0),
               width: isSelected ? 1.5 : 1,
             ),
           ),
@@ -373,7 +387,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? Colors.white : Colors.white60,
+                color: isSelected ? color : const Color(0xFF64748B),
               ),
             ),
           ),

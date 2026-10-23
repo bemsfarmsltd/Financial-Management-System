@@ -30,21 +30,36 @@ class StaffApiService {
       }
     } catch (_) {}
 
-    // Graceful offline fallback / demo role
+    final isHaruna = email.contains('haruna');
+    final isChinedu = email.contains('chinedu');
+
     return StaffUser(
       id: 'staff-${email.hashCode}',
-      fullName: email.contains('damilola')
-          ? 'Engr. Damilola Adeyemi'
-          : email.contains('haruna')
-              ? 'Musa Haruna'
-              : 'BEMS Operations Lead',
+      fullName: isHaruna
+          ? 'Musa Haruna'
+          : isChinedu
+              ? 'Chinedu Eze'
+              : 'Engr. Damilola Adeyemi',
       email: email,
-      role: 'OPERATIONS_LEAD',
-      subsidiary: email.contains('haruna') ? 'BEMS Farms Ltd' : 'BEMS Feed Mill Operations',
-      department: email.contains('haruna') ? 'Agronomy & Irrigation' : 'Feed Production & Mills',
-      employeeNumber: 'BEMS-EMP-088',
+      role: isHaruna
+          ? 'Farm Irrigation Lead'
+          : isChinedu
+              ? 'Fleet & Haulage Lead'
+              : 'Feed Operations Director',
+      subsidiary: isHaruna
+          ? 'BEMS Farms Ltd'
+          : isChinedu
+              ? 'BEMS Logistics & Haulage'
+              : 'BEMS Feed Mill Operations',
+      department: isHaruna ? 'Agronomy & Irrigation' : isChinedu ? 'Fleet Maintenance' : 'Feed Production & Mills',
+      employeeNumber: isHaruna ? 'BEMS-EMP-042' : isChinedu ? 'BEMS-EMP-091' : 'BEMS-EMP-088',
       bankName: 'Access Bank PLC',
       accountNumber: '0123456789',
+      avatarUrl: isHaruna
+          ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80'
+          : isChinedu
+              ? 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80'
+              : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     );
   }
 
@@ -57,7 +72,7 @@ class StaffApiService {
         purpose: 'Bulk procurement of maize feed ingredients (Batch 42)',
         justification: 'Buffer inventory required ahead of price hike to maintain feed production schedule for 12,000 broiler birds.',
         deliverable: 'Warehouse Goods Received Note (GRN) & Weighbridge ticket',
-        category: 'FEED_INGREDIENTS',
+        category: 'Feed Ingredients',
         subsidiary: 'BEMS Feed Mill Operations',
         department: 'Feed Operations & Mills',
         amountNaira: 650000,
@@ -67,6 +82,8 @@ class StaffApiService {
         accountabilityStatus: 'PENDING',
         createdAt: 'Today, 08:30 AM',
         neededBy: 'Within 24 Hours',
+        payeeName: 'Madelyn Franci (Golden Feed Logistics)',
+        avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
       ),
       FundRequestItem(
         id: 'req-02',
@@ -75,7 +92,7 @@ class StaffApiService {
         purpose: 'Emergency repair for Hammer Mill 2 Bearing assembly',
         justification: 'Prevent line downtime during morning feed crushing operation.',
         deliverable: 'Machinist receipt & installation sign-off',
-        category: 'MAINTENANCE',
+        category: 'Spares & Repair',
         subsidiary: 'BEMS Feed Mill Operations',
         department: 'Plant Maintenance',
         amountNaira: 185000,
@@ -85,6 +102,8 @@ class StaffApiService {
         accountabilityStatus: 'SUBMITTED',
         createdAt: '20 Oct 2026',
         neededBy: 'Completed',
+        payeeName: 'Danfoss Industrial Spares Ltd',
+        avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
       ),
       FundRequestItem(
         id: 'req-03',
@@ -93,7 +112,7 @@ class StaffApiService {
         purpose: 'Depot dispatch fueling & interstate haulage per-diem',
         justification: 'Haulage run for feed distribution to Ibadan & Abeokuta hubs.',
         deliverable: 'Bulk fueling receipt & toll-gate tickets',
-        category: 'LOGISTICS',
+        category: 'Fuel & Haulage',
         subsidiary: 'BEMS Logistics & Haulage',
         department: 'Haulage Fleet',
         amountNaira: 320000,
@@ -103,11 +122,13 @@ class StaffApiService {
         accountabilityStatus: 'CLOSED',
         createdAt: '15 Oct 2026',
         neededBy: 'Completed',
+        payeeName: 'TotalEnergies Commercial Bulk',
+        avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
       ),
     ];
 
-    final defaultDisbursementsAwaiting = [
-      const DisbursementItem(
+    const defaultDisbursementsAwaiting = [
+      DisbursementItem(
         id: 'disb-pending-01',
         reference: 'TRF-BNK-98214',
         amountNaira: 650000,
@@ -117,11 +138,12 @@ class StaffApiService {
         status: 'AWAITING_CONFIRMATION',
         confirmed: false,
         title: 'Bulk procurement of maize feed ingredients (Batch 42)',
+        avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
       ),
     ];
 
-    final defaultAccountabilityCases = [
-      const AccountabilityCaseItem(
+    const defaultAccountabilityCases = [
+      AccountabilityCaseItem(
         id: 'acc-case-01',
         requestId: 'req-02',
         requestNumber: 'REQ-2026-074',
@@ -132,6 +154,7 @@ class StaffApiService {
         isOverdue: false,
         status: 'OPEN',
         requiredDeliverables: 'Physical machinist invoice & parts replacement inspection form',
+        avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
       ),
     ];
 
@@ -218,12 +241,12 @@ class StaffApiService {
         return true;
       }
     } catch (_) {}
-    return true; // Return true so demo workflow continues seamlessly
+    return true;
   }
 
   static Future<bool> confirmDisbursement({
     required String disbursementId,
-    required String decision, // 'RECEIVED', 'NOT_RECEIVED', 'AMOUNT_MISMATCH'
+    required String decision,
     String? note,
   }) async {
     try {
@@ -267,45 +290,5 @@ class StaffApiService {
       if (res.statusCode == 200) return true;
     } catch (_) {}
     return true;
-  }
-
-  static Future<String> askStaffBemi({
-    required String question,
-  }) async {
-    try {
-      final uri = Uri.parse('$baseUrl/api/ai/chat');
-      final res = await http
-          .post(
-            uri,
-            headers: {
-              'Content-Type': 'application/json',
-              'x-bems-mobile-role': 'STAFF',
-            },
-            body: jsonEncode({
-              'message': question,
-              'history': [
-                {
-                  'role': 'system',
-                  'content': 'You are BEMi Staff Assistant for BEMS Farms Ltd. Explain expense retirement rules, 72h SLA, per-diem limits, and requisition justifications concisely and professionally.',
-                }
-              ],
-            }),
-          )
-          .timeout(const Duration(seconds: 12));
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        return data['reply'] ?? data['message'] ?? 'Under BEMS Policy, all cash advances must be retired within 72 hours of bank receipt with original GRN tickets or receipts.';
-      }
-    } catch (_) {}
-
-    final q = question.toLowerCase();
-    if (q.contains('72') || q.contains('retire') || q.contains('advance')) {
-      return 'BEMS 72-Hour Expense Retirement Policy:\n\n1. The 72-hour countdown activates the moment you confirm payment receipt on your app.\n2. Upload clear photos of physical receipts, Weighbridge tickets, or signed Goods Received Notes (GRN).\n3. Any unretired balance must be immediately refunded to the Holding Treasury account.';
-    } else if (q.contains('per diem') || q.contains('travel') || q.contains('hotel')) {
-      return 'BEMS Travel & Per-Diem Limits:\n\n• Inter-state overnight per-diem: ₦18,000/night (Accommodation + Meals).\n• Local farm transit: Fuel allocation requires odometer inspection and commercial pump receipt.\n• Emergency vehicle repair: Max advance ₦300,000 without prior GMD sign-off.';
-    } else {
-      return 'Under BEMS Financial Governance, all fund requisitions require an operational justification, measurable deliverable proof, and budget line identification. Your request will route to your Department Lead, Finance, and the GMD.';
-    }
   }
 }

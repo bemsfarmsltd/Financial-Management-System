@@ -8,6 +8,7 @@ class StaffUser {
   final String? employeeNumber;
   final String? bankName;
   final String? accountNumber;
+  final String avatarUrl;
 
   const StaffUser({
     required this.id,
@@ -19,6 +20,7 @@ class StaffUser {
     this.employeeNumber,
     this.bankName,
     this.accountNumber,
+    this.avatarUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   });
 
   factory StaffUser.fromJson(Map<String, dynamic> json) {
@@ -32,6 +34,7 @@ class StaffUser {
       employeeNumber: json['employeeNumber'] ?? 'BEMS-EMP-042',
       bankName: json['bankName'] ?? 'Access Bank PLC',
       accountNumber: json['accountNumber'] ?? '0123456789',
+      avatarUrl: json['avatarUrl'] ?? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     );
   }
 
@@ -45,6 +48,7 @@ class StaffUser {
         'employeeNumber': employeeNumber,
         'bankName': bankName,
         'accountNumber': accountNumber,
+        'avatarUrl': avatarUrl,
       };
 }
 
@@ -65,6 +69,8 @@ class FundRequestItem {
   final String accountabilityStatus;
   final String createdAt;
   final String neededBy;
+  final String payeeName;
+  final String avatarUrl;
 
   const FundRequestItem({
     required this.id,
@@ -83,6 +89,8 @@ class FundRequestItem {
     required this.accountabilityStatus,
     required this.createdAt,
     required this.neededBy,
+    this.payeeName = 'Vendor Logistics Ltd',
+    this.avatarUrl = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
   });
 
   factory FundRequestItem.fromJson(Map<String, dynamic> json) {
@@ -105,6 +113,8 @@ class FundRequestItem {
       accountabilityStatus: json['accountabilityStatus'] ?? 'PENDING',
       createdAt: json['createdAt'] ?? 'Today',
       neededBy: json['neededBy'] ?? 'Within 48 Hours',
+      payeeName: json['beneficiary'] ?? json['payeeName'] ?? 'Golden Feed Logistics',
+      avatarUrl: json['avatarUrl'] ?? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
     );
   }
 }
@@ -119,6 +129,7 @@ class DisbursementItem {
   final String status;
   final bool confirmed;
   final String title;
+  final String avatarUrl;
 
   const DisbursementItem({
     required this.id,
@@ -130,6 +141,7 @@ class DisbursementItem {
     required this.status,
     required this.confirmed,
     required this.title,
+    this.avatarUrl = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
   });
 
   factory DisbursementItem.fromJson(Map<String, dynamic> json) {
@@ -145,6 +157,7 @@ class DisbursementItem {
       status: json['status'] ?? 'RECORDED',
       confirmed: json['confirmed'] == true || json['status'] == 'CONFIRMED',
       title: json['request']?['title'] ?? json['title'] ?? 'Advance Disbursal',
+      avatarUrl: json['avatarUrl'] ?? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     );
   }
 }
@@ -160,6 +173,7 @@ class AccountabilityCaseItem {
   final bool isOverdue;
   final String status;
   final String requiredDeliverables;
+  final String avatarUrl;
 
   const AccountabilityCaseItem({
     required this.id,
@@ -172,6 +186,7 @@ class AccountabilityCaseItem {
     required this.isOverdue,
     required this.status,
     required this.requiredDeliverables,
+    this.avatarUrl = 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
   });
 
   factory AccountabilityCaseItem.fromJson(Map<String, dynamic> json) {
@@ -199,6 +214,7 @@ class AccountabilityCaseItem {
       isOverdue: overdue || json['status'] == 'OVERDUE',
       status: json['status'] ?? (overdue ? 'OVERDUE' : 'OPEN'),
       requiredDeliverables: json['requiredDeliverables'] ?? 'Goods Received Note (GRN) & receipt',
+      avatarUrl: json['avatarUrl'] ?? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
     );
   }
 }
