@@ -1,0 +1,932 @@
+import 'package:flutter/material.dart';
+import '../services/staff_api_service.dart';
+import '../services/staff_storage_service.dart';
+import '../models/staff_models.dart';
+import 'staff_main_screen.dart';
+
+class StaffRegisterScreen extends StatefulWidget {
+  const StaffRegisterScreen({super.key});
+
+  @override
+  State<StaffRegisterScreen> createState() => _StaffRegisterScreenState();
+}
+
+class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
+  int _currentStep = 0;
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  // Step 1: Personal Identity & Security
+  final _fullNameController = TextEditingController(text: 'Engr. Babatunde Lawal');
+  final _emailController = TextEditingController(text: 'babatunde.lawal@bemsfarms.com');
+  final _phoneController = TextEditingController(text: '+234 803 555 9182');
+  final _passwordController = TextEditingController(text: 'BemsSecure2026!');
+  final _confirmPasswordController = TextEditingController(text: 'BemsSecure2026!');
+  String _gender = 'MALE';
+  final _dobController = TextEditingController(text: '1989-08-14');
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+
+  // Step 2: Corporate Placement
+  String _subsidiary = 'BEMS Feed Mill Operations';
+  String _department = 'Feed Production & Mills';
+  final _jobTitleController = TextEditingController(text: 'Senior Plant Maintenance Engineer');
+  String _staffGrade = 'Level 08 - Senior Specialist';
+  String _workLocation = 'Ilorin Feed Mill & Storage Silos';
+  final _resumptionDateController = TextEditingController(text: '2026-03-01');
+
+  // Step 3: Dual Banking Accounts
+  String _bankName = 'Access Bank PLC';
+  final _accountNumberController = TextEditingController(text: '0718293041');
+  final _accountNameController = TextEditingController(text: 'BABATUNDE LAWAL');
+  bool _useSameAccountForSalary = true;
+  String _salaryBankName = 'Access Bank PLC';
+  final _salaryAccountNumberController = TextEditingController(text: '0718293041');
+  final _salaryAccountNameController = TextEditingController(text: 'BABATUNDE LAWAL');
+
+  // Step 4: Statutory & Emergency
+  final _ninController = TextEditingController(text: '82910492817');
+  final _bvnController = TextEditingController(text: '22194058291');
+  final _stateOfOriginController = TextEditingController(text: 'Kwara State');
+  final _lgaController = TextEditingController(text: 'Ilorin South');
+  final _residentialAddressController = TextEditingController(text: 'Plot 18, Commercial Layout, Offa Garage Road, Ilorin');
+  final _nokNameController = TextEditingController(text: 'Mrs. Folake Lawal');
+  final _nokRelationshipController = TextEditingController(text: 'Spouse');
+  final _nokPhoneController = TextEditingController(text: '+234 802 119 4820');
+  final _nokAddressController = TextEditingController(text: 'Plot 18, Commercial Layout, Offa Garage Road, Ilorin');
+
+  final List<String> _subsidiaries = [
+    'BEMS Feed Mill Operations',
+    'BEMS Farms Ltd',
+    'BEMS Logistics & Haulage',
+    'BEMS Processing & Packaging',
+    'BEMS Corporate Headquarters',
+  ];
+
+  final List<String> _departments = [
+    'Feed Production & Mills',
+    'Agronomy & Irrigation',
+    'Plant Maintenance & Engineering',
+    'Fleet Logistics & Haulage',
+    'Internal Audit & Quality Control',
+    'Finance & Treasury',
+  ];
+
+  final List<String> _staffGrades = [
+    'Level 05 - Field Assistant',
+    'Level 06 - Operational Specialist',
+    'Level 08 - Senior Specialist',
+    'Level 10 - Manager / Lead',
+    'Level 12 - Department Director',
+  ];
+
+  final List<String> _workLocations = [
+    'Ilorin Feed Mill & Storage Silos',
+    'Oyo Central Farm Estate',
+    'Lagos Corporate Headquarters',
+    'Kwara Grain Processing Depot',
+  ];
+
+  final List<String> _bankOptions = [
+    'Access Bank PLC',
+    'Zenith Bank PLC',
+    'First Bank of Nigeria',
+    'Guaranty Trust Bank (GTBank)',
+    'United Bank for Africa (UBA)',
+    'Stanbic IBTC Bank',
+    'Fidelity Bank PLC',
+  ];
+
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _dobController.dispose();
+    _jobTitleController.dispose();
+    _resumptionDateController.dispose();
+    _accountNumberController.dispose();
+    _accountNameController.dispose();
+    _salaryAccountNumberController.dispose();
+    _salaryAccountNameController.dispose();
+    _ninController.dispose();
+    _bvnController.dispose();
+    _stateOfOriginController.dispose();
+    _lgaController.dispose();
+    _residentialAddressController.dispose();
+    _nokNameController.dispose();
+    _nokRelationshipController.dispose();
+    _nokPhoneController.dispose();
+    _nokAddressController.dispose();
+    super.dispose();
+  }
+
+  void _nextStep() {
+    setState(() => _errorMessage = null);
+
+    if (_currentStep == 0) {
+      if (_fullNameController.text.trim().length < 3) {
+        setState(() => _errorMessage = 'Please enter your full legal name.');
+        return;
+      }
+      if (!_emailController.text.trim().contains('@')) {
+        setState(() => _errorMessage = 'Please enter a valid corporate email address.');
+        return;
+      }
+      if (_passwordController.text.length < 8) {
+        setState(() => _errorMessage = 'Password must be at least 8 characters long.');
+        return;
+      }
+      if (_passwordController.text != _confirmPasswordController.text) {
+        setState(() => _errorMessage = 'Passwords do not match.');
+        return;
+      }
+    } else if (_currentStep == 1) {
+      if (_jobTitleController.text.trim().isEmpty) {
+        setState(() => _errorMessage = 'Please enter your official job title.');
+        return;
+      }
+    } else if (_currentStep == 2) {
+      if (_accountNumberController.text.trim().length < 10) {
+        setState(() => _errorMessage = 'Please enter a valid 10-digit advance account number.');
+        return;
+      }
+      if (_accountNameController.text.trim().isEmpty) {
+        setState(() => _errorMessage = 'Please enter account name.');
+        return;
+      }
+    }
+
+    if (_currentStep < 3) {
+      setState(() => _currentStep++);
+    } else {
+      _handleRegister();
+    }
+  }
+
+  void _previousStep() {
+    if (_currentStep > 0) {
+      setState(() {
+        _currentStep--;
+        _errorMessage = null;
+      });
+    } else {
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> _handleRegister() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final res = await StaffApiService.registerStaff(
+        fullName: _fullNameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        phone: _phoneController.text.trim(),
+        gender: _gender,
+        dateOfBirth: _dobController.text.trim(),
+        subsidiary: _subsidiary,
+        department: _department,
+        jobTitle: _jobTitleController.text.trim(),
+        staffGrade: _staffGrade,
+        workLocation: _workLocation,
+        bankName: _bankName,
+        accountNumber: _accountNumberController.text.trim(),
+        accountName: _accountNameController.text.trim(),
+        useSameAccountForSalary: _useSameAccountForSalary,
+        salaryBankName: _useSameAccountForSalary ? _bankName : _salaryBankName,
+        salaryAccountNumber: _useSameAccountForSalary ? _accountNumberController.text.trim() : _salaryAccountNumberController.text.trim(),
+        salaryAccountName: _useSameAccountForSalary ? _accountNameController.text.trim() : _salaryAccountNameController.text.trim(),
+        nin: _ninController.text.trim(),
+        bvn: _bvnController.text.trim(),
+        stateOfOrigin: _stateOfOriginController.text.trim(),
+        lga: _lgaController.text.trim(),
+        residentialAddress: _residentialAddressController.text.trim(),
+        nextOfKinName: _nokNameController.text.trim(),
+        nextOfKinRelationship: _nokRelationshipController.text.trim(),
+        nextOfKinPhone: _nokPhoneController.text.trim(),
+        nextOfKinAddress: _nokAddressController.text.trim(),
+      );
+
+      if (res['success'] != true) {
+        setState(() => _errorMessage = res['error'] ?? 'Registration failed.');
+        return;
+      }
+
+      final generatedEmpNo = res['employeeNumber'] as String;
+
+      // Construct provisional user for immediate workspace entry if desired
+      final newUser = StaffUser(
+        id: 'emp-${DateTime.now().millisecondsSinceEpoch}',
+        fullName: _fullNameController.text.trim(),
+        email: _emailController.text.trim(),
+        role: _jobTitleController.text.trim(),
+        subsidiary: _subsidiary,
+        department: _department,
+        employeeNumber: generatedEmpNo,
+        bankName: _bankName,
+        accountNumber: _accountNumberController.text.trim(),
+        phone: _phoneController.text.trim(),
+        gender: _gender,
+        dateOfBirth: _dobController.text.trim(),
+        residentialAddress: _residentialAddressController.text.trim(),
+        maritalStatus: 'Married',
+        stateOfOrigin: _stateOfOriginController.text.trim(),
+        lga: _lgaController.text.trim(),
+        ninMask: _ninController.text.trim().length >= 4 ? '*** *** ${_ninController.text.trim().substring(_ninController.text.trim().length - 4)}' : '*** *** 8217',
+        bvnMask: _bvnController.text.trim().length >= 4 ? '*** *** ${_bvnController.text.trim().substring(_bvnController.text.trim().length - 4)}' : '*** *** 8291',
+        staffGrade: _staffGrade,
+        workLocation: _workLocation,
+        resumptionDate: _resumptionDateController.text.trim(),
+        salaryBankName: _useSameAccountForSalary ? _bankName : _salaryBankName,
+        salaryAccountNumber: _useSameAccountForSalary ? _accountNumberController.text.trim() : _salaryAccountNumberController.text.trim(),
+        salaryAccountName: _useSameAccountForSalary ? _accountNameController.text.trim() : _salaryAccountNameController.text.trim(),
+        nextOfKinName: _nokNameController.text.trim(),
+        nextOfKinRelationship: _nokRelationshipController.text.trim(),
+        nextOfKinPhone: _nokPhoneController.text.trim(),
+        nextOfKinAddress: _nokAddressController.text.trim(),
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      );
+
+      await StaffStorageService.saveUser(newUser);
+
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 68,
+                height: 68,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFDCFCE7),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 40),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Registration Completed!',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF0F172A)),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Your employee profile has been created and verified on BEMS ERP.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFED7AA)),
+                ),
+                child: Column(
+                  children: [
+                    const Text('OFFICIAL EMPLOYEE NUMBER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+                    const SizedBox(height: 4),
+                    Text(
+                      generatedEmpNo,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF9A3412), letterSpacing: 1.1),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context); // close dialog
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => StaffMainScreen(user: newUser)),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEA580C),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text('Enter Workspace Now', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      setState(() => _errorMessage = 'Registration submission error. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stepTitles = ['Identity', 'Corporate', 'Banking', 'Statutory'];
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A), size: 18),
+          onPressed: _previousStep,
+        ),
+        title: const Text(
+          'Staff Registration',
+          style: TextStyle(color: Color(0xFF0F172A), fontSize: 16, fontWeight: FontWeight.w800),
+        ),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Stepper Header
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              color: Colors.white,
+              child: Row(
+                children: List.generate(4, (index) {
+                  final isActive = index <= _currentStep;
+                  final isCurrent = index == _currentStep;
+                  return Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 22,
+                                    height: 22,
+                                    decoration: BoxDecoration(
+                                      color: isCurrent
+                                          ? const Color(0xFFEA580C)
+                                          : isActive
+                                              ? const Color(0xFFDCFCE7)
+                                              : const Color(0xFFF1F5F9),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: isCurrent
+                                          ? Text('${index + 1}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800))
+                                          : isActive
+                                              ? const Icon(Icons.check, size: 13, color: Color(0xFF16A34A))
+                                              : Text('${index + 1}', style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontWeight: FontWeight.w700)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    stepTitles[index],
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                                      color: isCurrent ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                height: 3,
+                                decoration: BoxDecoration(
+                                  color: isActive ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (index < 3) const SizedBox(width: 8),
+                      ],
+                    ),
+                  );
+                }),
+              ),
+            ),
+
+            // Form Body
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_errorMessage != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEE2E2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFF87171)),
+                        ),
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(fontSize: 12, color: Color(0xFFB91C1C), fontWeight: FontWeight.w600),
+                        ),
+                      ),
+
+                    if (_currentStep == 0) _buildStep1Identity(),
+                    if (_currentStep == 1) _buildStep2Corporate(),
+                    if (_currentStep == 2) _buildStep3Banking(),
+                    if (_currentStep == 3) _buildStep4Statutory(),
+                  ],
+                ),
+              ),
+            ),
+
+            // Bottom Navigation Actions
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: const Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, -3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  if (_currentStep > 0) ...[
+                    OutlinedButton(
+                      onPressed: _previousStep,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                      ),
+                      child: const Text('Back', style: TextStyle(color: Color(0xFF475569), fontWeight: FontWeight.w700)),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _nextStep,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEA580C),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 1,
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : Text(
+                              _currentStep == 3 ? 'Complete Registration' : 'Proceed to Step ${_currentStep + 2}',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStep1Identity() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildSectionHeader('Personal Identity & Security', 'Enter your legal identity and credentials for corporate authentication.'),
+        const SizedBox(height: 16),
+        _buildInputCard([
+          _buildTextField(label: 'LEGAL FULL NAME', controller: _fullNameController, hint: 'Surname Firstname Othername', icon: Icons.person_outline_rounded),
+          const SizedBox(height: 14),
+          _buildTextField(label: 'OFFICIAL CORPORATE EMAIL', controller: _emailController, hint: 'name@bemsfarms.com', icon: Icons.mail_outline_rounded, keyboardType: TextInputType.emailAddress),
+          const SizedBox(height: 14),
+          _buildTextField(label: 'MOBILE TELEPHONE', controller: _phoneController, hint: '+234 800 000 0000', icon: Icons.phone_outlined, keyboardType: TextInputType.phone),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GENDER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _gender,
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem(value: 'MALE', child: Text('Male', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+                            DropdownMenuItem(value: 'FEMALE', child: Text('Female', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+                          ],
+                          onChanged: (v) => setState(() => _gender = v!),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildTextField(label: 'DATE OF BIRTH', controller: _dobController, hint: 'YYYY-MM-DD', icon: Icons.calendar_today_outlined),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _buildTextField(
+            label: 'CREATE PASSWORD',
+            controller: _passwordController,
+            hint: 'Min 8 chars with symbols',
+            icon: Icons.lock_outline_rounded,
+            obscureText: _obscurePassword,
+            suffixIcon: IconButton(
+              icon: Icon(_obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: const Color(0xFF94A3B8), size: 18),
+              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+            ),
+          ),
+          const SizedBox(height: 14),
+          _buildTextField(
+            label: 'CONFIRM PASSWORD',
+            controller: _confirmPasswordController,
+            hint: 'Re-enter your password',
+            icon: Icons.check_circle_outline_rounded,
+            obscureText: _obscureConfirmPassword,
+            suffixIcon: IconButton(
+              icon: Icon(_obscureConfirmPassword ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: const Color(0xFF94A3B8), size: 18),
+              onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+            ),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildStep2Corporate() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildSectionHeader('Corporate Placement', 'Select your subsidiary assignment, operating department, and staff grade.'),
+        const SizedBox(height: 16),
+        _buildInputCard([
+          const Text('SUBSIDIARY / BUSINESS UNIT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _subsidiary,
+                isExpanded: true,
+                items: _subsidiaries.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
+                onChanged: (v) => setState(() => _subsidiary = v!),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          const Text('DEPARTMENT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _department,
+                isExpanded: true,
+                items: _departments.map((d) => DropdownMenuItem(value: d, child: Text(d, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
+                onChanged: (v) => setState(() => _department = v!),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          _buildTextField(label: 'OFFICIAL JOB TITLE', controller: _jobTitleController, hint: 'e.g. Feed Operations Lead', icon: Icons.badge_outlined),
+          const SizedBox(height: 14),
+
+          const Text('STAFF GRADE / LEVEL', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _staffGrade,
+                isExpanded: true,
+                items: _staffGrades.map((g) => DropdownMenuItem(value: g, child: Text(g, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
+                onChanged: (v) => setState(() => _staffGrade = v!),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          const Text('PRIMARY WORK LOCATION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _workLocation,
+                isExpanded: true,
+                items: _workLocations.map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
+                onChanged: (v) => setState(() => _workLocation = v!),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          _buildTextField(label: 'OFFICIAL RESUMPTION DATE', controller: _resumptionDateController, hint: 'YYYY-MM-DD', icon: Icons.event_available_outlined),
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildStep3Banking() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildSectionHeader('Dual Corporate Banking', 'Configure your operational advance settlement bank and official payroll salary accounts.'),
+        const SizedBox(height: 16),
+        _buildInputCard([
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFED7AA)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.account_balance_wallet_rounded, color: Color(0xFFEA580C), size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Advance Account: Used for fast disbursement of approved operational fund requisitions.',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF9A3412), fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          const Text('ADVANCE DISBURSEMENT BANK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _bankName,
+                isExpanded: true,
+                items: _bankOptions.map((b) => DropdownMenuItem(value: b, child: Text(b, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
+                onChanged: (v) => setState(() => _bankName = v!),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          _buildTextField(label: '10-DIGIT ACCOUNT NUMBER', controller: _accountNumberController, hint: '0123456789', icon: Icons.credit_card_rounded, keyboardType: TextInputType.number),
+          const SizedBox(height: 14),
+          _buildTextField(label: 'ACCOUNT BENEFICIARY NAME', controller: _accountNameController, hint: 'Exact name registered with bank', icon: Icons.badge_outlined),
+          const SizedBox(height: 20),
+
+          // Toggle for Salary Account
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: _useSameAccountForSalary,
+                  activeColor: const Color(0xFFEA580C),
+                  onChanged: (v) => setState(() => _useSameAccountForSalary = v ?? true),
+                ),
+                const Expanded(
+                  child: Text(
+                    'Use this exact bank account for monthly payroll & salary',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (!_useSameAccountForSalary) ...[
+            const SizedBox(height: 16),
+            const Text('SEPARATE SALARY BANK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _salaryBankName,
+                  isExpanded: true,
+                  items: _bankOptions.map((b) => DropdownMenuItem(value: b, child: Text(b, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
+                  onChanged: (v) => setState(() => _salaryBankName = v!),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _buildTextField(label: 'SALARY ACCOUNT NUMBER', controller: _salaryAccountNumberController, hint: '10-digit NUBAN', icon: Icons.credit_card_rounded, keyboardType: TextInputType.number),
+            const SizedBox(height: 14),
+            _buildTextField(label: 'SALARY ACCOUNT NAME', controller: _salaryAccountNameController, hint: 'Registered payroll name', icon: Icons.badge_outlined),
+          ],
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildStep4Statutory() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildSectionHeader('Statutory & Next-of-Kin', 'Required compliance data for national identification and emergency records.'),
+        const SizedBox(height: 16),
+        _buildInputCard([
+          Row(
+            children: [
+              Expanded(
+                child: _buildTextField(label: 'NATIONAL NIN', controller: _ninController, hint: '11 digits', icon: Icons.fingerprint_rounded, keyboardType: TextInputType.number),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildTextField(label: 'BANK BVN', controller: _bvnController, hint: '11 digits', icon: Icons.verified_user_outlined, keyboardType: TextInputType.number),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTextField(label: 'STATE OF ORIGIN', controller: _stateOfOriginController, hint: 'e.g. Kwara State', icon: Icons.map_outlined),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildTextField(label: 'LOCAL GOVT (LGA)', controller: _lgaController, hint: 'e.g. Ilorin South', icon: Icons.location_city_outlined),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _buildTextField(label: 'RESIDENTIAL ADDRESS', controller: _residentialAddressController, hint: 'Street, Estate, City', icon: Icons.home_outlined),
+          const SizedBox(height: 20),
+
+          // Emergency Header
+          const Row(
+            children: [
+              Icon(Icons.emergency_outlined, size: 16, color: Color(0xFFDC2626)),
+              SizedBox(width: 6),
+              Text('EMERGENCY / NEXT OF KIN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFFDC2626), letterSpacing: 0.8)),
+            ],
+          ),
+          const Divider(height: 20, color: Color(0xFFE2E8F0)),
+
+          _buildTextField(label: 'NEXT OF KIN FULL NAME', controller: _nokNameController, hint: 'Full Name', icon: Icons.person_outline_rounded),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTextField(label: 'RELATIONSHIP', controller: _nokRelationshipController, hint: 'Spouse / Sibling', icon: Icons.people_outline_rounded),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildTextField(label: 'EMERGENCY PHONE', controller: _nokPhoneController, hint: '+234 800 000 0000', icon: Icons.phone_outlined, keyboardType: TextInputType.phone),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _buildTextField(label: 'NEXT OF KIN ADDRESS', controller: _nokAddressController, hint: 'Residential address', icon: Icons.place_outlined),
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -0.4)),
+        const SizedBox(height: 4),
+        Text(subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.3)),
+      ],
+    );
+  }
+
+  Widget _buildInputCard(List<Widget> children) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required String label,
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    bool obscureText = false,
+    Widget? suffixIcon,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: TextField(
+            controller: controller,
+            obscureText: obscureText,
+            keyboardType: keyboardType,
+            style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600),
+            decoration: InputDecoration(
+              prefixIcon: Icon(icon, color: const Color(0xFF94A3B8), size: 18),
+              suffixIcon: suffixIcon,
+              hintText: hint,
+              hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
