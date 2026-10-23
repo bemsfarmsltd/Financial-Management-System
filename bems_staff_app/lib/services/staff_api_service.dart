@@ -293,6 +293,28 @@ class StaffApiService {
     }
   }
 
+  /// Retrieve live corporate enterprise structure (active subsidiaries and departments)
+  static Future<List<Map<String, dynamic>>> fetchOrganizationStructure({String? employeeId}) async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/meta/structure'),
+          headers: {
+            'Content-Type': 'application/json',
+            if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
+          },
+        ),
+      );
+
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final data = jsonDecode(res.body);
+        final list = (data['organizations'] as List<dynamic>?) ?? [];
+        return list.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
   /// Retrieve approved vendor registry for 3-way matching
   static Future<List<Map<String, dynamic>>> fetchVendors({String? employeeId}) async {
     try {

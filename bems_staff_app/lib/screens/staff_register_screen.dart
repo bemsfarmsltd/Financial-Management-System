@@ -155,11 +155,11 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   bool _obscureConfirmPassword = true;
 
   // Step 2: Corporate Placement
-  String _subsidiary = 'BEMS Feed Mill Operations';
-  String _department = 'Feed Production & Mills';
+  String _subsidiary = 'Bems Logistics & Farms Ltd';
+  String _department = 'Logistics, Supply Chain & Agritech';
   final _jobTitleController = TextEditingController();
-  String _staffGrade = 'Level 08 - Senior Specialist';
-  String _workLocation = 'Ilorin Feed Mill & Storage Silos';
+  String _staffGrade = 'Level 06 - Operational Specialist';
+  String _workLocation = 'Oyo Logistics & Farm Hub';
   final _resumptionDateController = TextEditingController();
 
   // Step 3: Dual Banking Accounts
@@ -182,21 +182,17 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   final _nokPhoneController = TextEditingController();
   final _nokAddressController = TextEditingController();
 
-  final List<String> _subsidiaries = [
-    'BEMS Feed Mill Operations',
-    'BEMS Farms Ltd',
-    'BEMS Logistics & Haulage',
-    'BEMS Processing & Packaging',
-    'BEMS Corporate Headquarters',
+  List<Map<String, dynamic>> _organizations = [];
+  List<String> _subsidiaries = [
+    'Bems Logistics & Farms Ltd',
+    'BemsSoft Hub Ltd',
+    'BEMS Group Holdings Ltd (HQ)',
   ];
 
-  final List<String> _departments = [
-    'Feed Production & Mills',
-    'Agronomy & Irrigation',
-    'Plant Maintenance & Engineering',
-    'Fleet Logistics & Haulage',
-    'Internal Audit & Quality Control',
-    'Finance & Treasury',
+  List<String> _departments = [
+    'Logistics, Supply Chain & Agritech',
+    'Engineering & Cloud Infrastructure',
+    'Corporate Services & Administration',
   ];
 
   final List<String> _staffGrades = [
@@ -208,10 +204,10 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   ];
 
   final List<String> _workLocations = [
-    'Ilorin Feed Mill & Storage Silos',
-    'Oyo Central Farm Estate',
+    'Oyo Logistics & Farm Hub',
     'Lagos Corporate Headquarters',
-    'Kwara Grain Processing Depot',
+    'Lagos Technology Center',
+    'Ilorin Storage & Distribution Depot',
   ];
 
   final List<String> _bankOptions = [
@@ -223,6 +219,57 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
     'Stanbic IBTC Bank',
     'Fidelity Bank PLC',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLiveOrganizationStructure();
+  }
+
+  Future<void> _loadLiveOrganizationStructure() async {
+    try {
+      final orgs = await StaffApiService.fetchOrganizationStructure();
+      if (!mounted || orgs.isEmpty) return;
+
+      setState(() {
+        _organizations = orgs;
+        final subNames = orgs
+            .map((o) => (o['legalName'] ?? '').toString())
+            .where((s) => s.isNotEmpty)
+            .toList();
+
+        if (subNames.isNotEmpty) {
+          _subsidiaries = subNames;
+          if (!_subsidiaries.contains(_subsidiary)) {
+            _subsidiary = _subsidiaries.first;
+          }
+          _updateDepartmentsForSelectedSubsidiary();
+        }
+      });
+    } catch (_) {}
+  }
+
+  void _updateDepartmentsForSelectedSubsidiary() {
+    final matchedOrg = _organizations.firstWhere(
+      (o) => (o['legalName'] ?? '') == _subsidiary || (o['code'] ?? '') == _subsidiary,
+      orElse: () => {},
+    );
+
+    final rawDepts = (matchedOrg['departments'] as List<dynamic>?) ?? [];
+    final deptNames = rawDepts
+        .map((d) => (d['name'] ?? '').toString())
+        .where((n) => n.isNotEmpty)
+        .toList();
+
+    if (deptNames.isNotEmpty) {
+      setState(() {
+        _departments = deptNames;
+        if (!_departments.contains(_department)) {
+          _department = _departments.first;
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -830,7 +877,14 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                 value: _subsidiary,
                 isExpanded: true,
                 items: _subsidiaries.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
-                onChanged: (v) => setState(() => _subsidiary = v!),
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() {
+                      _subsidiary = v;
+                      _updateDepartmentsForSelectedSubsidiary();
+                    });
+                  }
+                },
               ),
             ),
           ),

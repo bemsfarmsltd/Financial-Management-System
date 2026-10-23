@@ -65,8 +65,36 @@ export async function POST(request: Request) {
     const cityState = typeof body.cityState === 'string' ? body.cityState.trim() : null;
 
     // 2. Corporate Placement
-    const subsidiaryId = typeof body.subsidiaryId === 'string' && body.subsidiaryId.trim() ? body.subsidiaryId.trim() : null;
-    const departmentId = typeof body.departmentId === 'string' && body.departmentId.trim() ? body.departmentId.trim() : null;
+    let subsidiaryId = typeof body.subsidiaryId === 'string' && body.subsidiaryId.trim() ? body.subsidiaryId.trim() : null;
+    let departmentId = typeof body.departmentId === 'string' && body.departmentId.trim() ? body.departmentId.trim() : null;
+
+    if (subsidiaryId) {
+      const matchOrg = await prisma.organization.findFirst({
+        where: {
+          OR: [
+            { id: subsidiaryId },
+            { code: { equals: subsidiaryId, mode: 'insensitive' } },
+            { legalName: { contains: subsidiaryId, mode: 'insensitive' } },
+          ],
+        },
+      });
+      if (matchOrg) subsidiaryId = matchOrg.id;
+    }
+
+    if (departmentId) {
+      const matchDept = await prisma.department.findFirst({
+        where: {
+          OR: [
+            { id: departmentId },
+            { code: { equals: departmentId, mode: 'insensitive' } },
+            { name: { contains: departmentId, mode: 'insensitive' } },
+          ],
+          ...(subsidiaryId ? { organizationId: subsidiaryId } : {}),
+        },
+      });
+      if (matchDept) departmentId = matchDept.id;
+    }
+
     const jobTitle = typeof body.jobTitle === 'string' && body.jobTitle.trim() ? body.jobTitle.trim() : 'Staff Member';
     const employmentType = typeof body.employmentType === 'string' && body.employmentType.trim() ? body.employmentType.trim() : 'FULL_TIME';
     const resumptionDateStr = typeof body.resumptionDate === 'string' ? body.resumptionDate : null;

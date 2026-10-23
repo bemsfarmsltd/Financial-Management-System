@@ -58,6 +58,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
   ];
 
   List<Map<String, String>> _approvedVendors = [];
+  List<Map<String, dynamic>> _organizations = [];
   final List<Map<String, dynamic>> _attachments = [];
   bool _isUploadingAttachment = false;
 
@@ -141,13 +142,19 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedSubsidiary = widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'BEMS Farms Ltd';
-    _loadVendors();
+    _selectedSubsidiary = widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Bems Logistics & Farms Ltd';
+    _loadInitialData();
   }
 
-  Future<void> _loadVendors() async {
+  Future<void> _loadInitialData() async {
     try {
-      final vendors = await StaffApiService.fetchVendors(employeeId: widget.user.id);
+      final results = await Future.wait([
+        StaffApiService.fetchVendors(employeeId: widget.user.id),
+        StaffApiService.fetchOrganizationStructure(employeeId: widget.user.id),
+      ]);
+      final vendors = results[0];
+      final orgs = results[1];
+
       if (mounted) {
         setState(() {
           _approvedVendors = vendors.map((v) => {
@@ -157,6 +164,16 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
           }).where((v) => v['name']!.isNotEmpty).toList();
           if (_approvedVendors.isNotEmpty && (_selectedVendor == null || !_approvedVendors.any((v) => v['name'] == _selectedVendor))) {
             _selectedVendor = _approvedVendors.first['name'];
+          }
+
+          if (orgs.isNotEmpty) {
+            _organizations = orgs;
+            final hasMatch = _organizations.any((o) =>
+                (o['legalName'] ?? '') == _selectedSubsidiary ||
+                (o['code'] ?? '') == _selectedSubsidiary);
+            if (!hasMatch && _organizations.isNotEmpty) {
+              _selectedSubsidiary = (_organizations.first['legalName'] ?? '').toString();
+            }
           }
         });
       }
@@ -642,18 +659,42 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
                     child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedSubsidiary,
-                        isExpanded: true,
-                        dropdownColor: Colors.white,
-                        items: const [
-                          DropdownMenuItem(value: 'BEMS Farms Ltd', child: Text('BEMS Farms Ltd', style: TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600))),
-                          DropdownMenuItem(value: 'BEMS Feed Mill Operations', child: Text('BEMS Feed Mill Operations', style: TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600))),
-                          DropdownMenuItem(value: 'BEMS Logistics & Haulage', child: Text('BEMS Logistics & Haulage', style: TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600))),
-                          DropdownMenuItem(value: 'BEMS Group Holdings', child: Text('BEMS Group Holdings', style: TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600))),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) setState(() => _selectedSubsidiary = val);
+                      child: Builder(
+                        builder: (context) {
+                          final availableSubsidiaries = _organizations.isNotEmpty
+                              ? _organizations
+                                  .map((o) => (o['legalName'] ?? '').toString())
+                                  .where((s) => s.isNotEmpty)
+                                  .toList()
+                              : {
+                                  if (widget.user.subsidiary.isNotEmpty) widget.user.subsidiary,
+                                  'Bems Logistics & Farms Ltd',
+                                  'BemsSoft Hub Ltd',
+                                  'BEMS Group Holdings Ltd (HQ)',
+                                }.toList();
+
+                          final currentVal = availableSubsidiaries.contains(_selectedSubsidiary)
+                              ? _selectedSubsidiary
+                              : (availableSubsidiaries.isNotEmpty ? availableSubsidiaries.first : _selectedSubsidiary);
+
+                          return DropdownButton<String>(
+                            value: currentVal,
+                            isExpanded: true,
+                            dropdownColor: Colors.white,
+                            items: availableSubsidiaries.map((subName) {
+                              return DropdownMenuItem<String>(
+                                value: subName,
+                                child: Text(
+                                  subName,
+                                  style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) setState(() => _selectedSubsidiary = val);
+                            },
+                          );
                         },
                       ),
                     ),
