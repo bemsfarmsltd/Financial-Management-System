@@ -10,8 +10,8 @@ class StaffForgotPasswordScreen extends StatefulWidget {
 }
 
 class _StaffForgotPasswordScreenState extends State<StaffForgotPasswordScreen> {
-  final _emailController = TextEditingController(text: 'damilola@bemsfarms.com');
-  final _codeController = TextEditingController(text: '849201');
+  final _emailController = TextEditingController();
+  final _codeController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -348,7 +348,7 @@ class _StaffForgotPasswordScreenState extends State<StaffForgotPasswordScreen> {
                           decoration: const InputDecoration(
                             counterText: '',
                             prefixIcon: Icon(Icons.shield_outlined, color: Color(0xFF94A3B8), size: 18),
-                            hintText: '849201',
+                            hintText: '123456',
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                           ),

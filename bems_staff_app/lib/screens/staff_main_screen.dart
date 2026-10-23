@@ -210,12 +210,25 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(14),
-                        child: Image.network(
-                          req.avatarUrl,
-                          width: 48,
-                          height: 48,
-                          fit: BoxFit.cover,
-                        ),
+                        child: req.avatarUrl.isNotEmpty && req.avatarUrl.startsWith('http')
+                            ? Image.network(
+                                req.avatarUrl,
+                                width: 48,
+                                height: 48,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 48,
+                                  height: 48,
+                                  color: const Color(0xFFFFF7ED),
+                                  child: const Icon(Icons.business_rounded, color: Color(0xFFEA580C), size: 24),
+                                ),
+                              )
+                            : Container(
+                                width: 48,
+                                height: 48,
+                                color: const Color(0xFFFFF7ED),
+                                child: const Icon(Icons.business_rounded, color: Color(0xFFEA580C), size: 24),
+                              ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -1556,18 +1569,25 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      _currentUser.avatarUrl,
-                      width: 46,
-                      height: 46,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 46,
-                        height: 46,
-                        color: const Color(0xFFEA580C).withOpacity(0.1),
-                        child: const Icon(Icons.person, color: Color(0xFFEA580C)),
-                      ),
-                    ),
+                    child: _currentUser.avatarUrl.isNotEmpty && _currentUser.avatarUrl.startsWith('http')
+                        ? Image.network(
+                            _currentUser.avatarUrl,
+                            width: 46,
+                            height: 46,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 46,
+                              height: 46,
+                              color: const Color(0xFFEA580C).withOpacity(0.1),
+                              child: const Icon(Icons.person, color: Color(0xFFEA580C)),
+                            ),
+                          )
+                        : Container(
+                            width: 46,
+                            height: 46,
+                            color: const Color(0xFFEA580C).withOpacity(0.1),
+                            child: const Icon(Icons.person, color: Color(0xFFEA580C)),
+                          ),
                   ),
                   const SizedBox(width: 12),
                   Column(
@@ -2621,18 +2641,25 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(14),
-                  child: Image.network(
-                    req.avatarUrl,
-                    width: 44,
-                    height: 44,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 44,
-                      height: 44,
-                      color: const Color(0xFFEA580C).withOpacity(0.1),
-                      child: const Icon(Icons.person, color: Color(0xFFEA580C)),
-                    ),
-                  ),
+                  child: req.avatarUrl.isNotEmpty && req.avatarUrl.startsWith('http')
+                      ? Image.network(
+                          req.avatarUrl,
+                          width: 44,
+                          height: 44,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 44,
+                            height: 44,
+                            color: const Color(0xFFEA580C).withOpacity(0.1),
+                            child: const Icon(Icons.person, color: Color(0xFFEA580C)),
+                          ),
+                        )
+                      : Container(
+                          width: 44,
+                          height: 44,
+                          color: const Color(0xFFEA580C).withOpacity(0.1),
+                          child: const Icon(Icons.person, color: Color(0xFFEA580C)),
+                        ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2939,7 +2966,25 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(10),
-                            child: Image.network(c.avatarUrl, width: 32, height: 32, fit: BoxFit.cover),
+                            child: c.avatarUrl.isNotEmpty && c.avatarUrl.startsWith('http')
+                                ? Image.network(
+                                    c.avatarUrl,
+                                    width: 32,
+                                    height: 32,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      width: 32,
+                                      height: 32,
+                                      color: const Color(0xFFEA580C).withOpacity(0.1),
+                                      child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 18),
+                                    ),
+                                  )
+                                : Container(
+                                    width: 32,
+                                    height: 32,
+                                    color: const Color(0xFFEA580C).withOpacity(0.1),
+                                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 18),
+                                  ),
                           ),
                           const SizedBox(width: 8),
                           Text(c.requestNumber, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
@@ -3202,18 +3247,25 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(20),
-                      child: Image.network(
-                        _currentUser.avatarUrl,
-                        width: 64,
-                        height: 64,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 64,
-                          height: 64,
-                          color: const Color(0xFFEA580C).withOpacity(0.1),
-                          child: const Icon(Icons.person, color: Color(0xFFEA580C), size: 32),
-                        ),
-                      ),
+                      child: _currentUser.avatarUrl.isNotEmpty && _currentUser.avatarUrl.startsWith('http')
+                          ? Image.network(
+                              _currentUser.avatarUrl,
+                              width: 64,
+                              height: 64,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 64,
+                                height: 64,
+                                color: const Color(0xFFEA580C).withOpacity(0.1),
+                                child: const Icon(Icons.person, color: Color(0xFFEA580C), size: 32),
+                              ),
+                            )
+                          : Container(
+                              width: 64,
+                              height: 64,
+                              color: const Color(0xFFEA580C).withOpacity(0.1),
+                              child: const Icon(Icons.person, color: Color(0xFFEA580C), size: 32),
+                            ),
                     ),
                     Container(
                       padding: const EdgeInsets.all(3),

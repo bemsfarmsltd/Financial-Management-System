@@ -141,8 +141,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedSubsidiary = widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'BEMS Feed Mill Operations';
-    _deliverableController.text = 'Goods Received Note (GRN) & Vendor Receipt';
+    _selectedSubsidiary = widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'BEMS Farms Ltd';
     _loadVendors();
   }
 
