@@ -2866,6 +2866,30 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           <header className="topbar">
             <div className="business-switch-wrap"><button className="business-switch" onClick={()=>{setSwitcher(!switcher);setTopPanel(null)}}><span style={{background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:'8px',padding:'2px',display:'inline-flex',alignItems:'center',justifyContent:'center',overflow:'hidden',width:36,height:36,flexShrink:0}}><img src="/bems-mark.png" alt="BEMS logo" style={{width:'100%',height:'100%',objectFit:'contain'}}/></span><div><strong>{current.name}</strong><small>{current.industry}</small></div><b>⌄</b></button>{switcher&&<div className="switch-menu"><p>SWITCH WORKSPACE</p>{businesses.map(b=><button className={b.id===current.id?'selected':''} key={b.id} onClick={()=>selectBusiness(b.id)}><span style={{background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:'6px',padding:'2px',display:'inline-flex',alignItems:'center',justifyContent:'center',overflow:'hidden',width:28,height:28,flexShrink:0}}><img src="/bems-mark.png" alt="" style={{width:'100%',height:'100%',objectFit:'contain'}}/></span><div><strong>{b.name}</strong><small>{b.industry} · {b.readiness}% ready</small></div>{b.id===current.id&&<b>✓</b>}</button>)}<button className="switch-add" onClick={()=>{setSwitcher(false);setActive('Settings')}}>⚙ Manage businesses in Settings</button></div>}</div><div className="global-search"><span>⌕</span><input aria-label="Search workspace" value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Search ${current.name}`}/><kbd>⌘ K</kbd>{search&&<div className="search-results">{(searchResults.length||dataResults.length)?<>{searchResults.map(name=><button key={`nav-${name}`} onClick={()=>openModule(name)}><span>{isLocked(name)?'⌾':'→'}</span><div><strong>{name}</strong><small>{isLocked(name)?'Locked in current environment':'Open in this workspace'}</small></div></button>)}{dataResults.map((r,i)=><button key={`data-${i}`} onClick={()=>openModule(r.navigate)}><span>◎</span><div><strong>{r.label}</strong><small>{r.type} · {r.sublabel}</small></div></button>)}</>:<p>No workspace results</p>}</div>}</div>
             <div className="top-actions">
+              <button
+                type="button"
+                className="mobile-app-link"
+                title="Open BEMS GMD Mobile Copilot"
+                onClick={() => {
+                  if (typeof window !== 'undefined') window.location.href = '/mobile';
+                }}
+                style={{
+                  background: 'rgba(234, 88, 12, 0.1)',
+                  border: '1px solid rgba(234, 88, 12, 0.35)',
+                  color: '#ea580c',
+                  borderRadius: '8px',
+                  padding: '6px 10px',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  cursor: 'pointer',
+                }}
+              >
+                <span>📱</span>
+                <span>GMD Mobile</span>
+              </button>
               {isStaff && (
                 <button
                   className="templates-top"

@@ -1,0 +1,22 @@
+{
+  "name": "BEMS GMD Mobile Copilot",
+  "short_name": "GMD Copilot",
+  "description": "Executive AI Financial Assistant and Fund Flow Operations for BEMS Group Managing Director",
+  "start_url": "/mobile",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/apple-icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
