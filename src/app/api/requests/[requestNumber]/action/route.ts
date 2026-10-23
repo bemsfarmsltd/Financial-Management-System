@@ -11,6 +11,8 @@ const messageSelect = {
   body: true,
   visibility: true,
   recipientId: true,
+  attachmentUrl: true,
+  attachmentName: true,
   createdAt: true,
 } as const;
 
@@ -119,8 +121,12 @@ export async function POST(
 
     if (action === 'SEND_MESSAGE') {
       if (!req.channel) return NextResponse.json({ error: 'Request channel not found.' }, { status: 404 });
-      const messageText = typeof text === 'string' ? text.trim() : '';
-      if (!messageText || messageText.length > 4000) return NextResponse.json({ error: 'Message must be between 1 and 4,000 characters.' }, { status: 400 });
+      const attachmentUrl = typeof body.attachmentUrl === 'string' && body.attachmentUrl.trim() ? body.attachmentUrl.trim() : null;
+      const attachmentName = typeof body.attachmentName === 'string' && body.attachmentName.trim() ? body.attachmentName.trim() : null;
+      const messageText = typeof text === 'string' ? text.trim() : (attachmentName ? `Attached: ${attachmentName}` : '');
+      if ((!messageText && !attachmentUrl) || messageText.length > 4000) {
+        return NextResponse.json({ error: 'Message must be between 1 and 4,000 characters or include an attachment.' }, { status: 400 });
+      }
       const visibility = body.visibility === 'PRIVATE' ? 'PRIVATE' : 'GROUP';
       const recipientId = typeof body.recipientId === 'string' ? body.recipientId : null;
       if (visibility === 'PRIVATE') {
@@ -134,9 +140,11 @@ export async function POST(
           authorId: actor.id,
           authorName: actor.legalName,
           authorRole: actor.role,
-          body: messageText,
+          body: messageText || (attachmentName ? `Attached: ${attachmentName}` : 'File attached'),
           visibility,
           recipientId: visibility === 'PRIVATE' ? recipientId : null,
+          attachmentUrl,
+          attachmentName,
           messageType: 'USER',
         },
         select: messageSelect,

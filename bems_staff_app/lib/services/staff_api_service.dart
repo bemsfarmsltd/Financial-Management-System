@@ -112,17 +112,22 @@ class StaffApiService {
     required double amountNaira,
     required String urgency,
     required String neededBy,
+    String? employeeId,
     String? dueDate,
     bool isRecurring = false,
     String? recurringInterval,
     String? vendorName,
     bool isIntercompany = false,
+    List<Map<String, dynamic>>? attachments,
   }) async {
     final uri = Uri.parse('$baseUrl/api/requests');
     final res = await http
         .post(
           uri,
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
+          },
           body: jsonEncode({
             'title': title,
             'justification': justification,
@@ -140,6 +145,7 @@ class StaffApiService {
             'recurringInterval': recurringInterval,
             'vendorName': vendorName,
             'isIntercompany': isIntercompany,
+            if (attachments != null && attachments.isNotEmpty) 'attachments': attachments,
           }),
         )
         .timeout(const Duration(seconds: 15));
@@ -540,6 +546,8 @@ class StaffApiService {
     required String text,
     String visibility = 'GROUP',
     String? recipientId,
+    String? attachmentUrl,
+    String? attachmentName,
   }) async {
     final uri = Uri.parse('$baseUrl/api/requests/${Uri.encodeComponent(requestNumber)}/action');
     final res = await http.post(
@@ -553,6 +561,8 @@ class StaffApiService {
         'text': text.trim(),
         'visibility': visibility,
         if (recipientId != null) 'recipientId': recipientId,
+        if (attachmentUrl != null) 'attachmentUrl': attachmentUrl,
+        if (attachmentName != null) 'attachmentName': attachmentName,
       }),
     ).timeout(const Duration(seconds: 15));
 
@@ -613,6 +623,21 @@ class StaffApiService {
       return data['message'] as Map<String, dynamic>;
     }
     throw Exception(data['error']?.toString() ?? 'Could not send message to admin.');
+  }
+
+  /// Update staff avatar in database
+  static Future<bool> updateEmployeeAvatar({
+    required String employeeId,
+    required String avatarUrl,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/staff/$employeeId/contact');
+    final res = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'avatarUrl': avatarUrl}),
+    ).timeout(const Duration(seconds: 15));
+
+    return res.statusCode >= 200 && res.statusCode < 300;
   }
 }
 

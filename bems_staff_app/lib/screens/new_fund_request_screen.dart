@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/staff_models.dart';
 import '../services/staff_api_service.dart';
 
@@ -56,6 +58,85 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
   ];
 
   List<Map<String, String>> _approvedVendors = [];
+  final List<Map<String, dynamic>> _attachments = [];
+  bool _isUploadingAttachment = false;
+
+  Future<void> _pickAttachmentCamera() async {
+    try {
+      final picker = ImagePicker();
+      final photo = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (photo == null) return;
+
+      setState(() => _isUploadingAttachment = true);
+      final bytes = await photo.readAsBytes();
+      final url = await StaffApiService.uploadAvatar(
+        bytes: bytes,
+        filename: photo.name,
+      );
+
+      final sizeKb = (bytes.length / 1024).round();
+      final sizeStr = sizeKb > 1024 ? '${(sizeKb / 1024).toStringAsFixed(1)} MB' : '$sizeKb KB';
+
+      setState(() {
+        _attachments.add({
+          'fileName': photo.name,
+          'fileUrl': url,
+          'contentType': 'image/jpeg',
+          'size': sizeStr,
+        });
+      });
+    } catch (e) {
+      _showError('Camera upload failed: $e');
+    } finally {
+      if (mounted) setState(() => _isUploadingAttachment = false);
+    }
+  }
+
+  Future<void> _pickAttachmentFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      final bytes = file.bytes;
+      if (bytes == null) return;
+
+      setState(() => _isUploadingAttachment = true);
+      final ext = (file.extension ?? 'pdf').toLowerCase();
+      final isPdf = ext == 'pdf';
+      final contentType = isPdf ? 'application/pdf' : 'image/$ext';
+
+      final url = await StaffApiService.uploadAvatar(
+        bytes: bytes,
+        filename: file.name,
+      );
+
+      final sizeKb = (bytes.length / 1024).round();
+      final sizeStr = sizeKb > 1024 ? '${(sizeKb / 1024).toStringAsFixed(1)} MB' : '$sizeKb KB';
+
+      setState(() {
+        _attachments.add({
+          'fileName': file.name,
+          'fileUrl': url,
+          'contentType': contentType,
+          'size': sizeStr,
+        });
+      });
+    } catch (e) {
+      _showError('File upload failed: $e');
+    } finally {
+      if (mounted) setState(() => _isUploadingAttachment = false);
+    }
+  }
 
   @override
   void initState() {
@@ -182,11 +263,13 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
         amountNaira: amount,
         urgency: _selectedUrgency,
         neededBy: _selectedUrgency == 'CRITICAL' ? 'Immediate' : 'Within 24 Hours',
+        employeeId: widget.user.id,
         dueDate: formattedDue,
         isRecurring: _isRecurring,
         recurringInterval: _isRecurring ? _recurringInterval : null,
         vendorName: _payeeType == 'VENDOR' ? (_selectedVendor ?? 'External Vendor') : widget.user.fullName,
         isIntercompany: _selectedSubsidiary != widget.user.subsidiary,
+        attachments: _attachments,
       );
 
       if (!mounted) return;
@@ -641,6 +724,105 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                       _buildUrgencyChip('CRITICAL', 'Emergency', const Color(0xFFEF4444)),
                     ],
                   ),
+
+                  const SizedBox(height: 18),
+
+                  // Supporting Proforma / Quote Uploads
+                  _buildSectionLabel('SUPPORTING QUOTATION / INVOICE PROOFS (OPTIONAL)'),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Attach vendor quotation, proforma invoice or physical quotation photo for 3-way matching.',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 10),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _isUploadingAttachment ? null : _pickAttachmentCamera,
+                          icon: const Icon(Icons.camera_alt_rounded, size: 16, color: Color(0xFFEA580C)),
+                          label: const Text('Snap Quote', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFEA580C))),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFFED7AA)),
+                            backgroundColor: const Color(0xFFFFF7ED),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _isUploadingAttachment ? null : _pickAttachmentFile,
+                          icon: const Icon(Icons.attach_file_rounded, size: 16, color: Color(0xFF0F172A)),
+                          label: const Text('Attach File', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            backgroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  if (_isUploadingAttachment)
+                    Container(
+                      margin: const EdgeInsets.only(top: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFEA580C))),
+                          SizedBox(width: 10),
+                          Text('Uploading quotation...', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+                        ],
+                      ),
+                    ),
+
+                  if (_attachments.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    ..._attachments.asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final att = entry.value;
+                      final isPdf = att['contentType']?.toString().contains('pdf') ?? false;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(isPdf ? Icons.picture_as_pdf_rounded : Icons.image_rounded, size: 18, color: isPdf ? Colors.red.shade600 : const Color(0xFF059669)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${att['fileName']} (${att['size'] ?? ''})',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF94A3B8)),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => setState(() => _attachments.removeAt(idx)),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
                 ],
               ),
             ),

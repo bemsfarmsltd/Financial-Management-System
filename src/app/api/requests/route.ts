@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthenticatedEmployee, hasAnyRole } from "@/lib/auth";
+import { toSystemRequestId } from "@/lib/request-id";
+import { notifyApprovalRequired } from "@/lib/notifications/bridge";
 
 export const dynamic = "force-dynamic";
 
@@ -182,3 +184,253 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message || "Failed to fetch requests" }, { status: 500 });
   }
 }
+
+export async function POST(request: Request) {
+  try {
+    let actor = await getAuthenticatedEmployee(request);
+    if (!actor) {
+      const fallbackEmpId = request.headers.get("x-employee-id");
+      if (fallbackEmpId) {
+        const emp = await prisma.employee.findUnique({
+          where: { id: fallbackEmpId },
+          select: {
+            id: true,
+            employeeNumber: true,
+            legalName: true,
+            workEmail: true,
+            phone: true,
+            role: true,
+            status: true,
+            approvalStatus: true,
+          },
+        });
+        if (emp && emp.status === "ACTIVE" && emp.approvalStatus === "APPROVED") {
+          actor = emp as any;
+        }
+      }
+    }
+
+    if (!actor) {
+      return NextResponse.json({ error: "Sign in to submit a fund request." }, { status: 401 });
+    }
+    if (actor.role === "GMD") {
+      return NextResponse.json({ error: "The GMD reviews requests and does not submit fund requests." }, { status: 403 });
+    }
+
+    const body = await request.json();
+    let {
+      subsidiaryId,
+      subsidiary: subsidiaryNameInput,
+      vendorId,
+      vendorName,
+      requestType,
+      category,
+      amountNaira,
+      amountMinor: inputAmountMinor,
+      title,
+      justification,
+      deliverable,
+      neededBy,
+      dueDate,
+      isRecurring,
+      recurringInterval,
+      attachments,
+    } = body;
+
+    // Normalize category
+    if (category) {
+      const lower = category.toLowerCase();
+      if (lower.includes("software") || lower.includes("cloud") || lower.includes("infrastructure")) {
+        category = "IT_SOFTWARE";
+      } else if (lower.includes("power") || lower.includes("diesel") || lower.includes("facility")) {
+        category = "OFFICE_EXPENSE";
+      } else if (lower.includes("advance") || lower.includes("petty cash") || lower.includes("per-diem") || lower.includes("welfare")) {
+        category = "OFFICE_EXPENSE";
+        requestType = "ADVANCE";
+      } else if (lower.includes("travel") || lower.includes("haulage") || lower.includes("logistics")) {
+        category = "TRAVEL";
+      } else if (lower.includes("feed") || lower.includes("raw grain") || lower.includes("agro") || lower.includes("farm")) {
+        category = "OFFICE_EXPENSE";
+      } else if (lower.includes("machinery") || lower.includes("repair") || lower.includes("spares")) {
+        category = "ASSET";
+      } else if (lower.includes("marketing")) {
+        category = "MARKETING";
+      } else {
+        category = "OFFICE_EXPENSE";
+      }
+    } else {
+      category = "OFFICE_EXPENSE";
+    }
+
+    // Resolve subsidiaryId
+    if (!subsidiaryId && subsidiaryNameInput) {
+      const matchOrg = await prisma.organization.findFirst({
+        where: {
+          OR: [
+            { legalName: { contains: subsidiaryNameInput, mode: "insensitive" } },
+            { name: { contains: subsidiaryNameInput, mode: "insensitive" } },
+            { code: { contains: subsidiaryNameInput, mode: "insensitive" } },
+          ],
+        },
+      });
+      if (matchOrg) subsidiaryId = matchOrg.id;
+    }
+
+    if (!subsidiaryId) {
+      const assignment = await prisma.employeeAssignment.findFirst({
+        where: { employeeId: actor.id, status: "ACTIVE" },
+        orderBy: { isPrimary: "desc" },
+      });
+      if (assignment) {
+        subsidiaryId = assignment.subsidiaryId;
+      } else {
+        const defaultOrg = await prisma.organization.findFirst({
+          where: { status: "ACTIVE" },
+        });
+        subsidiaryId = defaultOrg?.id;
+      }
+    }
+
+    if (!subsidiaryId) {
+      return NextResponse.json({ error: "Could not resolve organization subsidiary for requester." }, { status: 400 });
+    }
+
+    // Resolve vendor if vendorName provided but no vendorId
+    if (!vendorId && vendorName && typeof vendorName === "string" && vendorName.trim()) {
+      const foundVendor = await prisma.vendor.findFirst({
+        where: { name: { contains: vendorName.trim(), mode: "insensitive" } },
+      });
+      if (foundVendor) vendorId = foundVendor.id;
+    }
+
+    // Resolve minor unit amount
+    let amountMinor: bigint;
+    if (inputAmountMinor !== undefined && inputAmountMinor !== null) {
+      amountMinor = BigInt(Math.round(Number(inputAmountMinor)));
+    } else if (amountNaira !== undefined && amountNaira !== null) {
+      amountMinor = BigInt(Math.round(parseFloat(String(amountNaira)) * 100));
+    } else if (body.amount !== undefined && body.amount !== null) {
+      amountMinor = BigInt(Math.round(parseFloat(String(body.amount)) * 100));
+    } else {
+      return NextResponse.json({ error: "Specify a valid expenditure amount." }, { status: 400 });
+    }
+
+    const titleStr = typeof title === "string" && title.trim() ? title.trim() : "Expenditure Request";
+    const justStr = justification || "Official business operational expense.";
+    const delivStr = deliverable || "Itemized receipt and proof of delivery.";
+    const needDate = neededBy ? new Date(neededBy) : (dueDate ? new Date(dueDate) : new Date(Date.now() + 7 * 24 * 3600 * 1000));
+
+    const count = await prisma.expenditureRequest.count();
+    const requestNumber = `REQ-2026-${String(count + 1).padStart(4, "0")}`;
+
+    // Determine initial approver role based on policy limits
+    let initialApproverRole = "HEAD_OF_ADMIN";
+    const amountValue = Number(amountMinor);
+    if (category === "IT_SOFTWARE" && amountValue > 15000000) {
+      initialApproverRole = "GMD";
+    } else if (amountValue > 100000000) {
+      initialApproverRole = "GMD";
+    } else if (amountValue > 10000000) {
+      initialApproverRole = "COO";
+    }
+
+    const sub = await prisma.organization.findUnique({
+      where: { id: subsidiaryId },
+    });
+    const groupId = sub?.parentGroupId || sub?.id || "";
+
+    const newRequest = await prisma.expenditureRequest.create({
+      data: {
+        requestNumber,
+        groupId,
+        subsidiaryId,
+        requestedById: actor.id,
+        vendorId: vendorId || null,
+        requestType: requestType || "ORDINARY",
+        category,
+        amountMinor,
+        currency: "NGN",
+        title: titleStr,
+        justification: justStr,
+        deliverable: delivStr,
+        neededBy: isNaN(needDate.getTime()) ? new Date(Date.now() + 7 * 24 * 3600 * 1000) : needDate,
+        approvalStatus: "IN_REVIEW",
+        paymentStatus: "UNPAID",
+        accountabilityStatus: "PENDING",
+        isRecurring: !!isRecurring,
+        recurringInterval: isRecurring ? recurringInterval : null,
+        channel: {
+          create: {
+            classification: "GENERAL",
+            messages: {
+              create: {
+                authorName: "System",
+                authorRole: "SYSTEM",
+                messageType: "AUDIT_EVENT",
+                body: `Request ${requestNumber} created and submitted. Assigned to ${initialApproverRole} for review.`,
+              },
+            },
+          },
+        },
+        approvalSteps: {
+          create: {
+            stageIndex: 1,
+            assignedRole: initialApproverRole,
+            status: "PENDING",
+          },
+        },
+      },
+    });
+
+    // Save attachments if provided
+    if (Array.isArray(attachments) && attachments.length > 0) {
+      for (const att of attachments) {
+        if (att && att.fileUrl) {
+          await prisma.attachment.create({
+            data: {
+              ownerType: "REQUEST",
+              ownerId: newRequest.id,
+              requestId: newRequest.id,
+              fileName: att.fileName || "supporting_document.pdf",
+              fileUrl: att.fileUrl,
+              contentType: att.contentType || "application/octet-stream",
+              notes: att.notes || "Uploaded with requisition",
+              uploadedById: actor.id,
+            },
+          });
+        }
+      }
+    }
+
+    // Trigger notification bridge
+    try {
+      const org = await prisma.organization.findUnique({ where: { id: subsidiaryId }, select: { legalName: true } });
+      await notifyApprovalRequired({
+        requestNumber,
+        title: titleStr,
+        amountMinor: Number(amountMinor),
+        approverRole: initialApproverRole,
+        requesterName: actor.legalName,
+        subsidiaryName: org?.legalName || "BEMS Group",
+        justification: justStr,
+      });
+    } catch (notifErr) {
+      console.error("Notification bridge error:", notifErr);
+    }
+
+    return NextResponse.json({
+      success: true,
+      id: newRequest.id,
+      systemId: toSystemRequestId(newRequest.id),
+      requestNumber,
+      amountMinor: Number(newRequest.amountMinor),
+    });
+  } catch (error: any) {
+    console.error("Failed to create request:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to create request" },
+      { status: 500 }
+    );
+  }
+}
+

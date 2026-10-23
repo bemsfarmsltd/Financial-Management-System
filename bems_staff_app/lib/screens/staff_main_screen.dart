@@ -335,13 +335,38 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
                 const SizedBox(height: 24),
 
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => RequestChatScreen(
+                          requestNumber: req.requestNumber,
+                          requestTitle: req.title.isNotEmpty ? req.title : req.payeeName,
+                          currentUser: _currentUser,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                  label: const Text('Open Request Chat & Queries', style: TextStyle(fontWeight: FontWeight.w800)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F172A),
+                    backgroundColor: const Color(0xFF064E3B),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0F172A),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    side: const BorderSide(color: Color(0xFFCBD5E1)),
                   ),
                   child: const Text('Close Details', style: TextStyle(fontWeight: FontWeight.w800)),
                 ),
@@ -3057,6 +3082,88 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     );
   }
 
+  Future<void> _changeProfileAvatar() async {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Update Passport Photograph', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const CircleAvatar(backgroundColor: Color(0xFFFFF7ED), child: Icon(Icons.camera_alt_rounded, color: Color(0xFFEA580C))),
+                title: const Text('Take New Photo with Camera', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                subtitle: const Text('Capture direct passport face photograph', style: TextStyle(fontSize: 11)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _pickAndUploadProfileAvatar(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(backgroundColor: Color(0xFFEFF6FF), child: Icon(Icons.photo_library_rounded, color: Color(0xFF2563EB))),
+                title: const Text('Choose from Photo Gallery', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                subtitle: const Text('Select existing photo from phone files', style: TextStyle(fontSize: 11)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _pickAndUploadProfileAvatar(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndUploadProfileAvatar(ImageSource source) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final picker = ImagePicker();
+      final photo = await picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (photo == null) return;
+
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Uploading passport photograph...'), duration: Duration(seconds: 2)),
+      );
+
+      final bytes = await photo.readAsBytes();
+      final newUrl = await StaffApiService.uploadAvatar(
+        bytes: bytes,
+        filename: photo.name,
+      );
+
+      await StaffApiService.updateEmployeeAvatar(
+        employeeId: _currentUser.id,
+        avatarUrl: newUrl,
+      );
+
+      final updatedUser = _currentUser.copyWith(avatarUrl: newUrl);
+
+      await StaffStorageService.saveUser(updatedUser);
+      if (mounted) {
+        setState(() {
+          _currentUser = updatedUser;
+        });
+        messenger.showSnackBar(
+          const SnackBar(content: Text('✓ Passport photograph updated successfully!'), backgroundColor: Color(0xFF059669)),
+        );
+      }
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Failed to update photo: $e'), backgroundColor: const Color(0xFFDC2626)),
+      );
+    }
+  }
+
   // TAB 3: COMPLETE STAFF PROFILE & REGISTRATION DETAILS
   Widget _buildProfileTab() {
     return ListView(
@@ -3087,9 +3194,37 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ),
           child: Row(
             children: [
-              ClipRRect(
+              InkWell(
+                onTap: _changeProfileAvatar,
                 borderRadius: BorderRadius.circular(20),
-                child: Image.network(_currentUser.avatarUrl, width: 64, height: 64, fit: BoxFit.cover),
+                child: Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.network(
+                        _currentUser.avatarUrl,
+                        width: 64,
+                        height: 64,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 64,
+                          height: 64,
+                          color: const Color(0xFFEA580C).withOpacity(0.1),
+                          child: const Icon(Icons.person, color: Color(0xFFEA580C), size: 32),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEA580C),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.camera_alt_rounded, size: 12, color: Colors.white),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(

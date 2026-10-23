@@ -11,9 +11,11 @@ export async function POST(
     const { employeeId } = await params;
     const body = await request.json();
 
-    const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
-    if (!phone || phone.length < 8) {
-      return NextResponse.json({ error: 'Please enter a valid telephone number.' }, { status: 400 });
+    const phone = typeof body.phone === 'string' ? body.phone.trim() : null;
+    const avatarUrl = typeof body.avatarUrl === 'string' ? body.avatarUrl.trim() : null;
+
+    if (!phone && !avatarUrl) {
+      return NextResponse.json({ error: 'Provide a valid telephone number or passport photograph URL.' }, { status: 400 });
     }
 
     const employee = await prisma.employee.findUnique({
@@ -24,15 +26,20 @@ export async function POST(
       return NextResponse.json({ error: 'Staff member not found.' }, { status: 404 });
     }
 
+    const updateData: any = {};
+    if (phone && phone.length >= 8) updateData.phone = phone;
+    if (avatarUrl && avatarUrl.length > 5) updateData.avatarUrl = avatarUrl;
+
     const updated = await prisma.employee.update({
       where: { id: employeeId },
-      data: { phone },
+      data: updateData,
     });
 
     return NextResponse.json({
       success: true,
       phone: updated.phone,
-      message: 'Contact phone number updated successfully.',
+      avatarUrl: updated.avatarUrl,
+      message: 'Staff profile updated successfully.',
     });
   } catch (error) {
     console.error('Failed to update phone number:', error);

@@ -140,43 +140,43 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
     }
   }
 
-  final _fullNameController = TextEditingController(text: 'Engr. Babatunde Lawal');
-  final _emailController = TextEditingController(text: 'babatunde.lawal@bemsfarms.com');
-  final _phoneController = TextEditingController(text: '+234 803 555 9182');
-  final _passwordController = TextEditingController(text: 'BemsSecure2026!');
-  final _confirmPasswordController = TextEditingController(text: 'BemsSecure2026!');
+  final _fullNameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   String _gender = 'MALE';
-  final _dobController = TextEditingController(text: '1989-08-14');
+  final _dobController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
   // Step 2: Corporate Placement
   String _subsidiary = 'BEMS Feed Mill Operations';
   String _department = 'Feed Production & Mills';
-  final _jobTitleController = TextEditingController(text: 'Senior Plant Maintenance Engineer');
+  final _jobTitleController = TextEditingController();
   String _staffGrade = 'Level 08 - Senior Specialist';
   String _workLocation = 'Ilorin Feed Mill & Storage Silos';
-  final _resumptionDateController = TextEditingController(text: '2026-03-01');
+  final _resumptionDateController = TextEditingController();
 
   // Step 3: Dual Banking Accounts
   String _bankName = 'Access Bank PLC';
-  final _accountNumberController = TextEditingController(text: '0718293041');
-  final _accountNameController = TextEditingController(text: 'BABATUNDE LAWAL');
+  final _accountNumberController = TextEditingController();
+  final _accountNameController = TextEditingController();
   bool _useSameAccountForSalary = true;
   String _salaryBankName = 'Access Bank PLC';
-  final _salaryAccountNumberController = TextEditingController(text: '0718293041');
-  final _salaryAccountNameController = TextEditingController(text: 'BABATUNDE LAWAL');
+  final _salaryAccountNumberController = TextEditingController();
+  final _salaryAccountNameController = TextEditingController();
 
   // Step 4: Statutory & Emergency
-  final _ninController = TextEditingController(text: '82910492817');
-  final _bvnController = TextEditingController(text: '22194058291');
-  final _stateOfOriginController = TextEditingController(text: 'Kwara State');
-  final _lgaController = TextEditingController(text: 'Ilorin South');
-  final _residentialAddressController = TextEditingController(text: 'Plot 18, Commercial Layout, Offa Garage Road, Ilorin');
-  final _nokNameController = TextEditingController(text: 'Mrs. Folake Lawal');
-  final _nokRelationshipController = TextEditingController(text: 'Spouse');
-  final _nokPhoneController = TextEditingController(text: '+234 802 119 4820');
-  final _nokAddressController = TextEditingController(text: 'Plot 18, Commercial Layout, Offa Garage Road, Ilorin');
+  final _ninController = TextEditingController();
+  final _bvnController = TextEditingController();
+  final _stateOfOriginController = TextEditingController();
+  final _lgaController = TextEditingController();
+  final _residentialAddressController = TextEditingController();
+  final _nokNameController = TextEditingController();
+  final _nokRelationshipController = TextEditingController();
+  final _nokPhoneController = TextEditingController();
+  final _nokAddressController = TextEditingController();
 
   final List<String> _subsidiaries = [
     'BEMS Feed Mill Operations',

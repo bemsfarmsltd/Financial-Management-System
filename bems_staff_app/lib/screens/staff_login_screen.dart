@@ -13,35 +13,11 @@ class StaffLoginScreen extends StatefulWidget {
 }
 
 class _StaffLoginScreenState extends State<StaffLoginScreen> {
-  final _emailController = TextEditingController(text: 'damilola@bemsfarms.com');
-  final _passwordController = TextEditingController(text: '123456');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
-
-  final List<Map<String, String>> _quickStaff = [
-    {
-      'name': 'Engr. Damilola Adeyemi',
-      'email': 'damilola@bemsfarms.com',
-      'role': 'Feed Operations Director',
-      'subsidiary': 'BEMS Feed Mill Operations',
-      'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    },
-    {
-      'name': 'Musa Haruna',
-      'email': 'haruna@bemsfarms.com',
-      'role': 'Farm Irrigation Lead',
-      'subsidiary': 'BEMS Farms Ltd',
-      'avatar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-    },
-    {
-      'name': 'Chinedu Eze',
-      'email': 'chinedu@bemsfarms.com',
-      'role': 'Fleet Coordinator',
-      'subsidiary': 'BEMS Logistics & Haulage',
-      'avatar': 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80',
-    },
-  ];
 
   @override
   void dispose() {
@@ -412,98 +388,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 28),
-
-                // Quick Switcher Section
-                Row(
-                  children: [
-                    const Expanded(child: Divider(color: Color(0xFFCBD5E1))),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        'OR QUICK SIGN-IN AS',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.1,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                    ),
-                    const Expanded(child: Divider(color: Color(0xFFCBD5E1))),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                ..._quickStaff.map((staff) {
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    child: InkWell(
-                      onTap: () {
-                        _emailController.text = staff['email']!;
-                        _handleLogin(overrideEmail: staff['email']);
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.02),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(14),
-                              child: Image.network(
-                                staff['avatar']!,
-                                width: 44,
-                                height: 44,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                  width: 44,
-                                  height: 44,
-                                  color: const Color(0xFFEA580C).withOpacity(0.1),
-                                  child: const Icon(Icons.person, color: Color(0xFFEA580C)),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    staff['name']!,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
-                                      color: Color(0xFF0F172A),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${staff['role']} · ${staff['subsidiary']}',
-                                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const Icon(Icons.chevron_right_rounded, size: 20, color: Color(0xFF94A3B8)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }),
+                const SizedBox(height: 20),
               ],
             ),
           ),
