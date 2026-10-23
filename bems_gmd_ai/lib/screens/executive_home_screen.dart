@@ -5,15 +5,18 @@ import '../services/chat_storage_service.dart';
 import '../widgets/chat_history_drawer.dart';
 import 'voice_orb_screen.dart';
 import 'executive_chat_screen.dart';
+import 'executive_system_dashboard.dart';
 
 class ExecutiveHomeScreen extends StatefulWidget {
   final String userName;
   final String businessName;
+  final String initialMode;
 
   const ExecutiveHomeScreen({
     super.key,
     this.userName = 'Executive',
     this.businessName = 'BEMS Group',
+    this.initialMode = 'ai',
   });
 
   @override
@@ -23,12 +26,14 @@ class ExecutiveHomeScreen extends StatefulWidget {
 class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
   final GlobalKey<ScaffoldState> _homeScaffoldKey = GlobalKey<ScaffoldState>();
   AuthUser? _authUser;
+  late String _activeMode;
   String _selectedModel = 'BEMS 2.5';
   final List<String> _models = ['BEMS 2.5', 'Opus 4.8', 'Claude 3.7', 'GPT-4o'];
 
   @override
   void initState() {
     super.initState();
+    _activeMode = widget.initialMode;
     _loadUser();
   }
 
@@ -65,6 +70,18 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final effectiveUserName = _authUser?.fullName ?? widget.userName;
+
+    if (_activeMode == 'dashboard') {
+      return Scaffold(
+        key: _homeScaffoldKey,
+        drawer: ChatHistoryDrawer(user: _authUser),
+        backgroundColor: const Color(0xFF04060C),
+        body: ExecutiveSystemDashboard(
+          onOpenDrawer: () => _homeScaffoldKey.currentState?.openDrawer(),
+          onSwitchToAi: () => setState(() => _activeMode = 'ai'),
+        ),
+      );
+    }
 
     return Scaffold(
       key: _homeScaffoldKey,
@@ -180,7 +197,85 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              // Mode Switcher Pill
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: Colors.white.withOpacity(0.12)),
+                  ),
+                  child: Row(
+                    children: [
+                      // AI Copilot Option (Active)
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEA580C),
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFEA580C).withOpacity(0.4),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.auto_awesome_rounded, size: 14, color: Colors.white),
+                              SizedBox(width: 6),
+                              Text(
+                                'AI Copilot',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // System Dashboard Option
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _activeMode = 'dashboard'),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 9),
+                            decoration: BoxDecoration(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.dashboard_customize_rounded, size: 14, color: Colors.white70),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'System Dashboard',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white.withOpacity(0.7),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 14),
 
               // Giant Hero Typography (Matching user's reference exactly)
               Padding(

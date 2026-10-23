@@ -58,6 +58,7 @@ class _WelcomeEntryScreenState extends State<WelcomeEntryScreen> {
         pageBuilder: (context, animation, secondaryAnimation) => ExecutiveHomeScreen(
           userName: widget.userName,
           businessName: widget.businessName,
+          initialMode: 'dashboard',
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
