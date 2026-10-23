@@ -48,4 +48,25 @@ class ChatSession {
     required this.updatedAt,
     required this.messages,
   });
+
+  factory ChatSession.fromJson(Map<String, dynamic> json) {
+    return ChatSession(
+      id: json['id'] ?? '',
+      title: json['title'] ?? 'Executive Conversation',
+      updatedAt: json['updatedAt'] ?? 'Today',
+      messages: (json['messages'] as List<dynamic>?)
+              ?.map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'updatedAt': updatedAt,
+      'messages': messages.map((m) => m.toJson()).toList(),
+    };
+  }
 }

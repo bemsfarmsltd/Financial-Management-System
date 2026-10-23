@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../models/auth_models.dart';
+import '../services/chat_storage_service.dart';
+import '../widgets/chat_history_drawer.dart';
 import 'voice_orb_screen.dart';
 import 'executive_chat_screen.dart';
 
@@ -9,7 +12,7 @@ class ExecutiveHomeScreen extends StatefulWidget {
 
   const ExecutiveHomeScreen({
     super.key,
-    this.userName = 'Dr Pastra',
+    this.userName = 'Executive',
     this.businessName = 'BEMS Group',
   });
 
@@ -18,8 +21,23 @@ class ExecutiveHomeScreen extends StatefulWidget {
 }
 
 class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
+  final GlobalKey<ScaffoldState> _homeScaffoldKey = GlobalKey<ScaffoldState>();
+  AuthUser? _authUser;
   String _selectedModel = 'BEMS 2.5';
   final List<String> _models = ['BEMS 2.5', 'Opus 4.8', 'Claude 3.7', 'GPT-4o'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUser();
+  }
+
+  Future<void> _loadUser() async {
+    final u = await ChatStorageService.getUser();
+    if (mounted && u != null) {
+      setState(() => _authUser = u);
+    }
+  }
 
   final List<Map<String, String>> _suggestionCards = [
     {
@@ -46,7 +64,11 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveUserName = _authUser?.fullName ?? widget.userName;
+
     return Scaffold(
+      key: _homeScaffoldKey,
+      drawer: ChatHistoryDrawer(user: _authUser),
       backgroundColor: const Color(0xFF04060C),
       body: Container(
         decoration: const BoxDecoration(
@@ -107,7 +129,7 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                               style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white),
                             ),
                             Text(
-                              'Welcome back, ${widget.userName}',
+                              'Welcome back, $effectiveUserName',
                               style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.6)),
                             ),
                           ],
@@ -136,7 +158,7 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        // Menu / History button (2-line menu matching screenshot)
+                        // Menu / History button (Opens Chat History Drawer)
                         Container(
                           width: 36,
                           height: 36,
@@ -148,10 +170,7 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                             padding: EdgeInsets.zero,
                             icon: const Icon(Icons.segment_rounded, color: Colors.white70, size: 20),
                             onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const ExecutiveChatScreen()),
-                              );
+                              _homeScaffoldKey.currentState?.openDrawer();
                             },
                           ),
                         ),

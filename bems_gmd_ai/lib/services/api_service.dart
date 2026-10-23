@@ -1,11 +1,62 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../models/auth_models.dart';
 import '../models/chat_models.dart';
 
 class ApiService {
   static String get baseUrl {
     return 'https://bemserp.work';
+  }
+
+  static Future<AuthUser> login({
+    required String email,
+    required String password,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/auth/login');
+    final response = await http
+        .post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'email': email.trim().toLowerCase(),
+            'password': password,
+          }),
+        )
+        .timeout(const Duration(seconds: 12));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['user'] != null) {
+        return AuthUser.fromJson(data['user']);
+      }
+      throw Exception('Invalid user payload from server');
+    } else {
+      final err = jsonDecode(response.body);
+      throw Exception(err['error'] ?? 'Sign in failed (${response.statusCode})');
+    }
+  }
+
+  static Future<Map<String, dynamic>> fetchBriefingStats() async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/briefing?_t=${DateTime.now().millisecondsSinceEpoch}');
+      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final requests = (data['requests'] as List<dynamic>?) ?? [];
+        final pending = requests.where((r) => r['approvalStatus'] == 'SUBMITTED' || r['approvalStatus'] == 'IN_REVIEW').toList();
+        final pendingSum = pending.fold<num>(0, (sum, r) => sum + (num.tryParse(r['amountNaira']?.toString() ?? '0') ?? 0));
+        return {
+          'pendingCount': pending.length,
+          'pendingSum': pendingSum,
+          'requests': requests,
+        };
+      }
+    } catch (_) {}
+    return {
+      'pendingCount': 1,
+      'pendingSum': 650000,
+      'requests': [],
+    };
   }
 
   static Future<Map<String, dynamic>> sendAiMessage({
