@@ -444,5 +444,113 @@ class StaffApiService {
       throw Exception('Password reset failed.');
     }
   }
+
+  /// ----------------------------------------------------
+  /// REQUEST-SPECIFIC CHAT & COLLABORATION
+  /// ----------------------------------------------------
+
+  /// Fetch conversation thread, participants, and timeline messages for a specific request
+  static Future<Map<String, dynamic>> getRequestChat({
+    required String requestNumber,
+    required String employeeId,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/requests/${Uri.encodeComponent(requestNumber)}/action');
+    final res = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-employee-id': employeeId,
+      },
+    ).timeout(const Duration(seconds: 15));
+
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return data as Map<String, dynamic>;
+    }
+    throw Exception(data['error']?.toString() ?? 'Could not load request messages.');
+  }
+
+  /// Post a message to the request collaboration channel (public group or private mention)
+  static Future<Map<String, dynamic>> sendRequestMessage({
+    required String requestNumber,
+    required String employeeId,
+    required String text,
+    String visibility = 'GROUP',
+    String? recipientId,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/requests/${Uri.encodeComponent(requestNumber)}/action');
+    final res = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-employee-id': employeeId,
+      },
+      body: jsonEncode({
+        'action': 'SEND_MESSAGE',
+        'text': text.trim(),
+        'visibility': visibility,
+        if (recipientId != null) 'recipientId': recipientId,
+      }),
+    ).timeout(const Duration(seconds: 15));
+
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return data as Map<String, dynamic>;
+    }
+    throw Exception(data['error']?.toString() ?? 'Could not post message.');
+  }
+
+  /// ----------------------------------------------------
+  /// GENERAL STAFF ↔ ADMIN HELPDESK CHAT
+  /// ----------------------------------------------------
+
+  /// Fetch direct messages between this staff member and company administrators
+  static Future<List<Map<String, dynamic>>> getAdminChat({
+    required String employeeId,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/staff/chat/admin');
+    final res = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-employee-id': employeeId,
+      },
+    ).timeout(const Duration(seconds: 15));
+
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300 && data['messages'] != null) {
+      return List<Map<String, dynamic>>.from(data['messages']);
+    }
+    return [];
+  }
+
+  /// Send a general message from staff to administrators
+  static Future<Map<String, dynamic>> sendAdminMessage({
+    required String employeeId,
+    required String text,
+    String? attachmentUrl,
+    String? attachmentName,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/staff/chat/admin');
+    final res = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-employee-id': employeeId,
+      },
+      body: jsonEncode({
+        'message': text.trim(),
+        if (attachmentUrl != null) 'attachmentUrl': attachmentUrl,
+        if (attachmentName != null) 'attachmentName': attachmentName,
+      }),
+    ).timeout(const Duration(seconds: 15));
+
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return data['message'] as Map<String, dynamic>;
+    }
+    throw Exception(data['error']?.toString() ?? 'Could not send message to admin.');
+  }
 }
+
 

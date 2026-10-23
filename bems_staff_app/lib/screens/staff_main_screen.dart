@@ -5,6 +5,8 @@ import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
 import 'new_fund_request_screen.dart';
 import 'staff_login_screen.dart';
+import 'request_chat_screen.dart';
+import 'staff_admin_chat_screen.dart';
 
 class StaffMainScreen extends StatefulWidget {
   final StaffUser user;
@@ -1707,6 +1709,43 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             ],
           ),
 
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildPastelTile(
+                  title: 'Admin Helpdesk',
+                  subtitle: 'Chat With Admin',
+                  icon: Icons.support_agent_rounded,
+                  bgColor: const Color(0xFFF0FDF4),
+                  borderColor: const Color(0xFFA7F3D0),
+                  iconColor: const Color(0xFF047857),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => StaffAdminChatScreen(currentUser: _currentUser),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildPastelTile(
+                  title: 'Requisitions',
+                  subtitle: 'View All & Chat',
+                  icon: Icons.chat_bubble_outline_rounded,
+                  bgColor: const Color(0xFFFFF7ED),
+                  borderColor: const Color(0xFFFED7AA),
+                  iconColor: const Color(0xFFEA580C),
+                  onTap: () => setState(() => _currentIndex = 1),
+                ),
+              ),
+            ],
+          ),
+
           const SizedBox(height: 20),
 
           // 1. DEDICATED PROOF OF UTILIZATION CARD (SNAP PICTURE / UPLOAD DOCUMENT)
@@ -2367,20 +2406,49 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 ),
               ],
             ),
-            if (req.paymentStatus == 'PAID') ...[
-              const SizedBox(height: 10),
-              const Divider(height: 1, color: Color(0xFFF1F5F9)),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.timer_outlined, size: 14, color: Color(0xFFD97706)),
-                      SizedBox(width: 4),
-                      Text('72h SLA Clock Active', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFFB45309))),
-                    ],
+            const SizedBox(height: 10),
+            const Divider(height: 1, color: Color(0xFFF1F5F9)),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Request Collaboration Chat Button
+                InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => RequestChatScreen(
+                          requestNumber: req.requestNumber,
+                          requestTitle: req.title.isNotEmpty ? req.title : req.payeeName,
+                          currentUser: _currentUser,
+                        ),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFA7F3D0)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.chat_bubble_outline_rounded, size: 12, color: Color(0xFF047857)),
+                        SizedBox(width: 4),
+                        Text(
+                          'Request Chat',
+                          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFF047857)),
+                        ),
+                      ],
+                    ),
                   ),
+                ),
+
+                if (req.paymentStatus == 'PAID')
                   InkWell(
                     onTap: () {
                       final target = _cases.firstWhere(
@@ -2401,7 +2469,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     },
                     borderRadius: BorderRadius.circular(8),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEA580C),
                         borderRadius: BorderRadius.circular(8),
@@ -2414,10 +2482,20 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         ],
                       ),
                     ),
+                  )
+                else
+                  const Row(
+                    children: [
+                      Text(
+                        'Details & Audit',
+                        style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w700),
+                      ),
+                      SizedBox(width: 2),
+                      Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF94A3B8)),
+                    ],
                   ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ],
         ),
       ),
@@ -2904,6 +2982,27 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ),
           child: Column(
             children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(color: Color(0xFFF0FDF4), shape: BoxShape.circle),
+                  child: const Icon(Icons.support_agent_rounded, color: Color(0xFF047857), size: 20),
+                ),
+                title: const Text('Finance & Admin Helpdesk Chat', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                subtitle: const Text('Direct messaging with Executive Admin & GMD', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => StaffAdminChatScreen(currentUser: _currentUser),
+                    ),
+                  );
+                },
+              ),
+              const Divider(color: Color(0xFFF1F5F9)),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Container(

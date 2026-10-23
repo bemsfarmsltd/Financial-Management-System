@@ -18,6 +18,7 @@ import { GmdView } from "@/components/dashboard/gmd/demo";
 import ExecutiveBriefingClient from "./briefing/ExecutiveBriefingClient";
 import { RequestDossierModal, type RequestDossier } from "@/components/requests/RequestDossierModal";
 import { RequestChatModal } from "@/components/requests/RequestChatModal";
+import { StaffAdminChatModal } from "@/components/chat/StaffAdminChatModal";
 import {
   AccountabilityModule as LiveAccountabilityModule,
   AnalyticsBIPage as LiveAnalyticsBIPage,
@@ -1925,37 +1926,161 @@ function ExecutiveBriefingModule({business,setNotice,onNavigate}:{business:Busin
 }
 
 function RequestChannelsModule({business,setNotice,onNavigate}:{business:Business;setNotice:(x:string)=>void;onNavigate:(p:string)=>void}) {
-  const [requests,setRequests]=useState<GmdRequest[]>([]);
-  const [selectedChat,setSelectedChat]=useState<GmdRequest|null>(null);
-  const [loadState,setLoadState]=useState<'loading'|'ready'|'error'>('loading');
-  const loadChannels=()=>{
+  const [activeTab, setActiveTab] = useState<'REQUESTS' | 'HELPDESK'>('REQUESTS');
+  const [requests, setRequests] = useState<GmdRequest[]>([]);
+  const [selectedChat, setSelectedChat] = useState<GmdRequest|null>(null);
+  const [loadState, setLoadState] = useState<'loading'|'ready'|'error'>('loading');
+
+  // Staff Helpdesk State
+  const [helpdeskThreads, setHelpdeskThreads] = useState<any[]>([]);
+  const [selectedStaffThread, setSelectedStaffThread] = useState<any|null>(null);
+  const [helpdeskLoading, setHelpdeskLoading] = useState(false);
+
+  const loadChannels = () => {
     setLoadState('loading');
     apiGet<{requests:GmdRequest[]}>('/api/approvals?subsidiary=ALL')
-      .then(data=>{setRequests(data.requests||[]);setLoadState('ready')})
-      .catch(()=>setLoadState('error'));
+      .then(data => { setRequests(data.requests || []); setLoadState('ready'); })
+      .catch(() => setLoadState('error'));
   };
-  useEffect(loadChannels,[]);
+
+  const loadHelpdesk = () => {
+    setHelpdeskLoading(true);
+    fetch('/api/staff/chat/admin', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d && d.threads) setHelpdeskThreads(d.threads);
+      })
+      .finally(() => setHelpdeskLoading(false));
+  };
+
+  useEffect(() => {
+    loadChannels();
+    loadHelpdesk();
+    const timer = setInterval(() => {
+      loadHelpdesk();
+    }, 6000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const totalUnreadHelpdesk = helpdeskThreads.reduce((acc, t) => acc + (t.unreadCount || 0), 0);
+
   return <>
-    <SectionHeader eyebrow="COLLABORATION CHANNELS" title="Request Channels" text="Open the private conversation and activity history attached to each group request." action="View all requests" onAction={()=>onNavigate('/requests')}/>
-    <section className="card data-register">
-      {loadState==='loading'&&<div className="inline-status">Loading request channels…</div>}
-      {loadState==='error'&&<div className="inline-status error">Could not load request channels.<button onClick={loadChannels}>Retry</button></div>}
-      {loadState==='ready'&&<>
-        <div className="register-head"><span>Request channel</span><span>Subsidiary</span><span>Requester</span><span>Latest update</span><span>Approval</span><span/></div>
-        {requests.map(r=>{
-          const latest=r.recentMessages?.[0];
-          return <button className="register-row" key={r.id} onClick={()=>setSelectedChat(r)}>
-            <span><i>◎</i><strong>{r.title}</strong><small>{r.requestNumber}</small></span>
-            <span>{r.subsidiary.name.replace('Ltd','').trim()}</span><span>{r.requester.name}</span>
-            <span>{latest?.body||'Request submitted · no replies yet'}</span>
-            <b className={r.approvalStatus==='APPROVED'?'good':r.approvalStatus==='REJECTED'?'expired':'review'}>{r.approvalStatus.replaceAll('_',' ')}</b>
-            <em>Open chat →</em>
-          </button>;
+    <SectionHeader
+      eyebrow="COMMUNICATION & CHANNELS"
+      title="Collaboration & Staff Helpdesk"
+      text="Manage private requisition collaboration channels and direct 1-on-1 staff support conversations."
+      action="View all requests"
+      onAction={() => onNavigate('/requests')}
+    />
+
+    <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+      <button
+        type="button"
+        className={activeTab === 'REQUESTS' ? 'primary-button' : 'secondary-button'}
+        onClick={() => setActiveTab('REQUESTS')}
+        style={{ padding: '8px 16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+      >
+        <span>◎</span> Requisition Collaboration Channels ({requests.length})
+      </button>
+      <button
+        type="button"
+        className={activeTab === 'HELPDESK' ? 'primary-button' : 'secondary-button'}
+        onClick={() => { setActiveTab('HELPDESK'); loadHelpdesk(); }}
+        style={{ padding: '8px 16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+      >
+        <span>🎧</span> Staff ↔ Admin Direct Helpdesk ({helpdeskThreads.length})
+        {totalUnreadHelpdesk > 0 && (
+          <span style={{ background: '#EA580C', color: '#fff', fontSize: '10px', fontWeight: 900, padding: '2px 6px', borderRadius: '10px' }}>
+            {totalUnreadHelpdesk} NEW
+          </span>
+        )}
+      </button>
+    </div>
+
+    {activeTab === 'REQUESTS' ? (
+      <section className="card data-register">
+        {loadState === 'loading' && <div className="inline-status">Loading request channels…</div>}
+        {loadState === 'error' && <div className="inline-status error">Could not load request channels.<button onClick={loadChannels}>Retry</button></div>}
+        {loadState === 'ready' && <>
+          <div className="register-head"><span>Request channel</span><span>Subsidiary</span><span>Requester</span><span>Latest update</span><span>Approval</span><span/></div>
+          {requests.map(r => {
+            const latest = r.recentMessages?.[0];
+            return <button className="register-row" key={r.id} onClick={() => setSelectedChat(r)}>
+              <span><i>◎</i><strong>{r.title}</strong><small>{r.requestNumber}</small></span>
+              <span>{r.subsidiary.name.replace('Ltd', '').trim()}</span><span>{r.requester.name}</span>
+              <span>{latest?.body || 'Request submitted · no replies yet'}</span>
+              <b className={r.approvalStatus === 'APPROVED' ? 'good' : r.approvalStatus === 'REJECTED' ? 'expired' : 'review'}>{r.approvalStatus.replaceAll('_', ' ')}</b>
+              <em>Open chat →</em>
+            </button>;
+          })}
+          {!requests.length && <div className="inline-status">No request channels yet.</div>}
+        </>}
+      </section>
+    ) : (
+      <section className="card data-register">
+        {helpdeskLoading && !helpdeskThreads.length && <div className="inline-status">Loading staff helpdesk threads…</div>}
+        <div className="register-head"><span>Staff Member</span><span>Subsidiary</span><span>Employee ID</span><span>Last Message</span><span>Status</span><span/></div>
+        {helpdeskThreads.map(thread => {
+          const emp = thread.employee;
+          const msg = thread.lastMessage;
+          const hasUnread = thread.unreadCount > 0;
+          return (
+            <button
+              className="register-row"
+              key={emp.id}
+              onClick={() => setSelectedStaffThread(emp)}
+              style={hasUnread ? { background: '#FFF7ED' } : undefined}
+            >
+              <span>
+                <i>🎧</i>
+                <strong>{emp.legalName}</strong>
+                <small>{emp.workEmail}</small>
+              </span>
+              <span>{emp.primarySubsidiary?.name?.replace('Ltd', '').trim() || 'BEMS Group'}</span>
+              <span><code>{emp.employeeNumber}</code></span>
+              <span>
+                <span style={{ color: hasUnread ? '#EA580C' : 'var(--text)', fontWeight: hasUnread ? 700 : 400 }}>
+                  {msg?.senderRole !== 'STAFF' ? 'You: ' : ''}{msg?.message || 'Started inquiry'}
+                </span>
+                <small style={{ display: 'block', color: 'var(--muted)', fontSize: '10px' }}>
+                  {msg?.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                </small>
+              </span>
+              <span>
+                {hasUnread ? (
+                  <b className="review" style={{ background: '#EA580C', color: '#fff' }}>{thread.unreadCount} Unread</b>
+                ) : (
+                  <b className="good">All Read</b>
+                )}
+              </span>
+              <em>Chat with Staff →</em>
+            </button>
+          );
         })}
-        {!requests.length&&<div className="inline-status">No request channels yet.</div>}
-      </>}
-    </section>
-    {selectedChat&&<RequestChatModal requestNumber={selectedChat.requestNumber} title={selectedChat.title} initialMessages={selectedChat.recentMessages} onClose={()=>{setSelectedChat(null);loadChannels()}}/>}
+        {!helpdeskThreads.length && !helpdeskLoading && (
+          <div className="inline-status">No active staff inquiries in the helpdesk inbox yet. Messages sent from the Staff Mobile App appear here in real time.</div>
+        )}
+      </section>
+    )}
+
+    {selectedChat && (
+      <RequestChatModal
+        requestNumber={selectedChat.requestNumber}
+        title={selectedChat.title}
+        initialMessages={selectedChat.recentMessages}
+        onClose={() => { setSelectedChat(null); loadChannels(); }}
+      />
+    )}
+
+    {selectedStaffThread && (
+      <StaffAdminChatModal
+        employeeId={selectedStaffThread.id}
+        employeeName={selectedStaffThread.legalName}
+        employeeNumber={selectedStaffThread.employeeNumber}
+        subsidiary={selectedStaffThread.primarySubsidiary?.name}
+        onClose={() => { setSelectedStaffThread(null); loadHelpdesk(); }}
+      />
+    )}
   </>;
 }
 
