@@ -126,13 +126,17 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
       );
     } catch (e) {
       if (!mounted) return;
+      final raw = e.toString();
+      final friendlyMsg = raw.contains('SocketException') || raw.contains('Failed host lookup') || raw.contains('ClientException')
+          ? 'Network connection error. Unable to reach server. Please check your internet connectivity.'
+          : raw.replaceAll('Exception: ', '');
       setState(() {
         _isUploadingAvatar = false;
-        _errorMessage = 'Could not process photo: $e';
+        _errorMessage = 'Could not process photo: $friendlyMsg';
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Upload failed: $e'),
+          content: Text('Upload failed: $friendlyMsg'),
           backgroundColor: const Color(0xFFDC2626),
           behavior: SnackBarBehavior.floating,
         ),

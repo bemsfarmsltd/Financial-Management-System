@@ -3,24 +3,52 @@ import 'package:http/http.dart' as http;
 import '../models/staff_models.dart';
 
 class StaffApiService {
-  static String get baseUrl => 'https://bemserp.work';
+  static const String primaryBaseUrl = 'https://bemserp.work';
+  static const String fallbackBaseUrl = 'https://pink-horse-318730.hostingersite.com';
+  static String _activeBaseUrl = primaryBaseUrl;
+
+  static String get baseUrl => _activeBaseUrl;
+
+  static List<String> get _candidateHosts => [
+        _activeBaseUrl,
+        if (_activeBaseUrl == primaryBaseUrl) fallbackBaseUrl else primaryBaseUrl,
+      ];
+
+  /// Resilient request executor with automatic edge failover on DNS/Socket errors
+  static Future<http.Response> _executeWithFailover(
+    Future<http.Response> Function(String host) requestFn, {
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    dynamic lastError;
+    for (final host in _candidateHosts) {
+      try {
+        final res = await requestFn(host).timeout(timeout);
+        _activeBaseUrl = host;
+        return res;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    throw lastError is Exception
+        ? lastError
+        : Exception('Connection failed. Please check your internet connectivity.');
+  }
 
   /// Authenticate against production Next.js backend with work credentials
   static Future<StaffUser> login({
     required String email,
     required String password,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/auth/login');
-    final response = await http
-        .post(
-          uri,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'email': email.trim().toLowerCase(),
-            'password': password,
-          }),
-        )
-        .timeout(const Duration(seconds: 15));
+    final response = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email.trim().toLowerCase(),
+          'password': password,
+        }),
+      ),
+    );
 
     final data = jsonDecode(response.body);
 
@@ -28,30 +56,45 @@ class StaffApiService {
       return StaffUser.fromJson(data['user']);
     }
 
-    final errorMessage = data['error']?.toString() ?? 'Invalid work credentials. Please check your email and password.';
+    final errorMessage = data['error']?.toString() ??
+        'Invalid work credentials. Please check your email and password.';
     throw Exception(errorMessage);
   }
 
-  /// Upload staff passport photograph / profile picture directly to backend storage
+  /// Upload staff passport photograph / profile picture directly to backend storage with edge failover
   static Future<String> uploadAvatar({
     required List<int> bytes,
     required String filename,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/upload');
-    final request = http.MultipartRequest('POST', uri)
-      ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    dynamic lastError;
+    for (final host in _candidateHosts) {
+      try {
+        final uri = Uri.parse('$host/api/upload');
+        final request = http.MultipartRequest('POST', uri)
+          ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
 
-    final streamedResponse = await request.send().timeout(const Duration(seconds: 20));
-    final response = await http.Response.fromStream(streamedResponse);
-    final data = jsonDecode(response.body);
+        final streamedResponse =
+            await request.send().timeout(const Duration(seconds: 25));
+        final response = await http.Response.fromStream(streamedResponse);
+        final data = jsonDecode(response.body);
 
-    if (response.statusCode >= 200 && response.statusCode < 300 && data['url'] != null) {
-      final url = data['url'].toString();
-      return url.startsWith('http') ? url : '$baseUrl$url';
+        if (response.statusCode >= 200 &&
+            response.statusCode < 300 &&
+            data['url'] != null) {
+          _activeBaseUrl = host;
+          final url = data['url'].toString();
+          return url.startsWith('http') ? url : '$host$url';
+        }
+
+        final err = data['error']?.toString() ?? 'Could not upload passport photo.';
+        throw Exception(err);
+      } catch (e) {
+        lastError = e;
+      }
     }
-
-    final err = data['error']?.toString() ?? 'Could not upload passport photo.';
-    throw Exception(err);
+    throw lastError is Exception
+        ? lastError
+        : Exception('Unable to upload photo. Please check your internet connection.');
   }
 
   /// Live dashboard queries returning authoritative records from PostgreSQL
@@ -63,41 +106,56 @@ class StaffApiService {
       'Content-Type': 'application/json',
       if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
     };
-    final reqUri = Uri.parse('$baseUrl/api/requests?_t=${DateTime.now().millisecondsSinceEpoch}');
-    final disbUri = Uri.parse('$baseUrl/api/staff/disbursements?_t=${DateTime.now().millisecondsSinceEpoch}');
-    final accUri = Uri.parse('$baseUrl/api/accountability?_t=${DateTime.now().millisecondsSinceEpoch}');
 
-    final responses = await Future.wait([
-      http.get(reqUri, headers: headers).timeout(const Duration(seconds: 12)),
-      http.get(disbUri, headers: headers).timeout(const Duration(seconds: 12)),
-      http.get(accUri, headers: headers).timeout(const Duration(seconds: 12)),
-    ]);
+    for (final host in _candidateHosts) {
+      try {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final reqUri = Uri.parse('$host/api/requests?_t=$now');
+        final disbUri = Uri.parse('$host/api/staff/disbursements?_t=$now');
+        final accUri = Uri.parse('$host/api/accountability?_t=$now');
 
-    List<FundRequestItem> liveRequests = [];
-    if (responses[0].statusCode == 200) {
-      final data = jsonDecode(responses[0].body);
-      final list = (data['requests'] as List<dynamic>?) ?? [];
-      liveRequests = list.map((item) => FundRequestItem.fromJson(item)).toList();
-    }
+        final responses = await Future.wait([
+          http.get(reqUri, headers: headers).timeout(const Duration(seconds: 12)),
+          http.get(disbUri, headers: headers).timeout(const Duration(seconds: 12)),
+          http.get(accUri, headers: headers).timeout(const Duration(seconds: 12)),
+        ]);
 
-    List<DisbursementItem> liveDisbursements = [];
-    if (responses[1].statusCode == 200) {
-      final data = jsonDecode(responses[1].body);
-      final list = (data['awaitingConfirmation'] as List<dynamic>?) ?? [];
-      liveDisbursements = list.map((item) => DisbursementItem.fromJson(item)).toList();
-    }
+        List<FundRequestItem> liveRequests = [];
+        if (responses[0].statusCode == 200) {
+          final data = jsonDecode(responses[0].body);
+          final list = (data['requests'] as List<dynamic>?) ?? [];
+          liveRequests = list.map((item) => FundRequestItem.fromJson(item)).toList();
+        }
 
-    List<AccountabilityCaseItem> liveCases = [];
-    if (responses[2].statusCode == 200) {
-      final data = jsonDecode(responses[2].body);
-      final list = (data['cases'] as List<dynamic>?) ?? [];
-      liveCases = list.map((item) => AccountabilityCaseItem.fromJson(item)).toList();
+        List<DisbursementItem> liveDisbursements = [];
+        if (responses[1].statusCode == 200) {
+          final data = jsonDecode(responses[1].body);
+          final list = (data['awaitingConfirmation'] as List<dynamic>?) ?? [];
+          liveDisbursements =
+              list.map((item) => DisbursementItem.fromJson(item)).toList();
+        }
+
+        List<AccountabilityCaseItem> liveCases = [];
+        if (responses[2].statusCode == 200) {
+          final data = jsonDecode(responses[2].body);
+          final list = (data['cases'] as List<dynamic>?) ?? [];
+          liveCases =
+              list.map((item) => AccountabilityCaseItem.fromJson(item)).toList();
+        }
+
+        _activeBaseUrl = host;
+        return {
+          'requests': liveRequests,
+          'disbursementsAwaiting': liveDisbursements,
+          'accountabilityCases': liveCases,
+        };
+      } catch (_) {}
     }
 
     return {
-      'requests': liveRequests,
-      'disbursementsAwaiting': liveDisbursements,
-      'accountabilityCases': liveCases,
+      'requests': <FundRequestItem>[],
+      'disbursementsAwaiting': <DisbursementItem>[],
+      'accountabilityCases': <AccountabilityCaseItem>[],
     };
   }
 
@@ -120,35 +178,34 @@ class StaffApiService {
     bool isIntercompany = false,
     List<Map<String, dynamic>>? attachments,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/requests');
-    final res = await http
-        .post(
-          uri,
-          headers: {
-            'Content-Type': 'application/json',
-            if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
-          },
-          body: jsonEncode({
-            'title': title,
-            'justification': justification,
-            'deliverable': deliverable,
-            'category': category,
-            'subsidiary': subsidiary,
-            'department': department,
-            'amountMinor': (amountNaira * 100).toInt(),
-            'amountNaira': amountNaira,
-            'currency': 'NGN',
-            'urgency': urgency,
-            'neededBy': neededBy,
-            'dueDate': dueDate ?? 'Within 48 Hours',
-            'isRecurring': isRecurring,
-            'recurringInterval': recurringInterval,
-            'vendorName': vendorName,
-            'isIntercompany': isIntercompany,
-            if (attachments != null && attachments.isNotEmpty) 'attachments': attachments,
-          }),
-        )
-        .timeout(const Duration(seconds: 15));
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/requests'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
+        },
+        body: jsonEncode({
+          'title': title,
+          'justification': justification,
+          'deliverable': deliverable,
+          'category': category,
+          'subsidiary': subsidiary,
+          'department': department,
+          'amountMinor': (amountNaira * 100).toInt(),
+          'amountNaira': amountNaira,
+          'currency': 'NGN',
+          'urgency': urgency,
+          'neededBy': neededBy,
+          'dueDate': dueDate ?? 'Within 48 Hours',
+          'isRecurring': isRecurring,
+          'recurringInterval': recurringInterval,
+          'vendorName': vendorName,
+          'isIntercompany': isIntercompany,
+          if (attachments != null && attachments.isNotEmpty) 'attachments': attachments,
+        }),
+      ),
+    );
 
     if (res.statusCode >= 200 && res.statusCode < 300) {
       return true;
@@ -170,22 +227,21 @@ class StaffApiService {
     String? employeeId,
     String? note,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/disbursements/confirm');
-    final res = await http
-        .post(
-          uri,
-          headers: {
-            'Content-Type': 'application/json',
-            if (employeeId != null) 'x-employee-id': employeeId,
-          },
-          body: jsonEncode({
-            'disbursementId': disbursementId,
-            'decision': decision,
-            if (employeeId != null) 'employeeId': employeeId,
-            'note': note ?? '',
-          }),
-        )
-        .timeout(const Duration(seconds: 15));
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/disbursements/confirm'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (employeeId != null) 'x-employee-id': employeeId,
+        },
+        body: jsonEncode({
+          'disbursementId': disbursementId,
+          'decision': decision,
+          if (employeeId != null) 'employeeId': employeeId,
+          'note': note ?? '',
+        }),
+      ),
+    );
 
     if (res.statusCode >= 200 && res.statusCode < 300) return true;
 
@@ -207,24 +263,24 @@ class StaffApiService {
     String? employeeId,
     String contentType = 'image/jpeg',
   }) async {
-    final uri = Uri.parse('$baseUrl/api/accountability/evidence');
     final base64String = base64Encode(fileBytes);
-    final res = await http
-        .post(
-          uri,
-          headers: {
-            'Content-Type': 'application/json',
-            if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
-          },
-          body: jsonEncode({
-            'caseId': caseId,
-            'notes': notes,
-            'fileName': receiptName,
-            'contentType': contentType,
-            'fileBase64': base64String,
-          }),
-        )
-        .timeout(const Duration(seconds: 25));
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/accountability/evidence'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
+        },
+        body: jsonEncode({
+          'caseId': caseId,
+          'notes': notes,
+          'fileName': receiptName,
+          'contentType': contentType,
+          'fileBase64': base64String,
+        }),
+      ),
+      timeout: const Duration(seconds: 25),
+    );
 
     if (res.statusCode >= 200 && res.statusCode < 300) return true;
 
@@ -239,55 +295,68 @@ class StaffApiService {
 
   /// Retrieve approved vendor registry for 3-way matching
   static Future<List<Map<String, dynamic>>> fetchVendors({String? employeeId}) async {
-    final uri = Uri.parse('$baseUrl/api/vendors');
-    final res = await http.get(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
-      },
-    ).timeout(const Duration(seconds: 12));
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/vendors'),
+          headers: {
+            'Content-Type': 'application/json',
+            if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
+          },
+        ),
+      );
 
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      final data = jsonDecode(res.body);
-      final list = (data['vendors'] as List<dynamic>?) ?? [];
-      return list.cast<Map<String, dynamic>>();
-    }
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final data = jsonDecode(res.body);
+        final list = (data['vendors'] as List<dynamic>?) ?? [];
+        return list.cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
     return [];
   }
 
   /// Fetch in-app notifications for staff member
-  static Future<List<Map<String, dynamic>>> fetchNotifications({required String employeeId}) async {
-    final uri = Uri.parse('$baseUrl/api/notifications');
-    final res = await http.get(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-employee-id': employeeId,
-      },
-    ).timeout(const Duration(seconds: 12));
+  static Future<List<Map<String, dynamic>>> fetchNotifications({
+    required String employeeId,
+  }) async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/notifications'),
+          headers: {
+            'Content-Type': 'application/json',
+            'x-employee-id': employeeId,
+          },
+        ),
+      );
 
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      final data = jsonDecode(res.body);
-      final list = (data['notifications'] as List<dynamic>?) ?? [];
-      return list.cast<Map<String, dynamic>>();
-    }
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final data = jsonDecode(res.body);
+        final list = (data['notifications'] as List<dynamic>?) ?? [];
+        return list.cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
     return [];
   }
 
   /// Mark all notifications read
   static Future<bool> markNotificationsRead({required String employeeId}) async {
-    final uri = Uri.parse('$baseUrl/api/notifications');
-    final res = await http.patch(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-employee-id': employeeId,
-      },
-      body: jsonEncode({'markAllRead': true}),
-    ).timeout(const Duration(seconds: 10));
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.patch(
+          Uri.parse('$host/api/notifications'),
+          headers: {
+            'Content-Type': 'application/json',
+            'x-employee-id': employeeId,
+          },
+          body: jsonEncode({'markAllRead': true}),
+        ),
+      );
 
-    return res.statusCode >= 200 && res.statusCode < 300;
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Update Dual Banking Accounts (Advances & Salary) in PostgreSQL
@@ -300,21 +369,20 @@ class StaffApiService {
     required String salaryAccountNumber,
     required String salaryAccountName,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/staff/$employeeId/banking');
-    final res = await http
-        .post(
-          uri,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'bankName': bankName,
-            'accountNumber': accountNumber,
-            'accountName': accountName,
-            'salaryBankName': salaryBankName,
-            'salaryAccountNumber': salaryAccountNumber,
-            'salaryAccountName': salaryAccountName,
-          }),
-        )
-        .timeout(const Duration(seconds: 15));
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/staff/$employeeId/banking'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'bankName': bankName,
+          'accountNumber': accountNumber,
+          'accountName': accountName,
+          'salaryBankName': salaryBankName,
+          'salaryAccountNumber': salaryAccountNumber,
+          'salaryAccountName': salaryAccountName,
+        }),
+      ),
+    );
 
     if (res.statusCode >= 200 && res.statusCode < 300) return true;
 
@@ -332,14 +400,13 @@ class StaffApiService {
     required String employeeId,
     required String phone,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/staff/$employeeId/contact');
-    final res = await http
-        .post(
-          uri,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'phone': phone}),
-        )
-        .timeout(const Duration(seconds: 15));
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/staff/$employeeId/contact'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'phone': phone}),
+      ),
+    );
 
     if (res.statusCode >= 200 && res.statusCode < 300) return true;
 
@@ -358,17 +425,16 @@ class StaffApiService {
     required String oldPassword,
     required String newPassword,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/staff/$employeeId/password');
-    final res = await http
-        .post(
-          uri,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'oldPassword': oldPassword,
-            'newPassword': newPassword,
-          }),
-        )
-        .timeout(const Duration(seconds: 15));
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/staff/$employeeId/password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'oldPassword': oldPassword,
+          'newPassword': newPassword,
+        }),
+      ),
+    );
 
     if (res.statusCode >= 200 && res.statusCode < 300) return true;
 
@@ -412,76 +478,84 @@ class StaffApiService {
     String? nextOfKinPhone,
     String? nextOfKinAddress,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/auth/signup');
-    final response = await http
-        .post(
-          uri,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'avatarUrl': avatarUrl,
-            'fullName': fullName,
-            'email': email.trim().toLowerCase(),
-            'password': password,
-            'phone': phone,
-            'gender': gender,
-            'dateOfBirth': dateOfBirth,
-            'subsidiaryId': subsidiary,
-            'departmentId': department,
-            'jobTitle': jobTitle,
-            'staffGrade': staffGrade,
-            'workLocation': workLocation,
-            'bankName': bankName,
-            'accountNumber': accountNumber,
-            'accountName': accountName,
-            'useSameAccountForSalary': useSameAccountForSalary,
-            'salaryBankName': salaryBankName ?? bankName,
-            'salaryAccountNumber': salaryAccountNumber ?? accountNumber,
-            'salaryAccountName': salaryAccountName ?? accountName,
-            'nin': nin,
-            'bvn': bvn,
-            'stateOfOrigin': stateOfOrigin,
-            'lga': lga,
-            'residentialAddress': residentialAddress,
-            'nextOfKinName': nextOfKinName,
-            'nextOfKinRelationship': nextOfKinRelationship,
-            'nextOfKinPhone': nextOfKinPhone,
-            'nextOfKinAddress': nextOfKinAddress,
-          }),
-        )
-        .timeout(const Duration(seconds: 20));
+    final response = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/auth/signup'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'avatarUrl': avatarUrl,
+          'fullName': fullName,
+          'email': email.trim().toLowerCase(),
+          'password': password,
+          'phone': phone,
+          'gender': gender,
+          'dateOfBirth': dateOfBirth,
+          'subsidiaryId': subsidiary,
+          'departmentId': department,
+          'jobTitle': jobTitle,
+          'staffGrade': staffGrade,
+          'workLocation': workLocation,
+          'bankName': bankName,
+          'accountNumber': accountNumber,
+          'accountName': accountName,
+          'useSameAccountForSalary': useSameAccountForSalary,
+          'salaryBankName': salaryBankName ?? bankName,
+          'salaryAccountNumber': salaryAccountNumber ?? accountNumber,
+          'salaryAccountName': salaryAccountName ?? accountName,
+          'nin': nin,
+          'bvn': bvn,
+          'stateOfOrigin': stateOfOrigin,
+          'lga': lga,
+          'residentialAddress': residentialAddress,
+          'nextOfKinName': nextOfKinName,
+          'nextOfKinRelationship': nextOfKinRelationship,
+          'nextOfKinPhone': nextOfKinPhone,
+          'nextOfKinAddress': nextOfKinAddress,
+        }),
+      ),
+      timeout: const Duration(seconds: 25),
+    );
 
     final data = jsonDecode(response.body);
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       return {
         'success': true,
-        'employeeNumber': data['employeeNumber'] ?? 'BEMS-REG-${DateTime.now().millisecondsSinceEpoch % 10000}',
-        'message': data['message'] ?? 'Registration successful! Your staff account has been submitted for Admin sign-off.',
+        'employeeNumber': data['employeeNumber'] ??
+            'BEMS-REG-${DateTime.now().millisecondsSinceEpoch % 10000}',
+        'message': data['message'] ??
+            'Registration successful! Your staff account has been submitted for Admin sign-off.',
       };
     }
 
-    final errorMessage = data['error']?.toString() ?? 'Registration failed. Please check your information.';
+    final errorMessage = data['error']?.toString() ??
+        'Registration failed. Please check your information.';
     return {'success': false, 'error': errorMessage};
   }
 
   /// Request Password Reset Link via corporate email
   static Future<Map<String, dynamic>> requestPasswordReset(String email) async {
-    final uri = Uri.parse('$baseUrl/api/auth/magic-link');
-    final response = await http
-        .post(
-          uri,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'email': email.trim().toLowerCase()}),
-        )
-        .timeout(const Duration(seconds: 15));
+    final response = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/auth/magic-link'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email.trim().toLowerCase()}),
+      ),
+    );
 
     final data = jsonDecode(response.body);
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      return {'success': true, 'message': data['message'] ?? 'Password reset link sent to $email'};
+      return {
+        'success': true,
+        'message': data['message'] ?? 'Password reset link sent to $email'
+      };
     }
 
-    return {'success': false, 'error': data['error'] ?? 'Could not dispatch password reset link.'};
+    return {
+      'success': false,
+      'error': data['error'] ?? 'Could not dispatch password reset link.'
+    };
   }
 
   /// Reset Password with Token / OTP verification
@@ -490,18 +564,17 @@ class StaffApiService {
     required String code,
     required String newPassword,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/auth/reset-password');
-    final res = await http
-        .post(
-          uri,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'email': email.trim().toLowerCase(),
-            'code': code.trim(),
-            'newPassword': newPassword,
-          }),
-        )
-        .timeout(const Duration(seconds: 15));
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/auth/reset-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email.trim().toLowerCase(),
+          'code': code.trim(),
+          'newPassword': newPassword,
+        }),
+      ),
+    );
 
     if (res.statusCode >= 200 && res.statusCode < 300) return true;
 
@@ -523,14 +596,15 @@ class StaffApiService {
     required String requestNumber,
     required String employeeId,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/requests/${Uri.encodeComponent(requestNumber)}/action');
-    final res = await http.get(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-employee-id': employeeId,
-      },
-    ).timeout(const Duration(seconds: 15));
+    final res = await _executeWithFailover(
+      (host) => http.get(
+        Uri.parse('$host/api/requests/${Uri.encodeComponent(requestNumber)}/action'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-employee-id': employeeId,
+        },
+      ),
+    );
 
     final data = jsonDecode(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -549,22 +623,23 @@ class StaffApiService {
     String? attachmentUrl,
     String? attachmentName,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/requests/${Uri.encodeComponent(requestNumber)}/action');
-    final res = await http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-employee-id': employeeId,
-      },
-      body: jsonEncode({
-        'action': 'SEND_MESSAGE',
-        'text': text.trim(),
-        'visibility': visibility,
-        if (recipientId != null) 'recipientId': recipientId,
-        if (attachmentUrl != null) 'attachmentUrl': attachmentUrl,
-        if (attachmentName != null) 'attachmentName': attachmentName,
-      }),
-    ).timeout(const Duration(seconds: 15));
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/requests/${Uri.encodeComponent(requestNumber)}/action'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-employee-id': employeeId,
+        },
+        body: jsonEncode({
+          'action': 'SEND_MESSAGE',
+          'text': text.trim(),
+          'visibility': visibility,
+          if (recipientId != null) 'recipientId': recipientId,
+          if (attachmentUrl != null) 'attachmentUrl': attachmentUrl,
+          if (attachmentName != null) 'attachmentName': attachmentName,
+        }),
+      ),
+    );
 
     final data = jsonDecode(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -581,19 +656,22 @@ class StaffApiService {
   static Future<List<Map<String, dynamic>>> getAdminChat({
     required String employeeId,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/staff/chat/admin');
-    final res = await http.get(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-employee-id': employeeId,
-      },
-    ).timeout(const Duration(seconds: 15));
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/staff/chat/admin'),
+          headers: {
+            'Content-Type': 'application/json',
+            'x-employee-id': employeeId,
+          },
+        ),
+      );
 
-    final data = jsonDecode(res.body);
-    if (res.statusCode >= 200 && res.statusCode < 300 && data['messages'] != null) {
-      return List<Map<String, dynamic>>.from(data['messages']);
-    }
+      final data = jsonDecode(res.body);
+      if (res.statusCode >= 200 && res.statusCode < 300 && data['messages'] != null) {
+        return List<Map<String, dynamic>>.from(data['messages']);
+      }
+    } catch (_) {}
     return [];
   }
 
@@ -604,19 +682,20 @@ class StaffApiService {
     String? attachmentUrl,
     String? attachmentName,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/staff/chat/admin');
-    final res = await http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-employee-id': employeeId,
-      },
-      body: jsonEncode({
-        'message': text.trim(),
-        if (attachmentUrl != null) 'attachmentUrl': attachmentUrl,
-        if (attachmentName != null) 'attachmentName': attachmentName,
-      }),
-    ).timeout(const Duration(seconds: 15));
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/staff/chat/admin'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-employee-id': employeeId,
+        },
+        body: jsonEncode({
+          'message': text.trim(),
+          if (attachmentUrl != null) 'attachmentUrl': attachmentUrl,
+          if (attachmentName != null) 'attachmentName': attachmentName,
+        }),
+      ),
+    );
 
     final data = jsonDecode(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -630,15 +709,14 @@ class StaffApiService {
     required String employeeId,
     required String avatarUrl,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/staff/$employeeId/contact');
-    final res = await http.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'avatarUrl': avatarUrl}),
-    ).timeout(const Duration(seconds: 15));
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/staff/$employeeId/contact'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'avatarUrl': avatarUrl}),
+      ),
+    );
 
     return res.statusCode >= 200 && res.statusCode < 300;
   }
 }
-
-

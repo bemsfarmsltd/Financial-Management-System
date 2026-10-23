@@ -229,6 +229,31 @@ export async function getAuthenticatedEmployee(req?: Request): Promise<Authentic
     }
   }
 
+  // 3. Direct mobile client fallback via x-employee-id header
+  try {
+    let mobileEmpId = req?.headers.get('x-employee-id');
+    if (!mobileEmpId) {
+      const hs = await headers().catch(() => null);
+      mobileEmpId = hs?.get('x-employee-id');
+    }
+    if (mobileEmpId) {
+      const employee = await prisma.employee.findUnique({
+        where: { id: mobileEmpId },
+      });
+      if (employee && employee.status === 'ACTIVE' && employee.approvalStatus === 'APPROVED') {
+        return {
+          id: employee.id,
+          employeeNumber: employee.employeeNumber,
+          legalName: employee.legalName,
+          workEmail: employee.workEmail,
+          phone: employee.phone,
+          role: employee.role,
+          avatarUrl: employee.avatarUrl,
+        };
+      }
+    }
+  } catch {}
+
   return null;
 }
 
