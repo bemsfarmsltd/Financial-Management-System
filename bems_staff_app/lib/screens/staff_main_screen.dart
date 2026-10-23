@@ -51,6 +51,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   Future<void> _handleConfirmPayment(DisbursementItem disb) async {
     await StaffApiService.confirmDisbursement(
       disbursementId: disb.id,
+      employeeId: _currentUser.id,
       decision: 'RECEIVED',
     );
     if (!mounted) return;
@@ -107,6 +108,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 Navigator.pop(ctx);
                 await StaffApiService.confirmDisbursement(
                   disbursementId: disb.id,
+                  employeeId: _currentUser.id,
                   decision: 'NOT_RECEIVED',
                   note: noteController.text.trim(),
                 );

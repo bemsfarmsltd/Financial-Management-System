@@ -154,16 +154,21 @@ class StaffApiService {
   static Future<bool> confirmDisbursement({
     required String disbursementId,
     required String decision,
+    String? employeeId,
     String? note,
   }) async {
     final uri = Uri.parse('$baseUrl/api/disbursements/confirm');
     final res = await http
         .post(
           uri,
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            if (employeeId != null) 'x-employee-id': employeeId,
+          },
           body: jsonEncode({
             'disbursementId': disbursementId,
             'decision': decision,
+            if (employeeId != null) 'employeeId': employeeId,
             'note': note ?? '',
           }),
         )

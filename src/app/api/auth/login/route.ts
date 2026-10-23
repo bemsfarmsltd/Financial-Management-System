@@ -21,7 +21,10 @@ export async function POST(request: Request) {
     }
 
     const session = await createEmployeeSession(employee.id);
-    const res = NextResponse.json({ user: publicEmployee(employee) });
+    const res = NextResponse.json({ 
+      user: publicEmployee(employee),
+      token: session.token,
+    });
     res.cookies.set('bems_session', session.token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
