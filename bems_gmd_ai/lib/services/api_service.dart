@@ -60,6 +60,186 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> fetchDashboardData() async {
+    final defaultBankAccounts = [
+      {
+        'bank': 'Access Bank PLC',
+        'accountNumber': '0123456789',
+        'accountType': 'Holding Master Reserve',
+        'balance': '₦52,800,000',
+        'status': '100% RECONCILED',
+      },
+      {
+        'bank': 'Zenith Bank PLC',
+        'accountNumber': '1012345678',
+        'accountType': 'Operations Working Capital',
+        'balance': '₦24,400,000',
+        'status': '100% RECONCILED',
+      },
+      {
+        'bank': 'Guaranty Trust Bank',
+        'accountNumber': '0234567891',
+        'accountType': 'Emergency & Payroll Escrow',
+        'balance': '₦7,000,000',
+        'status': '100% RECONCILED',
+      },
+    ];
+
+    final defaultRecentDisbursements = [
+      {
+        'id': 'disb-01',
+        'reference': 'TRF-BNK-98214',
+        'beneficiary': 'Fagbemi Grains Haulage',
+        'bank': 'Zenith Bank PLC',
+        'subsidiary': 'BEMS Farms Ltd',
+        'amount': '₦1,420,000',
+        'time': 'Today, 09:30 AM',
+        'status': 'CONFIRMED',
+      },
+      {
+        'id': 'disb-02',
+        'reference': 'TRF-BNK-98190',
+        'beneficiary': 'AgroVet Pharmacy Ltd',
+        'bank': 'Access Bank PLC',
+        'subsidiary': 'BEMS Feed Mill Operations',
+        'amount': '₦850,000',
+        'time': 'Yesterday, 04:15 PM',
+        'status': 'CONFIRMED',
+      },
+      {
+        'id': 'disb-03',
+        'reference': 'TRF-BNK-98042',
+        'beneficiary': 'National Power Distribution',
+        'bank': 'Access Bank PLC',
+        'subsidiary': 'BEMS Group Holdings',
+        'amount': '₦320,000',
+        'time': '21 Oct 2026',
+        'status': 'CONFIRMED',
+      },
+    ];
+
+    final defaultRequests = [
+      {
+        'id': 'req-seed-01',
+        'code': 'REQ-2026-089',
+        'subsidiary': 'BEMS Feed Mill Operations',
+        'department': 'Feed Operations & Mills',
+        'requesterName': 'Engr. Damilola Adeyemi',
+        'requesterRole': 'Operations Director',
+        'beneficiary': 'Golden Feed Logistics Ltd',
+        'purpose': 'Bulk procurement of maize feed ingredients (Batch 42)',
+        'justification': 'Buffer inventory required ahead of price hike to maintain feed production schedule for 12,000 broiler birds.',
+        'deliverable': 'Warehouse Goods Received Note (GRN) & Weighbridge ticket',
+        'amountNaira': 650000,
+        'neededBy': 'Within 24 Hours',
+        'budgetStatus': 'Within 74% Q4 Allocation',
+        'urgency': 'HIGH',
+        'approvalStatus': 'SUBMITTED',
+        'createdAt': '2026-10-23',
+      },
+      {
+        'id': 'req-seed-02',
+        'code': 'REQ-2026-090',
+        'subsidiary': 'BEMS Farms Ltd',
+        'department': 'Agronomy & Irrigation',
+        'requesterName': 'Musa Haruna',
+        'requesterRole': 'Farm Irrigation Lead',
+        'beneficiary': 'Danfoss Spares Distribution Ltd',
+        'purpose': 'Replacement high-pressure pump valves for Sector C pivots',
+        'justification': 'Critical maintenance to prevent dry wilt across 15 hectares of tomato beds.',
+        'deliverable': 'Installation sign-off sheet & replaced parts inspection log',
+        'amountNaira': 480000,
+        'neededBy': 'Immediate (Today)',
+        'budgetStatus': 'Within 61% Q4 Allocation',
+        'urgency': 'CRITICAL',
+        'approvalStatus': 'SUBMITTED',
+        'createdAt': '2026-10-23',
+      },
+      {
+        'id': 'req-seed-03',
+        'code': 'REQ-2026-091',
+        'subsidiary': 'BEMS Logistics & Haulage',
+        'department': 'Fleet & Haulage',
+        'requesterName': 'Chinedu Eze',
+        'requesterRole': 'Fleet Coordinator',
+        'beneficiary': 'TotalEnergies Commercial Bulk',
+        'purpose': 'Diesel allocation (1,200 Litres) for grain distribution trucks',
+        'justification': 'Scheduled delivery runs for animal feed across 4 south-western depot clusters.',
+        'deliverable': 'Bulk fueling log & truck odometer inspection receipts',
+        'amountNaira': 720000,
+        'neededBy': 'Tomorrow, 08:00 AM',
+        'budgetStatus': 'Within 83% Q4 Allocation (Caution)',
+        'urgency': 'NORMAL',
+        'approvalStatus': 'SUBMITTED',
+        'createdAt': '2026-10-22',
+      },
+    ];
+
+    final defaultAccountability = [
+      {
+        'id': 'acc-01',
+        'staffName': 'Sunday Ogunleye',
+        'subsidiary': 'BEMS Farms Ltd',
+        'amountNaira': 280000,
+        'purpose': 'Field tractor maintenance emergency run',
+        'disbursedAt': '19 Oct 2026',
+        'dueAt': '22 Oct 2026',
+        'hoursRemaining': -24,
+        'status': 'OVERDUE',
+        'expectedProof': 'Spare parts receipt & mechanic job completion note',
+      },
+      {
+        'id': 'acc-02',
+        'staffName': 'Fatima Bello',
+        'subsidiary': 'BEMS Feed Mill Operations',
+        'amountNaira': 150000,
+        'purpose': 'State agro-allied interstate transit compliance fees',
+        'disbursedAt': '21 Oct 2026',
+        'dueAt': '24 Oct 2026',
+        'hoursRemaining': 18,
+        'status': 'DUE_SOON',
+        'expectedProof': 'State revenue collection stickers & vehicle manifests',
+      },
+    ];
+
+    final defaultBudgets = [
+      {
+        'subsidiary': 'BEMS Farms Ltd',
+        'department': 'Crop Production & Irrigation',
+        'allocatedAmount': 35000000,
+        'spentAmount': 21400000,
+        'committedAmount': 3200000,
+        'burnPercent': 70.3,
+        'status': 'HEALTHY',
+      },
+      {
+        'subsidiary': 'BEMS Feed Mill Operations',
+        'department': 'Raw Grain & Feed Processing',
+        'allocatedAmount': 28000000,
+        'spentAmount': 19600000,
+        'committedAmount': 2800000,
+        'burnPercent': 80.0,
+        'status': 'CAUTION',
+      },
+      {
+        'subsidiary': 'BEMS Logistics & Haulage',
+        'department': 'Fleet Maintenance & Fuel',
+        'allocatedAmount': 18000000,
+        'spentAmount': 9400000,
+        'committedAmount': 1800000,
+        'burnPercent': 62.2,
+        'status': 'HEALTHY',
+      },
+      {
+        'subsidiary': 'BEMS Group Holdings',
+        'department': 'Executive & Governance',
+        'allocatedAmount': 15000000,
+        'spentAmount': 6200000,
+        'committedAmount': 1100000,
+        'burnPercent': 48.7,
+        'status': 'HEALTHY',
+      },
+    ];
+
     try {
       final uri = Uri.parse('$baseUrl/api/briefing?_t=${DateTime.now().millisecondsSinceEpoch}');
       final response = await http.get(uri).timeout(const Duration(seconds: 10));
@@ -76,36 +256,25 @@ class ApiService {
         return {
           'treasury': {
             'total': '₦84,200,000',
-            'accessBank': '₦52,800,000',
-            'zenithBank': '₦31,400,000',
             'reserveRatio': '100% Reconciled',
+            'runwayWeeks': '18.4 weeks',
+            'accounts': defaultBankAccounts,
+            'recentDisbursements': defaultRecentDisbursements,
           },
-          'pendingRequests': pending.isNotEmpty
-              ? pending
+          'pendingRequests': pending.isNotEmpty ? pending : defaultRequests,
+          'pendingCount': pending.isNotEmpty ? pending.length : defaultRequests.length,
+          'pendingSum': pending.isNotEmpty ? pendingSum : 1850000,
+          'accountabilityCases': accountabilityCases.isNotEmpty ? accountabilityCases : defaultAccountability,
+          'overdueCount': overdue.isNotEmpty ? overdue.length : 1,
+          'budgets': budgets.isNotEmpty ? budgets : defaultBudgets,
+          'organizations': orgs.isNotEmpty
+              ? orgs
               : [
-                  {
-                    'id': 'req-seed-01',
-                    'code': 'REQ-2026-089',
-                    'department': 'Feed Operations & Mills',
-                    'beneficiary': 'Golden Feed Logistics Ltd',
-                    'purpose': 'Bulk procurement of maize feed ingredients (Batch 42)',
-                    'amountNaira': 650000,
-                    'approvalStatus': 'SUBMITTED',
-                    'createdAt': '2026-10-23',
-                  },
+                  {'id': 'all', 'legalName': 'All Subsidiaries', 'code': 'ALL'},
+                  {'id': 'org-1', 'legalName': 'BEMS Farms Ltd', 'code': 'FARMS'},
+                  {'id': 'org-2', 'legalName': 'BEMS Feed Mill Operations', 'code': 'FEED'},
+                  {'id': 'org-3', 'legalName': 'BEMS Logistics & Haulage', 'code': 'HAUL'},
                 ],
-          'pendingCount': pending.isNotEmpty ? pending.length : 1,
-          'pendingSum': pending.isNotEmpty ? pendingSum : 650000,
-          'accountabilityCases': accountabilityCases,
-          'overdueCount': overdue.length,
-          'budgets': budgets.isNotEmpty
-              ? budgets
-              : [
-                  {'department': 'BEMS Farms Core', 'allocatedAmount': 25000000, 'spentAmount': 14200000},
-                  {'department': 'Feed Mill Operations', 'allocatedAmount': 18000000, 'spentAmount': 11600000},
-                  {'department': 'Logistics & Haulage', 'allocatedAmount': 12000000, 'spentAmount': 6400000},
-                ],
-          'organizations': orgs,
         };
       }
     } catch (_) {}
@@ -113,32 +282,23 @@ class ApiService {
     return {
       'treasury': {
         'total': '₦84,200,000',
-        'accessBank': '₦52,800,000',
-        'zenithBank': '₦31,400,000',
         'reserveRatio': '100% Reconciled',
+        'runwayWeeks': '18.4 weeks',
+        'accounts': defaultBankAccounts,
+        'recentDisbursements': defaultRecentDisbursements,
       },
-      'pendingRequests': [
-        {
-          'id': 'req-seed-01',
-          'code': 'REQ-2026-089',
-          'department': 'Feed Operations & Mills',
-          'beneficiary': 'Golden Feed Logistics Ltd',
-          'purpose': 'Bulk procurement of maize feed ingredients (Batch 42)',
-          'amountNaira': 650000,
-          'approvalStatus': 'SUBMITTED',
-          'createdAt': '2026-10-23',
-        },
+      'pendingRequests': defaultRequests,
+      'pendingCount': defaultRequests.length,
+      'pendingSum': 1850000,
+      'accountabilityCases': defaultAccountability,
+      'overdueCount': 1,
+      'budgets': defaultBudgets,
+      'organizations': [
+        {'id': 'all', 'legalName': 'All Subsidiaries', 'code': 'ALL'},
+        {'id': 'org-1', 'legalName': 'BEMS Farms Ltd', 'code': 'FARMS'},
+        {'id': 'org-2', 'legalName': 'BEMS Feed Mill Operations', 'code': 'FEED'},
+        {'id': 'org-3', 'legalName': 'BEMS Logistics & Haulage', 'code': 'HAUL'},
       ],
-      'pendingCount': 1,
-      'pendingSum': 650000,
-      'accountabilityCases': [],
-      'overdueCount': 0,
-      'budgets': [
-        {'department': 'BEMS Farms Core', 'allocatedAmount': 25000000, 'spentAmount': 14200000},
-        {'department': 'Feed Mill Operations', 'allocatedAmount': 18000000, 'spentAmount': 11600000},
-        {'department': 'Logistics & Haulage', 'allocatedAmount': 12000000, 'spentAmount': 6400000},
-      ],
-      'organizations': [],
     };
   }
 
