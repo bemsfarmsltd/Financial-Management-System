@@ -55,15 +55,22 @@ class StaffApiService {
   }
 
   /// Live dashboard queries returning authoritative records from PostgreSQL
-  static Future<Map<String, dynamic>> fetchStaffDashboard({required String userEmail}) async {
+  static Future<Map<String, dynamic>> fetchStaffDashboard({
+    required String userEmail,
+    String? employeeId,
+  }) async {
+    final headers = {
+      'Content-Type': 'application/json',
+      if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
+    };
     final reqUri = Uri.parse('$baseUrl/api/requests?_t=${DateTime.now().millisecondsSinceEpoch}');
     final disbUri = Uri.parse('$baseUrl/api/staff/disbursements?_t=${DateTime.now().millisecondsSinceEpoch}');
     final accUri = Uri.parse('$baseUrl/api/accountability?_t=${DateTime.now().millisecondsSinceEpoch}');
 
     final responses = await Future.wait([
-      http.get(reqUri).timeout(const Duration(seconds: 12)),
-      http.get(disbUri).timeout(const Duration(seconds: 12)),
-      http.get(accUri).timeout(const Duration(seconds: 12)),
+      http.get(reqUri, headers: headers).timeout(const Duration(seconds: 12)),
+      http.get(disbUri, headers: headers).timeout(const Duration(seconds: 12)),
+      http.get(accUri, headers: headers).timeout(const Duration(seconds: 12)),
     ]);
 
     List<FundRequestItem> liveRequests = [];
@@ -185,30 +192,33 @@ class StaffApiService {
     }
   }
 
-  /// Submit 72-Hour SLA accountability receipts & deliverables
+  /// Submit 72-Hour SLA accountability receipts & deliverables with real image or document bytes
   static Future<bool> submitRetirementEvidence({
     required String caseId,
     required String notes,
     required String receiptName,
-    double? actualSpentNaira,
-    double? refundOrReimbursementNaira,
-    List<String> attachments = const [],
+    required List<int> fileBytes,
+    String? employeeId,
+    String contentType = 'image/jpeg',
   }) async {
     final uri = Uri.parse('$baseUrl/api/accountability/evidence');
+    final base64String = base64Encode(fileBytes);
     final res = await http
         .post(
           uri,
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
+          },
           body: jsonEncode({
             'caseId': caseId,
             'notes': notes,
-            'attachmentName': receiptName,
-            'actualSpent': actualSpentNaira ?? 0,
-            'refundOrReimbursement': refundOrReimbursementNaira ?? 0,
-            'attachments': attachments,
+            'fileName': receiptName,
+            'contentType': contentType,
+            'fileBase64': base64String,
           }),
         )
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 25));
 
     if (res.statusCode >= 200 && res.statusCode < 300) return true;
 
@@ -219,6 +229,59 @@ class StaffApiService {
       if (e is Exception) rethrow;
       throw Exception('Failed to submit retirement proof.');
     }
+  }
+
+  /// Retrieve approved vendor registry for 3-way matching
+  static Future<List<Map<String, dynamic>>> fetchVendors({String? employeeId}) async {
+    final uri = Uri.parse('$baseUrl/api/vendors');
+    final res = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
+      },
+    ).timeout(const Duration(seconds: 12));
+
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final data = jsonDecode(res.body);
+      final list = (data['vendors'] as List<dynamic>?) ?? [];
+      return list.cast<Map<String, dynamic>>();
+    }
+    return [];
+  }
+
+  /// Fetch in-app notifications for staff member
+  static Future<List<Map<String, dynamic>>> fetchNotifications({required String employeeId}) async {
+    final uri = Uri.parse('$baseUrl/api/notifications');
+    final res = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-employee-id': employeeId,
+      },
+    ).timeout(const Duration(seconds: 12));
+
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final data = jsonDecode(res.body);
+      final list = (data['notifications'] as List<dynamic>?) ?? [];
+      return list.cast<Map<String, dynamic>>();
+    }
+    return [];
+  }
+
+  /// Mark all notifications read
+  static Future<bool> markNotificationsRead({required String employeeId}) async {
+    final uri = Uri.parse('$baseUrl/api/notifications');
+    final res = await http.patch(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-employee-id': employeeId,
+      },
+      body: jsonEncode({'markAllRead': true}),
+    ).timeout(const Duration(seconds: 10));
+
+    return res.statusCode >= 200 && res.statusCode < 300;
   }
 
   /// Update Dual Banking Accounts (Advances & Salary) in PostgreSQL

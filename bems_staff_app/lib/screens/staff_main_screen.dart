@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/staff_models.dart';
 import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
@@ -39,7 +41,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   }
 
   Future<void> _loadData() async {
-    final data = await StaffApiService.fetchStaffDashboard(userEmail: _currentUser.email);
+    final data = await StaffApiService.fetchStaffDashboard(
+      userEmail: _currentUser.email,
+      employeeId: _currentUser.id,
+    );
     if (mounted) {
       setState(() {
         _requests = data['requests'] as List<FundRequestItem>;
@@ -439,20 +444,132 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     );
   }
 
-  // 2. 72H EVIDENCE RETIREMENT MODAL SHEET (DUAL-MODE: SNAP PICTURE OR UPLOAD DOCUMENT)
+  // NOTIFICATIONS DIALOG MODAL SHEET
+  void _showNotificationsDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            return FutureBuilder<List<Map<String, dynamic>>>(
+              future: StaffApiService.fetchNotifications(employeeId: _currentUser.id),
+              builder: (context, snapshot) {
+                final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                final notifications = snapshot.data ?? [];
+
+                return SafeArea(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(color: const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(2)),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Text('Notifications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+                                const SizedBox(width: 8),
+                                if (notifications.isNotEmpty)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(color: const Color(0xFFEA580C), borderRadius: BorderRadius.circular(10)),
+                                    child: Text('${notifications.length}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
+                                  ),
+                              ],
+                            ),
+                            if (notifications.isNotEmpty)
+                              TextButton(
+                                onPressed: () async {
+                                  await StaffApiService.markNotificationsRead(employeeId: _currentUser.id);
+                                  setModalState(() {});
+                                },
+                                child: const Text('Mark all read', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFEA580C))),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        const Divider(color: Color(0xFFF1F5F9)),
+                        if (isLoading)
+                          const Padding(
+                            padding: EdgeInsets.all(40),
+                            child: Center(child: CircularProgressIndicator(color: Color(0xFFEA580C))),
+                          )
+                        else if (notifications.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 40),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Icon(Icons.notifications_off_outlined, size: 44, color: Colors.grey.shade400),
+                                  const SizedBox(height: 10),
+                                  const Text('No new notifications', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
+                                  const SizedBox(height: 4),
+                                  const Text('You will be notified of disbursement and audit alerts here.', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          Flexible(
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: notifications.length,
+                              separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                              itemBuilder: (context, idx) {
+                                final n = notifications[idx];
+                                return ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                  leading: Container(
+                                    width: 38,
+                                    height: 38,
+                                    decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
+                                    child: const Icon(Icons.notifications_active_outlined, color: Color(0xFFEA580C), size: 20),
+                                  ),
+                                  title: Text(n['title']?.toString() ?? 'Alert', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A))),
+                                  subtitle: Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Text(n['body']?.toString() ?? '', style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // 2. 72H EVIDENCE RETIREMENT MODAL SHEET (REAL CAMERA & FILE PICKING)
   void _showRetirementEvidenceDialog(AccountabilityCaseItem c) {
-    final receiptNumController = TextEditingController(text: 'GRN-2026-${(c.amountNaira ~/ 1000) % 900 + 100}');
+    final receiptNumController = TextEditingController();
     final spentAmountController = TextEditingController(text: c.amountNaira.toInt().toString());
-    final noteController = TextEditingController(text: 'Goods received in full count and certified at weighbridge.');
+    final noteController = TextEditingController();
     final formatter = NumberFormat.currency(locale: 'en_NG', symbol: '₦', decimalDigits: 0);
 
-    List<Map<String, String>> uploadedAttachments = [
-      {
-        'name': 'weighbridge_ticket_batch42.jpg',
-        'type': 'PHOTO',
-        'size': '2.1 MB',
-      },
-    ];
+    List<Map<String, dynamic>> uploadedAttachments = [];
 
     showModalBottomSheet(
       context: context,
@@ -519,29 +636,47 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     const Divider(color: Color(0xFFE2E8F0)),
                     const SizedBox(height: 12),
 
-                    // ATTACHMENT ACTION BUTTONS (Snap Picture vs Upload Document)
+                    // ATTACHMENT ACTION BUTTONS (Real Camera vs Device Storage)
                     const Text(
-                      'ATTACH PROOF OF EXPENDITURE',
+                      'ATTACH PROOF OF EXPENDITURE *',
                       style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8),
                     ),
                     const SizedBox(height: 8),
 
                     Row(
                       children: [
-                        // Option 1: Snap Picture
+                        // Option 1: Snap Picture via Camera
                         Expanded(
                           child: InkWell(
-                            onTap: () {
-                              setModalState(() {
-                                uploadedAttachments.add({
-                                  'name': 'camera_receipt_${uploadedAttachments.length + 1}.jpg',
-                                  'type': 'PHOTO',
-                                  'size': '2.4 MB',
-                                });
-                              });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('📷 Camera photo captured and attached successfully!'), duration: Duration(seconds: 2)),
-                              );
+                            onTap: () async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              try {
+                                final picker = ImagePicker();
+                                final photo = await picker.pickImage(
+                                  source: ImageSource.camera,
+                                  maxWidth: 1600,
+                                  maxHeight: 1600,
+                                  imageQuality: 85,
+                                );
+                                if (photo != null) {
+                                  final bytes = await photo.readAsBytes();
+                                  final sizeKb = (bytes.length / 1024).round();
+                                  final sizeStr = sizeKb > 1024 ? '${(sizeKb / 1024).toStringAsFixed(1)} MB' : '$sizeKb KB';
+                                  setModalState(() {
+                                    uploadedAttachments.add({
+                                      'name': photo.name,
+                                      'type': 'PHOTO',
+                                      'size': sizeStr,
+                                      'bytes': bytes,
+                                      'contentType': 'image/jpeg',
+                                    });
+                                  });
+                                }
+                              } catch (err) {
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text('Camera error: $err'), backgroundColor: const Color(0xFFDC2626)),
+                                );
+                              }
                             },
                             borderRadius: BorderRadius.circular(14),
                             child: Container(
@@ -557,27 +692,48 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                   SizedBox(height: 6),
                                   Text('Snap Picture', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF9A3412))),
                                   SizedBox(height: 2),
-                                  Text('Physical receipt / invoice', style: TextStyle(fontSize: 9.5, color: Color(0xFFB45309))),
+                                  Text('Open device camera', style: TextStyle(fontSize: 9.5, color: Color(0xFFB45309))),
                                 ],
                               ),
                             ),
                           ),
                         ),
                         const SizedBox(width: 10),
-                        // Option 2: Upload Document or Image
+                        // Option 2: Upload Document or Gallery Image
                         Expanded(
                           child: InkWell(
-                            onTap: () {
-                              setModalState(() {
-                                uploadedAttachments.add({
-                                  'name': 'stamped_waybill_invoice_${uploadedAttachments.length + 1}.pdf',
-                                  'type': 'DOCUMENT',
-                                  'size': '1.3 MB',
-                                });
-                              });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('📄 Document attached from storage!'), duration: Duration(seconds: 2)),
-                              );
+                            onTap: () async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              try {
+                                final result = await FilePicker.platform.pickFiles(
+                                  type: FileType.custom,
+                                  allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+                                  withData: true,
+                                );
+                                if (result != null && result.files.isNotEmpty) {
+                                  final file = result.files.first;
+                                  final bytes = file.bytes;
+                                  if (bytes != null) {
+                                    final ext = (file.extension ?? '').toLowerCase();
+                                    final isPdf = ext == 'pdf';
+                                    final sizeKb = (bytes.length / 1024).round();
+                                    final sizeStr = sizeKb > 1024 ? '${(sizeKb / 1024).toStringAsFixed(1)} MB' : '$sizeKb KB';
+                                    setModalState(() {
+                                      uploadedAttachments.add({
+                                        'name': file.name,
+                                        'type': isPdf ? 'DOCUMENT' : 'PHOTO',
+                                        'size': sizeStr,
+                                        'bytes': bytes,
+                                        'contentType': isPdf ? 'application/pdf' : 'image/jpeg',
+                                      });
+                                    });
+                                  }
+                                }
+                              } catch (err) {
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text('File picker error: $err'), backgroundColor: const Color(0xFFDC2626)),
+                                );
+                              }
                             },
                             borderRadius: BorderRadius.circular(14),
                             child: Container(
@@ -591,9 +747,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                 children: [
                                   Icon(Icons.upload_file_rounded, color: Color(0xFF2563EB), size: 26),
                                   SizedBox(height: 6),
-                                  Text('Upload Document', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF1E40AF))),
+                                  Text('Upload File', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF1E40AF))),
                                   SizedBox(height: 2),
-                                  Text('PDF / Gallery slip', style: TextStyle(fontSize: 9.5, color: Color(0xFF1D4ED8))),
+                                  Text('Gallery or PDF file', style: TextStyle(fontSize: 9.5, color: Color(0xFF1D4ED8))),
                                 ],
                               ),
                             ),
@@ -627,8 +783,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(item['name']!, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
-                                      Text(item['size']!, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                                      Text(item['name'] as String, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                                      Text(item['size'] as String, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
                                     ],
                                   ),
                                 ),
@@ -649,7 +805,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       controller: receiptNumController,
                       style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
                       decoration: InputDecoration(
-                        labelText: 'RECEIPT / INVOICE / GRN NUMBER',
+                        labelText: 'RECEIPT / INVOICE / GRN NUMBER *',
                         labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
                         hintText: 'e.g. GRN-2026-42 or INV-98104',
                         filled: true,
@@ -773,7 +929,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       decoration: InputDecoration(
                         labelText: 'DELIVERY & INSPECTION NOTES',
                         labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
-                        hintText: 'Verified items received in full quantity and good condition...',
+                        hintText: 'e.g. Items verified in full count and certified at destination...',
                         filled: true,
                         fillColor: const Color(0xFFF8FAFC),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
@@ -784,24 +940,58 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
                     ElevatedButton(
                       onPressed: () async {
+                        if (uploadedAttachments.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please snap a picture or upload a receipt file before submitting.'),
+                              backgroundColor: Color(0xFFDC2626),
+                            ),
+                          );
+                          return;
+                        }
+                        if (receiptNumController.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please enter the receipt or invoice number.'),
+                              backgroundColor: Color(0xFFDC2626),
+                            ),
+                          );
+                          return;
+                        }
+
                         Navigator.pop(ctx);
                         final messenger = ScaffoldMessenger.of(context);
-                        await StaffApiService.submitRetirementEvidence(
-                          caseId: c.id,
-                          notes: noteController.text.trim(),
-                          receiptName: receiptNumController.text.trim(),
-                          actualSpentNaira: spent,
-                          refundOrReimbursementNaira: diff,
-                          attachments: uploadedAttachments.map((a) => a['name']!).toList(),
-                        );
-                        if (!mounted) return;
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('✓ Proof of fund utilization submitted for Finance Audit clearance.'),
-                            backgroundColor: Color(0xFF059669),
-                          ),
-                        );
-                        _loadData();
+                        final firstAtt = uploadedAttachments.first;
+                        final bytes = firstAtt['bytes'] as List<int>;
+                        final safeFileName = firstAtt['name'].toString();
+                        final contentType = firstAtt['contentType']?.toString() ?? 'image/jpeg';
+
+                        try {
+                          await StaffApiService.submitRetirementEvidence(
+                            caseId: c.id,
+                            notes: '${noteController.text.trim()} (Receipt: ${receiptNumController.text.trim()})',
+                            receiptName: safeFileName,
+                            fileBytes: bytes,
+                            employeeId: _currentUser.id,
+                            contentType: contentType,
+                          );
+                          if (!mounted) return;
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text('✓ Proof of fund utilization ($safeFileName) uploaded for Audit clearance.'),
+                              backgroundColor: const Color(0xFF059669),
+                            ),
+                          );
+                          _loadData();
+                        } catch (e) {
+                          if (!mounted) return;
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text('Evidence upload failed: $e'),
+                              backgroundColor: const Color(0xFFDC2626),
+                            ),
+                          );
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFEA580C),
@@ -1384,7 +1574,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 ),
                 child: IconButton(
                   icon: const Icon(Icons.notifications_none_rounded, size: 20, color: Color(0xFF0F172A)),
-                  onPressed: () {},
+                  onPressed: _showNotificationsDialog,
                 ),
               ),
             ],
@@ -1504,7 +1694,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          _hideBalance ? '₦ ••••••••' : formatter.format(activeAdvanceAmount > 0 ? activeAdvanceAmount : 650000),
+                          _hideBalance ? '₦ ••••••••' : formatter.format(activeAdvanceAmount),
                           style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.8),
                         ),
                         const SizedBox(height: 6),
@@ -1893,18 +2083,16 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    final targetCase = _cases.isNotEmpty
-                        ? _cases.first
-                        : const AccountabilityCaseItem(
-                            id: 'case-demo',
-                            requestNumber: 'REQ-2026-089',
-                            title: 'Bulk procurement of maize feed ingredients',
-                            amountNaira: 650000,
-                            hoursRemaining: 28,
-                            bankReference: 'BEMS-TRX-2026-9041',
-                            disbursedAt: 'Today, 08:30 AM',
-                          );
-                    _showRetirementEvidenceDialog(targetCase);
+                    if (_cases.isNotEmpty) {
+                      _showRetirementEvidenceDialog(_cases.first);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('All clear! You have no pending advances requiring evidence retirement.'),
+                          backgroundColor: Color(0xFF059669),
+                        ),
+                      );
+                    }
                   },
                   icon: const Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
                   label: const Text('Snap Picture', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white)),
@@ -1921,18 +2109,16 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    final targetCase = _cases.isNotEmpty
-                        ? _cases.first
-                        : const AccountabilityCaseItem(
-                            id: 'case-demo',
-                            requestNumber: 'REQ-2026-089',
-                            title: 'Bulk procurement of maize feed ingredients',
-                            amountNaira: 650000,
-                            hoursRemaining: 28,
-                            bankReference: 'BEMS-TRX-2026-9041',
-                            disbursedAt: 'Today, 08:30 AM',
-                          );
-                    _showRetirementEvidenceDialog(targetCase);
+                    if (_cases.isNotEmpty) {
+                      _showRetirementEvidenceDialog(_cases.first);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('All clear! You have no pending advances requiring evidence retirement.'),
+                          backgroundColor: Color(0xFF059669),
+                        ),
+                      );
+                    }
                   },
                   icon: const Icon(Icons.upload_file_rounded, size: 16, color: Color(0xFF064E3B)),
                   label: const Text('Upload Doc / PDF', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF064E3B))),
@@ -1953,14 +2139,90 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   }
 
   Widget _buildInfographicsSection(NumberFormat formatter) {
-    final months = [
-      {'m': 'May', 'v': 420000.0, 'h': 42.0},
-      {'m': 'Jun', 'v': 680000.0, 'h': 68.0},
-      {'m': 'Jul', 'v': 540000.0, 'h': 54.0},
-      {'m': 'Aug', 'v': 890000.0, 'h': 88.0},
-      {'m': 'Sep', 'v': 710000.0, 'h': 72.0},
-      {'m': 'Oct', 'v': 1240000.0, 'h': 118.0, 'active': true},
+    final totalAmount = _requests.fold<double>(0, (sum, r) => sum + r.amountNaira);
+
+    if (_requests.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 14, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Requisitions & Spend Analytics',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    ),
+                    SizedBox(height: 2),
+                    Text('Real-time spend aggregation & category distribution', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFED7AA)),
+                  ),
+                  child: const Text('INFOGRAPHIC', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Center(
+              child: Column(
+                children: [
+                  Icon(Icons.bar_chart_rounded, size: 48, color: Colors.grey.shade300),
+                  const SizedBox(height: 10),
+                  const Text('No Requisition Data Yet', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF475569))),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Requisition volumes, category allocations, and spend trends will dynamically populate here.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      );
+    }
+
+    // Dynamic Category Distribution
+    final categoryTotals = <String, double>{};
+    for (final r in _requests) {
+      final cat = r.category.trim().isNotEmpty ? r.category.trim() : 'General Ops';
+      categoryTotals[cat] = (categoryTotals[cat] ?? 0) + r.amountNaira;
+    }
+
+    final categoryColors = [
+      const Color(0xFFEA580C),
+      const Color(0xFF4F46E5),
+      const Color(0xFF059669),
+      const Color(0xFFD97706),
+      const Color(0xFF0284C7),
+      const Color(0xFF7C3AED),
     ];
+
+    final sortedCats = categoryTotals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+
+    // Dynamic Recent Requests (up to 5)
+    final recent = _requests.take(5).toList().reversed.toList();
+    final maxRecentVal = recent.map((r) => r.amountNaira).fold<double>(1.0, (a, b) => a > b ? a : b);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
@@ -1987,7 +2249,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
                   ),
                   SizedBox(height: 2),
-                  Text('6-Month Expenditure & SLA Clearance Trend', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  Text('Dynamic Requisition Volume & Spend Trend', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                 ],
               ),
               Container(
@@ -2004,47 +2266,42 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
           const SizedBox(height: 20),
 
-          // 1. Bar Chart Infographic
+          // 1. Dynamic Bar Chart Infographic
           SizedBox(
             height: 160,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: months.map((item) {
-                final isActive = item['active'] == true;
-                final barHeight = (item['h'] as double);
-                final val = item['v'] as double;
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: recent.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final r = entry.value;
+                final isLast = idx == recent.length - 1;
+                final ratio = maxRecentVal > 0 ? (r.amountNaira / maxRecentVal) : 0.5;
+                final barHeight = (ratio * 100).clamp(24.0, 110.0);
+                final label = r.requestNumber.length > 8 ? r.requestNumber.substring(r.requestNumber.length - 4) : r.requestNumber;
 
                 return Column(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    if (isActive)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        margin: const EdgeInsets.only(bottom: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEA580C),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '₦${(val / 1000000).toStringAsFixed(1)}M',
-                          style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800),
-                        ),
-                      )
-                    else
-                      Text(
-                        '₦${(val / 1000).toInt()}k',
-                        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 9, fontWeight: FontWeight.w600),
+                    Text(
+                      r.amountNaira >= 1000000
+                          ? '₦${(r.amountNaira / 1000000).toStringAsFixed(1)}M'
+                          : '₦${(r.amountNaira / 1000).toInt()}k',
+                      style: TextStyle(
+                        color: isLast ? const Color(0xFFEA580C) : const Color(0xFF94A3B8),
+                        fontSize: 9,
+                        fontWeight: isLast ? FontWeight.w800 : FontWeight.w600,
                       ),
+                    ),
                     const SizedBox(height: 4),
                     Container(
-                      width: 28,
+                      width: 32,
                       height: barHeight,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: isActive
+                          colors: isLast
                               ? [const Color(0xFFEA580C), const Color(0xFFFB923C)]
-                              : [const Color(0xFFE2E8F0), const Color(0xFFCBD5E1)],
+                              : [const Color(0xFF064E3B), const Color(0xFF047857)],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                         ),
@@ -2053,11 +2310,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      item['m'] as String,
+                      label,
                       style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: isActive ? FontWeight.w900 : FontWeight.w600,
-                        color: isActive ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                        fontSize: 10,
+                        fontWeight: isLast ? FontWeight.w900 : FontWeight.w600,
+                        color: isLast ? const Color(0xFFEA580C) : const Color(0xFF64748B),
                       ),
                     ),
                   ],
@@ -2071,42 +2328,48 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           const SizedBox(height: 12),
 
           // 2. Category Allocation Segmented Infographic
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('CATEGORY DISTRIBUTION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
-              Text('Total: ₦3,540,000', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+              const Text('CATEGORY DISTRIBUTION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+              Text('Total: ${formatter.format(totalAmount)}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
             ],
           ),
           const SizedBox(height: 8),
 
-          // Segmented Bar
+          // Dynamic Segmented Bar
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: Row(
-              children: [
-                Expanded(flex: 52, child: Container(height: 10, color: const Color(0xFFEA580C))),
-                const SizedBox(width: 2),
-                Expanded(flex: 24, child: Container(height: 10, color: const Color(0xFF4F46E5))),
-                const SizedBox(width: 2),
-                Expanded(flex: 16, child: Container(height: 10, color: const Color(0xFF059669))),
-                const SizedBox(width: 2),
-                Expanded(flex: 8, child: Container(height: 10, color: const Color(0xFFD97706))),
-              ],
+              children: sortedCats.take(4).toList().asMap().entries.map((entry) {
+                final idx = entry.key;
+                final catEntry = entry.value;
+                final flex = totalAmount > 0 ? ((catEntry.value / totalAmount) * 100).round() : 25;
+                final color = categoryColors[idx % categoryColors.length];
+                return Expanded(
+                  flex: flex > 0 ? flex : 1,
+                  child: Container(
+                    height: 10,
+                    margin: const EdgeInsets.symmetric(horizontal: 1),
+                    color: color,
+                  ),
+                );
+              }).toList(),
             ),
           ),
           const SizedBox(height: 10),
 
-          // Legend
-          const Wrap(
+          // Dynamic Legend
+          Wrap(
             spacing: 12,
             runSpacing: 6,
-            children: [
-              _LegendItem(color: Color(0xFFEA580C), label: 'Feed (52%)'),
-              _LegendItem(color: Color(0xFF4F46E5), label: 'Spares (24%)'),
-              _LegendItem(color: Color(0xFF059669), label: 'Haulage (16%)'),
-              _LegendItem(color: Color(0xFFD97706), label: 'Ops (8%)'),
-            ],
+            children: sortedCats.take(4).toList().asMap().entries.map((entry) {
+              final idx = entry.key;
+              final catEntry = entry.value;
+              final pct = totalAmount > 0 ? ((catEntry.value / totalAmount) * 100).round() : 0;
+              final color = categoryColors[idx % categoryColors.length];
+              return _LegendItem(color: color, label: '${catEntry.key} ($pct%)');
+            }).toList(),
           ),
 
           const SizedBox(height: 18),
@@ -2504,6 +2767,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
   // TAB 2: 72H SLA EVIDENCE RETIREMENT (DEEP IMPLEMENTATION)
   Widget _buildRetirementTab(NumberFormat formatter) {
+    final nearestCase = _cases.isNotEmpty ? _cases.first : null;
+    final hoursRemaining = nearestCase != null ? nearestCase.hoursRemaining : 72;
+    final hoursElapsed = (72 - hoursRemaining).clamp(0, 72);
+    final progress = nearestCase != null ? (hoursElapsed / 72.0).clamp(0.0, 1.0) : 1.0;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
       children: [
@@ -2547,12 +2815,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       color: const Color(0xFFECFDF5),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Text('POLICY COMPLIANT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF059669))),
+                    child: Text(nearestCase != null ? 'ACTIVE ADVANCE' : 'POLICY COMPLIANT', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF059669))),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              const Row(
+              Row(
                 children: [
                   // Circular Progress Indicator
                   Stack(
@@ -2562,23 +2830,33 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         width: 64,
                         height: 64,
                         child: CircularProgressIndicator(
-                          value: 0.61, // 44h / 72h
+                          value: progress,
                           strokeWidth: 6,
-                          backgroundColor: Color(0xFFF1F5F9),
-                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFEA580C)),
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          valueColor: AlwaysStoppedAnimation<Color>(nearestCase != null ? const Color(0xFFEA580C) : const Color(0xFF059669)),
                         ),
                       ),
-                      Text('28h', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF0F172A))),
+                      Text(nearestCase != null ? '${hoursRemaining}h' : '0h', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF0F172A))),
                     ],
                   ),
-                  SizedBox(width: 18),
+                  const SizedBox(width: 18),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('44 Hours Elapsed · 28 Hours Left', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
-                        SizedBox(height: 4),
-                        Text('All physical receipts must be photographed and submitted before deadline to clear advance accountability.', style: TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3)),
+                        Text(
+                          nearestCase != null
+                              ? '$hoursElapsed Hours Elapsed · $hoursRemaining Hours Left'
+                              : '100% Policy Compliant · 0 Advances Due',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          nearestCase != null
+                              ? 'Physical receipts for ${nearestCase.requestNumber} must be photographed and submitted before deadline.'
+                              : 'All operational funds are fully accounted for. Great job maintaining company compliance!',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
+                        ),
                       ],
                     ),
                   ),
@@ -2708,38 +2986,72 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         const Text('Cleared Retirement Archive', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
         const SizedBox(height: 10),
 
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(color: Color(0xFFECFDF5), shape: BoxShape.circle),
-                child: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 20),
+        Builder(
+          builder: (context) {
+            final clearedRequests = _requests.where((r) => r.paymentStatus.toUpperCase() == 'PAID' || r.accountabilityStatus.toUpperCase() == 'EVIDENCE_SUBMITTED' || r.accountabilityStatus.toUpperCase() == 'CLOSED').toList();
+
+            if (clearedRequests.isNotEmpty) {
+              return Column(
+                children: clearedRequests.map((r) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: const BoxDecoration(color: Color(0xFFECFDF5), shape: BoxShape.circle),
+                          child: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('${r.requestNumber} · ${r.title}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              Text('${formatter.format(r.amountNaira)} · ${r.department}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(8)),
+                          child: Text(r.accountabilityStatus.isNotEmpty ? r.accountabilityStatus : 'CLEARED', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF059669))),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            }
+
+            return Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('REQ-2026-061 · Depot Fueling', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
-                    Text('₦320,000 · Cleared 18 Oct 2026', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                  ],
-                ),
+              child: const Row(
+                children: [
+                  Icon(Icons.inventory_2_outlined, color: Color(0xFF94A3B8), size: 24),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'No retired advances archived yet. Completed accountability reconciliations will be archived here.',
+                      style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                    ),
+                  ),
+                ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(8)),
-                child: const Text('AUDITED', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF059669))),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ],
     );

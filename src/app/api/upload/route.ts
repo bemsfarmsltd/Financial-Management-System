@@ -18,24 +18,28 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
       }
 
-      if (!file.type.startsWith('image/')) {
-        return NextResponse.json({ error: 'Only image files (JPG, PNG, WebP) are permitted for profile photos.' }, { status: 400 });
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const cleanExt = ['jpg', 'jpeg', 'png', 'webp', 'pdf'].includes(ext) ? ext : 'jpg';
+      const isPdf = cleanExt === 'pdf';
+
+      if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+        return NextResponse.json({ error: 'Only image files (JPG, PNG, WebP) and PDF documents are permitted.' }, { status: 400 });
       }
 
-      if (file.size > 8 * 1024 * 1024) {
-        return NextResponse.json({ error: 'Image size exceeds maximum 8MB limit.' }, { status: 400 });
+      if (file.size > 12 * 1024 * 1024) {
+        return NextResponse.json({ error: 'File size exceeds maximum 12MB limit.' }, { status: 400 });
       }
 
       const bytes = Buffer.from(await file.arrayBuffer());
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const cleanExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? ext : 'jpg';
-      const filename = `avatar-${Date.now()}-${randomUUID().slice(0, 8)}.${cleanExt}`;
+      const prefix = isPdf ? 'doc' : 'file';
+      const filename = `${prefix}-${Date.now()}-${randomUUID().slice(0, 8)}.${cleanExt}`;
       
-      const uploadDir = join(process.cwd(), 'public', 'uploads', 'avatars');
+      const subDir = isPdf ? 'documents' : 'avatars';
+      const uploadDir = join(process.cwd(), 'public', 'uploads', subDir);
       await mkdir(uploadDir, { recursive: true });
       await writeFile(join(uploadDir, filename), bytes);
 
-      const url = `/uploads/avatars/${filename}`;
+      const url = `/uploads/${subDir}/${filename}`;
       return NextResponse.json({ success: true, url, filename });
     }
 

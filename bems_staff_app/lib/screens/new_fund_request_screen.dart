@@ -37,7 +37,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
 
   // Payee / Vendor Selector (3-Way Matching Registry)
   String _payeeType = 'STAFF_ADVANCE'; // 'STAFF_ADVANCE' or 'VENDOR'
-  String _selectedVendor = 'Golden Feed Logistics Ltd';
+  String? _selectedVendor;
 
   final List<String> _categories = [
     'Feed Ingredients & Raw Grain',
@@ -55,34 +55,32 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
     'QUARTERLY',
   ];
 
-  final List<Map<String, String>> _approvedVendors = [
-    {
-      'name': 'Golden Feed Logistics Ltd',
-      'category': 'Haulage & Logistics',
-      'bank': 'Access Bank (0192837465)',
-    },
-    {
-      'name': 'Oyo Central Grain Depot',
-      'category': 'Grain & Raw Materials',
-      'bank': 'Zenith Bank (2019284756)',
-    },
-    {
-      'name': 'Kwara Machinists & Spares',
-      'category': 'Machinery Maintenance',
-      'bank': 'First Bank (1102938475)',
-    },
-    {
-      'name': 'Animal Care Vet Pharma Ltd',
-      'category': 'Agro-Chemicals & Vaccines',
-      'bank': 'GTBank (0019283746)',
-    },
-  ];
+  List<Map<String, String>> _approvedVendors = [];
 
   @override
   void initState() {
     super.initState();
     _selectedSubsidiary = widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'BEMS Feed Mill Operations';
     _deliverableController.text = 'Goods Received Note (GRN) & Vendor Receipt';
+    _loadVendors();
+  }
+
+  Future<void> _loadVendors() async {
+    try {
+      final vendors = await StaffApiService.fetchVendors(employeeId: widget.user.id);
+      if (mounted) {
+        setState(() {
+          _approvedVendors = vendors.map((v) => {
+            'name': (v['name'] ?? '').toString(),
+            'category': (v['category'] ?? 'GENERAL').toString(),
+            'bank': '${v['bankName'] ?? ''} (${v['accountNumber'] ?? ''})'.trim(),
+          }).where((v) => v['name']!.isNotEmpty).toList();
+          if (_approvedVendors.isNotEmpty && (_selectedVendor == null || !_approvedVendors.any((v) => v['name'] == _selectedVendor))) {
+            _selectedVendor = _approvedVendors.first['name'];
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -187,7 +185,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
         dueDate: formattedDue,
         isRecurring: _isRecurring,
         recurringInterval: _isRecurring ? _recurringInterval : null,
-        vendorName: _payeeType == 'VENDOR' ? _selectedVendor : widget.user.fullName,
+        vendorName: _payeeType == 'VENDOR' ? (_selectedVendor ?? 'External Vendor') : widget.user.fullName,
         isIntercompany: _selectedSubsidiary != widget.user.subsidiary,
       );
 
@@ -529,12 +527,15 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
-                          value: _selectedVendor,
+                          value: _approvedVendors.any((v) => v['name'] == _selectedVendor)
+                              ? _selectedVendor
+                              : (_approvedVendors.isNotEmpty ? _approvedVendors.first['name'] : null),
                           isExpanded: true,
                           dropdownColor: Colors.white,
+                          hint: const Text('Select approved vendor', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
                           items: _approvedVendors.map((v) {
-                            return DropdownMenuItem(
-                              value: v['name']!,
+                            return DropdownMenuItem<String>(
+                              value: v['name'],
                               child: Text('${v['name']} (${v['category']})', style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.w700)),
                             );
                           }).toList(),

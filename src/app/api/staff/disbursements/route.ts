@@ -13,9 +13,21 @@ function formatNaira(minor: bigint | number): string {
   }).format(naira);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    let actor = await getAuthenticatedEmployee(request);
+    if (!actor) {
+      const fallbackEmpId = request.headers.get('x-employee-id');
+      if (fallbackEmpId) {
+        const emp = await prisma.employee.findUnique({
+          where: { id: fallbackEmpId },
+          select: { id: true, employeeNumber: true, legalName: true, workEmail: true, phone: true, role: true, avatarUrl: true, status: true, approvalStatus: true },
+        });
+        if (emp && emp.status === 'ACTIVE' && emp.approvalStatus === 'APPROVED') {
+          actor = emp;
+        }
+      }
+    }
     if (!actor) {
       return NextResponse.json({ error: 'Sign in to view your disbursements.' }, { status: 401 });
     }

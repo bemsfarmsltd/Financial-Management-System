@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
 import '../models/staff_models.dart';
@@ -85,38 +86,57 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   }
 
   Future<void> _pickAvatarOption(String sourceName) async {
-    setState(() {
-      _isUploadingAvatar = true;
-      _errorMessage = null;
-    });
+    final picker = ImagePicker();
+    final source = sourceName == 'Camera' ? ImageSource.camera : ImageSource.gallery;
 
     try {
-      final sampleAvatars = [
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&auto=format&fit=crop&q=80',
-      ];
-      final chosen = sampleAvatars[DateTime.now().microsecond % sampleAvatars.length];
-      await Future.delayed(const Duration(milliseconds: 500));
+      final XFile? pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (pickedFile == null) {
+        return; // User canceled picking
+      }
+
+      setState(() {
+        _isUploadingAvatar = true;
+        _errorMessage = null;
+      });
+
+      final bytes = await pickedFile.readAsBytes();
+      final uploadedUrl = await StaffApiService.uploadAvatar(
+        bytes: bytes,
+        filename: pickedFile.name,
+      );
+
       if (!mounted) return;
       setState(() {
-        _avatarUrl = chosen;
+        _avatarUrl = uploadedUrl;
         _isUploadingAvatar = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✓ Passport photograph attached ($sourceName).'),
+          content: Text('✓ Passport photograph uploaded ($sourceName).'),
           backgroundColor: const Color(0xFF059669),
-          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
         ),
       );
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _isUploadingAvatar = false;
-        _errorMessage = 'Could not process photo upload. Please try again.';
+        _errorMessage = 'Could not process photo: $e';
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Upload failed: $e'),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
