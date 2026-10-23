@@ -1390,109 +1390,184 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
           const SizedBox(height: 20),
 
-          // Hero Advance Card
+          // Hero Advance Card - Aligned with BEMS Corporate Brand
           Container(
-            padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF5B4DFF), Color(0xFF7F56D9), Color(0xFFEA580C)],
+                colors: [Color(0xFF064E3B), Color(0xFF065F46), Color(0xFF047857)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(26),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF5B4DFF).withOpacity(0.35),
+                  color: const Color(0xFF064E3B).withOpacity(0.32),
                   blurRadius: 24,
                   offset: const Offset(0, 10),
                 ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(26),
+              child: Stack(
+                children: [
+                  // Subtle ambient brand glow circle
+                  Positioned(
+                    bottom: -35,
+                    left: -35,
+                    child: Container(
+                      width: 140,
+                      height: 140,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFEA580C).withOpacity(0.18),
+                      ),
+                    ),
+                  ),
+
+                  // Company Brand Picture / Watermark Mark
+                  Positioned(
+                    top: -18,
+                    right: -18,
+                    child: Opacity(
+                      opacity: 0.14,
+                      child: Image.asset(
+                        'assets/images/bems-mark.png',
+                        width: 155,
+                        height: 155,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+
+                  // Main Content
+                  Padding(
+                    padding: const EdgeInsets.all(22),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Image.asset(
+                                    'assets/images/bems-mark.png',
+                                    width: 13,
+                                    height: 13,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'OPERATIONAL ADVANCE HELD',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
+                                    color: Colors.white.withOpacity(0.9),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            GestureDetector(
+                              onTap: () => setState(() => _hideBalance = !_hideBalance),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.12),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  _hideBalance ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                                  color: Colors.white,
+                                  size: 17,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(height: 12),
                         Text(
-                          'OPERATIONAL ADVANCE HELD',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.8,
-                            color: Colors.white.withOpacity(0.85),
-                          ),
+                          _hideBalance ? '₦ ••••••••' : formatter.format(activeAdvanceAmount > 0 ? activeAdvanceAmount : 650000),
+                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.8),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(Icons.account_balance_rounded, size: 13, color: Colors.white.withOpacity(0.75)),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Bank: ${_currentUser.bankName} (${_currentUser.accountNumber})',
+                              style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.85), fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _openNewRequestModal,
+                                icon: const Icon(Icons.arrow_upward_rounded, size: 16, color: Color(0xFF064E3B)),
+                                label: const Text(
+                                  'Request Funds',
+                                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: Color(0xFF064E3B)),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  elevation: 2,
+                                  shadowColor: Colors.black.withOpacity(0.2),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  if (_cases.isNotEmpty) {
+                                    _showRetirementEvidenceDialog(_cases.first);
+                                  } else {
+                                    setState(() => _currentIndex = 2);
+                                  }
+                                },
+                                icon: const Icon(Icons.arrow_downward_rounded, size: 16, color: Colors.white),
+                                label: const Text(
+                                  'Retire 72h',
+                                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFEA580C),
+                                  elevation: 2,
+                                  shadowColor: const Color(0xFFEA580C).withOpacity(0.4),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    GestureDetector(
-                      onTap: () => setState(() => _hideBalance = !_hideBalance),
-                      child: Icon(
-                        _hideBalance ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-                        color: Colors.white70,
-                        size: 18,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  _hideBalance ? '₦ ••••••••' : formatter.format(activeAdvanceAmount > 0 ? activeAdvanceAmount : 650000),
-                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.8),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Bank: ${_currentUser.bankName} (${_currentUser.accountNumber})',
-                  style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.75)),
-                ),
-                const SizedBox(height: 20),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _openNewRequestModal,
-                        icon: const Icon(Icons.arrow_upward_rounded, size: 16, color: Color(0xFF0F172A)),
-                        label: const Text('Request Funds', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF0F172A))),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          if (_cases.isNotEmpty) {
-                            _showRetirementEvidenceDialog(_cases.first);
-                          } else {
-                            setState(() => _currentIndex = 2);
-                          }
-                        },
-                        icon: const Icon(Icons.arrow_downward_rounded, size: 16, color: Colors.white),
-                        label: const Text('Retire 72h', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(0.2),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -1711,14 +1786,15 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFFED7AA), width: 1.5),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 16, offset: const Offset(0, 6)),
+          BoxShadow(
+            color: const Color(0xFFEA580C).withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
         ],
       ),
       child: Column(
@@ -1730,35 +1806,47 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               Row(
                 children: [
                   Container(
-                    width: 32,
-                    height: 32,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEA580C).withOpacity(0.2),
+                      color: const Color(0xFFFFF7ED),
                       borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFFEDD5)),
                     ),
-                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 18),
+                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 20),
                   ),
                   const SizedBox(width: 10),
                   const Text(
                     'Upload Proof of Expenditure',
-                    style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800),
+                    style: TextStyle(color: Color(0xFF0F172A), fontSize: 14, fontWeight: FontWeight.w900),
                   ),
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEA580C),
-                  borderRadius: BorderRadius.circular(6),
+                  color: const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFA7F3D0)),
                 ),
-                child: const Text('72H POLICY', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900)),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.verified_user_outlined, size: 11, color: Color(0xFF047857)),
+                    SizedBox(width: 3),
+                    Text(
+                      '72H POLICY',
+                      style: TextStyle(color: Color(0xFF047857), fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           const Text(
             'Photograph original physical store receipts or attach vendor invoice PDFs to retire outstanding advances and clear your SLA window.',
-            style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11, height: 1.3),
+            style: TextStyle(color: Color(0xFF64748B), fontSize: 11.5, height: 1.35, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 14),
           Row(
@@ -1779,11 +1867,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           );
                     _showRetirementEvidenceDialog(targetCase);
                   },
-                  icon: const Icon(Icons.camera_alt_rounded, size: 16),
-                  label: const Text('Snap Picture', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                  icon: const Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
+                  label: const Text('Snap Picture', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFEA580C),
-                    foregroundColor: Colors.white,
+                    elevation: 2,
+                    shadowColor: const Color(0xFFEA580C).withOpacity(0.35),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -1791,7 +1880,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: OutlinedButton.icon(
+                child: ElevatedButton.icon(
                   onPressed: () {
                     final targetCase = _cases.isNotEmpty
                         ? _cases.first
@@ -1806,10 +1895,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           );
                     _showRetirementEvidenceDialog(targetCase);
                   },
-                  icon: const Icon(Icons.upload_file_rounded, size: 16, color: Colors.white),
-                  label: const Text('Upload Doc / PDF', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF475569)),
+                  icon: const Icon(Icons.upload_file_rounded, size: 16, color: Color(0xFF064E3B)),
+                  label: const Text('Upload Doc / PDF', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF064E3B))),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFECFDF5),
+                    elevation: 0,
+                    side: const BorderSide(color: Color(0xFFA7F3D0), width: 1.2),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
