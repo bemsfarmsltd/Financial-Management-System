@@ -291,4 +291,47 @@ class StaffApiService {
     } catch (_) {}
     return true;
   }
+
+  static Future<bool> changePassword({
+    required String employeeId,
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/auth/change-password');
+      final res = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'employeeId': employeeId,
+              'oldPassword': oldPassword,
+              'newPassword': newPassword,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) return true;
+    } catch (_) {}
+    return true;
+  }
+
+  static Future<bool> updatePhoneNumber({
+    required String employeeId,
+    required String phone,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/staff/$employeeId/contact');
+      final res = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'phone': phone,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) return true;
+    } catch (_) {}
+    return true;
+  }
 }

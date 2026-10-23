@@ -39,7 +39,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedSubsidiary = widget.user.subsidiary ?? 'BEMS Feed Mill Operations';
+    _selectedSubsidiary = widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'BEMS Feed Mill Operations';
     _deliverableController.text = 'Goods Received Note (GRN) & Vendor Receipt';
   }
 
@@ -72,7 +72,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
         deliverable: deliverable,
         category: _selectedCategory,
         subsidiary: _selectedSubsidiary,
-        department: widget.user.department ?? 'Operations',
+        department: widget.user.department.isNotEmpty ? widget.user.department : 'Operations',
         amountNaira: amount,
         urgency: _selectedUrgency,
         neededBy: _selectedUrgency == 'CRITICAL' ? 'Immediate' : 'Within 24 Hours',
