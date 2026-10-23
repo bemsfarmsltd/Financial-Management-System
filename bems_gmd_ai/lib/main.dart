@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'theme/bems_theme.dart';
 import 'screens/studio_showcase_screen.dart';
 
+import 'package:flutter/foundation.dart';
+import 'screens/executive_home_screen.dart';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(
@@ -25,7 +28,7 @@ class BemsExecutiveAiApp extends StatelessWidget {
       title: 'BEMS Executive AI',
       debugShowCheckedModeBanner: false,
       theme: BemsTheme.darkTheme,
-      home: const StudioShowcaseScreen(),
+      home: kIsWeb ? const StudioShowcaseScreen() : const ExecutiveHomeScreen(),
     );
   }
 }

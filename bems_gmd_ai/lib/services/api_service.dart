@@ -5,11 +5,7 @@ import '../models/chat_models.dart';
 
 class ApiService {
   static String get baseUrl {
-    if (kIsWeb) {
-      final host = Uri.base.host.isNotEmpty ? Uri.base.host : 'localhost';
-      return 'http://$host:3000';
-    }
-    return 'http://192.168.1.113:3000';
+    return 'https://bemserp.work';
   }
 
   static Future<Map<String, dynamic>> sendAiMessage({
