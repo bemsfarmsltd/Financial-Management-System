@@ -51,11 +51,14 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    // 1. Personal Identity
+    // 1. Personal Identity & Photograph
     const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : '';
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
+    const avatarUrl = typeof body.avatarUrl === 'string' && body.avatarUrl.trim() 
+      ? body.avatarUrl.trim() 
+      : (typeof body.avatar === 'string' && body.avatar.trim() ? body.avatar.trim() : null);
     const gender = typeof body.gender === 'string' ? body.gender.trim() : null;
     const dateOfBirth = typeof body.dateOfBirth === 'string' ? body.dateOfBirth.trim() : null;
     const residentialAddress = typeof body.residentialAddress === 'string' ? body.residentialAddress.trim() : null;
@@ -102,7 +105,10 @@ export async function POST(request: Request) {
     const staffGrade = typeof body.staffGrade === 'string' ? body.staffGrade.trim() : 'OFFICER';
     const highestEducation = typeof body.highestEducation === 'string' ? body.highestEducation.trim() : null;
 
-    // Validation
+    // Mandatory Validations
+    if (!avatarUrl || avatarUrl.length < 5) {
+      return NextResponse.json({ error: 'Profile passport photograph is required. Please upload your face photograph.' }, { status: 400 });
+    }
     if (fullName.length < 2) {
       return NextResponse.json({ error: 'Please enter your full legal name.' }, { status: 400 });
     }
@@ -144,6 +150,7 @@ export async function POST(request: Request) {
           status: 'ACTIVE',
           approvalStatus: 'PENDING_APPROVAL',
           passwordHash: await hashPassword(password),
+          avatarUrl,
           gender,
           dateOfBirth,
           residentialAddress,
@@ -254,6 +261,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       pendingApproval: true,
       employeeNumber: uniqueEmployeeNumber,
+      avatarUrl,
       message: `Staff registration successful. Your unique Employee ID is ${uniqueEmployeeNumber}. Account is awaiting final administrator approval.`,
     }, { status: 201 });
   } catch (error) {

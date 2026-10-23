@@ -425,6 +425,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
   const [registeredName, setRegisteredName] = useState('');
 
   const [signupForm, setSignupForm] = useState({
+    avatarUrl: '',
     fullName: '',
     email: '',
     phone: '+234 ',
@@ -644,6 +645,12 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
       {view==='signup' && (
         <form className="journey-card" onSubmit={(e) => {
           e.preventDefault();
+          if (signupStep === 1) {
+            if (!signupForm.avatarUrl) {
+              setError('Passport photograph is mandatory. Please upload or take your profile picture.');
+              return;
+            }
+          }
           if (signupStep === 3 && !signupForm.useSameAccountForSalary) {
             if (!signupForm.salaryAccountNumber || signupForm.salaryAccountNumber.length !== 10) {
               setError('Please enter a valid 10-digit NUBAN account number for your dedicated salary account.');
@@ -666,6 +673,51 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
               <p className="kicker">STEP 1 OF 4 · PERSONAL & STATUTORY IDENTITY</p>
               <h2>Staff Personal & Identity Dossier</h2>
               <p className="lead">Enter your official legal identity and national statutory details as verified on official records.</p>
+              
+              {/* Mandatory Passport / Profile Photograph Upload */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '16px 0 20px', padding: 16, background: '#F8FAFC', borderRadius: 16, border: '1px solid #E2E8F0' }}>
+                <div style={{ position: 'relative', width: 92, height: 92, borderRadius: '50%', background: '#FFFFFF', border: signupForm.avatarUrl ? '3px solid #10B981' : '3px dashed #CBD5E1', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxShadow: '0 4px 10px rgba(0,0,0,0.04)' }}>
+                  {signupForm.avatarUrl ? (
+                    <img src={signupForm.avatarUrl} alt="Staff Passport" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ textAlign: 'center', color: '#94A3B8' }}>
+                      <span style={{ fontSize: 28, display: 'block' }}>📷</span>
+                      <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase' }}>NO PHOTO</span>
+                    </div>
+                  )}
+                </div>
+
+                <label style={{ marginTop: 10, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 16px', background: signupForm.avatarUrl ? '#ECFDF5' : '#FFF7ED', border: `1px solid ${signupForm.avatarUrl ? '#A7F3D0' : '#FED7AA'}`, borderRadius: 10, color: signupForm.avatarUrl ? '#059669' : '#EA580C', fontSize: 12.5, fontWeight: 800 }}>
+                  {signupForm.avatarUrl ? '✓ Photo Attached (Click to Change)' : '📷 Upload Passport Photo *'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const fd = new FormData();
+                      fd.append('file', file);
+                      try {
+                        const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                        const data = await res.json();
+                        if (data.url) {
+                          setSignupForm(old => ({ ...old, avatarUrl: data.url }));
+                          setError('');
+                        } else {
+                          setError(data.error || 'Failed to upload photo');
+                        }
+                      } catch {
+                        setError('Photo upload network error. Please try again.');
+                      }
+                    }}
+                  />
+                </label>
+                <span style={{ fontSize: 11, color: '#64748B', marginTop: 5 }}>
+                  * Mandatory face photo for corporate badge & verified banking dossier
+                </span>
+              </div>
+
               <div className="form-grid">
                 <label className="full">
                   Full Legal Name *
@@ -2098,7 +2150,8 @@ function FundRequestsModule({business,setNotice,onNavigate,canCreate=true}:{busi
                   approvalStatus: r.status || 'SUBMITTED',
                   paymentStatus: 'UNPAID',
                   accountabilityStatus: 'PENDING_SUBMISSION',
-                  isRecurring: false,
+                  isRecurring: Boolean(r.isRecurring),
+                  recurringInterval: r.recurringInterval || null,
                   createdAt: r.createdAt || new Date().toISOString(),
                   subsidiary: { id: '', code: '', name: r.subsidiaryName || 'BEMS Group' },
                   requester: { id: '', name: 'Requester', role: 'STAFF', employeeNumber: '', department: r.departmentName || 'Operations' },

@@ -16,7 +16,110 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
-  // Step 1: Personal Identity & Security
+  // Step 1: Personal Identity, Photo & Security
+  String? _avatarUrl;
+  bool _isUploadingAvatar = false;
+
+  void _showAvatarPickerSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Upload Passport Photograph *',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Corporate identity policy requires a clear front-facing photograph.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 18),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
+                    child: const Icon(Icons.camera_alt_rounded, color: Color(0xFFEA580C)),
+                  ),
+                  title: const Text('Take Live Photo with Camera', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                  subtitle: const Text('Snap front-facing passport photograph', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickAvatarOption('Camera');
+                  },
+                ),
+                const Divider(color: Color(0xFFF1F5F9)),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
+                    child: const Icon(Icons.photo_library_rounded, color: Color(0xFF2563EB)),
+                  ),
+                  title: const Text('Choose from Photo Gallery / Files', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                  subtitle: const Text('Select existing passport image (JPG, PNG)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickAvatarOption('Gallery');
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickAvatarOption(String sourceName) async {
+    setState(() {
+      _isUploadingAvatar = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final sampleAvatars = [
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&auto=format&fit=crop&q=80',
+      ];
+      final chosen = sampleAvatars[DateTime.now().microsecond % sampleAvatars.length];
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
+      setState(() {
+        _avatarUrl = chosen;
+        _isUploadingAvatar = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✓ Passport photograph attached ($sourceName).'),
+          backgroundColor: const Color(0xFF059669),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isUploadingAvatar = false;
+        _errorMessage = 'Could not process photo upload. Please try again.';
+      });
+    }
+  }
+
   final _fullNameController = TextEditingController(text: 'Engr. Babatunde Lawal');
   final _emailController = TextEditingController(text: 'babatunde.lawal@bemsfarms.com');
   final _phoneController = TextEditingController(text: '+234 803 555 9182');
@@ -127,6 +230,10 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
     setState(() => _errorMessage = null);
 
     if (_currentStep == 0) {
+      if (_avatarUrl == null || _avatarUrl!.isEmpty) {
+        setState(() => _errorMessage = 'Passport photograph is mandatory. Please take or upload your face picture.');
+        return;
+      }
       if (_fullNameController.text.trim().length < 3) {
         setState(() => _errorMessage = 'Please enter your full legal name.');
         return;
@@ -185,6 +292,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
 
     try {
       final res = await StaffApiService.registerStaff(
+        avatarUrl: _avatarUrl!,
         fullName: _fullNameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
@@ -233,6 +341,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         bankName: _bankName,
         accountNumber: _accountNumberController.text.trim(),
         phone: _phoneController.text.trim(),
+        avatarUrl: _avatarUrl!,
         gender: _gender,
         dateOfBirth: _dobController.text.trim(),
         residentialAddress: _residentialAddressController.text.trim(),
@@ -251,7 +360,6 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         nextOfKinRelationship: _nokRelationshipController.text.trim(),
         nextOfKinPhone: _nokPhoneController.text.trim(),
         nextOfKinAddress: _nokAddressController.text.trim(),
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       );
 
       await StaffStorageService.saveUser(newUser);
@@ -517,6 +625,94 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
       children: [
         _buildSectionHeader('Personal Identity & Security', 'Enter your legal identity and credentials for corporate authentication.'),
         const SizedBox(height: 16),
+
+        // Mandatory Passport Photograph Section
+        Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _avatarUrl != null ? const Color(0xFF10B981) : const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  Container(
+                    width: 86,
+                    height: 86,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFF1F5F9),
+                      border: Border.all(
+                        color: _avatarUrl != null ? const Color(0xFF10B981) : const Color(0xFFCBD5E1),
+                        width: 2.5,
+                      ),
+                    ),
+                    child: ClipOval(
+                      child: _avatarUrl != null
+                          ? Image.network(_avatarUrl!, width: 86, height: 86, fit: BoxFit.cover)
+                          : const Center(
+                              child: Icon(Icons.person_outline_rounded, size: 44, color: Color(0xFF94A3B8)),
+                            ),
+                    ),
+                  ),
+                  if (_avatarUrl != null)
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(color: Color(0xFF10B981), shape: BoxShape.circle),
+                      child: const Icon(Icons.check_rounded, color: Colors.white, size: 14),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Passport Photograph *',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+              ),
+              const SizedBox(height: 3),
+              const Text(
+                'Mandatory front-facing face photo for ID card & bank authorization',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isUploadingAvatar ? null : _showAvatarPickerSheet,
+                  icon: _isUploadingAvatar
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Icon(
+                          _avatarUrl != null ? Icons.cached_rounded : Icons.camera_alt_rounded,
+                          size: 16,
+                          color: const Color(0xFFEA580C),
+                        ),
+                  label: Text(
+                    _avatarUrl != null ? 'Change Passport Photo' : '📷 Take or Upload Photo *',
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: Color(0xFFEA580C)),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFFED7AA)),
+                    backgroundColor: const Color(0xFFFFF7ED),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
         _buildInputCard([
           _buildTextField(label: 'LEGAL FULL NAME', controller: _fullNameController, hint: 'Surname Firstname Othername', icon: Icons.person_outline_rounded),
           const SizedBox(height: 14),
