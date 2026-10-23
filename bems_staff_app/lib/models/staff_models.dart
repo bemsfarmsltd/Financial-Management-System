@@ -228,6 +228,13 @@ class FundRequestItem {
   final String avatarUrl;
   final List<String> lineItems;
   final String currentApproverStage;
+  final String dueDate;
+  final bool isRecurring;
+  final String? recurringInterval;
+  final String? nextRecurringDate;
+  final String? vendorName;
+  final bool isIntercompany;
+  final List<String> attachments;
 
   const FundRequestItem({
     required this.id,
@@ -250,6 +257,13 @@ class FundRequestItem {
     this.avatarUrl = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
     this.lineItems = const ['25 Metric Tonnes Yellow Maize Grains', 'Weighbridge Inspection & Offloading Fee'],
     this.currentApproverStage = 'GMD Executive Sign-off',
+    this.dueDate = '28 Oct 2026, 02:00 PM',
+    this.isRecurring = false,
+    this.recurringInterval,
+    this.nextRecurringDate,
+    this.vendorName = 'Golden Feed Logistics Ltd',
+    this.isIntercompany = false,
+    this.attachments = const [],
   });
 
   factory FundRequestItem.fromJson(Map<String, dynamic> json) {
@@ -276,6 +290,13 @@ class FundRequestItem {
       avatarUrl: json['avatarUrl'] ?? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
       lineItems: (json['lineItems'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const ['25 MT Feed Inputs', 'Logistics Haulage'],
       currentApproverStage: json['currentApproverStage'] ?? 'GMD Executive Sign-off',
+      dueDate: json['dueDate'] ?? '28 Oct 2026, 02:00 PM',
+      isRecurring: json['isRecurring'] == true,
+      recurringInterval: json['recurringInterval']?.toString(),
+      nextRecurringDate: json['nextRecurringDate']?.toString(),
+      vendorName: json['vendorName']?.toString() ?? json['vendor']?.toString() ?? 'Golden Feed Logistics Ltd',
+      isIntercompany: json['isIntercompany'] == true,
+      attachments: (json['attachments'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const [],
     );
   }
 }
@@ -341,17 +362,17 @@ class AccountabilityCaseItem {
 
   const AccountabilityCaseItem({
     required this.id,
-    required this.requestId,
+    this.requestId = '',
     required this.requestNumber,
     required this.title,
     required this.amountNaira,
     this.disbursedAt = '21 Oct 2026, 10:15 AM',
-    required this.dueAt,
-    required this.hoursRemaining,
+    this.dueAt = 'Within 72 Hours',
+    this.hoursRemaining = 72,
     this.totalHoursSla = 72,
-    required this.isOverdue,
-    required this.status,
-    required this.requiredDeliverables,
+    this.isOverdue = false,
+    this.status = 'PENDING_RETIREMENT',
+    this.requiredDeliverables = 'Physical receipt & delivery evidence',
     this.bankReference = 'TRF-BNK-98190',
     this.avatarUrl = 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
   });

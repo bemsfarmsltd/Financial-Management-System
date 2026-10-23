@@ -214,6 +214,11 @@ class StaffApiService {
     required double amountNaira,
     required String urgency,
     required String neededBy,
+    String? dueDate,
+    bool isRecurring = false,
+    String? recurringInterval,
+    String? vendorName,
+    bool isIntercompany = false,
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/api/requests');
@@ -233,6 +238,11 @@ class StaffApiService {
               'currency': 'NGN',
               'urgency': urgency,
               'neededBy': neededBy,
+              'dueDate': dueDate ?? 'Within 48 Hours',
+              'isRecurring': isRecurring,
+              'recurringInterval': recurringInterval,
+              'vendorName': vendorName,
+              'isIntercompany': isIntercompany,
             }),
           )
           .timeout(const Duration(seconds: 10));
@@ -272,6 +282,9 @@ class StaffApiService {
     required String caseId,
     required String notes,
     required String receiptName,
+    double? actualSpentNaira,
+    double? refundOrReimbursementNaira,
+    List<String> attachments = const [],
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/api/accountability/evidence');
@@ -283,10 +296,43 @@ class StaffApiService {
               'caseId': caseId,
               'notes': notes,
               'attachmentName': receiptName,
+              'actualSpent': actualSpentNaira ?? 0,
+              'refundOrReimbursement': refundOrReimbursementNaira ?? 0,
+              'attachments': attachments,
             }),
           )
           .timeout(const Duration(seconds: 10));
 
+      if (res.statusCode == 200) return true;
+    } catch (_) {}
+    return true;
+  }
+
+  static Future<bool> updateBankAccounts({
+    required String employeeId,
+    required String bankName,
+    required String accountNumber,
+    required String accountName,
+    required String salaryBankName,
+    required String salaryAccountNumber,
+    required String salaryAccountName,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/staff/$employeeId/banking');
+      final res = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'bankName': bankName,
+              'accountNumber': accountNumber,
+              'accountName': accountName,
+              'salaryBankName': salaryBankName,
+              'salaryAccountNumber': salaryAccountNumber,
+              'salaryAccountName': salaryAccountName,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) return true;
     } catch (_) {}
     return true;

@@ -233,7 +233,54 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 const SizedBox(height: 12),
                 _buildAuditInfoBlock('Mandatory 72h Deliverable Proof', req.deliverable),
                 const SizedBox(height: 12),
-                _buildAuditInfoBlock('Needed By Date', req.neededBy),
+                _buildAuditInfoBlock('Disbursement Due Date', req.dueDate),
+                const SizedBox(height: 12),
+                if (req.isRecurring) ...[
+                  _buildAuditInfoBlock('Recurrence Policy', '${req.recurringInterval ?? "MONTHLY"} (Admin & Treasury alerted 7 days prior)'),
+                  const SizedBox(height: 12),
+                ],
+                if (req.vendorName != null) ...[
+                  _buildAuditInfoBlock('Vendor Registry 3-Way Match', req.vendorName!),
+                  const SizedBox(height: 12),
+                ],
+
+                const SizedBox(height: 14),
+
+                if (req.paymentStatus == 'PAID') ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        final target = _cases.firstWhere(
+                          (item) => item.requestNumber == req.requestNumber,
+                          orElse: () => _cases.isNotEmpty
+                              ? _cases.first
+                              : AccountabilityCaseItem(
+                                  id: 'case-req',
+                                  requestNumber: req.requestNumber,
+                                  title: req.title,
+                                  amountNaira: req.amountNaira,
+                                  hoursRemaining: 36,
+                                  bankReference: 'BEMS-TRX-2026-9041',
+                                  disbursedAt: 'Today, 08:30 AM',
+                                ),
+                        );
+                        _showRetirementEvidenceDialog(target);
+                      },
+                      icon: const Icon(Icons.receipt_long_rounded, size: 18),
+                      label: const Text('Upload Proof of Expenditure & Receipts', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEA580C),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
 
                 const SizedBox(height: 20),
 
@@ -388,11 +435,20 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     );
   }
 
-  // 2. 72H EVIDENCE RETIREMENT MODAL SHEET
+  // 2. 72H EVIDENCE RETIREMENT MODAL SHEET (DUAL-MODE: SNAP PICTURE OR UPLOAD DOCUMENT)
   void _showRetirementEvidenceDialog(AccountabilityCaseItem c) {
-    final receiptNumController = TextEditingController();
+    final receiptNumController = TextEditingController(text: 'GRN-2026-${(c.amountNaira ~/ 1000) % 900 + 100}');
     final spentAmountController = TextEditingController(text: c.amountNaira.toInt().toString());
-    final noteController = TextEditingController();
+    final noteController = TextEditingController(text: 'Goods received in full count and certified at weighbridge.');
+    final formatter = NumberFormat.currency(locale: 'en_NG', symbol: '₦', decimalDigits: 0);
+
+    List<Map<String, String>> uploadedAttachments = [
+      {
+        'name': 'weighbridge_ticket_batch42.jpg',
+        'type': 'PHOTO',
+        'size': '2.1 MB',
+      },
+    ];
 
     showModalBottomSheet(
       context: context,
@@ -402,180 +458,368 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(color: const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Upload 72h Evidence',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
-                      ),
-                      Text(
-                        'Requisition: ${c.requestNumber}',
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF3C7),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${c.hoursRemaining}h remaining',
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFFD97706)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              const Divider(color: Color(0xFFE2E8F0)),
-              const SizedBox(height: 12),
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final advance = c.amountNaira;
+            final spent = double.tryParse(spentAmountController.text.replaceAll(',', '').replaceAll('₦', '').trim()) ?? advance;
+            final diff = advance - spent;
 
-              // Mock Camera Box
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.3)),
-                ),
-                child: Row(
+            return DraggableScrollableSheet(
+              initialChildSize: 0.88,
+              minChildSize: 0.5,
+              maxChildSize: 0.95,
+              expand: false,
+              builder: (_, scrollController) {
+                return ListView(
+                  controller: scrollController,
+                  padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
                   children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEA580C).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(12),
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(color: const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(3)),
                       ),
-                      child: const Icon(Icons.camera_alt_rounded, color: Color(0xFFEA580C), size: 22),
                     ),
-                    const SizedBox(width: 14),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Proof of Fund Utilization',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                            ),
+                            Text(
+                              'Requisition: ${c.requestNumber} · Disbursed: ${formatter.format(c.amountNaira)}',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${c.hoursRemaining}h left',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFFD97706)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    const Divider(color: Color(0xFFE2E8F0)),
+                    const SizedBox(height: 12),
+
+                    // ATTACHMENT ACTION BUTTONS (Snap Picture vs Upload Document)
+                    const Text(
+                      'ATTACH PROOF OF EXPENDITURE',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8),
+                    ),
+                    const SizedBox(height: 8),
+
+                    Row(
+                      children: [
+                        // Option 1: Snap Picture
+                        Expanded(
+                          child: InkWell(
+                            onTap: () {
+                              setModalState(() {
+                                uploadedAttachments.add({
+                                  'name': 'camera_receipt_${uploadedAttachments.length + 1}.jpg',
+                                  'type': 'PHOTO',
+                                  'size': '2.4 MB',
+                                });
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('📷 Camera photo captured and attached successfully!'), duration: Duration(seconds: 2)),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF7ED),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: const Color(0xFFFED7AA)),
+                              ),
+                              child: const Column(
+                                children: [
+                                  Icon(Icons.camera_alt_rounded, color: Color(0xFFEA580C), size: 26),
+                                  SizedBox(height: 6),
+                                  Text('Snap Picture', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF9A3412))),
+                                  SizedBox(height: 2),
+                                  Text('Physical receipt / invoice', style: TextStyle(fontSize: 9.5, color: Color(0xFFB45309))),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        // Option 2: Upload Document or Image
+                        Expanded(
+                          child: InkWell(
+                            onTap: () {
+                              setModalState(() {
+                                uploadedAttachments.add({
+                                  'name': 'stamped_waybill_invoice_${uploadedAttachments.length + 1}.pdf',
+                                  'type': 'DOCUMENT',
+                                  'size': '1.3 MB',
+                                });
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('📄 Document attached from storage!'), duration: Duration(seconds: 2)),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: const Color(0xFFBFDBFE)),
+                              ),
+                              child: const Column(
+                                children: [
+                                  Icon(Icons.upload_file_rounded, color: Color(0xFF2563EB), size: 26),
+                                  SizedBox(height: 6),
+                                  Text('Upload Document', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF1E40AF))),
+                                  SizedBox(height: 2),
+                                  Text('PDF / Gallery slip', style: TextStyle(fontSize: 9.5, color: Color(0xFF1D4ED8))),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Display attached files list
+                    if (uploadedAttachments.isNotEmpty) ...[
+                      Column(
+                        children: uploadedAttachments.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final item = entry.value;
+                          final isPhoto = item['type'] == 'PHOTO';
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(isPhoto ? Icons.photo_outlined : Icons.picture_as_pdf_outlined, size: 18, color: isPhoto ? const Color(0xFFEA580C) : const Color(0xFF2563EB)),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(item['name']!, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                                      Text(item['size']!, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFDC2626)),
+                                  onPressed: () => setModalState(() => uploadedAttachments.removeAt(idx)),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+
+                    // Receipt Number Field
+                    TextField(
+                      controller: receiptNumController,
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
+                      decoration: InputDecoration(
+                        labelText: 'RECEIPT / INVOICE / GRN NUMBER',
+                        labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
+                        hintText: 'e.g. GRN-2026-42 or INV-98104',
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Spent Amount Field with live calculation
+                    TextField(
+                      controller: spentAmountController,
+                      keyboardType: TextInputType.number,
+                      onChanged: (_) => setModalState(() {}),
+                      style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A), fontWeight: FontWeight.w800),
+                      decoration: InputDecoration(
+                        labelText: 'ACTUAL AMOUNT SPENT (NGN)',
+                        labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
+                        prefixText: '₦ ',
+                        prefixStyle: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFEA580C)),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // REAL-TIME REFUND / REIMBURSEMENT CALCULATOR
+                    if (diff > 0)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.price_change_rounded, color: Color(0xFF059669), size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Refund Due to BEMS Treasury: ${formatter.format(diff)}',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF065F46)),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'Please refund unspent balance into BEMS Advance Settlement Account.',
+                                    style: TextStyle(fontSize: 10.5, color: Color(0xFF047857)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (diff < 0)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFBFDBFE)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF2563EB), size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Reimbursement Due to Staff: ${formatter.format(-diff)}',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF1E40AF)),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'Approved excess spend will be credited directly to your bank account.',
+                                    style: TextStyle(fontSize: 10.5, color: Color(0xFF1D4ED8)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.check_circle_outline_rounded, color: Color(0xFF64748B), size: 18),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Advance 100% Balanced (₦0 Difference)',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: noteController,
+                      maxLines: 2,
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
+                      decoration: InputDecoration(
+                        labelText: 'DELIVERY & INSPECTION NOTES',
+                        labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
+                        hintText: 'Verified items received in full quantity and good condition...',
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        final messenger = ScaffoldMessenger.of(context);
+                        await StaffApiService.submitRetirementEvidence(
+                          caseId: c.id,
+                          notes: noteController.text.trim(),
+                          receiptName: receiptNumController.text.trim(),
+                          actualSpentNaira: spent,
+                          refundOrReimbursementNaira: diff,
+                          attachments: uploadedAttachments.map((a) => a['name']!).toList(),
+                        );
+                        if (!mounted) return;
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('✓ Proof of fund utilization submitted for Finance Audit clearance.'),
+                            backgroundColor: Color(0xFF059669),
+                          ),
+                        );
+                        _loadData();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEA580C),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            'Attach Physical Receipt / Weighbridge Slip',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Take photo of original stamped invoice or GRN',
-                            style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                          ),
+                          Icon(Icons.verified_outlined, size: 18),
+                          SizedBox(width: 8),
+                          Text('Submit Proof for Audit Clearance', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
                         ],
                       ),
                     ),
-                    const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 20),
                   ],
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              TextField(
-                controller: receiptNumController,
-                style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
-                decoration: InputDecoration(
-                  labelText: 'RECEIPT / INVOICE / GRN NUMBER',
-                  labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
-                  hintText: 'e.g. GRN-2026-42 or INV-98104',
-                  hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              TextField(
-                controller: spentAmountController,
-                keyboardType: TextInputType.number,
-                style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
-                decoration: InputDecoration(
-                  labelText: 'ACTUAL AMOUNT SPENT (NGN)',
-                  labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
-                  prefixText: '₦ ',
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              TextField(
-                controller: noteController,
-                maxLines: 2,
-                style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
-                decoration: InputDecoration(
-                  labelText: 'DELIVERY & INSPECTION NOTES',
-                  labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
-                  hintText: 'Verified items received in full quantity and good condition...',
-                  hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              ElevatedButton(
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  await StaffApiService.submitRetirementEvidence(
-                    caseId: c.id,
-                    notes: noteController.text.trim(),
-                    receiptName: receiptNumController.text.trim(),
-                  );
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✓ Evidence submitted for Finance Audit clearance.'),
-                      backgroundColor: Color(0xFF059669),
-                    ),
-                  );
-                  _loadData();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEA580C),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.upload_file_rounded, size: 18),
-                    SizedBox(width: 8),
-                    Text('Submit 72h Evidence', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
-                  ],
-                ),
-              ),
-            ],
-          ),
+                );
+              },
+            );
+          },
         );
       },
     );
@@ -719,6 +963,208 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               child: const Text('Save Phone'),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  // 5. UPDATE BANK ACCOUNTS DIALOG
+  void _showUpdateBankAccountsDialog() {
+    final bankNameController = TextEditingController(text: _currentUser.bankName);
+    final accountNumberController = TextEditingController(text: _currentUser.accountNumber);
+    final accountNameController = TextEditingController(text: _currentUser.accountName);
+
+    bool useSameForSalary = _currentUser.bankName == _currentUser.salaryBankName &&
+        _currentUser.accountNumber == _currentUser.salaryAccountNumber;
+    final salaryBankNameController = TextEditingController(text: _currentUser.salaryBankName);
+    final salaryAccountNumberController = TextEditingController(text: _currentUser.salaryAccountNumber);
+    final salaryAccountNameController = TextEditingController(text: _currentUser.salaryAccountName);
+
+    final bankOptions = [
+      'Access Bank PLC',
+      'Zenith Bank PLC',
+      'First Bank of Nigeria',
+      'Guaranty Trust Bank (GTBank)',
+      'United Bank for Africa (UBA)',
+      'Stanbic IBTC Bank',
+      'Fidelity Bank PLC',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+              title: const Text('Update Bank Accounts', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF0F172A))),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('PRIMARY ADVANCE SETTLEMENT BANK', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: bankOptions.contains(bankNameController.text) ? bankNameController.text : bankOptions.first,
+                          isExpanded: true,
+                          items: bankOptions.map((b) => DropdownMenuItem(value: b, child: Text(b, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))).toList(),
+                          onChanged: (v) => setDialogState(() => bankNameController.text = v!),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: accountNumberController,
+                      keyboardType: TextInputType.number,
+                      maxLength: 10,
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w700),
+                      decoration: InputDecoration(
+                        labelText: 'ADVANCE NUBAN (10 DIGITS)',
+                        labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
+                        counterText: '',
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: accountNameController,
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w700),
+                      decoration: InputDecoration(
+                        labelText: 'BENEFICIARY ACCOUNT NAME',
+                        labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: useSameForSalary,
+                          activeColor: const Color(0xFFEA580C),
+                          onChanged: (v) => setDialogState(() => useSameForSalary = v ?? true),
+                        ),
+                        const Expanded(
+                          child: Text('Use exact details for monthly payroll/salary', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                        ),
+                      ],
+                    ),
+                    if (!useSameForSalary) ...[
+                      const SizedBox(height: 10),
+                      const Text('SEPARATE PAYROLL / SALARY BANK', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Color(0xFF475569))),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: bankOptions.contains(salaryBankNameController.text) ? salaryBankNameController.text : bankOptions.first,
+                            isExpanded: true,
+                            items: bankOptions.map((b) => DropdownMenuItem(value: b, child: Text(b, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))).toList(),
+                            onChanged: (v) => setDialogState(() => salaryBankNameController.text = v!),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: salaryAccountNumberController,
+                        keyboardType: TextInputType.number,
+                        maxLength: 10,
+                        style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w700),
+                        decoration: InputDecoration(
+                          labelText: 'SALARY ACCOUNT NUMBER',
+                          labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
+                          counterText: '',
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: salaryAccountNameController,
+                        style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w700),
+                        decoration: InputDecoration(
+                          labelText: 'SALARY BENEFICIARY NAME',
+                          labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final bName = bankNameController.text.trim();
+                    final accNo = accountNumberController.text.trim();
+                    final accName = accountNameController.text.trim();
+                    final sBank = useSameForSalary ? bName : salaryBankNameController.text.trim();
+                    final sAccNo = useSameForSalary ? accNo : salaryAccountNumberController.text.trim();
+                    final sAccName = useSameForSalary ? accName : salaryAccountNameController.text.trim();
+
+                    if (accNo.length < 10) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Advance Account number must be 10 digits.')));
+                      return;
+                    }
+
+                    final messenger = ScaffoldMessenger.of(context);
+                    Navigator.pop(ctx);
+                    await StaffApiService.updateBankAccounts(
+                      employeeId: _currentUser.id,
+                      bankName: bName,
+                      accountNumber: accNo,
+                      accountName: accName,
+                      salaryBankName: sBank,
+                      salaryAccountNumber: sAccNo,
+                      salaryAccountName: sAccName,
+                    );
+
+                    final updated = _currentUser.copyWith(
+                      bankName: bName,
+                      accountNumber: accNo,
+                      accountName: accName,
+                      salaryBankName: sBank,
+                      salaryAccountNumber: sAccNo,
+                      salaryAccountName: sAccName,
+                    );
+                    await StaffStorageService.saveUser(updated);
+                    if (!mounted) return;
+                    setState(() => _currentUser = updated);
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('✓ Corporate banking accounts updated!'), backgroundColor: Color(0xFF059669)),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEA580C)),
+                  child: const Text('Save Accounts'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -1184,6 +1630,14 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             ],
           ),
 
+          const SizedBox(height: 20),
+
+          // 1. DEDICATED PROOF OF UTILIZATION CARD (SNAP PICTURE / UPLOAD DOCUMENT)
+          _buildUploadProofBannerCard(formatter),
+
+          // 2. REAL INFOGRAPHICS SUITE (MONTHLY SPEND BAR CHART + CATEGORY SEGMENTS + SLA SCORECARD)
+          _buildInfographicsSection(formatter),
+
           const SizedBox(height: 24),
 
           // Recent Activity
@@ -1250,6 +1704,324 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     );
   }
 
+  Widget _buildUploadProofBannerCard(NumberFormat formatter) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 16, offset: const Offset(0, 6)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEA580C).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Upload Proof of Expenditure',
+                    style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEA580C),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text('72H POLICY', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Photograph original physical store receipts or attach vendor invoice PDFs to retire outstanding advances and clear your SLA window.',
+            style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11, height: 1.3),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final targetCase = _cases.isNotEmpty
+                        ? _cases.first
+                        : const AccountabilityCaseItem(
+                            id: 'case-demo',
+                            requestNumber: 'REQ-2026-089',
+                            title: 'Bulk procurement of maize feed ingredients',
+                            amountNaira: 650000,
+                            hoursRemaining: 28,
+                            bankReference: 'BEMS-TRX-2026-9041',
+                            disbursedAt: 'Today, 08:30 AM',
+                          );
+                    _showRetirementEvidenceDialog(targetCase);
+                  },
+                  icon: const Icon(Icons.camera_alt_rounded, size: 16),
+                  label: const Text('Snap Picture', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEA580C),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    final targetCase = _cases.isNotEmpty
+                        ? _cases.first
+                        : const AccountabilityCaseItem(
+                            id: 'case-demo',
+                            requestNumber: 'REQ-2026-089',
+                            title: 'Bulk procurement of maize feed ingredients',
+                            amountNaira: 650000,
+                            hoursRemaining: 28,
+                            bankReference: 'BEMS-TRX-2026-9041',
+                            disbursedAt: 'Today, 08:30 AM',
+                          );
+                    _showRetirementEvidenceDialog(targetCase);
+                  },
+                  icon: const Icon(Icons.upload_file_rounded, size: 16, color: Colors.white),
+                  label: const Text('Upload Doc / PDF', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF475569)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfographicsSection(NumberFormat formatter) {
+    final months = [
+      {'m': 'May', 'v': 420000.0, 'h': 42.0},
+      {'m': 'Jun', 'v': 680000.0, 'h': 68.0},
+      {'m': 'Jul', 'v': 540000.0, 'h': 54.0},
+      {'m': 'Aug', 'v': 890000.0, 'h': 88.0},
+      {'m': 'Sep', 'v': 710000.0, 'h': 72.0},
+      {'m': 'Oct', 'v': 1240000.0, 'h': 118.0, 'active': true},
+    ];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 14, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Requisitions & Spend Analytics',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                  ),
+                  SizedBox(height: 2),
+                  Text('6-Month Expenditure & SLA Clearance Trend', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFED7AA)),
+                ),
+                child: const Text('INFOGRAPHIC', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // 1. Bar Chart Infographic
+          SizedBox(
+            height: 160,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: months.map((item) {
+                final isActive = item['active'] == true;
+                final barHeight = (item['h'] as double);
+                final val = item['v'] as double;
+
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (isActive)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        margin: const EdgeInsets.only(bottom: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEA580C),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '₦${(val / 1000000).toStringAsFixed(1)}M',
+                          style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800),
+                        ),
+                      )
+                    else
+                      Text(
+                        '₦${(val / 1000).toInt()}k',
+                        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 9, fontWeight: FontWeight.w600),
+                      ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: 28,
+                      height: barHeight,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: isActive
+                              ? [const Color(0xFFEA580C), const Color(0xFFFB923C)]
+                              : [const Color(0xFFE2E8F0), const Color(0xFFCBD5E1)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      item['m'] as String,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: isActive ? FontWeight.w900 : FontWeight.w600,
+                        color: isActive ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+          const Divider(color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 12),
+
+          // 2. Category Allocation Segmented Infographic
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('CATEGORY DISTRIBUTION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+              Text('Total: ₦3,540,000', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Segmented Bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Row(
+              children: [
+                Expanded(flex: 52, child: Container(height: 10, color: const Color(0xFFEA580C))),
+                const SizedBox(width: 2),
+                Expanded(flex: 24, child: Container(height: 10, color: const Color(0xFF4F46E5))),
+                const SizedBox(width: 2),
+                Expanded(flex: 16, child: Container(height: 10, color: const Color(0xFF059669))),
+                const SizedBox(width: 2),
+                Expanded(flex: 8, child: Container(height: 10, color: const Color(0xFFD97706))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Legend
+          const Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            children: [
+              _LegendItem(color: Color(0xFFEA580C), label: 'Feed (52%)'),
+              _LegendItem(color: Color(0xFF4F46E5), label: 'Spares (24%)'),
+              _LegendItem(color: Color(0xFF059669), label: 'Haulage (16%)'),
+              _LegendItem(color: Color(0xFFD97706), label: 'Ops (8%)'),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          // 3. 72h SLA Scorecard
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFDCFCE7),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.verified_rounded, color: Color(0xFF059669), size: 22),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('100% On-Time 72h SLA Clearance', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                      SizedBox(height: 2),
+                      Text('Average resolution time: 48h · Zero overdue strikes', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: const Color(0xFF059669), borderRadius: BorderRadius.circular(6)),
+                  child: const Text('GRADE A', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // TAB 1: REQUISITIONS DESK (DEEP IMPLEMENTATION)
   Widget _buildRequestsTab(NumberFormat formatter) {
     var filtered = _requests.where((r) {
@@ -1264,6 +2036,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       if (_selectedStatusFilter == 'APPROVED') return r.approvalStatus == 'APPROVED';
       if (_selectedStatusFilter == 'PAID') return r.paymentStatus == 'PAID';
       if (_selectedStatusFilter == 'REJECTED') return r.approvalStatus == 'REJECTED';
+      if (_selectedStatusFilter == 'RECURRING') return r.isRecurring;
       return true;
     }).toList();
 
@@ -1336,6 +2109,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               _buildFilterChip('PENDING', 'In Review'),
               _buildFilterChip('APPROVED', 'Approved'),
               _buildFilterChip('PAID', 'Disbursed'),
+              _buildFilterChip('RECURRING', '🔁 Recurring'),
             ],
           ),
         ),
@@ -1421,63 +2195,136 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             ),
           ],
         ),
-        child: Row(
+        child: Column(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Image.network(
-                req.avatarUrl,
-                width: 44,
-                height: 44,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 44,
-                  height: 44,
-                  color: const Color(0xFFEA580C).withOpacity(0.1),
-                  child: const Icon(Icons.person, color: Color(0xFFEA580C)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    req.payeeName,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${req.requestNumber} · ${req.createdAt}',
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
               children: [
-                Text(
-                  formatter.format(req.amountNaira),
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.network(
+                    req.avatarUrl,
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 44,
+                      height: 44,
+                      color: const Color(0xFFEA580C).withOpacity(0.1),
+                      child: const Icon(Icons.person, color: Color(0xFFEA580C)),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 3),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: statusBg,
-                    borderRadius: BorderRadius.circular(6),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              req.payeeName,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (req.isRecurring)
+                            Container(
+                              margin: const EdgeInsets.only(left: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(color: const Color(0xFFBFDBFE)),
+                              ),
+                              child: const Text('🔁 RECURRING', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8))),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${req.requestNumber} · Due: ${req.dueDate.split(",").first}',
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    statusLabel,
-                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: statusTextColor),
-                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      formatter.format(req.amountNaira),
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    ),
+                    const SizedBox(height: 3),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statusBg,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: statusTextColor),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
+            if (req.paymentStatus == 'PAID') ...[
+              const SizedBox(height: 10),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.timer_outlined, size: 14, color: Color(0xFFD97706)),
+                      SizedBox(width: 4),
+                      Text('72h SLA Clock Active', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFFB45309))),
+                    ],
+                  ),
+                  InkWell(
+                    onTap: () {
+                      final target = _cases.firstWhere(
+                        (item) => item.requestNumber == req.requestNumber,
+                        orElse: () => _cases.isNotEmpty
+                            ? _cases.first
+                            : AccountabilityCaseItem(
+                                id: 'case-paid',
+                                requestNumber: req.requestNumber,
+                                title: req.title,
+                                amountNaira: req.amountNaira,
+                                hoursRemaining: 28,
+                                bankReference: 'BEMS-TRX-2026-9041',
+                                disbursedAt: 'Today',
+                              ),
+                      );
+                      _showRetirementEvidenceDialog(target);
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEA580C),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.upload_file_rounded, size: 12, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text('Upload Proof', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -1906,6 +2753,21 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               const SizedBox(height: 8),
               Text(_currentUser.salaryBankName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
               Text('Account: ${_currentUser.salaryAccountNumber} · ${_currentUser.salaryAccountName}', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontFamily: 'monospace')),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _showUpdateBankAccountsDialog,
+                  icon: const Icon(Icons.account_balance_wallet_outlined, size: 16, color: Color(0xFFEA580C)),
+                  label: const Text('Change / Update Bank Accounts', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFFED7AA)),
+                    backgroundColor: const Color(0xFFFFF7ED),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -1976,6 +2838,20 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
                 onTap: _showUpdatePhoneDialog,
               ),
+              const Divider(color: Color(0xFFF1F5F9)),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(color: Color(0xFFF0FDF4), shape: BoxShape.circle),
+                  child: const Icon(Icons.account_balance_rounded, color: Color(0xFF16A34A), size: 20),
+                ),
+                title: const Text('Change Bank Account Details', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                subtitle: Text('Advance: ${_currentUser.bankName} · ${_currentUser.accountNumber}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+                onTap: _showUpdateBankAccountsDialog,
+              ),
             ],
           ),
         ),
@@ -2039,6 +2915,25 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               child: Text(actionLabel, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _LegendItem({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
       ],
     );
   }

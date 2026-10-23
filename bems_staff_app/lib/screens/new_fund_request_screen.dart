@@ -27,6 +27,18 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
   String _selectedUrgency = 'HIGH';
   bool _isSubmitting = false;
 
+  // Due Date & Time
+  DateTime _selectedDueDate = DateTime.now().add(const Duration(days: 2));
+  TimeOfDay _selectedDueTime = const TimeOfDay(hour: 14, minute: 0);
+
+  // Recurring Controls (with 7-Day Admin Alert)
+  bool _isRecurring = false;
+  String _recurringInterval = 'MONTHLY';
+
+  // Payee / Vendor Selector (3-Way Matching Registry)
+  String _payeeType = 'STAFF_ADVANCE'; // 'STAFF_ADVANCE' or 'VENDOR'
+  String _selectedVendor = 'Golden Feed Logistics Ltd';
+
   final List<String> _categories = [
     'Feed Ingredients & Raw Grain',
     'Machinery & Spares Repair',
@@ -36,11 +48,105 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
     'Utility & Operations',
   ];
 
+  final List<String> _recurringOptions = [
+    'WEEKLY',
+    'BI_WEEKLY',
+    'MONTHLY',
+    'QUARTERLY',
+  ];
+
+  final List<Map<String, String>> _approvedVendors = [
+    {
+      'name': 'Golden Feed Logistics Ltd',
+      'category': 'Haulage & Logistics',
+      'bank': 'Access Bank (0192837465)',
+    },
+    {
+      'name': 'Oyo Central Grain Depot',
+      'category': 'Grain & Raw Materials',
+      'bank': 'Zenith Bank (2019284756)',
+    },
+    {
+      'name': 'Kwara Machinists & Spares',
+      'category': 'Machinery Maintenance',
+      'bank': 'First Bank (1102938475)',
+    },
+    {
+      'name': 'Animal Care Vet Pharma Ltd',
+      'category': 'Agro-Chemicals & Vaccines',
+      'bank': 'GTBank (0019283746)',
+    },
+  ];
+
   @override
   void initState() {
     super.initState();
     _selectedSubsidiary = widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'BEMS Feed Mill Operations';
     _deliverableController.text = 'Goods Received Note (GRN) & Vendor Receipt';
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _amountController.dispose();
+    _justificationController.dispose();
+    _deliverableController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDueDate() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDueDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFFEA580C),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF0F172A),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedDate != null) {
+      if (!mounted) return;
+      final pickedTime = await showTimePicker(
+        context: context,
+        initialTime: _selectedDueTime,
+        builder: (context, child) {
+          return Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: const ColorScheme.light(
+                primary: Color(0xFFEA580C),
+                onPrimary: Colors.white,
+                onSurface: Color(0xFF0F172A),
+              ),
+            ),
+            child: child!,
+          );
+        },
+      );
+
+      if (pickedTime != null) {
+        setState(() {
+          _selectedDueDate = pickedDate;
+          _selectedDueTime = pickedTime;
+        });
+      }
+    }
+  }
+
+  String _formatDueDate() {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final hour = _selectedDueTime.hour.toString().padLeft(2, '0');
+    final minute = _selectedDueTime.minute.toString().padLeft(2, '0');
+    return '${_selectedDueDate.day} ${months[_selectedDueDate.month - 1]} ${_selectedDueDate.year}, $hour:$minute';
   }
 
   Future<void> _submitRequest() async {
@@ -66,6 +172,8 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
     setState(() => _isSubmitting = true);
 
     try {
+      final formattedDue = _formatDueDate();
+
       await StaffApiService.createFundRequest(
         title: title,
         justification: justification,
@@ -76,6 +184,11 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
         amountNaira: amount,
         urgency: _selectedUrgency,
         neededBy: _selectedUrgency == 'CRITICAL' ? 'Immediate' : 'Within 24 Hours',
+        dueDate: formattedDue,
+        isRecurring: _isRecurring,
+        recurringInterval: _isRecurring ? _recurringInterval : null,
+        vendorName: _payeeType == 'VENDOR' ? _selectedVendor : widget.user.fullName,
+        isIntercompany: _selectedSubsidiary != widget.user.subsidiary,
       );
 
       if (!mounted) return;
@@ -83,10 +196,14 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
       Navigator.pop(context);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✓ Requisition successfully submitted for Departmental & GMD Review.'),
-          backgroundColor: Color(0xFF059669),
-          duration: Duration(seconds: 3),
+        SnackBar(
+          content: Text(
+            _isRecurring
+                ? '✓ Recurring requisition scheduled! Admin & Treasury alerted 7 days prior.'
+                : '✓ Requisition successfully submitted for Departmental & GMD Review.',
+          ),
+          backgroundColor: const Color(0xFF059669),
+          duration: const Duration(seconds: 4),
         ),
       );
     } catch (e) {
@@ -194,6 +311,243 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
 
                   const SizedBox(height: 16),
 
+                  // Due Date & Time Picker
+                  _buildSectionLabel('WHEN FUND IS DUE (REQUIRED BY DATE)'),
+                  const SizedBox(height: 6),
+                  InkWell(
+                    onTap: _pickDueDate,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFFED7AA)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.event_available_rounded, color: Color(0xFFEA580C), size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Disbursement Target Due Date', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF9A3412))),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _formatDueDate(),
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEA580C),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text('Change Date', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // Recurring Fund Request Section
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.autorenew_rounded, color: Color(0xFF2563EB), size: 20),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Recurring Fund Request', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                                  Text('Auto-renew request periodically', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: _isRecurring,
+                              activeColor: const Color(0xFF2563EB),
+                              onChanged: (val) => setState(() => _isRecurring = val),
+                            ),
+                          ],
+                        ),
+                        if (_isRecurring) ...[
+                          const Divider(height: 18, color: Color(0xFFE2E8F0)),
+                          const Text('RECURRENCE FREQUENCY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFCBD5E1)),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _recurringInterval,
+                                isExpanded: true,
+                                items: _recurringOptions.map((opt) {
+                                  return DropdownMenuItem(
+                                    value: opt,
+                                    child: Text(
+                                      opt == 'WEEKLY'
+                                          ? 'Weekly Cycle'
+                                          : opt == 'BI_WEEKLY'
+                                              ? 'Bi-Weekly (Every 2 Weeks)'
+                                              : opt == 'MONTHLY'
+                                                  ? 'Monthly Cycle'
+                                                  : 'Quarterly (Every 3 Months)',
+                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) setState(() => _recurringInterval = val);
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFBFDBFE)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.notifications_active_outlined, color: Color(0xFF1D4ED8), size: 16),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Admin & Treasury will automatically receive notifications 7 days prior to each recurring cycle for budget reservation.',
+                                    style: TextStyle(fontSize: 11, color: Color(0xFF1E40AF), fontWeight: FontWeight.w600, height: 1.3),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Payee / Vendor Destination
+                  _buildSectionLabel('PAYEE / BENEFICIARY DESTINATION'),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => setState(() => _payeeType = 'STAFF_ADVANCE'),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: _payeeType == 'STAFF_ADVANCE' ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: _payeeType == 'STAFF_ADVANCE' ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.person_pin_rounded, size: 16, color: _payeeType == 'STAFF_ADVANCE' ? const Color(0xFFEA580C) : const Color(0xFF64748B)),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'My Advance Bank',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: _payeeType == 'STAFF_ADVANCE' ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => setState(() => _payeeType = 'VENDOR'),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: _payeeType == 'VENDOR' ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: _payeeType == 'VENDOR' ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.storefront_rounded, size: 16, color: _payeeType == 'VENDOR' ? const Color(0xFF2563EB) : const Color(0xFF64748B)),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Registered Vendor',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: _payeeType == 'VENDOR' ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  if (_payeeType == 'VENDOR') ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedVendor,
+                          isExpanded: true,
+                          dropdownColor: Colors.white,
+                          items: _approvedVendors.map((v) {
+                            return DropdownMenuItem(
+                              value: v['name']!,
+                              child: Text('${v['name']} (${v['category']})', style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.w700)),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) setState(() => _selectedVendor = val);
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 16),
+
                   // Subsidiary
                   _buildSectionLabel('TARGET SUBSIDIARY ENTITY'),
                   const SizedBox(height: 6),
@@ -298,27 +652,20 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFEA580C),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 2,
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                elevation: 3,
                 shadowColor: const Color(0xFFEA580C).withOpacity(0.4),
               ),
               child: _isSubmitting
                   ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                     )
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.send_rounded, size: 18),
-                        SizedBox(width: 8),
-                        Text(
-                          'Submit Fund Requisition',
-                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
-                        ),
-                      ],
+                  : Text(
+                      _isRecurring ? 'Schedule Recurring Requisition' : 'Submit Requisition for Approval',
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
                     ),
             ),
           ],
@@ -327,15 +674,10 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
     );
   }
 
-  Widget _buildSectionLabel(String text) {
+  Widget _buildSectionLabel(String label) {
     return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 10,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.8,
-        color: Color(0xFF64748B),
-      ),
+      label,
+      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8),
     );
   }
 
@@ -360,33 +702,31 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
           hintText: hintText,
           hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
       ),
     );
   }
 
-  Widget _buildUrgencyChip(String code, String label, Color color) {
-    final isSelected = _selectedUrgency == code;
+  Widget _buildUrgencyChip(String value, String label, Color color) {
+    final isSelected = _selectedUrgency == value;
     return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _selectedUrgency = code),
+      child: InkWell(
+        onTap: () => setState(() => _selectedUrgency = value),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: isSelected ? color.withOpacity(0.12) : const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? color : const Color(0xFFE2E8F0),
-              width: isSelected ? 1.5 : 1,
-            ),
+            border: Border.all(color: isSelected ? color : const Color(0xFFE2E8F0), width: isSelected ? 1.5 : 1),
           ),
           child: Center(
             child: Text(
               label,
               style: TextStyle(
                 fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
                 color: isSelected ? color : const Color(0xFF64748B),
               ),
             ),
