@@ -1,5 +1,14 @@
 const { PrismaClient } = require("@prisma/client");
+const { randomBytes, scrypt: nodeScrypt } = require("crypto");
+const { promisify } = require("util");
+const scrypt = promisify(nodeScrypt);
 const prisma = new PrismaClient();
+
+async function hashPassword(password) {
+  const salt = randomBytes(16).toString("hex");
+  const derived = await scrypt(password, salt, 64);
+  return `scrypt$${salt}$${derived.toString("hex")}`;
+}
 
 async function main() {
   console.log("Synchronizing core organizations, departments, vendors, and initial live telemetry...");
@@ -307,7 +316,48 @@ async function main() {
     }
 
     // Seed Key Staff Profiles
+    const staffPasswordHash = await hashPassword("BemsStaff2026!");
+
     const staffSeeds = [
+      {
+        employeeNumber: "BEMS-LOG-2026-0001",
+        legalName: "Henry Staff Adeleke",
+        workEmail: "staff@bemsfarms.com",
+        phone: "+234 802 345 6789",
+        role: "STAFF",
+        status: "ACTIVE",
+        approvalStatus: "APPROVED",
+        passwordHash: staffPasswordHash,
+        gender: "MALE",
+        dateOfBirth: "1994-06-20",
+        residentialAddress: "Plot 12, Commercial Avenue, Ikeja GRA",
+        cityState: "Lagos State, Nigeria",
+        jobTitle: "Operations Specialist & Field Logistics Lead",
+        workLocation: "Oyo Logistics & Farm Hub",
+        staffGrade: "Level 06 - Operational Specialist",
+        employmentType: "FULL_TIME",
+        resumptionDate: new Date("2026-01-15"),
+        highestEducation: "Bachelor of Science (B.Sc.) - Supply Chain & Logistics",
+        maritalStatus: "MARRIED",
+        avatarUrl: "https://pink-horse-318730.hostingersite.com/bems-mark.png",
+        bankName: "Access Bank PLC",
+        accountNumber: "0123456789",
+        accountName: "Henry Staff Adeleke",
+        salaryBankName: "Access Bank PLC",
+        salaryAccountNumber: "0123456789",
+        salaryAccountName: "Henry Staff Adeleke",
+        nin: "12345678901",
+        bvn: "22233344455",
+        stateOfOrigin: "Ogun State",
+        lga: "Abeokuta South",
+        nextOfKinName: "Mrs. Blessing Adeleke",
+        nextOfKinPhone: "+234 803 987 6543",
+        nextOfKinRelationship: "Spouse",
+        nextOfKinAddress: "Plot 12, Commercial Avenue, Ikeja GRA, Lagos State",
+        subsidiaryId: subLogistics.id,
+        departmentId: logDept.id,
+        position: "Operations Specialist & Field Logistics Lead",
+      },
       {
         employeeNumber: "EMP-2026-0002",
         legalName: "Engr. Tunde Adeleke",
@@ -347,17 +397,50 @@ async function main() {
     ];
 
     for (const s of staffSeeds) {
+      const empData = {
+        employeeNumber: s.employeeNumber,
+        legalName: s.legalName,
+        workEmail: s.workEmail,
+        role: s.role,
+        status: s.status || "ACTIVE",
+        approvalStatus: s.approvalStatus || "APPROVED",
+        phone: s.phone || null,
+        gender: s.gender || null,
+        dateOfBirth: s.dateOfBirth || null,
+        residentialAddress: s.residentialAddress || null,
+        cityState: s.cityState || null,
+        jobTitle: s.jobTitle || s.position,
+        workLocation: s.workLocation || null,
+        staffGrade: s.staffGrade || null,
+        employmentType: s.employmentType || null,
+        resumptionDate: s.resumptionDate || null,
+        highestEducation: s.highestEducation || null,
+        maritalStatus: s.maritalStatus || null,
+        avatarUrl: s.avatarUrl || null,
+        bankName: s.bankName || null,
+        accountNumber: s.accountNumber || null,
+        accountName: s.accountName || s.legalName,
+        salaryBankName: s.salaryBankName || s.bankName || null,
+        salaryAccountNumber: s.salaryAccountNumber || s.accountNumber || null,
+        salaryAccountName: s.salaryAccountName || s.accountName || s.legalName,
+        nin: s.nin || null,
+        bvn: s.bvn || null,
+        stateOfOrigin: s.stateOfOrigin || null,
+        lga: s.lga || null,
+        nextOfKinName: s.nextOfKinName || null,
+        nextOfKinPhone: s.nextOfKinPhone || null,
+        nextOfKinRelationship: s.nextOfKinRelationship || null,
+        nextOfKinAddress: s.nextOfKinAddress || null,
+      };
+
+      if (s.passwordHash) {
+        empData.passwordHash = s.passwordHash;
+      }
+
       const emp = await prisma.employee.upsert({
         where: { employeeNumber: s.employeeNumber },
-        update: {},
-        create: {
-          employeeNumber: s.employeeNumber,
-          legalName: s.legalName,
-          workEmail: s.workEmail,
-          role: s.role,
-          status: "ACTIVE",
-          approvalStatus: "APPROVED",
-        },
+        update: empData,
+        create: empData,
       });
 
       const assign = await prisma.employeeAssignment.findFirst({
