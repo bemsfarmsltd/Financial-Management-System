@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { resolveOrganizationScope } from '@/lib/organizations';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
@@ -10,7 +13,25 @@ export async function GET(request: Request) {
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'COO', 'DIRECTOR', 'HEAD_OF_ADMIN', 'AI_ANALYST', 'FINANCE_CONTROLLER', 'HR'])) {
       return NextResponse.json({ error: 'Finance or executive access is required.' }, { status: 403 });
     }
+
+    const { searchParams } = new URL(request.url);
+    const subsidiary = searchParams.get('subsidiary') || searchParams.get('organization_id');
+
+    let whereClause = {};
+    if (subsidiary && subsidiary !== 'ALL') {
+      const scope = await resolveOrganizationScope(subsidiary);
+      if (!scope.isGroup) {
+        whereClause = {
+          OR: [
+            { sourceEntityId: { in: scope.organizationIds } },
+            { targetEntityId: { in: scope.organizationIds } }
+          ]
+        };
+      }
+    }
+
     const notes = await prisma.intercompanyNote.findMany({
+      where: whereClause,
       include: {
         sourceEntity: true,
         targetEntity: true,
@@ -22,7 +43,10 @@ export async function GET(request: Request) {
       JSON.stringify(notes, (_, v) => (typeof v === 'bigint' ? Number(v) : v))
     );
 
-    return NextResponse.json({ notes: safeNotes });
+    return NextResponse.json(
+      { notes: safeNotes },
+      { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' } }
+    );
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

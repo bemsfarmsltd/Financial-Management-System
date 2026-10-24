@@ -10,11 +10,17 @@ type Stage = 'REVIEW' | 'PAYMENTS';
 export function FundFlowWorkspace({
   businessName,
   userName,
+  scope,
+  businessId,
+  businessCode,
   onNavigate,
   onSelectBusiness,
 }: {
   businessName: string;
   userName: string;
+  scope?: string;
+  businessId?: string;
+  businessCode?: string;
   onNavigate: (page: string) => void;
   onSelectBusiness: (id: string) => void;
 }) {
@@ -25,12 +31,14 @@ export function FundFlowWorkspace({
   const [refreshing, setRefreshing] = useState(false);
   const [requestToRecordId, setRequestToRecordId] = useState<string | null>(null);
 
+  const activeScope = scope || 'ALL';
+
   const refreshCounts = useCallback(async () => {
     setRefreshing(true);
     try {
       const [approvalsResponse, paymentsResponse] = await Promise.all([
-        fetch('/api/approvals?subsidiary=ALL', { credentials: 'include' }),
-        fetch('/api/disbursements?subsidiary=ALL', { credentials: 'include' }),
+        fetch(`/api/approvals?subsidiary=${encodeURIComponent(activeScope)}`, { credentials: 'include', cache: 'no-store' }),
+        fetch(`/api/disbursements?subsidiary=${encodeURIComponent(activeScope)}`, { credentials: 'include', cache: 'no-store' }),
       ]);
       if (approvalsResponse.ok) {
         const approvals = await approvalsResponse.json();
@@ -53,7 +61,7 @@ export function FundFlowWorkspace({
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [activeScope]);
 
   const continueToPayment = useCallback((requestId: string) => {
     setRequestToRecordId(requestId);
@@ -112,14 +120,14 @@ export function FundFlowWorkspace({
       </header>
 
       <section style={{ display: stage === 'REVIEW' ? 'block' : 'none' }} aria-label="Request review stage" aria-hidden={stage !== 'REVIEW'}>
-        <ApprovalsHubView businessName={businessName} userName={userName} onNavigate={onNavigate} onSelectBusiness={onSelectBusiness} onApprovedRequest={continueToPayment}/>
+        <ApprovalsHubView businessName={businessName} userName={userName} scope={activeScope} businessId={businessId} businessCode={businessCode} onNavigate={onNavigate} onSelectBusiness={onSelectBusiness} onApprovedRequest={continueToPayment}/>
       </section>
       <section style={{ display: stage === 'PAYMENTS' ? 'grid' : 'none', gap: 14 }} aria-label="Payments and confirmation stage" aria-hidden={stage !== 'PAYMENTS'}>
         <>
           <div style={{ background: '#f1f7ff', border: '1px solid #d4e5ff', borderRadius: 10, padding: '11px 14px', color: '#38516f', fontSize: 12 }}>
             <strong style={{ color: '#102344' }}>After approval:</strong> record the off-platform payment and upload the actual bank slip. The staff requester then confirms receipt or reports a problem.
           </div>
-          <DisbursementsDeskView businessName={businessName} userName={userName} onNavigate={onNavigate} onSelectBusiness={onSelectBusiness} requestToRecordId={requestToRecordId} onRequestToRecordOpened={clearPaymentRequest}/>
+          <DisbursementsDeskView businessName={businessName} userName={userName} scope={activeScope} businessId={businessId} businessCode={businessCode} onNavigate={onNavigate} onSelectBusiness={onSelectBusiness} requestToRecordId={requestToRecordId} onRequestToRecordOpened={clearPaymentRequest}/>
           <aside style={{ background: '#fff', border: '1px solid #dce5f0', borderRadius: 10, padding: '12px 15px', color: '#52667f', fontSize: 12 }}>
             <BadgeCheck size={15} style={{ verticalAlign: 'middle', marginRight: 6, color: '#098764' }}/>
             Staff confirmation completes the payment-receipt step and opens the request’s accountability follow-up.

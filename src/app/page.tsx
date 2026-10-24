@@ -1893,6 +1893,9 @@ function DetailedModule({name,business,cases,onResolveCase,onAddCase,setNotice}:
 
 
 function RoleOverviewModule({role,business,user,cases,setActive,setNotice,onRoleChange}:{role:SystemRole;business:Business;user:AuthUser;cases:CaseRecord[];setActive:(x:string)=>void;setNotice:(x:string)=>void;onRoleChange?:(r:SystemRole)=>void}) {
+  const isGroup = business.code === 'BEMS-GROUP' || (business as any).type === 'GROUP' || business.id === 'bems-group-hq' || business.id === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30';
+  const activeScope = isGroup ? 'ALL' : (business.code || business.id);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div className="welcome-row">
@@ -1908,7 +1911,7 @@ function RoleOverviewModule({role,business,user,cases,setActive,setNotice,onRole
       <ModernBentoDashboard
         role={role}
         businessName={business.name}
-        subsidiaryId={business.id}
+        subsidiaryId={activeScope}
         onNavigate={(p) => setActive(p)}
         onRoleChange={(r) => onRoleChange && onRoleChange(r as SystemRole)}
       />
@@ -1931,6 +1934,9 @@ function RequestChannelsModule({business,setNotice,onNavigate}:{business:Busines
   const [selectedChat, setSelectedChat] = useState<GmdRequest|null>(null);
   const [loadState, setLoadState] = useState<'loading'|'ready'|'error'>('loading');
 
+  const isGroup = business.code === 'BEMS-GROUP' || (business as any).type === 'GROUP' || business.id === 'bems-group-hq' || business.id === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30';
+  const activeScope = isGroup ? 'ALL' : (business.code || business.id);
+
   // Staff Helpdesk State
   const [helpdeskThreads, setHelpdeskThreads] = useState<any[]>([]);
   const [selectedStaffThread, setSelectedStaffThread] = useState<any|null>(null);
@@ -1938,7 +1944,7 @@ function RequestChannelsModule({business,setNotice,onNavigate}:{business:Busines
 
   const loadChannels = () => {
     setLoadState('loading');
-    apiGet<{requests:GmdRequest[]}>('/api/approvals?subsidiary=ALL')
+    apiGet<{requests:GmdRequest[]}>(`/api/approvals?subsidiary=${encodeURIComponent(activeScope)}`)
       .then(data => { setRequests(data.requests || []); setLoadState('ready'); })
       .catch(() => setLoadState('error'));
   };
@@ -1960,7 +1966,7 @@ function RequestChannelsModule({business,setNotice,onNavigate}:{business:Busines
       loadHelpdesk();
     }, 6000);
     return () => clearInterval(timer);
-  }, []);
+  }, [activeScope]);
 
   const totalUnreadHelpdesk = helpdeskThreads.reduce((acc, t) => acc + (t.unreadCount || 0), 0);
 
@@ -2242,16 +2248,20 @@ function FundRequestsModule({business,setNotice,onNavigate,canCreate=true}:{busi
   const [paymentFilter,setPaymentFilter]=useState('ALL');
   const [accountabilityFilter,setAccountabilityFilter]=useState('ALL');
   const [selectedRequest,setSelectedRequest]=useState<GmdRequest|null>(null);
+
+  const isGroup = business.code === 'BEMS-GROUP' || (business as any).type === 'GROUP' || business.id === 'bems-group-hq' || business.id === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30';
+  const activeScope = isGroup ? 'ALL' : (business.code || business.id);
+
   const loadRequests = () => {
     setLoadState('loading');
-    apiGet<{ requests: GmdRequest[] }>('/api/approvals?subsidiary=ALL')
+    apiGet<{ requests: GmdRequest[] }>(`/api/approvals?subsidiary=${encodeURIComponent(activeScope)}`)
       .then((data) => {
         setRequests(data.requests || []);
         setLoadState('ready');
       })
       .catch((err) => {
         console.warn('[FundRequestsModule] approvals endpoint failed, attempting /api/requests fallback:', err);
-        apiGet<any[]>('/api/requests')
+        apiGet<any[]>(`/api/requests?organization_id=${encodeURIComponent(activeScope)}`)
           .then((items) => {
             if (Array.isArray(items)) {
               const mapped: GmdRequest[] = items.map((r) => {
@@ -2296,7 +2306,7 @@ function FundRequestsModule({business,setNotice,onNavigate,canCreate=true}:{busi
           .catch(() => setLoadState('error'));
       });
   };
-  useEffect(loadRequests, []);
+  useEffect(() => { loadRequests(); }, [activeScope]);
   const pending = requests.filter((r) => ['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(r.approvalStatus));
   const approved = requests.filter((r) => r.approvalStatus === 'APPROVED');
   const totalValue = requests.reduce((sum, r) => sum + r.amount, 0);
@@ -2587,6 +2597,8 @@ function VendorsModule({business,setNotice,onNavigate}:{business:Business;setNot
 function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurrentId,onUpdateBusiness}:{user:AuthUser;onSignOut:()=>void;onAddBusiness:()=>void;businesses:Business[];currentId:string;setCurrentId:(value:string)=>void;onUpdateBusiness:(id:string,patch:Partial<Business>)=>Promise<Business>}) {
   const safeUser: AuthUser = user;
   const current = (businesses && businesses.length > 0 ? (businesses.find(b=>b.id===currentId) || businesses[0]) : defaultBemsBusinesses[0]) || defaultBemsBusinesses[0];
+  const isGroupScope = (current as any).code === 'BEMS-GROUP' || (current as any).type === 'GROUP' || current.id === 'bems-group-hq' || current.id === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30';
+  const activeScope = isGroupScope ? 'ALL' : ((current as any).code || current.id);
   const isAiOnly = (safeUser.role as string) === 'AI_ANALYST';
   const [currentRole, setCurrentRole] = useState<SystemRole>((safeUser.role as SystemRole) || 'GMD');
   const isStaff = (currentRole as string) === 'STAFF' || (safeUser.role as string) === 'STAFF';
@@ -2605,6 +2617,43 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
   });
   const [collapsed, setCollapsed] = useState(false);
   const [allowAiAnalystChat, setAllowAiAnalystChat] = useState(true);
+
+  // Live workspace-scoped notifications
+  const [liveNotifications, setLiveNotifications] = useState<any[]>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+
+  const fetchLiveNotifications = useCallback(() => {
+    fetch(`/api/notifications?subsidiary=${encodeURIComponent(activeScope)}`, { credentials: 'include', cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d) {
+          setLiveNotifications(d.notifications || []);
+          setUnreadNotificationCount(Number(d.unreadCount || 0));
+        }
+      })
+      .catch(() => {});
+  }, [activeScope]);
+
+  useEffect(() => {
+    fetchLiveNotifications();
+    const timer = setInterval(fetchLiveNotifications, 15000);
+    return () => clearInterval(timer);
+  }, [fetchLiveNotifications]);
+
+  const markAllNotificationsRead = async () => {
+    try {
+      await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ markAllRead: true }),
+      });
+      setUnreadNotificationCount(0);
+      setNotice('All notifications marked as read.');
+      setTopPanel(null);
+      fetchLiveNotifications();
+    } catch {}
+  };
 
   // Sync active tab to URL parameter and localStorage so reload stays on the current page
   useEffect(() => {
@@ -2796,11 +2845,11 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
       if (target === 'Request channels') return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={path=>setActive(path==='/requests'?'Fund requests':path)}/>;
       // Evidence is submitted by the requester. GMDs only review staff uploads and close-out status.
       if (target === 'Accountability closure' || target === 'Proof & deliverables' || target === 'Follow-up tasks') return <LiveAccountabilityModule setNotice={setNotice}/>;
-      if (target === 'Receipt archive') return <LiveReceiptArchiveModule setNotice={setNotice}/>;
-      if (target === 'Staff profiles') return <LiveStaffProfilesModule setNotice={setNotice}/>;
+      if (target === 'Receipt archive') return <LiveReceiptArchiveModule scope={activeScope} setNotice={setNotice}/>;
+      if (target === 'Staff profiles') return <LiveStaffProfilesModule scope={activeScope} setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
       if (target === 'Analytics & BI') return <LiveAnalyticsBIPage/>;
-      if (target === 'Audit logs') return <LiveAuditLogsModule setNotice={setNotice}/>;
-      if (target === 'Intercompany notes') return <LiveIntercompanyModule setNotice={setNotice}/>;
+      if (target === 'Audit logs') return <LiveAuditLogsModule scope={activeScope} setNotice={setNotice}/>;
+      if (target === 'Intercompany notes') return <LiveIntercompanyModule scope={activeScope} setNotice={setNotice}/>;
       if (target === 'Settings') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
       if (target === 'Overview') {
         return (
@@ -2833,6 +2882,9 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           <FundFlowWorkspace
             businessName={current.name}
             userName={safeUser.fullName}
+            scope={activeScope}
+            businessId={current.id}
+            businessCode={(current as any).code}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -2844,6 +2896,9 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
             initialTab="matrix"
             businessName={current.name}
             userName={safeUser.fullName}
+            scope={activeScope}
+            businessId={current.id}
+            businessCode={(current as any).code}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -2855,6 +2910,9 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
             initialTab="emergency"
             businessName={current.name}
             userName={safeUser.fullName}
+            scope={activeScope}
+            businessId={current.id}
+            businessCode={(current as any).code}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -2866,6 +2924,9 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
             initialTab="disbursements"
             businessName={current.name}
             userName={safeUser.fullName}
+            scope={activeScope}
+            businessId={current.id}
+            businessCode={(current as any).code}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -2877,6 +2938,9 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
             initialTab="treasury"
             businessName={current.name}
             userName={safeUser.fullName}
+            scope={activeScope}
+            businessId={current.id}
+            businessCode={(current as any).code}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -2888,6 +2952,9 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
             initialTab="budgets"
             businessName={current.name}
             userName={safeUser.fullName}
+            scope={activeScope}
+            businessId={current.id}
+            businessCode={(current as any).code}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -2899,6 +2966,9 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
             initialTab="payroll"
             businessName={current.name}
             userName={safeUser.fullName}
+            scope={activeScope}
+            businessId={current.id}
+            businessCode={(current as any).code}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -2910,6 +2980,9 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
             initialTab="notes"
             businessName={current.name}
             userName={safeUser.fullName}
+            scope={activeScope}
+            businessId={current.id}
+            businessCode={(current as any).code}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -2921,6 +2994,9 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
             initialTab="allocation"
             businessName={current.name}
             userName={safeUser.fullName}
+            scope={activeScope}
+            businessId={current.id}
+            businessCode={(current as any).code}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -2932,6 +3008,9 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
             initialTab="audit"
             businessName={current.name}
             userName={safeUser.fullName}
+            scope={activeScope}
+            businessId={current.id}
+            businessCode={(current as any).code}
             onNavigate={setActive}
             onSelectBusiness={selectBusiness}
           />
@@ -2978,6 +3057,9 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
           initialTab="budgets"
           businessName={current.name}
           userName={safeUser.fullName}
+          scope={activeScope}
+          businessId={current.id}
+          businessCode={(current as any).code}
           onNavigate={setActive}
           onSelectBusiness={selectBusiness}
         />
@@ -2988,7 +3070,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     if(target==='Executive briefing') return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p)=>setActive(p)}/>;
     if(target==='Subsidiary portfolio') return <Businesses businesses={businesses} current={current} onSelect={selectBusiness} onAdd={onAddBusiness}/>;
     if(target==='Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={currentRole !== 'GMD' && currentRole !== 'SYSTEM_ADMIN'}/>;
-    if(target==='Approvals & payments'||target==='Approvals & Policy Hub'||target==='Approvals desk') return <FundFlowWorkspace businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Approvals & payments'||target==='Approvals & Policy Hub'||target==='Approvals desk') return <FundFlowWorkspace businessName={current.name} userName={safeUser.fullName} scope={activeScope} businessId={current.id} businessCode={(current as any).code} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='New fund request') {
       if (currentRole === 'GMD' || currentRole === 'SYSTEM_ADMIN') {
         setNotice('GMD and System Admin accounts are executive governance roles and do not submit fund requests.');
@@ -2999,27 +3081,27 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     }
     if(target==='Request channels') return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={(p)=>p==='/requests'?setActive('Fund requests'):window.location.href=p}/>;
     if(target==='Draft requests') return <DraftRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(target==='Approvals desk') return <ApprovalsDeskView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Approvals desk') return <ApprovalsDeskView businessName={current.name} userName={safeUser.fullName} scope={activeScope} businessId={current.id} businessCode={(current as any).code} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='Approval matrix') return <ApprovalMatrixView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='Emergency overrides') return <EmergencyOverridesView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
-    if(target==='Disbursements desk'||target==='Disbursements') return <DisbursementsDeskView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Disbursements desk'||target==='Disbursements') return <DisbursementsDeskView businessName={current.name} userName={safeUser.fullName} scope={activeScope} businessId={current.id} businessCode={(current as any).code} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='Transfer verification') return <TransferVerificationModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(target==='Treasury accounts') return <TreasuryAccountsView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
-    if(target==='Receipt archive') return <LiveReceiptArchiveModule setNotice={setNotice}/>;
+    if(target==='Treasury accounts') return <TreasuryAccountsView businessName={current.name} userName={safeUser.fullName} scope={activeScope} businessId={current.id} businessCode={(current as any).code} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Receipt archive') return <LiveReceiptArchiveModule scope={activeScope} setNotice={setNotice}/>;
     if(target==='Accountability closure') return <LiveAccountabilityModule setNotice={setNotice}/>;
     if(target==='Proof & deliverables') return <LiveProofDeliverablesModule setNotice={setNotice}/>;
     if(target==='Follow-up tasks') return <LiveFollowUpTasksModule setNotice={setNotice}/>;
     if(target==='Closure clearances') return <ClosureClearancesModule business={current} setNotice={setNotice}/>;
     if(target==='Hybrid payroll') return <PayrollModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
     if(target==='Cost allocation rules') return <CostAllocationModule business={current} setNotice={setNotice}/>;
-    if(target==='Intercompany notes') return <LiveIntercompanyModule setNotice={setNotice}/>;
+    if(target==='Intercompany notes') return <LiveIntercompanyModule scope={activeScope} setNotice={setNotice}/>;
     if(target==='Settlement reconciliation') return <SettlementReconciliationModule business={current} setNotice={setNotice}/>;
     if(target==='Vendors & suppliers') return <VendorsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
     if(target==='Price benchmarks') return <PriceBenchmarksModule business={current} setNotice={setNotice}/>;
     if(target==='Recurring commitments') return <RecurringCommitmentsModule business={current} setNotice={setNotice}/>;
     if(target==='Notification bridge') return <NotificationBridgeModule business={current} setNotice={setNotice}/>;
-    if(target==='Audit logs') return <LiveAuditLogsModule setNotice={setNotice}/>;
-    if(target==='Staff profiles') return <LiveStaffProfilesModule setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
+    if(target==='Audit logs') return <LiveAuditLogsModule scope={activeScope} setNotice={setNotice}/>;
+    if(target==='Staff profiles') return <LiveStaffProfilesModule scope={activeScope} setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
     if(target==='Staff onboarding') return <PeopleAccessWorkspaceModule setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
     if(target==='Team & access') return <TeamAccessPage business={current} setNotice={setNotice}/>;
     if(target==='Security & compliance') return <SecurityCompliancePage name="Security & compliance" setNotice={setNotice}/>;
@@ -3068,7 +3150,98 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
                   <b>Create ＋</b>
                 </button>
               )}
-              <div className="top-popover-wrap"><button className="top-icon notification" aria-label="Notifications" aria-expanded={topPanel==='notifications'} onClick={()=>setTopPanel(topPanel==='notifications'?null:'notifications')}>♧{!notificationsRead&&<i/>}</button>{topPanel==='notifications'&&<div className={notificationsRead?'top-popover notifications-panel read':'top-popover notifications-panel'}><header><strong>Notifications</strong><button onClick={()=>setTopPanel(null)}>×</button></header><button onClick={()=>{setActive('Setup & launch');setTopPanel(null)}}><span>!</span><div><strong>Finish channel review</strong><small>Required before your first launch</small></div></button><button onClick={()=>{setActive('Test centre');setTopPanel(null)}}><span>✓</span><div><strong>46 tests are passing</strong><small>5 checks still need attention</small></div></button><button onClick={()=>{setActive('Billing & usage');setTopPanel(null)}}><span>₦</span><div><strong>Usage is within estimate</strong><small>66% of this month’s budget</small></div></button><footer onClick={()=>{setNotificationsRead(true);setNotice('All notifications marked as read.');setTopPanel(null)}}>Mark all as read</footer></div>}</div>
+              <div className="top-popover-wrap">
+                <button
+                  className="top-icon notification"
+                  aria-label="Notifications"
+                  aria-expanded={topPanel==='notifications'}
+                  onClick={()=>setTopPanel(topPanel==='notifications'?null:'notifications')}
+                >
+                  ♧{unreadNotificationCount > 0 && <i style={{ background: '#ef4444' }}/>}
+                </button>
+                {topPanel==='notifications' && (
+                  <div className={unreadNotificationCount === 0 ? 'top-popover notifications-panel read' : 'top-popover notifications-panel'}>
+                    <header>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <strong>Notifications</strong>
+                        {unreadNotificationCount > 0 && (
+                          <span style={{ fontSize: '10px', background: '#fee2e2', color: '#b91c1c', padding: '1px 6px', borderRadius: '10px', fontWeight: 700 }}>
+                            {unreadNotificationCount} unread
+                          </span>
+                        )}
+                      </div>
+                      <button onClick={()=>setTopPanel(null)}>×</button>
+                    </header>
+                    <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+                      {liveNotifications.length === 0 ? (
+                        <div style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                          No notifications for {current.name}
+                        </div>
+                      ) : (
+                        liveNotifications.map((notif: any) => (
+                          <button
+                            key={notif.id}
+                            onClick={() => {
+                              setActive('Approvals & payments');
+                              setTopPanel(null);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '10px',
+                              padding: '10px 14px',
+                              textAlign: 'left',
+                              background: notif.status === 'UNREAD' ? '#f0fdf4' : 'transparent',
+                              borderBottom: '1px solid #f1f5f9',
+                              width: '100%',
+                              border: 'none',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <span style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              background: notif.type === 'APPROVAL_REQUEST' ? '#ea580c' : notif.type === 'DISBURSEMENT_SENT' ? '#059669' : '#0284c7',
+                              color: '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              flexShrink: 0,
+                              marginTop: '2px',
+                            }}>
+                              {notif.type === 'APPROVAL_REQUEST' ? '!' : notif.type === 'DISBURSEMENT_SENT' ? '₦' : '✓'}
+                            </span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <strong style={{ fontSize: '12px', color: '#0f172a', fontWeight: notif.status === 'UNREAD' ? 700 : 500 }}>
+                                  {notif.title}
+                                </strong>
+                                {notif.status === 'UNREAD' && (
+                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
+                                )}
+                              </div>
+                              <small style={{ display: 'block', fontSize: '11px', color: '#475569', marginTop: '2px', lineHeight: 1.3 }}>
+                                {notif.body}
+                              </small>
+                              {notif.createdAt && (
+                                <time style={{ fontSize: '10px', color: '#94a3b8', marginTop: '3px', display: 'block' }}>
+                                  {new Date(notif.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </time>
+                              )}
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    <footer onClick={markAllNotificationsRead} style={{ cursor: 'pointer', textAlign: 'center', padding: '10px', fontWeight: 600, fontSize: '12px', borderTop: '1px solid #f1f5f9' }}>
+                      Mark all as read
+                    </footer>
+                  </div>
+                )}
+              </div>
               <div className="top-popover-wrap"><button className="avatar" aria-label="Account menu" aria-expanded={topPanel==='account'} onClick={()=>setTopPanel(topPanel==='account'?null:'account')}>{initialsOf(safeUser.fullName)}</button>{topPanel==='account'&&<div className="top-popover account-panel"><div><span>{initialsOf(safeUser.fullName)}</span><strong>{safeUser.fullName}</strong><small>{safeUser.email}</small></div><button onClick={()=>{setActive('Settings');setTopPanel(null)}}>Account & business settings</button><button onClick={()=>{setActive('Team & access');setTopPanel(null)}}>Team and access</button><button onClick={()=>{setNotice('Help centre opened.');setTopPanel(null)}}>Help centre</button><button onClick={onSignOut}>Sign out</button></div>}</div>
             </div>
           </header>

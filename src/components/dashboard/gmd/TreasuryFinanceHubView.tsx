@@ -11,6 +11,9 @@ export type TreasuryTab = 'disbursements' | 'treasury' | 'budgets' | 'payroll';
 interface TreasuryFinanceHubViewProps {
   businessName: string;
   userName: string;
+  scope?: string;
+  businessId?: string;
+  businessCode?: string;
   initialTab?: TreasuryTab;
   onNavigate: (page: string) => void;
   onSelectBusiness: (id: string) => void;
@@ -19,6 +22,9 @@ interface TreasuryFinanceHubViewProps {
 export function TreasuryFinanceHubView({
   businessName,
   userName,
+  scope,
+  businessId,
+  businessCode,
   initialTab = 'disbursements',
   onNavigate,
   onSelectBusiness,
@@ -29,6 +35,9 @@ export function TreasuryFinanceHubView({
         <DisbursementsDeskView
           businessName={businessName}
           userName={userName}
+          scope={scope}
+          businessId={businessId}
+          businessCode={businessCode}
           onNavigate={onNavigate}
           onSelectBusiness={onSelectBusiness}
         />
@@ -37,6 +46,9 @@ export function TreasuryFinanceHubView({
         <TreasuryAccountsView
           businessName={businessName}
           userName={userName}
+          scope={scope}
+          businessId={businessId}
+          businessCode={businessCode}
           onNavigate={onNavigate}
           onSelectBusiness={onSelectBusiness}
         />

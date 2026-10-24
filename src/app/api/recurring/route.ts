@@ -15,8 +15,20 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'You do not have access to group recurring commitments.' }, { status: 403 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const subsidiary = searchParams.get('subsidiary') || searchParams.get('organization_id');
+
+    let whereClause: any = { isRecurring: true, approvalStatus: { not: 'REJECTED' } };
+    if (subsidiary && subsidiary !== 'ALL') {
+      const { resolveOrganizationScope } = await import('@/lib/organizations');
+      const scope = await resolveOrganizationScope(subsidiary);
+      if (!scope.isGroup) {
+        whereClause.subsidiaryId = { in: scope.organizationIds };
+      }
+    }
+
     const requests = await prisma.expenditureRequest.findMany({
-      where: { isRecurring: true, approvalStatus: { not: 'REJECTED' } },
+      where: whereClause,
       select: {
         id: true,
         requestNumber: true,
@@ -62,6 +74,8 @@ export async function GET(request: Request) {
         annualRunRateMinor: annualRunRateMinor.toString(),
         nextDueRequestId: nextDue?.id ?? null,
       },
+    }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' }
     });
   } catch (error) {
     console.error('Recurring commitments fetch error:', error);

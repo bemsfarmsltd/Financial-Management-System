@@ -123,6 +123,9 @@ interface SummaryData {
 interface ApprovalsDeskProps {
   businessName: string;
   userName: string;
+  scope?: string;
+  businessId?: string;
+  businessCode?: string;
   onNavigate?: (view: string) => void;
   onSelectBusiness?: (id: string) => void;
   onApprovedRequest?: (requestId: string) => void;
@@ -131,6 +134,9 @@ interface ApprovalsDeskProps {
 export function ApprovalsDeskView({
   businessName,
   userName,
+  scope,
+  businessId,
+  businessCode,
   onNavigate,
   onSelectBusiness,
   onApprovedRequest,
@@ -151,9 +157,18 @@ export function ApprovalsDeskView({
   const [disbursementAssigneeId, setDisbursementAssigneeId] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'PENDING' | 'TIER3' | 'URGENT' | 'CLARIFICATION' | 'ALL'>('PENDING');
-  const [selectedSubsidiary, setSelectedSubsidiary] = useState<string>('ALL');
+  const initialScope = scope || (businessCode && businessCode !== 'BEMS-GROUP' ? businessCode : 'ALL');
+  const [selectedSubsidiary, setSelectedSubsidiary] = useState<string>(initialScope);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('2026-10');
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (scope) {
+      setSelectedSubsidiary(scope);
+    } else if (businessCode) {
+      setSelectedSubsidiary(businessCode === 'BEMS-GROUP' ? 'ALL' : businessCode);
+    }
+  }, [scope, businessCode]);
 
   // Batch actions
   const [batchMode, setBatchMode] = useState(false);

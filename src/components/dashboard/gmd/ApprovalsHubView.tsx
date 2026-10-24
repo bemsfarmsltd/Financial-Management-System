@@ -10,6 +10,9 @@ export type ApprovalsTab = 'desk' | 'matrix' | 'emergency';
 interface ApprovalsHubViewProps {
   businessName: string;
   userName: string;
+  scope?: string;
+  businessId?: string;
+  businessCode?: string;
   initialTab?: ApprovalsTab;
   onNavigate: (page: string) => void;
   onSelectBusiness: (id: string) => void;
@@ -19,6 +22,9 @@ interface ApprovalsHubViewProps {
 export function ApprovalsHubView({
   businessName,
   userName,
+  scope,
+  businessId,
+  businessCode,
   initialTab = 'desk',
   onNavigate,
   onSelectBusiness,
@@ -89,6 +95,9 @@ export function ApprovalsHubView({
         <ApprovalsDeskView
           businessName={businessName}
           userName={userName}
+          scope={scope}
+          businessId={businessId}
+          businessCode={businessCode}
           onNavigate={onNavigate}
           onSelectBusiness={onSelectBusiness}
           onApprovedRequest={onApprovedRequest}

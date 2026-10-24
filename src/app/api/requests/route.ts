@@ -14,7 +14,7 @@ export async function GET(request: Request) {
 
     const status = searchParams.get("status");
     const category = searchParams.get("category");
-    const subsidiaryId = searchParams.get("organization_id") || searchParams.get("subsidiaryId");
+    const subsidiaryId = searchParams.get("organization_id") || searchParams.get("subsidiaryId") || searchParams.get("subsidiary");
     const search = searchParams.get("q") || searchParams.get("search");
     const requesterId = searchParams.get("requester_id");
     const minAmount = searchParams.get("min_amount") ? Number(searchParams.get("min_amount")) : null;
@@ -42,8 +42,12 @@ export async function GET(request: Request) {
       where.category = category;
     }
 
-    if (subsidiaryId) {
-      where.subsidiaryId = subsidiaryId;
+    if (subsidiaryId && subsidiaryId !== 'ALL') {
+      const { resolveOrganizationScope } = await import('@/lib/organizations');
+      const scope = await resolveOrganizationScope(subsidiaryId);
+      if (!scope.isGroup) {
+        where.subsidiaryId = { in: scope.organizationIds };
+      }
     }
 
     if (minAmount && !isNaN(minAmount)) {
@@ -189,7 +193,9 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json(formatted);
+    return NextResponse.json(formatted, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' }
+    });
   } catch (error: any) {
     console.error("GET /api/requests error:", error);
     return NextResponse.json({ error: error.message || "Failed to fetch requests" }, { status: 500 });

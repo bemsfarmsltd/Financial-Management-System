@@ -10,6 +10,9 @@ interface IntercompanyAuditHubViewProps {
   businessName: string;
   userName: string;
   initialTab?: IntercompanyTab;
+  scope?: string;
+  businessId?: string;
+  businessCode?: string;
   onNavigate: (page: string) => void;
   onSelectBusiness: (id: string) => void;
 }
@@ -18,6 +21,9 @@ export function IntercompanyAuditHubView({
   businessName,
   userName,
   initialTab = 'notes',
+  scope,
+  businessId,
+  businessCode,
   onNavigate,
   onSelectBusiness,
 }: IntercompanyAuditHubViewProps) {
@@ -185,7 +191,7 @@ export function IntercompanyAuditHubView({
       {/* ACTIVE SUB-TAB CONTENT */}
       {activeTab === 'notes' && (
         <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0' }}>
-          <IntercompanyClient />
+          <IntercompanyClient scope={scope} />
         </div>
       )}
 
@@ -257,7 +263,7 @@ export function IntercompanyAuditHubView({
 
       {activeTab === 'audit' && (
         <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0' }}>
-          <AuditClient />
+          <AuditClient scope={scope} />
         </div>
       )}
     </div>

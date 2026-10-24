@@ -88,6 +88,9 @@ interface SummaryData {
 export function DisbursementsDeskView({
   businessName,
   userName,
+  scope,
+  businessId,
+  businessCode,
   onNavigate,
   onSelectBusiness,
   requestToRecordId,
@@ -95,6 +98,9 @@ export function DisbursementsDeskView({
 }: {
   businessName: string;
   userName: string;
+  scope?: string;
+  businessId?: string;
+  businessCode?: string;
   onNavigate?: (view: string) => void;
   onSelectBusiness?: (id: string) => void;
   requestToRecordId?: string | null;
@@ -137,10 +143,12 @@ export function DisbursementsDeskView({
   const [supportingRef, setSupportingRef] = useState('CBN-NIP-CONFIRMATION');
   const [verifying, setVerifying] = useState(false);
 
+  const activeScope = scope || (businessCode && businessCode !== 'BEMS-GROUP' ? businessCode : 'ALL');
+
   const fetchDisbursements = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/disbursements?subsidiary=ALL', { credentials: 'include' });
+      const res = await fetch(`/api/disbursements?subsidiary=${encodeURIComponent(activeScope)}`, { credentials: 'include', cache: 'no-store' });
       const data = await res.json();
       if (data) {
         setReadyRequests(data.readyForTransfer || []);
@@ -160,7 +168,7 @@ export function DisbursementsDeskView({
 
   useEffect(() => {
     fetchDisbursements();
-    fetch('/api/treasury', { credentials: 'include', cache: 'no-store' })
+    fetch(`/api/treasury?subsidiary=${encodeURIComponent(activeScope)}`, { credentials: 'include', cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (d && Array.isArray(d.accounts)) {
@@ -171,7 +179,7 @@ export function DisbursementsDeskView({
         }
       })
       .catch(() => {});
-  }, []);
+  }, [activeScope]);
 
   const openMakerModal = (req: RequestItem) => {
     setSelectedRequest(req);

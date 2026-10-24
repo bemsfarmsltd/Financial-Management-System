@@ -2,18 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 
-export function AuditClient({ initialLogs }: { initialLogs?: any[] }) {
+export function AuditClient({ initialLogs, scope }: { initialLogs?: any[]; scope?: string }) {
   const [logs, setLogs] = useState(initialLogs || []);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!initialLogs || initialLogs.length === 0) {
-      fetch('/api/audit')
-        .then(r => r.json())
-        .then(d => { if (d && d.logs) setLogs(d.logs); })
-        .catch(() => {});
-    }
-  }, [initialLogs]);
+    const query = scope ? `?limit=300&subsidiary=${encodeURIComponent(scope)}` : '?limit=300';
+    fetch(`/api/audit${query}`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => { if (d && d.logs) setLogs(d.logs); })
+      .catch(() => {});
+  }, [scope]);
 
   const handleExport = () => {
     setNotice('Audit Trail Export generated: 30 verified events downloaded.');

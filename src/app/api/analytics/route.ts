@@ -41,16 +41,28 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const period = ['30d', '90d', '12m', 'ytd'].includes(searchParams.get('period') || '') ? searchParams.get('period')! : '12m';
-  const subsidiaryId = searchParams.get('subsidiaryId') || 'ALL';
+  const rawSubsidiary = searchParams.get('subsidiaryId') || searchParams.get('subsidiary') || 'ALL';
   const category = searchParams.get('category') || 'ALL';
   const status = searchParams.get('status') || 'ALL';
   const now = new Date();
   const { start, end, previousStart, previousEnd } = periodBounds(period, now);
-  const subsidiaryFilter = subsidiaryId === 'ALL' ? {} : { subsidiaryId };
+
+  const { resolveOrganizationScope } = await import('@/lib/organizations');
+  const scope = await resolveOrganizationScope(rawSubsidiary);
+  const subsidiaryFilter = scope.isGroup ? {} : { subsidiaryId: { in: scope.organizationIds } };
   const staffFilter = isStaff ? { requestedById: actor.id } : {};
   const requestFilters = { ...subsidiaryFilter, ...staffFilter, ...(category === 'ALL' ? {} : { category }), ...(status === 'ALL' ? {} : { approvalStatus: status }) };
   const requestWhere = (from: Date, to: Date) => ({ ...requestFilters, createdAt: { gte: from, lt: to } });
-  const paymentWhere = (from: Date, to: Date) => ({ requestId: { not: null }, paidAt: { gte: from, lt: to }, ...(subsidiaryId === 'ALL' && category === 'ALL' && status === 'ALL' && !isStaff ? {} : { request: { ...(subsidiaryId === 'ALL' ? {} : { subsidiaryId }), ...staffFilter, ...(category === 'ALL' ? {} : { category }), ...(status === 'ALL' ? {} : { approvalStatus: status }) } }) });
+  const paymentWhere = (from: Date, to: Date) => ({
+    requestId: { not: null },
+    paidAt: { gte: from, lt: to },
+    request: {
+      ...subsidiaryFilter,
+      ...staffFilter,
+      ...(category === 'ALL' ? {} : { category }),
+      ...(status === 'ALL' ? {} : { approvalStatus: status })
+    }
+  });
 
   const [requests, previousRequests, disbursements, previousDisbursements, upcomingUnpaid, recentPayments, availableSubsidiaries, availableCategories] = await Promise.all([
     prisma.expenditureRequest.findMany({
@@ -169,5 +181,7 @@ export async function GET(request: Request) {
     pipelineStages: stageRows.map(stage => ({ label: stage.label, count: stage.rows.length, amountMinor: sum(stage.rows) })),
     statuses: [...statusMap.entries()].map(([label, count]) => ({ label: label.replaceAll('_', ' '), count })).sort((a, b) => b.count - a.count),
     decisionQueue,
+  }, {
+    headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' }
   });
 }

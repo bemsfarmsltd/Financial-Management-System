@@ -8,11 +8,15 @@ export async function GET(req: Request) {
     if (!actor) return NextResponse.json({ error: 'Sign in to view budgets.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR'])) return NextResponse.json({ error: 'Executive or HR access is required to view budgets.' }, { status: 403 });
     const { searchParams } = new URL(req.url);
-    const organizationId = searchParams.get('organizationId');
+    const organizationId = searchParams.get('organizationId') || searchParams.get('subsidiary');
 
     const whereClause: any = {};
-    if (organizationId) {
-      whereClause.organizationId = organizationId;
+    if (organizationId && organizationId !== 'ALL') {
+      const { resolveOrganizationScope } = await import('@/lib/organizations');
+      const scope = await resolveOrganizationScope(organizationId);
+      if (!scope.isGroup) {
+        whereClause.organizationId = { in: scope.organizationIds };
+      }
     }
 
     const budgets = await prisma.budget.findMany({
@@ -26,7 +30,10 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' }
     });
 
-    return NextResponse.json({ budgets });
+    return NextResponse.json(
+      { budgets },
+      { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' } }
+    );
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

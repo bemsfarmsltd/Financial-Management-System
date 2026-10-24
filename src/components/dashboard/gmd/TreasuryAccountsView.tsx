@@ -47,11 +47,17 @@ interface TreasurySummary {
 export function TreasuryAccountsView({
   businessName,
   userName,
+  scope,
+  businessId,
+  businessCode,
   onNavigate,
   onSelectBusiness
 }: {
   businessName: string;
   userName: string;
+  scope?: string;
+  businessId?: string;
+  businessCode?: string;
   onNavigate?: (view: string) => void;
   onSelectBusiness?: (id: string) => void;
 }) {
@@ -75,10 +81,12 @@ export function TreasuryAccountsView({
     assignedSubsidiary: businessName || 'BEMS Group'
   });
 
+  const activeScope = scope || (businessCode && businessCode !== 'BEMS-GROUP' ? businessCode : 'ALL');
+
   const fetchTreasury = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/treasury', { credentials: 'include' });
+      const res = await fetch(`/api/treasury?subsidiary=${encodeURIComponent(activeScope)}`, { credentials: 'include', cache: 'no-store' });
       const data = await res.json();
       if (data) {
         setAccounts(data.accounts || []);
@@ -93,7 +101,7 @@ export function TreasuryAccountsView({
 
   useEffect(() => {
     fetchTreasury();
-  }, []);
+  }, [activeScope]);
 
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();

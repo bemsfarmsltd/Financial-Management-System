@@ -36,11 +36,71 @@ export async function GET(request: Request) {
     }
   }
   if (!actor) return NextResponse.json({ error: 'Sign in to view notifications.' }, { status: 401 });
+
+  const { searchParams } = new URL(request.url);
+  const subsidiary = searchParams.get('subsidiary') || searchParams.get('orgId');
+
+  let whereClause: any = { employeeId: actor.id };
+
+  if (subsidiary && subsidiary !== 'ALL') {
+    const { resolveOrganizationScope } = await import('@/lib/organizations');
+    const scope = await resolveOrganizationScope(subsidiary);
+    if (!scope.isGroup) {
+      // Find staff in this subsidiary to capture notifications for this subsidiary's staff/operations
+      const subOrg = await prisma.organization.findFirst({
+        where: { id: { in: scope.organizationIds } },
+        select: { legalName: true, code: true }
+      });
+      const orgName = subOrg?.legalName || '';
+      const orgCode = subOrg?.code || '';
+
+      whereClause = {
+        AND: [
+          {
+            OR: [
+              { employeeId: actor.id },
+              {
+                employee: {
+                  assignments: {
+                    some: { subsidiaryId: { in: scope.organizationIds } }
+                  }
+                }
+              }
+            ]
+          },
+          ...(orgName ? [
+            {
+              OR: [
+                { employee: { assignments: { some: { subsidiaryId: { in: scope.organizationIds } } } } },
+                { title: { contains: orgCode, mode: 'insensitive' } },
+                { body: { contains: orgName, mode: 'insensitive' } },
+                { body: { contains: orgCode, mode: 'insensitive' } }
+              ]
+            }
+          ] : [])
+        ]
+      };
+    }
+  }
+
   const [notifications, unreadCount] = await Promise.all([
-    prisma.systemNotification.findMany({ where: { employeeId: actor.id }, orderBy: { createdAt: 'desc' }, take: 20 }),
-    prisma.systemNotification.count({ where: { employeeId: actor.id, readAt: null } }),
+    prisma.systemNotification.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+      include: {
+        employee: {
+          select: { legalName: true, role: true, employeeNumber: true }
+        }
+      }
+    }),
+    prisma.systemNotification.count({ where: { ...whereClause, readAt: null } }),
   ]);
-  return NextResponse.json({ notifications, unreadCount });
+
+  return NextResponse.json(
+    { notifications, unreadCount },
+    { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' } }
+  );
 }
 
 export async function PATCH(request: Request) {

@@ -46,9 +46,44 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Executive or finance access is required.' }, { status: 403 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const subsidiary = searchParams.get('subsidiary') || searchParams.get('organization_id');
+
+    let reqWhere: any = { approvalStatus: 'APPROVED', paymentStatus: { in: ['UNPAID', 'RECIPIENT_REPORTED_ISSUE'] } };
+    let disbWhere: any = { status: 'RECIPIENT_CONFIRMED' };
+
+    const rawAccounts = readSavedAccounts();
+    let filteredAccounts = rawAccounts;
+
+    if (subsidiary && subsidiary !== 'ALL') {
+      const { resolveOrganizationScope } = await import('@/lib/organizations');
+      const scope = await resolveOrganizationScope(subsidiary);
+      if (!scope.isGroup) {
+        reqWhere.subsidiaryId = { in: scope.organizationIds };
+        disbWhere.request = { subsidiaryId: { in: scope.organizationIds } };
+
+        const subOrg = await prisma.organization.findFirst({
+          where: { id: { in: scope.organizationIds } },
+          select: { legalName: true, code: true }
+        });
+        const subNameLower = subOrg?.legalName?.toLowerCase() || '';
+        const subCodeLower = subOrg?.code?.toLowerCase() || '';
+
+        filteredAccounts = rawAccounts.filter((a: any) => {
+          const assigned = String(a.assignedSubsidiary || '').toLowerCase();
+          return (
+            assigned === subNameLower ||
+            assigned === subCodeLower ||
+            (subCodeLower && assigned.includes(subCodeLower)) ||
+            (subNameLower && assigned.includes(subNameLower))
+          );
+        });
+      }
+    }
+
     // Calculate pending payout from DB
     const approvedRequests = await prisma.expenditureRequest.findMany({
-      where: { approvalStatus: 'APPROVED', paymentStatus: { in: ['UNPAID', 'RECIPIENT_REPORTED_ISSUE'] } },
+      where: reqWhere,
       select: { amountMinor: true }
     });
     const pendingPipelineMinor = approvedRequests.reduce((acc, r) => acc + Number(r.amountMinor), 0);
@@ -56,20 +91,19 @@ export async function GET(req: NextRequest) {
 
     // Disbursed in last 30 days
     const disbursed = await prisma.disbursement.findMany({
-      where: { status: 'RECIPIENT_CONFIRMED' },
+      where: disbWhere,
       select: { amountMinor: true }
     });
     const disbursedMinor = disbursed.reduce((acc, d) => acc + Number(d.amountMinor), 0);
     const mtdOutflow = disbursedMinor / 100;
 
-    const rawAccounts = readSavedAccounts();
-    const accounts = rawAccounts.map((a) => ({
+    const accounts = filteredAccounts.map((a: any) => ({
       ...a,
       balanceFormatted: formatNaira(Number(a.balance) || 0),
       dailyLimitFormatted: formatNaira(Number(a.dailyLimit) || 25000000),
     }));
 
-    const totalLiquidReserves = accounts.reduce((acc, a) => acc + (Number(a.balance) || 0), 0);
+    const totalLiquidReserves = accounts.reduce((acc: number, a: any) => acc + (Number(a.balance) || 0), 0);
     const uncommittedReserves = Math.max(0, totalLiquidReserves - pendingPipeline);
     const runwayMonths = totalLiquidReserves > 0 && mtdOutflow > 0 ? (totalLiquidReserves / mtdOutflow).toFixed(1) : '0.0';
 
@@ -84,6 +118,8 @@ export async function GET(req: NextRequest) {
         runwayMonths: `${runwayMonths} Months`,
         liquidityHealth: accounts.length === 0 ? 'Awaiting Account Setup' : 'Active Registry'
       }
+    }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' }
     });
   } catch (error: any) {
     console.error('Error in treasury API:', error);

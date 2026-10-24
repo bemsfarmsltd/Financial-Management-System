@@ -58,9 +58,22 @@ export function AccountabilityModule({ setNotice }: { setNotice: (message: strin
 
 type ReceiptRow = { id: string; fileName: string; fileUrl: string; fileAvailable: boolean; sha256: string; mimeType: string; uploadedAt: string; disbursement: { amountMinor: number; currency: string; externalReference: string; bankName: string; paidAt: string; request?: { requestNumber: string; title: string; subsidiary: { legalName: string }; requester: { legalName: string } } | null; payrollItem?: { employee: { legalName: string }; batch: { period: { year: number; month: number } } } | null; recordedBy: { legalName: string } } };
 
-export function ReceiptArchiveModule({ setNotice }: { setNotice: (message: string) => void }) {
+export function ReceiptArchiveModule({ setNotice, scope }: { setNotice: (message: string) => void; scope?: string }) {
   const [rows,setRows]=useState<ReceiptRow[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [query,setQuery]=useState('');
-  const load=useCallback(async()=>{setLoading(true);setError('');try{const data=await api<{receipts:ReceiptRow[]}>('/api/receipts');setRows(data.receipts)}catch(e){setError(errorText(e))}finally{setLoading(false)}},[]);useEffect(()=>{void load()},[load]);
+  const load=useCallback(async()=>{
+    setLoading(true);
+    setError('');
+    try{
+      const param = scope && scope !== 'ALL' ? `?subsidiary=${encodeURIComponent(scope)}` : '';
+      const data=await api<{receipts:ReceiptRow[]}>(`/api/receipts${param}`);
+      setRows(data.receipts);
+    }catch(e){
+      setError(errorText(e));
+    }finally{
+      setLoading(false);
+    }
+  },[scope]);
+  useEffect(()=>{void load()},[load]);
   const filtered=rows.filter(r=>`${r.fileName} ${r.disbursement.externalReference} ${r.disbursement.request?.requestNumber||''} ${r.disbursement.request?.title||''} ${r.disbursement.payrollItem?.employee.legalName||''}`.toLowerCase().includes(query.toLowerCase()));
   return <><PageHeading eyebrow="PAYMENT EVIDENCE" title="Receipt archive" description="Search uploaded bank slips and payroll receipts, then open the original secure file." action={<button style={secondary} onClick={()=>void load()}>↻ Refresh</button>}/><section style={card}><input style={{...input,maxWidth:440,marginBottom:14}} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search file, request, reference, or employee"/>{loading?<p>Loading receipts…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:filtered.length===0?<p style={{color:'#7889a3'}}>No payment receipts have been recorded yet.</p>:<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:760}}><thead><tr>{['Receipt','Request / recipient','Subsidiary','Amount','Uploaded','Integrity',''].map(x=><th key={x} style={{textAlign:'left',padding:10,color:'#71819a',fontSize:12}}>{x}</th>)}</tr></thead><tbody>{filtered.map(r=><tr key={r.id} style={{borderTop:'1px solid #e8edf4'}}><td style={{padding:10}}><b>{r.fileName}</b><small style={{display:'block',color:'#8593a8'}}>{r.mimeType}</small></td><td style={{padding:10}}>{r.disbursement.request?<><b>{r.disbursement.request.requestNumber}</b><small style={{display:'block',color:'#8593a8'}}>{r.disbursement.request.title}</small></>:r.disbursement.payrollItem?.employee.legalName||'Payroll payment'}</td><td style={{padding:10}}>{r.disbursement.request?.subsidiary.legalName||'Group payroll'}</td><td style={{padding:10}}>{fmt(r.disbursement.amountMinor)}</td><td style={{padding:10}}>{date(r.uploadedAt)}</td><td style={{padding:10}} title={r.sha256}>{r.sha256.slice(0,10)}…</td><td style={{padding:10}}>{r.fileAvailable?<a href={`/api/receipts/${r.id}`} target="_blank" rel="noreferrer" onClick={()=>setNotice(`Opening ${r.fileName}.`)}>Open receipt ↗</a>:<span title="This older record has no stored receipt file.">File unavailable</span>}</td></tr>)}</tbody></table></div>}</section></>;
 }
@@ -140,9 +153,22 @@ type StaffDetail = {
   permissions: { canEditSalary: boolean };
 };
 
-export function StaffProfilesModule({ setNotice, onNavigate }: { setNotice: (message: string) => void; onNavigate?: (tab: string) => void }) {
+export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotice: (message: string) => void; onNavigate?: (tab: string) => void; scope?: string }) {
   const [rows,setRows]=useState<Staff[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [query,setQuery]=useState('');const [selected,setSelected]=useState<StaffDetail|null>(null);const [selectedId,setSelectedId]=useState('');const [detailLoading,setDetailLoading]=useState(false);const [salaryType,setSalaryType]=useState<'ADDITION'|'DEDUCTION'>('ADDITION');const [amount,setAmount]=useState('');const [reason,setReason]=useState('');const [saving,setSaving]=useState(false);
-  const load=useCallback(async()=>{setLoading(true);setError('');try{const data=await api<{employees:Staff[]}>('/api/staff');setRows(data.employees)}catch(e){setError(errorText(e))}finally{setLoading(false)}},[]);useEffect(()=>{void load()},[load]);
+  const load=useCallback(async()=>{
+    setLoading(true);
+    setError('');
+    try{
+      const param = scope && scope !== 'ALL' ? `?orgId=${encodeURIComponent(scope)}` : '';
+      const data=await api<{employees:Staff[]}>(`/api/staff${param}`);
+      setRows(data.employees);
+    }catch(e){
+      setError(errorText(e));
+    }finally{
+      setLoading(false);
+    }
+  },[scope]);
+  useEffect(()=>{void load()},[load]);
   const open=async(id:string)=>{setSelectedId(id);setDetailLoading(true);setSelected(null);try{setSelected(await api<StaffDetail>(`/api/payroll/staff/${encodeURIComponent(id)}`))}catch(e){setError(errorText(e))}finally{setDetailLoading(false)}};
   const filtered=rows.filter(s=>`${s.legalName} ${s.workEmail} ${s.role} ${s.employeeNumber}`.toLowerCase().includes(query.toLowerCase()));
   const changeSalary=async(e:FormEvent)=>{e.preventDefault();setSaving(true);try{const data=await api<{message:string;newGrossFormatted:string}>(`/api/staff/${selectedId}/salary`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({changeType:salaryType,amount,reason})});setNotice(`${data.message} New gross: ${data.newGrossFormatted}.`);setAmount('');setReason('');await Promise.all([load(),open(selectedId)])}catch(e){setError(errorText(e))}finally{setSaving(false)}};
@@ -152,9 +178,28 @@ export function StaffProfilesModule({ setNotice, onNavigate }: { setNotice: (mes
 type OrganizationOption = { id: string; name: string; code: string };
 type IntercompanyNote = { id: string; noteType: string; noteNumber: string; totalAmountMinor: number; currency: string; description: string; status: string; generatedAt: string; sourceEntity: { id: string; legalName: string }; targetEntity: { id: string; legalName: string } };
 
-export function IntercompanyModule({ setNotice }: { setNotice: (message: string) => void }) {
+export function IntercompanyModule({ setNotice, scope }: { setNotice: (message: string) => void; scope?: string }) {
   const [notes,setNotes]=useState<IntercompanyNote[]>([]);const [organizations,setOrganizations]=useState<OrganizationOption[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [creating,setCreating]=useState(false);const [source,setSource]=useState('');const [target,setTarget]=useState('');const [amount,setAmount]=useState('');const [description,setDescription]=useState('');const [noteType,setNoteType]=useState<'DEBIT_NOTE'|'CREDIT_NOTE'>('DEBIT_NOTE');const [saving,setSaving]=useState(false);const [filter,setFilter]=useState('ALL');
-  const load=useCallback(async()=>{setLoading(true);setError('');try{const [n,o]=await Promise.all([api<{notes:IntercompanyNote[]}>('/api/intercompany'),api<{organizations:OrganizationOption[]}>('/api/organizations')]);setNotes(n.notes);setOrganizations(o.organizations);if(!source&&o.organizations[0])setSource(o.organizations[0].id);if(!target&&o.organizations[1])setTarget(o.organizations[1].id)}catch(e){setError(errorText(e))}finally{setLoading(false)}},[source,target]);useEffect(()=>{void load()},[load]);
+  const load=useCallback(async()=>{
+    setLoading(true);
+    setError('');
+    try{
+      const param = scope && scope !== 'ALL' ? `?subsidiary=${encodeURIComponent(scope)}` : '';
+      const [n,o]=await Promise.all([
+        api<{notes:IntercompanyNote[]}>(`/api/intercompany${param}`),
+        api<{organizations:OrganizationOption[]}>('/api/organizations')
+      ]);
+      setNotes(n.notes);
+      setOrganizations(o.organizations);
+      if(!source&&o.organizations[0])setSource(o.organizations[0].id);
+      if(!target&&o.organizations[1])setTarget(o.organizations[1].id);
+    }catch(e){
+      setError(errorText(e));
+    }finally{
+      setLoading(false);
+    }
+  },[scope,source,target]);
+  useEffect(()=>{void load()},[load]);
   const createNote=async(e:FormEvent)=>{e.preventDefault();setSaving(true);try{const result=await api<{note:IntercompanyNote}>('/api/intercompany',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sourceEntityId:source,targetEntityId:target,noteType,amount,description})});setNotice(`${result.note.noteNumber} created.`);setCreating(false);setAmount('');setDescription('');await load()}catch(e){setError(errorText(e))}finally{setSaving(false)}};
   const reconcile=async(note:IntercompanyNote)=>{try{await api(`/api/intercompany/${note.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'RECONCILED'})});setNotice(`${note.noteNumber} marked reconciled.`);await load()}catch(e){setError(errorText(e))}};
   const visible=notes.filter(n=>filter==='ALL'||n.status===filter);
@@ -162,9 +207,22 @@ export function IntercompanyModule({ setNotice }: { setNotice: (message: string)
 }
 
 type AuditRow = { id: string; actorName: string; actorRole: string; targetType: string; targetId: string; action: string; metadata: string | null; createdAt: string; groupId: string; subsidiaryId: string | null };
-export function AuditLogsModule({ setNotice }: { setNotice: (message: string) => void }) {
+export function AuditLogsModule({ setNotice, scope }: { setNotice: (message: string) => void; scope?: string }) {
   const [rows,setRows]=useState<AuditRow[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [query,setQuery]=useState('');const [action,setAction]=useState('ALL');
-  const load=useCallback(async()=>{setLoading(true);setError('');try{const data=await api<{logs:AuditRow[]}>('/api/audit?limit=300');setRows(data.logs)}catch(e){setError(errorText(e))}finally{setLoading(false)}},[]);useEffect(()=>{void load()},[load]);
+  const load=useCallback(async()=>{
+    setLoading(true);
+    setError('');
+    try{
+      const param = scope && scope !== 'ALL' ? `&subsidiary=${encodeURIComponent(scope)}` : '';
+      const data=await api<{logs:AuditRow[]}>(`/api/audit?limit=300${param}`);
+      setRows(data.logs);
+    }catch(e){
+      setError(errorText(e));
+    }finally{
+      setLoading(false);
+    }
+  },[scope]);
+  useEffect(()=>{void load()},[load]);
   const actions=[...new Set(rows.map(r=>r.action))];const filtered=rows.filter(r=>(action==='ALL'||r.action===action)&&`${r.actorName} ${r.actorRole} ${r.action} ${r.targetType} ${r.targetId} ${r.metadata||''}`.toLowerCase().includes(query.toLowerCase()));
   const exportRows=()=>{const csv=[['Time','Action','Actor','Role','Target Type','Target ID','Metadata'],...filtered.map(r=>[r.createdAt,r.action,r.actorName,r.actorRole,r.targetType,r.targetId,r.metadata||''])].map(row=>row.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\r\n');const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));link.download='group-audit-log.csv';link.click();URL.revokeObjectURL(link.href);setNotice(`Exported ${filtered.length} audit events.`)};
   return <><PageHeading eyebrow="CONTROL EVIDENCE" title="Audit logs" description="A searchable record of approvals, payment, salary changes, evidence, and administrative actions." action={<button style={secondary} onClick={exportRows}>↓ Export CSV</button>}/><div style={{...card,display:'flex',gap:10,marginBottom:14,flexWrap:'wrap'}}><input style={{...input,maxWidth:480}} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search actor, action, request, or detail"/><select style={{...input,width:'auto',minWidth:200}} value={action} onChange={e=>setAction(e.target.value)}><option value="ALL">All actions</option>{actions.map(a=><option key={a}>{a}</option>)}</select><button style={secondary} onClick={()=>void load()}>↻ Refresh</button></div><section style={card}>{loading?<p>Loading audit events…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:filtered.length===0?<p style={{color:'#7889a3'}}>No audit events match this search.</p>:<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:800}}><thead><tr>{['When','Action','Actor','Record','Details'].map(x=><th key={x} style={{textAlign:'left',padding:10,color:'#71819a',fontSize:12}}>{x}</th>)}</tr></thead><tbody>{filtered.map(r=><tr key={r.id} style={{borderTop:'1px solid #e8edf4'}}><td style={{padding:10,whiteSpace:'nowrap'}}>{new Date(r.createdAt).toLocaleString('en-NG')}</td><td style={{padding:10}}><b>{r.action.replaceAll('_',' ')}</b></td><td style={{padding:10}}>{r.actorName}<small style={{display:'block',color:'#8290a4'}}>{r.actorRole}</small></td><td style={{padding:10}}>{r.targetType} · {r.targetId.slice(0,10)}</td><td style={{padding:10,color:'#65758f',maxWidth:350,overflowWrap:'anywhere'}}>{r.metadata||'—'}</td></tr>)}</tbody></table></div>}</section></>;

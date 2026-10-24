@@ -2,18 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 
-export function IntercompanyClient({ initialNotes }: { initialNotes?: any[] }) {
+export function IntercompanyClient({ initialNotes, scope }: { initialNotes?: any[]; scope?: string }) {
   const [notes, setNotes] = useState(initialNotes || []);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!initialNotes || initialNotes.length === 0) {
-      fetch('/api/intercompany')
-        .then(r => r.json())
-        .then(d => { if (d && d.notes) setNotes(d.notes); })
-        .catch(() => {});
-    }
-  }, [initialNotes]);
+    const query = scope ? `?subsidiary=${encodeURIComponent(scope)}` : '';
+    fetch(`/api/intercompany${query}`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => { if (d && d.notes) setNotes(d.notes); })
+      .catch(() => {});
+  }, [scope]);
 
   const handleGenerate = () => {
     setNotice('Generated New Intercompany Note: ICN-2026-0014 for October DevOps recharge (70/30 split).');
