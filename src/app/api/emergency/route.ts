@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { toSystemRequestId } from '@/lib/request-id';
+import { createWithUniqueRequestNumber } from '@/lib/request-number';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,30 +97,29 @@ export async function POST(req: NextRequest) {
     }
 
     const declarer = actor;
-
-    const count = await prisma.expenditureRequest.count();
-    const requestNumber = `EMG-2026-${String(count + 1).padStart(4, '0')}`;
     const amountMinor = BigInt(Math.round(amountNum * 100));
 
     // Emergency request is immediately pre-authorized for disbursement with 24h accountability
-    const request = await prisma.expenditureRequest.create({
-      data: {
-        requestNumber,
-        groupId: org.parentGroupId || org.id,
-        subsidiaryId: org.id,
-        requestedById: declarer.id,
-        requestType: 'EMERGENCY',
-        category: 'FACILITY_EMERGENCY',
-        amountMinor,
-        currency: 'NGN',
-        title,
-        justification,
-        deliverable: 'Emergency repair sign-off, purchase receipt, and incident photo deliverables',
-        neededBy: new Date(),
-        approvalStatus: 'APPROVED', // Bypasses sequential gates
-        paymentStatus: 'UNPAID',    // Ready for immediate Treasury payout
-        accountabilityStatus: 'PENDING'
-      }
+    const request = await createWithUniqueRequestNumber('EMG-2026', async (reqNum) => {
+      return await prisma.expenditureRequest.create({
+        data: {
+          requestNumber: reqNum,
+          groupId: org.parentGroupId || org.id,
+          subsidiaryId: org.id,
+          requestedById: declarer.id,
+          requestType: 'EMERGENCY',
+          category: 'FACILITY_EMERGENCY',
+          amountMinor,
+          currency: 'NGN',
+          title,
+          justification,
+          deliverable: 'Emergency repair sign-off, purchase receipt, and incident photo deliverables',
+          neededBy: new Date(),
+          approvalStatus: 'APPROVED', // Bypasses sequential gates
+          paymentStatus: 'UNPAID',    // Ready for immediate Treasury payout
+          accountabilityStatus: 'PENDING'
+        }
+      });
     });
 
     // Create 24-hour accountability case
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Simulate WhatsApp and SMS notification bridge dispatch
-    const bridgeMessage = `🚨 [EMERGENCY OVERRIDE DECLARED] Ref: ${requestNumber} | Entity: ${org.legalName} | Amount: ${formatNaira(amountNum)} | Officer: ${declarer.legalName} (${declarer.role}) | Justification: ${justification}. Bypassed standard gates. 24h accountability clock started.`;
+    const bridgeMessage = `🚨 [EMERGENCY OVERRIDE DECLARED] Ref: ${request.requestNumber} | Entity: ${org.legalName} | Amount: ${formatNaira(amountNum)} | Officer: ${declarer.legalName} (${declarer.role}) | Justification: ${justification}. Bypassed standard gates. 24h accountability clock started.`;
 
     // Record immutable audit event
     await prisma.auditEvent.create({

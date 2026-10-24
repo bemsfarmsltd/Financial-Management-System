@@ -3,12 +3,15 @@ import { prisma } from "@/lib/prisma";
 import { getAuthenticatedEmployee } from "@/lib/auth";
 import { toSystemRequestId } from "@/lib/request-id";
 import { notifyApprovalRequired } from "@/lib/notifications/bridge";
+import { createWithUniqueRequestNumber } from "@/lib/request-number";
 
 export async function POST(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: "Sign in to submit a fund request." }, { status: 401 });
-    if (actor.role === "GMD") return NextResponse.json({ error: "The GMD reviews requests and does not submit fund requests." }, { status: 403 });
+    if (actor.role === "GMD" || actor.role === "SYSTEM_ADMIN") {
+      return NextResponse.json({ error: "GMD and System Admin accounts are executive governance roles and do not submit fund requests." }, { status: 403 });
+    }
 
     const body = await request.json();
     let {
@@ -85,9 +88,6 @@ export async function POST(request: Request) {
     const delivStr = deliverable || "Itemized receipt and proof of delivery.";
     const needDate = neededBy ? new Date(neededBy) : new Date(Date.now() + 7 * 24 * 3600 * 1000);
 
-    const count = await prisma.expenditureRequest.count();
-    const requestNumber = `REQ-2026-${String(count + 1).padStart(4, "0")}`;
-
     // Determine initial approver role based on policy limits
     let initialApproverRole = "HEAD_OF_ADMIN";
     const amountValue = Number(amountMinor);
@@ -107,54 +107,56 @@ export async function POST(request: Request) {
     const groupId = sub?.parentGroupId || sub?.id || "";
 
     // Create request atomically with channel and initial approval step
-    const newRequest = await prisma.expenditureRequest.create({
-      data: {
-        requestNumber,
-        groupId,
-        subsidiaryId,
-        requestedById: actor.id,
-        vendorId: vendorId || null,
-        requestType: requestType || "ORDINARY",
-        category,
-        amountMinor,
-        currency: "NGN",
-        title: titleStr,
-        justification: justStr,
-        deliverable: delivStr,
-        neededBy: needDate,
-        approvalStatus: "IN_REVIEW",
-        paymentStatus: "UNPAID",
-        accountabilityStatus: "PENDING",
-        isRecurring: !!isRecurring,
-        recurringInterval: isRecurring ? recurringInterval : null,
-        channel: {
-          create: {
-            classification: "GENERAL",
-            messages: {
-              create: {
-                authorName: "System",
-                authorRole: "SYSTEM",
-                messageType: "AUDIT_EVENT",
-                body: `Request ${requestNumber} created and submitted. Assigned to ${initialApproverRole} for review.`,
+    const newRequest = await createWithUniqueRequestNumber("REQ-2026", async (reqNum) => {
+      return await prisma.expenditureRequest.create({
+        data: {
+          requestNumber: reqNum,
+          groupId,
+          subsidiaryId,
+          requestedById: actor.id,
+          vendorId: vendorId || null,
+          requestType: requestType || "ORDINARY",
+          category,
+          amountMinor,
+          currency: "NGN",
+          title: titleStr,
+          justification: justStr,
+          deliverable: delivStr,
+          neededBy: needDate,
+          approvalStatus: "IN_REVIEW",
+          paymentStatus: "UNPAID",
+          accountabilityStatus: "PENDING",
+          isRecurring: !!isRecurring,
+          recurringInterval: isRecurring ? recurringInterval : null,
+          channel: {
+            create: {
+              classification: "GENERAL",
+              messages: {
+                create: {
+                  authorName: "System",
+                  authorRole: "SYSTEM",
+                  messageType: "AUDIT_EVENT",
+                  body: `Request ${reqNum} created and submitted. Assigned to ${initialApproverRole} for review.`,
+                },
               },
             },
           },
-        },
-        approvalSteps: {
-          create: {
-            stageIndex: 1,
-            assignedRole: initialApproverRole,
-            status: "PENDING",
+          approvalSteps: {
+            create: {
+              stageIndex: 1,
+              assignedRole: initialApproverRole,
+              status: "PENDING",
+            },
           },
         },
-      },
+      });
     });
 
     // Trigger multi-channel alert via WhatsApp, Slack & Real-Time Executive Email to GMD
     try {
       const org = await prisma.organization.findUnique({ where: { id: subsidiaryId }, select: { legalName: true } });
       await notifyApprovalRequired({
-        requestNumber,
+        requestNumber: newRequest.requestNumber,
         title: titleStr,
         amountMinor: Number(amountMinor),
         approverRole: initialApproverRole,
@@ -170,7 +172,7 @@ export async function POST(request: Request) {
       success: true,
       id: newRequest.id,
       systemId: toSystemRequestId(newRequest.id),
-      requestNumber,
+      requestNumber: newRequest.requestNumber,
       amountMinor: Number(newRequest.amountMinor),
     });
   } catch (error: any) {
