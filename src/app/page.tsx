@@ -2,7 +2,6 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ConnectAppShell } from '@/components/layout/ConnectAppShell';
 import {
   Wallet,
   Truck,
@@ -13,208 +12,245 @@ import {
   Building2,
   ChevronRight,
   Layers,
-  Sparkles,
-  BarChart3,
   CheckCircle2,
 } from 'lucide-react';
 
-export default function EnterpriseGatewayPage() {
-  const departments = [
+export default function EnterpriseModulesScreen() {
+  const modules = [
     {
       id: 'finance',
-      title: 'Finance & Treasury Desk',
-      shortTitle: 'Finance',
+      title: 'Finance & Treasury',
+      eyebrow: 'EXPENDITURE & ACCOUNTABILITY',
       href: '/finance',
-      status: 'LIVE & ACTIVE',
-      statusType: 'active',
+      status: 'Live & Operational',
+      statusType: 'live',
       icon: Wallet,
-      color: '#ea580c',
+      accentColor: '#ea580c',
       bgLight: '#fff7ed',
       borderLight: '#fed7aa',
       description:
-        'Multi-subsidiary expenditure requests, tiered governance approval matrix, treasury banking disbursements, and cryptographic audit accountability.',
-      features: [
-        'Automated 3-tier expenditure approval routing',
-        'Direct maker-checker bank disbursement tracking',
-        'Strict 72-hour receipt retirement evidence',
-        'Automated intercompany debit/credit note generator',
+        'Multi-subsidiary expenditure requisitions, tiered approval matrix, bank transfer disbursements, 72-hour receipt retiral, and automated intercompany billing notes.',
+      capabilities: [
+        '5-tier expenditure approval routing',
+        'Maker-checker bank transfer records',
+        '72-hour receipt retiral compliance',
+        'Intercompany debit & credit notes',
       ],
-      primaryCta: 'Launch Finance Desk →',
+      ctaText: 'Access Finance Module',
+      isPrimary: true,
     },
     {
       id: 'operations',
-      title: 'Operations & Fleet Management',
-      shortTitle: 'Operations',
+      title: 'Operations & Fleet',
+      eyebrow: 'LOGISTICS & AGRIBUSINESS',
       href: '/operations',
-      status: 'PIPELINE · PHASE 2',
+      status: 'Phase 2 · In Pipeline',
       statusType: 'pipeline',
       icon: Truck,
-      color: '#059669',
+      accentColor: '#059669',
       bgLight: '#ecfdf5',
       borderLight: '#a7f3d0',
       description:
-        'Agritech delivery management, fleet telematics, fuel consumption audits, and warehouse cold-chain inventory for Bems Logistics & Farms.',
-      features: [
-        'Produce transit manifests & route GPS tracking',
-        'Bulk diesel tank replenishment and pump meter logs',
-        'Generator overhaul and fleet maintenance logs',
-        'Customer waybill clearing and cold room intake',
+        'Produce transit telemetry, waybill clearing, bulk diesel replenishment, electronic pump meter reconciliation, and cold-chain warehouse intake for Bems Logistics & Farms.',
+      capabilities: [
+        'Vehicle route tracking & delivery manifests',
+        'Bulk diesel tank float & pump logs',
+        'Warehouse intake & cold storage monitoring',
+        'Fleet maintenance & generator service logs',
       ],
-      primaryCta: 'Open Operations Portal →',
+      ctaText: 'View Operations Portal',
+      isPrimary: false,
     },
     {
       id: 'innovation',
       title: 'Innovation & Cloud Tech',
-      shortTitle: 'Innovation',
+      eyebrow: 'SOFTWARE & R&D',
       href: '/innovation',
-      status: 'PIPELINE · PHASE 3',
+      status: 'Phase 3 · In Pipeline',
       statusType: 'pipeline',
       icon: Code2,
-      color: '#0284c7',
+      accentColor: '#0284c7',
       bgLight: '#f0f9ff',
       borderLight: '#bae6fd',
       description:
-        'Software product engineering, Hostinger cloud infrastructure, WhatsApp/Slack notification bridges, and AI workflow automation for BemsSoft Hub.',
-      features: [
-        'Cloud server status & Hostinger deployment triggers',
-        'API gateway monitoring and telemetry logging',
-        'BEMi AI Assistant and autonomous ledger audit bots',
-        'Software client delivery licenses & support contracts',
+        'Enterprise software delivery repositories, Hostinger cloud infrastructure orchestration, webhook notification bridges, and AI automation for BemsSoft Hub.',
+      capabilities: [
+        'Hostinger server telemetry & deployments',
+        'Autonomous ledger intelligence (BEMi)',
+        'WhatsApp & Slack webhook bridges',
+        'Software client delivery licenses & SLAs',
       ],
-      primaryCta: 'Open Tech Portal →',
+      ctaText: 'View Innovation Portal',
+      isPrimary: false,
     },
     {
       id: 'hr',
       title: 'Human Capital & HR',
-      shortTitle: 'Human Resources',
+      eyebrow: 'PEOPLE & TALENT',
       href: '/hr',
-      status: 'PIPELINE · PHASE 4',
+      status: 'Phase 4 · In Pipeline',
       statusType: 'pipeline',
       icon: Users,
-      color: '#7c3aed',
-      bgLight: '#f5f3ff',
-      borderLight: '#ddd6fe',
+      accentColor: '#7c3aed',
+      bgLight: '#faf5ff',
+      borderLight: '#e9d5ff',
       description:
-        'Group-wide employee directory, compensation structures, talent onboarding, and cross-entity staff allocation rules.',
-      features: [
-        'Staff profile management & salary agreements',
-        'Seamless onboarding with BVN & account validation',
-        'Annual leave tracker and attendance audits',
-        'Cross-subsidiary shared employee cost-sharing rules',
+        'Group-wide employee directory, self-service onboarding, employment contracts, payroll attendance records, and inter-entity cost-sharing agreements.',
+      capabilities: [
+        'Central staff registry & credentials',
+        'Self-service onboarding & BVN validation',
+        'Leave tracking & supervisor approvals',
+        'Shared payroll allocation rules',
       ],
-      primaryCta: 'Open HR Portal →',
+      ctaText: 'View HR Portal',
+      isPrimary: false,
     },
   ];
 
   return (
-    <ConnectAppShell>
-      <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '16px 8px 48px' }}>
-        {/* EXECUTIVE HEADER BANNER */}
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#f8fafc',
+        color: '#0f172a',
+        fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* CLEAN CORPORATE TOPBAR */}
+      <header
+        style={{
+          background: '#ffffff',
+          borderBottom: '1px solid #e2e8f0',
+          padding: '14px 28px',
+          position: 'sticky',
+          top: 0,
+          zIndex: 40,
+        }}
+      >
         <div
           style={{
-            background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-            border: '1px solid #e2e8f0',
-            borderRadius: '16px',
-            padding: '28px 32px',
-            marginBottom: '28px',
-            boxShadow: '0 4px 16px -2px rgba(15, 23, 42, 0.04)',
+            maxWidth: '1280px',
+            margin: '0 auto',
             display: 'flex',
-            flexWrap: 'wrap',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '20px',
           }}
         >
-          <div style={{ maxWidth: '700px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: '#ffedd5',
-                  color: '#c2410c',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  padding: '3px 10px',
-                  borderRadius: '999px',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                <Layers size={13} />
-                BEMS GROUP ENTERPRISE ERP
-              </span>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  background: '#ecfdf5',
-                  color: '#047857',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  padding: '3px 9px',
-                  borderRadius: '999px',
-                }}
-              >
-                <CheckCircle2 size={12} />
-                Multi-Subsidiary Gateway
-              </span>
-            </div>
-            <h1
+          {/* BRAND */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div
               style={{
-                fontSize: '28px',
-                fontWeight: 900,
-                color: '#0f172a',
-                letterSpacing: '-0.02em',
-                margin: '0 0 8px',
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                display: 'grid',
+                placeItems: 'center',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                overflow: 'hidden',
+                padding: '2px',
               }}
             >
-              Enterprise Departmental Suite
-            </h1>
-            <p style={{ fontSize: '14px', color: '#64748b', lineHeight: 1.6, margin: 0 }}>
-              Central access portal for BEMS Group Holdings Ltd. Select an operational department
-              below to enter its live registers, governance tools, and workflow systems.
-            </p>
+              <img
+                src="/bems-group-logo.png?v=20261024"
+                alt="BEMS Group Logo"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
+                <strong style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
+                  BEMS
+                </strong>
+                <span style={{ fontSize: '16px', fontWeight: 800, color: '#ea580c', letterSpacing: '0.02em' }}>
+                  GROUP
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                Enterprise Resource Planning (ERP)
+              </p>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Link
-              href="/finance"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '12px 22px',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
-                color: '#ffffff',
-                fontSize: '13px',
-                fontWeight: 800,
-                textDecoration: 'none',
-                boxShadow: '0 4px 12px rgba(234, 88, 12, 0.25)',
-                transition: 'transform 0.15s ease',
-              }}
-            >
-              <Wallet size={16} />
-              <span>Enter Finance Desk</span>
-              <ArrowRight size={14} />
-            </Link>
+          {/* RIGHT ACTION */}
+          <Link
+            href="/finance"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '9px 18px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+              color: '#ffffff',
+              fontSize: '13px',
+              fontWeight: 800,
+              textDecoration: 'none',
+              boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+            }}
+          >
+            <Wallet size={15} />
+            <span>Finance Login & Portal →</span>
+          </Link>
+        </div>
+      </header>
+
+      {/* MAIN CONTENT AREA */}
+      <main style={{ flex: 1, maxWidth: '1280px', margin: '0 auto', width: '100%', padding: '40px 24px 60px' }}>
+        {/* HERO TITLE SECTION */}
+        <div style={{ textAlign: 'center', maxWidth: '780px', margin: '0 auto 40px' }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 12px',
+              borderRadius: '999px',
+              background: '#fff7ed',
+              border: '1px solid #fed7aa',
+              color: '#c2410c',
+              fontSize: '12px',
+              fontWeight: 800,
+              marginBottom: '14px',
+            }}
+          >
+            <Layers size={13} />
+            <span>CENTRAL ERP DEPARTMENT DIRECTORY</span>
           </div>
+          <h1
+            style={{
+              fontSize: '36px',
+              fontWeight: 900,
+              color: '#0f172a',
+              letterSpacing: '-0.03em',
+              margin: '0 0 14px',
+              lineHeight: 1.2,
+            }}
+          >
+            BEMS Group Enterprise Modules
+          </h1>
+          <p style={{ fontSize: '16px', color: '#64748b', lineHeight: 1.6, margin: 0 }}>
+            Unified corporate operations for BEMS Group Holdings Ltd. Select a department module
+            below to proceed into its dedicated system.
+          </p>
         </div>
 
-        {/* SUBSIDIARY ROSTER PILL STRIP */}
+        {/* SUBSIDIARY BANNER STRIP */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '10px',
-            marginBottom: '24px',
+            justifyContent: 'center',
+            gap: '12px',
+            marginBottom: '36px',
             flexWrap: 'wrap',
           }}
         >
           <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>
-            Active Subsidiaries:
+            Operating Entities:
           </span>
           {[
             { name: 'BEMS Group Holdings Ltd (HQ)', code: 'BEMS-GROUP', color: '#ea580c' },
@@ -226,14 +262,15 @@ export default function EnterpriseGatewayPage() {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px',
-                padding: '5px 12px',
+                gap: '8px',
+                padding: '6px 14px',
                 borderRadius: '8px',
                 background: '#ffffff',
                 border: '1px solid #e2e8f0',
                 fontSize: '12px',
                 fontWeight: 600,
                 color: '#334155',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
               }}
             >
               <span
@@ -250,38 +287,37 @@ export default function EnterpriseGatewayPage() {
           ))}
         </div>
 
-        {/* 4 DEPARTMENT CARDS GRID */}
+        {/* MODULE CARDS GRID */}
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: '20px',
+            gap: '24px',
           }}
         >
-          {departments.map((dept) => {
-            const Icon = dept.icon;
-            const isLive = dept.statusType === 'active';
+          {modules.map((m) => {
+            const Icon = m.icon;
+            const isLive = m.statusType === 'live';
 
             return (
               <div
-                key={dept.id}
+                key={m.id}
                 style={{
                   background: '#ffffff',
-                  border: isLive ? `2px solid ${dept.color}` : '1px solid #e2e8f0',
+                  border: isLive ? `2px solid ${m.accentColor}` : '1px solid #e2e8f0',
                   borderRadius: '16px',
-                  padding: '24px',
+                  padding: '28px 24px',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
                   boxShadow: isLive
-                    ? `0 10px 25px -4px ${dept.color}20`
+                    ? `0 12px 28px -4px ${m.accentColor}25`
                     : '0 2px 8px rgba(0,0,0,0.03)',
-                  position: 'relative',
-                  transition: 'all 0.2s ease',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                 }}
               >
                 <div>
-                  {/* CARD HEADER */}
+                  {/* CARD TOP */}
                   <div
                     style={{
                       display: 'flex',
@@ -292,12 +328,12 @@ export default function EnterpriseGatewayPage() {
                   >
                     <div
                       style={{
-                        width: '46px',
-                        height: '46px',
+                        width: '48px',
+                        height: '48px',
                         borderRadius: '12px',
-                        background: dept.bgLight,
-                        border: `1px solid ${dept.borderLight}`,
-                        color: dept.color,
+                        background: m.bgLight,
+                        border: `1px solid ${m.borderLight}`,
+                        color: m.accentColor,
                         display: 'grid',
                         placeItems: 'center',
                       }}
@@ -307,30 +343,43 @@ export default function EnterpriseGatewayPage() {
 
                     <span
                       style={{
-                        fontSize: '10px',
+                        fontSize: '11px',
                         fontWeight: 800,
-                        letterSpacing: '0.04em',
-                        padding: '3px 8px',
+                        letterSpacing: '0.03em',
+                        padding: '4px 9px',
                         borderRadius: '6px',
                         background: isLive ? '#dcfce7' : '#f1f5f9',
                         color: isLive ? '#15803d' : '#64748b',
                         border: isLive ? '1px solid #86efac' : '1px solid #e2e8f0',
                       }}
                     >
-                      {dept.status}
+                      {m.status}
                     </span>
                   </div>
 
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      color: m.accentColor,
+                      letterSpacing: '0.05em',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    {m.eyebrow}
+                  </span>
+
                   <h3
                     style={{
-                      fontSize: '18px',
+                      fontSize: '20px',
                       fontWeight: 800,
                       color: '#0f172a',
-                      margin: '0 0 8px',
+                      margin: '0 0 10px',
                       letterSpacing: '-0.01em',
                     }}
                   >
-                    {dept.title}
+                    {m.title}
                   </h3>
 
                   <p
@@ -338,33 +387,21 @@ export default function EnterpriseGatewayPage() {
                       fontSize: '13px',
                       color: '#64748b',
                       lineHeight: 1.5,
-                      margin: '0 0 18px',
-                      minHeight: '58px',
+                      margin: '0 0 20px',
+                      minHeight: '60px',
                     }}
                   >
-                    {dept.description}
+                    {m.description}
                   </p>
 
-                  {/* FEATURE LIST */}
+                  {/* FEATURE BULLETS */}
                   <div
                     style={{
                       borderTop: '1px solid #f1f5f9',
-                      paddingTop: '14px',
-                      marginBottom: '20px',
+                      paddingTop: '16px',
+                      marginBottom: '24px',
                     }}
                   >
-                    <p
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        color: '#94a3b8',
-                        letterSpacing: '0.05em',
-                        margin: '0 0 10px',
-                      }}
-                    >
-                      Key Capabilities & Scope
-                    </p>
                     <ul
                       style={{
                         listStyle: 'none',
@@ -375,9 +412,9 @@ export default function EnterpriseGatewayPage() {
                         gap: '8px',
                       }}
                     >
-                      {dept.features.map((feat) => (
+                      {m.capabilities.map((cap) => (
                         <li
-                          key={feat}
+                          key={cap}
                           style={{
                             display: 'flex',
                             alignItems: 'flex-start',
@@ -389,30 +426,30 @@ export default function EnterpriseGatewayPage() {
                         >
                           <span
                             style={{
-                              color: dept.color,
-                              fontSize: '14px',
-                              lineHeight: '16px',
+                              color: m.accentColor,
                               fontWeight: 900,
+                              fontSize: '13px',
+                              lineHeight: '16px',
                             }}
                           >
                             ✓
                           </span>
-                          <span>{feat}</span>
+                          <span>{cap}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
                 </div>
 
-                {/* ACTION CTA BUTTON */}
+                {/* ACTION CTA */}
                 <Link
-                  href={dept.href}
+                  href={m.href}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '8px',
-                    padding: '11px 16px',
+                    padding: '12px 18px',
                     borderRadius: '10px',
                     background: isLive
                       ? 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)'
@@ -420,20 +457,36 @@ export default function EnterpriseGatewayPage() {
                     color: isLive ? '#ffffff' : '#334155',
                     border: isLive ? 'none' : '1px solid #e2e8f0',
                     fontSize: '13px',
-                    fontWeight: 700,
+                    fontWeight: 800,
                     textDecoration: 'none',
-                    boxShadow: isLive ? '0 4px 10px rgba(234, 88, 12, 0.2)' : 'none',
+                    boxShadow: isLive ? '0 4px 12px rgba(234, 88, 12, 0.25)' : 'none',
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <span>{dept.primaryCta}</span>
+                  <span>{m.ctaText}</span>
                   <ChevronRight size={15} />
                 </Link>
               </div>
             );
           })}
         </div>
-      </div>
-    </ConnectAppShell>
+      </main>
+
+      {/* FOOTER */}
+      <footer
+        style={{
+          borderTop: '1px solid #e2e8f0',
+          background: '#ffffff',
+          padding: '20px 24px',
+          textAlign: 'center',
+          fontSize: '12px',
+          color: '#64748b',
+        }}
+      >
+        <p style={{ margin: 0 }}>
+          © 2026 <strong>BEMS Group Holdings Limited</strong> · Enterprise Resource Planning System
+        </p>
+      </footer>
+    </div>
   );
 }
