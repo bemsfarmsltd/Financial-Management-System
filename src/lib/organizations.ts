@@ -1,15 +1,38 @@
 import { prisma } from '@/lib/prisma';
 
+export interface ScopeInfo {
+  isGroup: boolean;
+  organizationIds: string[];
+}
+
+export class OrganizationScopeResult extends Array<string> implements ScopeInfo {
+  isGroup: boolean;
+  organizationIds: string[];
+
+  constructor(isGroup: boolean, ids: string[]) {
+    super(...ids);
+    this.isGroup = isGroup;
+    this.organizationIds = ids;
+    Object.setPrototypeOf(this, OrganizationScopeResult.prototype);
+  }
+}
+
 /**
- * Resolves an organization identifier (ID or Code) into an array of concrete organization IDs.
- * If the organization is a Holding Company (type === 'GROUP'), it automatically returns
- * both the Group HQ ID and all child subsidiary IDs under it.
- *
- * Returns null if the filter is 'ALL' or empty, signifying group-wide unrestricted scope.
+ * Resolves an organization identifier (ID or Code) into an OrganizationScopeResult
+ * that is backwards and forwards compatible:
+ * 1. Has `.isGroup` (boolean)
+ * 2. Has `.organizationIds` (string[])
+ * 3. Can be treated directly as a `string[]` (e.g. `scope.length`, Prisma `in: scope`)
  */
-export async function resolveOrganizationScope(orgIdentifier?: string | null): Promise<string[] | null> {
-  if (!orgIdentifier || orgIdentifier === 'ALL') {
-    return null;
+export async function resolveOrganizationScope(orgIdentifier?: string | null): Promise<OrganizationScopeResult> {
+  if (!orgIdentifier || orgIdentifier === 'ALL' || orgIdentifier === 'all' || orgIdentifier === 'bems-group-hq') {
+    try {
+      const allOrgs = await prisma.organization.findMany({ select: { id: true } });
+      const ids = allOrgs.map((o) => o.id);
+      return new OrganizationScopeResult(true, ids);
+    } catch {
+      return new OrganizationScopeResult(true, []);
+    }
   }
 
   try {
@@ -28,8 +51,7 @@ export async function resolveOrganizationScope(orgIdentifier?: string | null): P
     });
 
     if (!org) {
-      // Fallback: if not found by ID or code, return the literal string to avoid silent drop
-      return [orgIdentifier];
+      return new OrganizationScopeResult(false, [orgIdentifier]);
     }
 
     if (org.type === 'GROUP') {
@@ -37,12 +59,13 @@ export async function resolveOrganizationScope(orgIdentifier?: string | null): P
         where: { parentGroupId: org.id },
         select: { id: true },
       });
-      return [org.id, ...childSubsidiaries.map((s) => s.id)];
+      const ids = [org.id, ...childSubsidiaries.map((s) => s.id)];
+      return new OrganizationScopeResult(true, ids);
     }
 
-    return [org.id];
+    return new OrganizationScopeResult(false, [org.id]);
   } catch (error) {
     console.error('Error resolving organization hierarchy scope:', error);
-    return [orgIdentifier];
+    return new OrganizationScopeResult(false, [orgIdentifier]);
   }
 }

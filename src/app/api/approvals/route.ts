@@ -22,8 +22,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'You do not have access to request records.' }, { status: 403 });
     }
     const scopedOrgIds = await resolveOrganizationScope(subsidiaryCode);
-    if (scopedOrgIds && scopedOrgIds.length > 0) {
-      whereCondition.subsidiaryId = { in: scopedOrgIds };
+    if (!scopedOrgIds.isGroup && scopedOrgIds.organizationIds.length > 0) {
+      whereCondition.subsidiaryId = { in: scopedOrgIds.organizationIds };
     }
 
     if (statusParam && statusParam !== 'ALL') {

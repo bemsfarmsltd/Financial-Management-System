@@ -25,8 +25,8 @@ export async function GET(req: NextRequest) {
     const subsidiary = searchParams.get('subsidiary') || 'ALL';
 
     const scopedOrgIds = await resolveOrganizationScope(subsidiary);
-    const orgFilter = scopedOrgIds && scopedOrgIds.length > 0 ? { subsidiaryId: { in: scopedOrgIds } } : {};
-    const payerOrgFilter = scopedOrgIds && scopedOrgIds.length > 0 ? { payerOrgId: { in: scopedOrgIds } } : {};
+    const orgFilter = !scopedOrgIds.isGroup && scopedOrgIds.organizationIds.length > 0 ? { subsidiaryId: { in: scopedOrgIds.organizationIds } } : {};
+    const payerOrgFilter = !scopedOrgIds.isGroup && scopedOrgIds.organizationIds.length > 0 ? { payerOrgId: { in: scopedOrgIds.organizationIds } } : {};
 
     // 1. Ready for Transfer (Approved, UNPAID)
     const approvedRequests = await prisma.expenditureRequest.findMany({

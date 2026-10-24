@@ -58,6 +58,7 @@ export async function GET(req: Request) {
       if (!scope.isGroup) {
         filtered = safeEmployees.filter((e: any) =>
           e.assignments?.some((a: any) =>
+            scope.organizationIds.includes(a.subsidiaryId) ||
             scope.organizationIds.includes(a.subsidiary?.id) ||
             scope.organizationIds.includes(a.subsidiary?.code)
           )
