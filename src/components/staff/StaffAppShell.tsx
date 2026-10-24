@@ -85,12 +85,12 @@ export function StaffAppShell({
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
-              href="/"
+              href="/finance"
               className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors py-1 px-2 rounded-md hover:bg-slate-800"
-              title="Return to Executive Portal"
+              title="Return to Finance Portal"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Executive Portal</span>
+              <span>Finance Portal</span>
             </Link>
 
             <div className="flex items-center gap-2.5">

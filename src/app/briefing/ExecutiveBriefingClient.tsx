@@ -979,7 +979,7 @@ export function ExecutiveBriefingClient({
             </p>
           </div>
           <button
-            onClick={() => router.push('/?tab=Treasury+accounts')}
+            onClick={() => router.push('/finance?tab=Treasury+accounts')}
             style={{
               padding: '6px 12px',
               borderRadius: '6px',
@@ -1007,7 +1007,7 @@ export function ExecutiveBriefingClient({
               No company bank accounts configured yet.
             </p>
             <button
-              onClick={() => router.push('/?tab=Treasury+accounts')}
+              onClick={() => router.push('/finance?tab=Treasury+accounts')}
               style={{
                 padding: '7px 14px',
                 borderRadius: '6px',

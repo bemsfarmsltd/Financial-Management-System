@@ -26,8 +26,8 @@ export function Sidebar() {
 
   const navItems = [
     {
-      name: "Executive Dashboard",
-      href: "/",
+      name: "Finance Desk",
+      href: "/finance",
       icon: LayoutDashboard,
       roles: ["GMD", "HR", "SYSTEM_ADMIN", "STAFF"],
     },
@@ -40,7 +40,7 @@ export function Sidebar() {
     },
     {
       name: "Staff Onboarding & Approvals",
-      href: "/?tab=Staff+onboarding",
+      href: "/finance?tab=Staff+onboarding",
       icon: UserCheck,
       roles: ["GMD", "SYSTEM_ADMIN"],
     },
@@ -122,11 +122,18 @@ export function Sidebar() {
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-1">
+        <Link
+          href="/"
+          className="flex items-center gap-2 px-3 py-2 mb-4 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800 transition-all"
+        >
+          <span>←</span>
+          <span>ERP Suite Gateway</span>
+        </Link>
         <p className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
           Operations & Governance
         </p>
         {allowedItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href || (item.href === '/finance' && pathname === '/finance');
           const Icon = item.icon;
 
           return (

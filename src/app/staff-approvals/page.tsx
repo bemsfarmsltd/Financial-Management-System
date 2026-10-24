@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 export default function StaffApprovalsPage() {
   const router = useRouter();
   useEffect(() => {
-    router.replace('/?tab=Staff+onboarding');
+    router.replace('/finance?tab=Staff+onboarding');
   }, [router]);
 
   return (

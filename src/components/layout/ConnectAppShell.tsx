@@ -141,8 +141,8 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
     {
       label: 'EXECUTIVE',
       items: [
-        ['Overview', '/', '⌂'],
-        ['Subsidiary portfolio', '/?tab=Subsidiary+portfolio', '▦'],
+        ['Finance Overview', '/finance', '⌂'],
+        ['Subsidiary portfolio', '/finance?tab=Subsidiary+portfolio', '▦'],
         ['Executive briefing', '/briefing', '✦'],
       ]
     },
@@ -152,20 +152,20 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
         ['Fund requests', '/requests', '▱'],
         ['Approvals & payments', '/approvals', '✓'],
         ['Budgets & commitments', '/budgets', '◫'],
-        ['Treasury accounts', '/?tab=Treasury+accounts', '🏦'],
-        ['Recurring commitments', '/?tab=Recurring+commitments', '◌'],
+        ['Treasury accounts', '/finance?tab=Treasury+accounts', '🏦'],
+        ['Recurring commitments', '/finance?tab=Recurring+commitments', '◌'],
         ['Hybrid payroll', '/payroll', '⌁'],
         ['Intercompany notes', '/intercompany', '▥'],
-        ['Request channels', '/?tab=Request+channels', '◎'],
+        ['Request channels', '/finance?tab=Request+channels', '◎'],
       ]
     },
     {
       label: 'PEOPLE & REPORTS',
       items: [
-        ['Staff profiles', '/?tab=Staff+profiles', '👥'],
-        ['Staff onboarding', '/?tab=Staff+onboarding', '✓'],
+        ['Staff profiles', '/finance?tab=Staff+profiles', '👥'],
+        ['Staff onboarding', '/finance?tab=Staff+onboarding', '✓'],
         ['Audit logs', '/audit', '≡'],
-        ['Settings', '/?tab=Settings', '⚙'],
+        ['Settings', '/finance?tab=Settings', '⚙'],
       ]
     },
   ];
@@ -174,8 +174,8 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
     {
       label: 'EXECUTIVE',
       items: [
-        ['Overview', '/', '⌂'],
-        ['Subsidiary portfolio', '/?tab=Subsidiary+portfolio', '▦'],
+        ['Finance Overview', '/finance', '⌂'],
+        ['Subsidiary portfolio', '/finance?tab=Subsidiary+portfolio', '▦'],
         ['Executive briefing', '/briefing', '✦'],
       ]
     },
@@ -185,8 +185,8 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
         ['Fund requests', '/requests', '▱'],
         ['Approvals & payments', '/approvals', '✓'],
         ['Budgets & commitments', '/budgets', '◫'],
-        ['Treasury accounts', '/?tab=Treasury+accounts', '🏦'],
-        ['Recurring commitments', '/?tab=Recurring+commitments', '◌'],
+        ['Treasury accounts', '/finance?tab=Treasury+accounts', '🏦'],
+        ['Recurring commitments', '/finance?tab=Recurring+commitments', '◌'],
         ['Hybrid payroll', '/payroll', '⌁'],
         ['Intercompany notes', '/intercompany', '▥'],
         ['Vendors & suppliers', '/vendors', '▦'],
@@ -195,16 +195,16 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
     {
       label: 'ADMINISTRATION & PEOPLE',
       items: [
-        ['Staff profiles', '/?tab=Staff+profiles', '👥'],
-        ['Staff onboarding', '/?tab=Staff+onboarding', '✓'],
+        ['Staff profiles', '/finance?tab=Staff+profiles', '👥'],
+        ['Staff onboarding', '/finance?tab=Staff+onboarding', '✓'],
         ['Audit logs', '/audit', '≡'],
-        ['Settings', '/?tab=Settings', '⚙'],
+        ['Settings', '/finance?tab=Settings', '⚙'],
       ]
     },
   ];
 
   const hrNav = [
-    { label: 'PEOPLE & HR', items: [['Overview', '/', '⌂'], ['Staff Directory & Payroll', '/payroll', '♙']] },
+    { label: 'PEOPLE & HR', items: [['Finance Overview', '/finance', '⌂'], ['Staff Directory & Payroll', '/payroll', '♙']] },
     { label: 'PAYROLL (NO TAX)', items: [['Salary Runs (Gross = Net)', '/payroll', '⌁'], ['Intercompany Splits', '/payroll', '▥'], ['Intercompany Notes', '/intercompany', '₦']] },
   ];
 
@@ -245,12 +245,36 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
           </button>
         </div>
 
+        {/* RETURN TO ERP GATEWAY */}
+        <div style={{ padding: '4px 16px 12px' }}>
+          <Link
+            href="/"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '6px 10px',
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '6px',
+              color: '#94a3b8',
+              fontSize: '11px',
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            <span>←</span>
+            <span>ERP Suite Gateway</span>
+          </Link>
+        </div>
+
         <nav aria-label="Product navigation">
           {navGroups.map(group => (
             <div className="nav-group" key={group.label}>
               <p>{group.label}</p>
               {group.items.map(([name, url, icon]) => {
-                const isActive = pathname === url || (url.startsWith('/?tab=') && pathname === '/' && typeof window !== 'undefined' && window.location.search.includes(url.replace('/?tab=', '')));
+                const isActive = pathname === url || (url.startsWith('/finance?tab=') && pathname === '/finance' && typeof window !== 'undefined' && window.location.search.includes(url.replace('/finance?tab=', ''))) || (url === '/finance' && pathname === '/finance' && typeof window !== 'undefined' && (!window.location.search || window.location.search === '?org=ALL' || window.location.search === ''));
                 return (
                   <Link
                     href={url}
