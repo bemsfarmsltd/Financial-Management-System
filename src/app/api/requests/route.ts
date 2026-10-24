@@ -268,7 +268,6 @@ export async function POST(request: Request) {
         where: {
           OR: [
             { legalName: { contains: subsidiaryNameInput, mode: "insensitive" } },
-            { name: { contains: subsidiaryNameInput, mode: "insensitive" } },
             { code: { contains: subsidiaryNameInput, mode: "insensitive" } },
           ],
         },

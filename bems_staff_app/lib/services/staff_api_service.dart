@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/staff_models.dart';
 
@@ -9,10 +10,20 @@ class StaffApiService {
 
   static String get baseUrl => _activeBaseUrl;
 
-  static List<String> get _candidateHosts => [
+  static List<String> get _candidateHosts {
+    if (kIsWeb) {
+      final webOrigin = Uri.base.origin;
+      return [
+        webOrigin,
         _activeBaseUrl,
         if (_activeBaseUrl == primaryBaseUrl) fallbackBaseUrl else primaryBaseUrl,
       ];
+    }
+    return [
+      _activeBaseUrl,
+      if (_activeBaseUrl == primaryBaseUrl) fallbackBaseUrl else primaryBaseUrl,
+    ];
+  }
 
   /// Resilient request executor with automatic edge failover on DNS/Socket errors
   static Future<http.Response> _executeWithFailover(

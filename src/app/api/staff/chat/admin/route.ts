@@ -51,7 +51,7 @@ export async function GET(req: Request) {
               employeeNumber: true,
               workEmail: true,
               avatarUrl: true,
-              primarySubsidiary: { select: { name: true, code: true } },
+              assignments: { select: { isPrimary: true, subsidiary: { select: { legalName: true, code: true } } } },
             },
           },
         },
@@ -122,7 +122,7 @@ export async function GET(req: Request) {
         employeeNumber: true,
         workEmail: true,
         avatarUrl: true,
-        primarySubsidiary: { select: { name: true, code: true } },
+        assignments: { select: { isPrimary: true, subsidiary: { select: { legalName: true, code: true } } } },
       },
     });
 
