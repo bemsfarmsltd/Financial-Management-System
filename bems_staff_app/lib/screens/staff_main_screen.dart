@@ -373,6 +373,45 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 ),
                 const SizedBox(height: 10),
 
+                if (req.approvalStatus != 'APPROVED') ...[
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _confirmDeleteRequest(req);
+                    },
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFDC2626)),
+                    label: const Text('Delete / Cancel Requisition', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFDC2626))),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFFFCA5A5)),
+                      backgroundColor: const Color(0xFFFEF2F2),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ] else ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFBBF7D0)),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.lock_rounded, size: 16, color: Color(0xFF16A34A)),
+                        SizedBox(width: 8),
+                        Text(
+                          'Locked: Approved by Admin (Cannot be deleted)',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF16A34A)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
                 OutlinedButton(
                   onPressed: () => Navigator.pop(ctx),
                   style: OutlinedButton.styleFrom(
@@ -382,6 +421,132 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     side: const BorderSide(color: Color(0xFFCBD5E1)),
                   ),
                   child: const Text('Close Details', style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteRequest(FundRequestItem req) {
+    if (req.approvalStatus == 'APPROVED') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot delete request: This requisition has already been approved by Admin/Management.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        bool isDeleting = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.delete_forever_rounded, color: Color(0xFFDC2626), size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text('Delete Requisition', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Are you sure you want to permanently delete requisition ${req.requestNumber} (${req.amountNaira > 0 ? "₦${req.amountNaira.toStringAsFixed(0)}" : req.title})?',
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF334155), height: 1.4),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7ED),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFFEDD5)),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFFEA580C)),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Staff can only retract and delete requisitions before admin sign-off. Once approved, requisitions are permanently locked.',
+                            style: TextStyle(fontSize: 11, color: Color(0xFF9A3412)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isDeleting ? null : () => Navigator.pop(dialogCtx),
+                  child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w700)),
+                ),
+                ElevatedButton(
+                  onPressed: isDeleting
+                      ? null
+                      : () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final navigator = Navigator.of(dialogCtx);
+                          setDialogState(() => isDeleting = true);
+                          try {
+                            await StaffApiService.deleteFundRequest(
+                              requestNumber: req.requestNumber,
+                              employeeId: _currentUser.id,
+                            );
+
+                            navigator.pop();
+                            if (mounted) {
+                              setState(() {
+                                _requests.removeWhere((item) => item.requestNumber == req.requestNumber || item.id == req.id);
+                              });
+                            }
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Requisition ${req.requestNumber} was deleted successfully.'),
+                                backgroundColor: const Color(0xFF059669),
+                              ),
+                            );
+                          } catch (e) {
+                            setDialogState(() => isDeleting = false);
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(e.toString().replaceAll('Exception: ', '')),
+                                backgroundColor: const Color(0xFFDC2626),
+                              ),
+                            );
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFDC2626),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: isDeleting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Yes, Delete', style: TextStyle(fontWeight: FontWeight.w800)),
                 ),
               ],
             );
@@ -2727,40 +2892,71 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Request Collaboration Chat Button
-                InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => RequestChatScreen(
-                          requestNumber: req.requestNumber,
-                          requestTitle: req.title.isNotEmpty ? req.title : req.payeeName,
-                          currentUser: _currentUser,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Request Collaboration Chat Button
+                    InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RequestChatScreen(
+                              requestNumber: req.requestNumber,
+                              requestTitle: req.title.isNotEmpty ? req.title : req.payeeName,
+                              currentUser: _currentUser,
+                            ),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.chat_bubble_outline_rounded, size: 12, color: Color(0xFF047857)),
+                            SizedBox(width: 4),
+                            Text(
+                              'Request Chat',
+                              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFF047857)),
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFA7F3D0)),
                     ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.chat_bubble_outline_rounded, size: 12, color: Color(0xFF047857)),
-                        SizedBox(width: 4),
-                        Text(
-                          'Request Chat',
-                          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFF047857)),
+                    if (req.approvalStatus != 'APPROVED') ...[
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: () => _confirmDeleteRequest(req),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFFECACA)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.delete_outline_rounded, size: 12, color: Color(0xFFDC2626)),
+                              SizedBox(width: 3),
+                              Text(
+                                'Delete',
+                                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFFDC2626)),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    ],
+                  ],
                 ),
 
                 if (req.paymentStatus == 'PAID')

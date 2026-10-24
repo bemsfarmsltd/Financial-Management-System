@@ -782,4 +782,26 @@ class StaffApiService {
 
     return res.statusCode >= 200 && res.statusCode < 300;
   }
+
+  /// Delete/retract a fund request before admin approval
+  static Future<bool> deleteFundRequest({
+    required String requestNumber,
+    required String employeeId,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.delete(
+        Uri.parse('$host/api/requests/${Uri.encodeComponent(requestNumber)}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-employee-id': employeeId,
+        },
+      ),
+    );
+
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return true;
+    }
+    throw Exception(data['error']?.toString() ?? 'Failed to delete fund request.');
+  }
 }

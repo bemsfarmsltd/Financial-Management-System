@@ -100,7 +100,8 @@ export async function GET(
         updatedAt: expenditure.updatedAt,
         subsidiary: expenditure.subsidiary ? {
           id: expenditure.subsidiary.id,
-          name: expenditure.subsidiary.name,
+          name: expenditure.subsidiary.legalName,
+          legalName: expenditure.subsidiary.legalName,
           code: expenditure.subsidiary.code,
         } : null,
         requester: expenditure.requester,
@@ -143,5 +144,151 @@ export async function GET(
   } catch (error: any) {
     console.error("Error retrieving fund request detail:", error);
     return NextResponse.json({ error: error.message || "Failed to retrieve fund request detail" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ requestNumber?: string; id?: string }> }
+) {
+  try {
+    let actor = await getAuthenticatedEmployee(request);
+    if (!actor) {
+      const fallbackEmpId = request.headers.get("x-employee-id");
+      if (fallbackEmpId) {
+        const emp = await prisma.employee.findUnique({
+          where: { id: fallbackEmpId },
+          select: { id: true, employeeNumber: true, legalName: true, workEmail: true, role: true, status: true, approvalStatus: true },
+        });
+        if (emp && emp.status === "ACTIVE" && emp.approvalStatus === "APPROVED") {
+          actor = emp as any;
+        }
+      }
+    }
+
+    if (!actor) {
+      return NextResponse.json({ error: "Unauthorized. Please sign in to delete request." }, { status: 401 });
+    }
+
+    const resolvedParams = await params;
+    const id = resolvedParams.requestNumber || resolvedParams.id;
+    if (!id) {
+      return NextResponse.json({ error: "Request identifier is required." }, { status: 400 });
+    }
+
+    const expenditure = await prisma.expenditureRequest.findFirst({
+      where: {
+        OR: [
+          { id: id },
+          { requestNumber: id },
+          { requestNumber: id.toUpperCase() },
+        ],
+      },
+      include: {
+        approvalSteps: true,
+        channel: true,
+        disbursements: true,
+      },
+    });
+
+    if (!expenditure) {
+      return NextResponse.json({ error: `Fund request '${id}' not found.` }, { status: 404 });
+    }
+
+    // Authorization: Only owner or Executive Admin/GMD
+    const isOwner = expenditure.requestedById === actor.id;
+    const isExecutiveAdmin = ["SYSTEM_ADMIN", "GMD"].includes(actor.role);
+    if (!isOwner && !isExecutiveAdmin) {
+      return NextResponse.json({ error: "Permission denied. You can only delete your own fund requests." }, { status: 403 });
+    }
+
+    // Business Rules: Staff cannot delete once admin approve
+    if (expenditure.approvalStatus === "APPROVED") {
+      return NextResponse.json(
+        { error: "Cannot delete request: This requisition has already been approved by Admin/Management." },
+        { status: 400 }
+      );
+    }
+
+    const hasApprovedStep = expenditure.approvalSteps.some((s) => s.status === "APPROVED");
+    if (hasApprovedStep) {
+      return NextResponse.json(
+        { error: "Cannot delete request: Approval workflow has already commenced and been signed off." },
+        { status: 400 }
+      );
+    }
+
+    if (expenditure.paymentStatus !== "UNPAID" || expenditure.disbursements.length > 0) {
+      return NextResponse.json(
+        { error: "Cannot delete request: Funds have already been scheduled or disbursed." },
+        { status: 400 }
+      );
+    }
+
+    // Cascading deletion inside transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete Channel Messages and Followup Tasks
+      if (expenditure.channel) {
+        await tx.channelMessage.deleteMany({
+          where: { channelId: expenditure.channel.id },
+        });
+        await tx.followupTask.deleteMany({
+          where: { channelId: expenditure.channel.id },
+        });
+        await tx.requestChannel.delete({
+          where: { id: expenditure.channel.id },
+        });
+      }
+
+      // 2. Delete Approval Steps
+      await tx.approvalStep.deleteMany({
+        where: { requestId: expenditure.id },
+      });
+
+      // 3. Delete Attachments
+      await tx.attachment.deleteMany({
+        where: {
+          OR: [
+            { requestId: expenditure.id },
+            { ownerType: "EXPENDITURE_REQUEST", ownerId: expenditure.id },
+          ],
+        },
+      });
+
+      // 4. Delete Accountability Case if any
+      await tx.accountabilityCase.deleteMany({
+        where: { requestId: expenditure.id },
+      });
+
+      // 5. Delete the Expenditure Request
+      await tx.expenditureRequest.delete({
+        where: { id: expenditure.id },
+      });
+
+      // 6. Log audit event
+      await tx.auditLog.create({
+        data: {
+          action: "REQUEST_DELETED_BY_STAFF",
+          entityType: "EXPENDITURE_REQUEST",
+          entityId: expenditure.id,
+          performedById: actor!.id,
+          details: {
+            requestNumber: expenditure.requestNumber,
+            amountMinor: Number(expenditure.amountMinor),
+            deletedBy: actor!.legalName,
+            deletedAt: new Date().toISOString(),
+          },
+        },
+      });
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Fund requisition ${expenditure.requestNumber} was successfully deleted.`,
+      requestNumber: expenditure.requestNumber,
+    });
+  } catch (error: any) {
+    console.error("Error deleting fund request:", error);
+    return NextResponse.json({ error: error.message || "Failed to delete fund request" }, { status: 500 });
   }
 }
