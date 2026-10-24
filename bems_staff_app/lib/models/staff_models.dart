@@ -267,34 +267,45 @@ class FundRequestItem {
   });
 
   factory FundRequestItem.fromJson(Map<String, dynamic> json) {
+    double parsedAmount = 0.0;
+    if (json['amountNaira'] is num) {
+      parsedAmount = (json['amountNaira'] as num).toDouble();
+    } else if (json['amount'] is num) {
+      parsedAmount = (json['amount'] as num).toDouble();
+    } else if (json['amountMinor'] is num) {
+      parsedAmount = (json['amountMinor'] as num).toDouble() / 100.0;
+    } else {
+      parsedAmount = (num.tryParse(json['amountNaira']?.toString() ?? json['amount']?.toString() ?? '0') ?? 0).toDouble();
+    }
+
     return FundRequestItem(
       id: json['id']?.toString() ?? '',
       requestNumber: json['requestNumber'] ?? json['code'] ?? '',
-      title: json['title'] ?? json['purpose'] ?? '',
-      purpose: json['purpose'] ?? json['title'] ?? '',
-      justification: json['justification'] ?? '',
-      deliverable: json['deliverable'] ?? '',
+      title: json['title'] ?? json['description'] ?? json['purpose'] ?? 'Expenditure Request',
+      purpose: json['purpose'] ?? json['description'] ?? json['title'] ?? 'Requisition',
+      justification: json['justification'] ?? json['businessJustification'] ?? '',
+      deliverable: json['deliverable'] ?? json['retirementProofRequired'] ?? '',
       category: json['category'] ?? 'OPERATIONAL',
-      subsidiary: json['subsidiary'] is Map ? (json['subsidiary']['legalName'] ?? '') : (json['subsidiary'] ?? ''),
-      department: json['department'] ?? '',
-      amountNaira: (json['amountNaira'] is num)
-          ? (json['amountNaira'] as num).toDouble()
-          : (num.tryParse(json['amountNaira']?.toString() ?? '0') ?? 0).toDouble(),
+      subsidiary: json['subsidiary'] is Map
+          ? (json['subsidiary']['legalName'] ?? '')
+          : (json['subsidiaryName'] ?? json['subsidiary'] ?? ''),
+      department: json['department'] ?? json['departmentName'] ?? '',
+      amountNaira: parsedAmount,
       urgency: json['urgency'] ?? 'NORMAL',
-      approvalStatus: json['approvalStatus'] ?? 'SUBMITTED',
+      approvalStatus: json['approvalStatus'] ?? json['status'] ?? 'SUBMITTED',
       paymentStatus: json['paymentStatus'] ?? 'PENDING',
       accountabilityStatus: json['accountabilityStatus'] ?? 'PENDING',
-      createdAt: json['createdAt'] ?? '',
+      createdAt: json['createdAt'] ?? json['submittedDate'] ?? '',
       neededBy: json['neededBy'] ?? '',
-      payeeName: json['beneficiary'] ?? json['payeeName'] ?? '',
+      payeeName: json['beneficiary'] ?? json['payeeName'] ?? json['subsidiaryName'] ?? '',
       avatarUrl: json['avatarUrl'] ?? '',
       lineItems: (json['lineItems'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const [],
-      currentApproverStage: json['currentApproverStage'] ?? '',
+      currentApproverStage: json['currentApproverStage'] ?? json['statusLabel'] ?? '',
       dueDate: json['dueDate'] ?? '',
       isRecurring: json['isRecurring'] == true,
       recurringInterval: json['recurringInterval']?.toString(),
       nextRecurringDate: json['nextRecurringDate']?.toString(),
-      vendorName: json['vendorName']?.toString() ?? json['vendor']?.toString() ?? '',
+      vendorName: json['vendorName']?.toString() ?? (json['vendor'] is Map ? json['vendor']['name']?.toString() : json['vendor']?.toString()) ?? '',
       isIntercompany: json['isIntercompany'] == true,
       attachments: (json['attachments'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const [],
     );

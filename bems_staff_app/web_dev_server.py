@@ -117,9 +117,12 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(err_json)
 
+class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
 def main():
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("", PORT), ProxyHTTPRequestHandler) as httpd:
+    with ThreadedHTTPServer(("", PORT), ProxyHTTPRequestHandler) as httpd:
         print(f"🚀 BEMS Staff App running at: http://localhost:{PORT}")
         print(f"🔗 Proxying /api/* requests to: {LIVE_BACKEND}")
         httpd.serve_forever()

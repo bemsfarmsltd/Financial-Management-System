@@ -141,25 +141,47 @@ class StaffApiService {
 
         List<FundRequestItem> liveRequests = [];
         if (responses[0].statusCode == 200) {
-          final data = jsonDecode(responses[0].body);
-          final list = (data['requests'] as List<dynamic>?) ?? [];
-          liveRequests = list.map((item) => FundRequestItem.fromJson(item)).toList();
+          final decoded = jsonDecode(responses[0].body);
+          List<dynamic> list = [];
+          if (decoded is List) {
+            list = decoded;
+          } else if (decoded is Map && decoded['requests'] is List) {
+            list = decoded['requests'] as List<dynamic>;
+          }
+          liveRequests = list
+              .whereType<Map>()
+              .map((item) => FundRequestItem.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
         }
 
         List<DisbursementItem> liveDisbursements = [];
         if (responses[1].statusCode == 200) {
-          final data = jsonDecode(responses[1].body);
-          final list = (data['awaitingConfirmation'] as List<dynamic>?) ?? [];
-          liveDisbursements =
-              list.map((item) => DisbursementItem.fromJson(item)).toList();
+          final decoded = jsonDecode(responses[1].body);
+          List<dynamic> list = [];
+          if (decoded is Map && decoded['awaitingConfirmation'] is List) {
+            list = decoded['awaitingConfirmation'] as List<dynamic>;
+          } else if (decoded is List) {
+            list = decoded;
+          }
+          liveDisbursements = list
+              .whereType<Map>()
+              .map((item) => DisbursementItem.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
         }
 
         List<AccountabilityCaseItem> liveCases = [];
         if (responses[2].statusCode == 200) {
-          final data = jsonDecode(responses[2].body);
-          final list = (data['cases'] as List<dynamic>?) ?? [];
-          liveCases =
-              list.map((item) => AccountabilityCaseItem.fromJson(item)).toList();
+          final decoded = jsonDecode(responses[2].body);
+          List<dynamic> list = [];
+          if (decoded is Map && decoded['cases'] is List) {
+            list = decoded['cases'] as List<dynamic>;
+          } else if (decoded is List) {
+            list = decoded;
+          }
+          liveCases = list
+              .whereType<Map>()
+              .map((item) => AccountabilityCaseItem.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
         }
 
         _activeBaseUrl = host;
