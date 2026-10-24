@@ -178,12 +178,13 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          req.requestNumber,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFFEA580C)),
+                          req.title.isNotEmpty ? req.title : req.requestNumber,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
                         ),
+                        const SizedBox(height: 2),
                         Text(
-                          '${req.subsidiary} · ${req.department}',
-                          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                          '${req.requestNumber} · ${req.subsidiary}${req.department.isNotEmpty ? " · " + req.department : ""}',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFFEA580C), fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
@@ -237,7 +238,14 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           children: [
                             const Text('PAYEE / BENEFICIARY', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
                             const SizedBox(height: 2),
-                            Text(req.payeeName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                            Text(
+                              req.payeeName.isNotEmpty
+                                  ? req.payeeName
+                                  : (req.vendorName != null && req.vendorName!.isNotEmpty
+                                      ? req.vendorName!
+                                      : (req.subsidiary.isNotEmpty ? req.subsidiary : 'BEMS Internal Payee')),
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                            ),
                             Text('Category: ${req.category} · Priority: ${req.urgency}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                           ],
                         ),
@@ -2835,7 +2843,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              req.payeeName,
+                              req.title.isNotEmpty ? req.title : (req.purpose.isNotEmpty ? req.purpose : req.requestNumber),
                               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -2856,7 +2864,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${req.requestNumber} · Due: ${req.dueDate.split(",").first}',
+                        [
+                          req.requestNumber,
+                          if (req.subsidiary.isNotEmpty) req.subsidiary,
+                          if (req.dueDate.isNotEmpty && req.dueDate.trim() != 'Due:')
+                            'Due: ${req.dueDate.split(",").first.replaceAll("Due:", "").trim()}',
+                        ].where((s) => s.isNotEmpty).join(' · '),
                         style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
                       ),
                     ],

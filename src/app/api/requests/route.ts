@@ -176,6 +176,16 @@ export async function GET(request: Request) {
         comments,
         channelComments: comments,
         vendor: req.vendor ? { id: req.vendor.id, name: req.vendor.name, code: req.vendor.code } : null,
+        neededBy: req.neededBy ? new Date(req.neededBy).toISOString() : null,
+        dueDate: req.neededBy ? new Date(req.neededBy).toLocaleDateString("en-NG", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        }) : null,
+        justification: req.justification,
+        deliverable: req.deliverable,
+        isRecurring: req.isRecurring,
+        recurringInterval: req.recurringInterval,
       };
     });
 
