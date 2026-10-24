@@ -170,6 +170,7 @@ export function ApprovalsDeskView({
   const [decisionNote, setDecisionNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // New request modal
   const [newRequestOpen, setNewRequestOpen] = useState(false);
@@ -184,9 +185,18 @@ export function ApprovalsDeskView({
   const fetchApprovals = async () => {
     try {
       setLoading(true);
+      setFetchError(null);
       const url = `/api/approvals?subsidiary=${encodeURIComponent(selectedSubsidiary)}`;
       const res = await fetch(url, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to load approvals queue');
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error('Your session expired. Please refresh the page or sign in again.');
+        }
+        if (res.status === 403) {
+          throw new Error('Executive authorization required. Your current account does not have approvals permission.');
+        }
+        throw new Error(`Failed to load approvals queue (${res.status})`);
+      }
       const data = await res.json();
       setRequests(data.requests || []);
       setSummary(data.summary || {});
@@ -196,6 +206,7 @@ export function ApprovalsDeskView({
       }
     } catch (err: any) {
       console.error(err);
+      setFetchError(err.message || 'Could not load approvals queue');
       setNotice('Could not refresh approvals queue: ' + err.message);
     } finally {
       setLoading(false);
@@ -938,6 +949,39 @@ export function ApprovalsDeskView({
           <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b' }}>
             <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
             <p style={{ margin: 0, fontSize: '11px', fontWeight: 600 }}>Loading executive approvals queue…</p>
+          </div>
+        ) : fetchError ? (
+          <div
+            style={{
+              padding: '36px 20px',
+              textAlign: 'center',
+              background: '#fff5f5',
+              borderRadius: '10px',
+              border: '1px solid #fed7d7',
+            }}
+          >
+            <AlertCircle size={28} color="#e53e3e" style={{ margin: '0 auto 8px' }} />
+            <h3 style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 700, color: '#9b2c2c' }}>
+              Connection or Session Interrupted
+            </h3>
+            <p style={{ margin: '0 auto 12px', fontSize: '11px', color: '#c53030', maxWidth: '420px', lineHeight: 1.5 }}>
+              {fetchError}
+            </p>
+            <button
+              onClick={() => fetchApprovals()}
+              style={{
+                padding: '7px 14px',
+                borderRadius: '6px',
+                border: '1px solid #e53e3e',
+                background: '#e53e3e',
+                fontSize: '11px',
+                fontWeight: 700,
+                color: '#fff',
+                cursor: 'pointer',
+              }}
+            >
+              Retry Approvals Queue
+            </button>
           </div>
         ) : filteredRequests.length === 0 ? (
           <div

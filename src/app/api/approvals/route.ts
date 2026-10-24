@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee } from '@/lib/auth';
 import { toSystemRequestId } from '@/lib/request-id';
+import { resolveOrganizationScope } from '@/lib/organizations';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,11 +21,9 @@ export async function GET(request: Request) {
     } else if (!['SYSTEM_ADMIN', 'GMD', 'HR', 'COO', 'FINANCE', 'DIRECTOR', 'HEAD_OF_ADMIN', 'AI_ANALYST', 'FINANCE_CONTROLLER'].includes(actor.role)) {
       return NextResponse.json({ error: 'You do not have access to request records.' }, { status: 403 });
     }
-    if (subsidiaryCode && subsidiaryCode !== 'ALL') {
-      whereCondition.OR = [
-        { subsidiary: { code: subsidiaryCode } },
-        { subsidiaryId: subsidiaryCode },
-      ];
+    const scopedOrgIds = await resolveOrganizationScope(subsidiaryCode);
+    if (scopedOrgIds && scopedOrgIds.length > 0) {
+      whereCondition.subsidiaryId = { in: scopedOrgIds };
     }
 
     if (statusParam && statusParam !== 'ALL') {
@@ -188,7 +187,7 @@ export async function GET(request: Request) {
     const urgentCount = pendingList.filter((r) => r.isUrgent).length;
     const clarificationCount = pendingList.filter((r) => r.approvalStatus === 'CLARIFICATION_REQUESTED').length;
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       summary: {
         totalPendingCount,
         totalPendingAmount,
@@ -201,6 +200,8 @@ export async function GET(request: Request) {
       organizations,
       requests: formattedRequests,
     });
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    return response;
   } catch (error: any) {
     console.error('Error fetching approvals queue:', error);
     return NextResponse.json({ error: error.message || 'Failed to fetch approvals' }, { status: 500 });

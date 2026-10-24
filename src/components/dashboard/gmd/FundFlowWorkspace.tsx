@@ -35,14 +35,21 @@ export function FundFlowWorkspace({
       if (approvalsResponse.ok) {
         const approvals = await approvalsResponse.json();
         setReviewCount(Number(approvals.summary?.totalPendingCount ?? 0));
+      } else {
+        setReviewCount((prev) => (prev !== null ? prev : 0));
       }
       if (paymentsResponse.ok) {
         const payments = await paymentsResponse.json();
         setReadyCount(Array.isArray(payments.readyForTransfer) ? payments.readyForTransfer.length : 0);
         setConfirmationCount(Number(payments.summary?.awaitingCount ?? 0));
+      } else {
+        setReadyCount((prev) => (prev !== null ? prev : 0));
+        setConfirmationCount((prev) => (prev !== null ? prev : 0));
       }
     } catch {
-      // The stage links remain usable if count refresh is temporarily unavailable.
+      setReviewCount((prev) => (prev !== null ? prev : 0));
+      setReadyCount((prev) => (prev !== null ? prev : 0));
+      setConfirmationCount((prev) => (prev !== null ? prev : 0));
     } finally {
       setRefreshing(false);
     }

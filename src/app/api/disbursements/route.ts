@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requestIdentifierWhere, toSystemRequestId } from '@/lib/request-id';
 import crypto from 'crypto';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { resolveOrganizationScope } from '@/lib/organizations';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const subsidiary = searchParams.get('subsidiary') || 'ALL';
 
-    const orgFilter = subsidiary !== 'ALL' ? { subsidiaryId: subsidiary } : {};
+    const scopedOrgIds = await resolveOrganizationScope(subsidiary);
+    const orgFilter = scopedOrgIds && scopedOrgIds.length > 0 ? { subsidiaryId: { in: scopedOrgIds } } : {};
+    const payerOrgFilter = scopedOrgIds && scopedOrgIds.length > 0 ? { payerOrgId: { in: scopedOrgIds } } : {};
 
     // 1. Ready for Transfer (Approved, UNPAID)
     const approvedRequests = await prisma.expenditureRequest.findMany({
@@ -45,7 +48,7 @@ export async function GET(req: NextRequest) {
     const awaitingChecker = await prisma.disbursement.findMany({
       where: {
         status: { in: ['AWAITING_RECIPIENT_CONFIRMATION', 'RECIPIENT_REPORTED_ISSUE', 'PENDING_VERIFICATION'] },
-        ...(subsidiary !== 'ALL' ? { payerOrgId: subsidiary } : {})
+        ...payerOrgFilter
       },
       include: {
         payerOrg: { select: { id: true, legalName: true, code: true } },
@@ -118,7 +121,7 @@ export async function GET(req: NextRequest) {
       } : null
     }));
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       readyForTransfer: safeApproved,
       awaitingChecker: safeAwaiting,
       verifiedDisbursements: safeVerified,
@@ -131,6 +134,8 @@ export async function GET(req: NextRequest) {
         verifiedCount: verifiedDisbursements.length
       }
     });
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    return response;
   } catch (error: any) {
     console.error('Error fetching disbursements:', error);
     return NextResponse.json({ error: error.message || 'Failed to fetch disbursements' }, { status: 500 });

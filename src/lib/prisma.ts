@@ -24,3 +24,32 @@ export const prisma =
 
 // Always maintain a single singleton client across all requests in the process
 globalForPrisma.prisma = prisma;
+
+/**
+ * Executes a Prisma query with automatic retry on transient pooler / socket drops.
+ */
+export async function withPrismaRetry<T>(
+  queryFn: () => Promise<T>,
+  maxRetries = 2,
+  delayMs = 120
+): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await queryFn();
+    } catch (err: any) {
+      attempt++;
+      const message = String(err?.message || "");
+      const isTransient =
+        message.includes("closed the connection") ||
+        message.includes("Can't reach database server") ||
+        message.includes("timed out") ||
+        message.includes("connection pool");
+
+      if (attempt > maxRetries || !isTransient) {
+        throw err;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+    }
+  }
+}
