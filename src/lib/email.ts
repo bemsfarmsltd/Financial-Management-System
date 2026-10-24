@@ -204,7 +204,7 @@ function wrapEmailTemplate({
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
           <tr>
             <td width="52" style="vertical-align: middle;">
-              <img src="https://bemserp.work/bems-mark.png" alt="BEMS Group" width="46" height="46" style="border-radius: 8px; display: block; border: 0;" />
+              <img src="https://bemserp.work/bems-group-logo.png?v=20261024" alt="BEMS Group" width="46" height="46" style="border-radius: 8px; display: block; border: 0;" />
             </td>
             <td style="padding-left: 14px; vertical-align: middle;">
               <h1 style="margin: 0; font-size: 21px; font-weight: 900; letter-spacing: -0.025em; text-transform: uppercase; color: #0f172a; line-height: 1.1;">BEMS GROUP</h1>
@@ -243,7 +243,7 @@ function wrapEmailTemplate({
               <table role="presentation" cellpadding="0" cellspacing="0">
                 <tr>
                   <td width="32" style="vertical-align: middle;">
-                    <img src="https://bemserp.work/bems-mark.png" alt="" width="28" height="28" style="border-radius: 6px; display: block; border: 0;" />
+                    <img src="https://bemserp.work/bems-group-logo.png?v=20261024" alt="" width="28" height="28" style="border-radius: 6px; display: block; border: 0;" />
                   </td>
                   <td style="padding-left: 8px; vertical-align: middle;">
                     <strong style="display: block; font-size: 12px; font-weight: 900; color: #0f172a; line-height: 1.1;">BEMS GROUP</strong>

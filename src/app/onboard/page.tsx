@@ -202,7 +202,7 @@ function OnboardingContent() {
       <div style={{ width: '100%', maxWidth: 680 }}>
         {/* Brand Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-          <img src="/bems-mark.png" alt="BEMS Group" width={42} height={42} style={{ borderRadius: 8 }} />
+          <img src="/bems-group-logo.png?v=20261024" alt="BEMS Group" width={42} height={42} style={{ borderRadius: 8 }} />
           <div>
             <h1 style={{ margin: 0, fontSize: 19, fontWeight: 900, letterSpacing: '-0.02em', textTransform: 'uppercase', color: '#0f172a' }}>
               BEMS GROUP

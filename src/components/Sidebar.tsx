@@ -103,7 +103,7 @@ export function Sidebar() {
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl overflow-hidden shadow-lg shadow-orange-500/10 flex items-center justify-center bg-slate-900 border border-slate-700/60">
             <img
-              src="/bems-logo.png"
+              src="/bems-group-logo.png?v=20261024"
               alt="BEMS Group Logo"
               className="h-full w-full object-contain"
             />

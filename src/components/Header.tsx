@@ -44,7 +44,7 @@ export function Header() {
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-lg overflow-hidden flex items-center justify-center bg-slate-900 border border-slate-200/80 shadow-xs">
             <img
-              src="/bems-logo.png"
+              src="/bems-group-logo.png?v=20261024"
               alt="BEMS Group Logo"
               className="h-full w-full object-contain"
             />

@@ -96,7 +96,7 @@ export function StaffAppShell({
             <div className="flex items-center gap-2.5">
               <div className="h-9 w-9 rounded-xl overflow-hidden flex items-center justify-center bg-slate-900 border border-slate-700 shadow-md shadow-orange-500/10">
                 <img
-                  src="/bems-logo.png"
+                  src="/bems-group-logo.png?v=20261024"
                   alt="BEMS Group Logo"
                   className="h-full w-full object-contain"
                 />

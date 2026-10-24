@@ -11,11 +11,11 @@ export const metadata: Metadata = {
   description: "BEMS Group multi-subsidiary financial operations, request channels, disbursements and accountability system",
   icons: {
     icon: [
-      { url: "/bems-mark.png?v=2", type: "image/png" },
-      { url: "/favicon.ico?v=2" },
+      { url: "/bems-group-logo.png?v=20261024", type: "image/png" },
+      { url: "/favicon.ico?v=20261024" },
     ],
-    shortcut: "/bems-mark.png?v=2",
-    apple: "/bems-mark.png?v=2",
+    shortcut: "/bems-group-logo.png?v=20261024",
+    apple: "/bems-group-logo.png?v=20261024",
   },
 };
 

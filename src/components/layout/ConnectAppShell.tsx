@@ -235,7 +235,7 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
       <aside className="sidebar">
         <div className="sidebar-circuit" aria-hidden="true"><i/><i/><i/><i/><i/><i/></div>
         <div className="side-brand">
-          <img src="/bems-mark.png" alt="BEMS Logo" style={{ width: '30px', height: '30px', objectFit: 'contain' }} />
+          <img src="/bems-group-logo.png?v=20261024" alt="BEMS Logo" style={{ width: '30px', height: '30px', objectFit: 'contain' }} />
           <div className="brand-title-wrap" style={{ display: 'flex', flexDirection: 'row', alignItems: 'baseline', gap: '6px', whiteSpace: 'nowrap' }}>
             <span className="brand-name" style={{ display: 'inline-block', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif", fontSize: '16px', fontWeight: 850, letterSpacing: '-0.02em', color: '#ffffff', lineHeight: 1 }}>BEMS</span>
             <span className="brand-sub" style={{ display: 'inline-block', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif", fontSize: '15px', fontWeight: 800, letterSpacing: '0.04em', color: '#f97316', lineHeight: 1 }}>GROUP</span>
