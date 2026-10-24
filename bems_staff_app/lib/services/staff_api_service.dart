@@ -29,6 +29,14 @@ class StaffApiService {
         lastError = e;
       }
     }
+
+    final errStr = lastError.toString();
+    if (errStr.contains('SocketException') ||
+        errStr.contains('Failed host lookup') ||
+        errStr.contains('ClientException') ||
+        errStr.contains('errno = 7')) {
+      throw Exception('Unable to reach BEMS Enterprise servers. Please check your mobile data or Wi-Fi internet connection and try again.');
+    }
     throw lastError is Exception
         ? lastError
         : Exception('Connection failed. Please check your internet connectivity.');

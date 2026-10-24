@@ -54,7 +54,14 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
         MaterialPageRoute(builder: (_) => StaffMainScreen(user: user)),
       );
     } catch (e) {
-      setState(() => _errorMessage = e.toString().replaceAll('Exception: ', ''));
+      final raw = e.toString().replaceAll('Exception: ', '');
+      final friendly = raw.contains('SocketException') ||
+              raw.contains('Failed host lookup') ||
+              raw.contains('ClientException') ||
+              raw.contains('errno = 7')
+          ? 'Unable to reach servers. Please check your mobile data or Wi-Fi internet connection and try again.'
+          : raw;
+      setState(() => _errorMessage = friendly);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
