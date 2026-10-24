@@ -2,84 +2,156 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { ConnectAppShell } from '@/components/layout/ConnectAppShell';
+import { Code2, ArrowLeft, ArrowRight, Wallet, Cloud, Bot, Key } from 'lucide-react';
 
 export default function InnovationPortalPage() {
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        background: 'radial-gradient(ellipse at 50% 0%, #0369a1 0%, #070d17 70%, #030712 100%)',
-        color: '#f8fafc',
-        fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
-        padding: '0 0 60px',
-      }}
-    >
-      {/* HEADER */}
-      <header
-        style={{
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          background: 'rgba(7, 13, 23, 0.75)',
-          backdropFilter: 'blur(16px)',
-          padding: '16px 24px',
-        }}
-      >
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-            <img src="/bems-group-logo.png?v=20261024" alt="BEMS logo" style={{ width: 34, height: 34, background: '#fff', borderRadius: 8, padding: 2 }} />
-            <div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
-                <strong style={{ fontSize: '17px', fontWeight: 900, color: '#fff' }}>BEMS</strong>
-                <span style={{ fontSize: '15px', fontWeight: 800, color: '#0ea5e9' }}>INNOVATION</span>
-              </div>
-            </div>
-          </Link>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <Link href="/" style={{ padding: '7px 14px', borderRadius: '8px', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>
-              ← ERP Suite Hub
-            </Link>
-            <Link href="/finance" style={{ padding: '7px 14px', borderRadius: '8px', background: 'linear-gradient(135deg, #f97316, #ea580c)', color: '#fff', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
-              Finance Desk →
-            </Link>
+    <ConnectAppShell>
+      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '16px 8px 48px' }}>
+        {/* HEADER CARD */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%)',
+            border: '1px solid #bae6fd',
+            borderRadius: '16px',
+            padding: '28px 32px',
+            marginBottom: '24px',
+            boxShadow: '0 4px 16px -2px rgba(15, 23, 42, 0.04)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#e0f2fe',
+                color: '#0369a1',
+                fontSize: '11px',
+                fontWeight: 800,
+                padding: '3px 10px',
+                borderRadius: '999px',
+                letterSpacing: '0.04em',
+              }}
+            >
+              <Code2 size={13} />
+              TECH & INNOVATION PILLAR · PHASE 3 PIPELINE
+            </span>
           </div>
-        </div>
-      </header>
 
-      {/* CONTENT */}
-      <div style={{ maxWidth: '900px', margin: '60px auto 0', padding: '0 24px', textAlign: 'center' }}>
-        <div style={{ display: 'inline-block', padding: '4px 14px', borderRadius: '999px', background: 'rgba(14, 165, 233, 0.15)', border: '1px solid rgba(14, 165, 233, 0.3)', color: '#38bdf8', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '16px' }}>
-          TECH & INNOVATION PILLAR · IN ACTIVE DEVELOPMENT
+          <h1 style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', margin: '0 0 10px' }}>
+            Innovation, Cloud Tech & Software R&D
+          </h1>
+          <p style={{ fontSize: '14px', color: '#64748b', lineHeight: 1.6, margin: 0 }}>
+            Central software delivery repository, Hostinger cloud infrastructure orchestration,
+            internal API gateways, and digital automation projects for <strong style={{ color: '#0f172a' }}>BemsSoft Hub Ltd</strong>.
+          </p>
         </div>
-        <h1 style={{ fontSize: '38px', fontWeight: 900, color: '#ffffff', margin: '0 0 16px', letterSpacing: '-0.02em' }}>
-          Innovation, Cloud Tech & Software R&D
-        </h1>
-        <p style={{ fontSize: '15px', color: '#94a3b8', lineHeight: 1.6, maxWidth: '640px', margin: '0 auto 40px' }}>
-          Central software delivery portal, cloud infrastructure management, internal API gateways, and digital automation projects for <strong style={{ color: '#fff' }}>BemsSoft Hub Ltd</strong>.
-        </p>
 
-        {/* ROADMAP MODULES */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', textAlign: 'left', marginBottom: '40px' }}>
+        {/* ROADMAP MODULES GRID */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '28px' }}>
           {[
-            { title: 'Cloud Infrastructure & Deployments', desc: 'Hostinger cloud instances, cluster telemetry, and domain orchestration.', tag: 'Phase 3.1' },
-            { title: 'AI Automation & System Workflows', desc: 'Predictive intelligence pipelines, internal bot bridges, and automated triggers.', tag: 'Phase 3.2' },
-            { title: 'Software Client Delivery & Licenses', desc: 'Custom enterprise software repositories, customer billing, and SLAs.', tag: 'Phase 3.3' },
-          ].map((m) => (
-            <div key={m.title} style={{ padding: '20px', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-              <span style={{ fontSize: '10px', fontWeight: 800, color: '#38bdf8', background: 'rgba(14, 165, 233, 0.15)', padding: '2px 8px', borderRadius: '4px' }}>{m.tag}</span>
-              <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', margin: '10px 0 6px' }}>{m.title}</h3>
-              <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>{m.desc}</p>
-            </div>
-          ))}
+            {
+              icon: Cloud,
+              tag: 'Phase 3.1',
+              title: 'Cloud Infrastructure & Deployments',
+              desc: 'Hostinger cloud instances, cluster telemetry, CI/CD auto-deploys, and domain DNS routing.',
+            },
+            {
+              icon: Bot,
+              tag: 'Phase 3.2',
+              title: 'AI Automation & System Workflows',
+              desc: 'BEMi ledger intelligence assistant, WhatsApp/Slack webhook bots, and event triggers.',
+            },
+            {
+              icon: Key,
+              tag: 'Phase 3.3',
+              title: 'Software Client Delivery & Licenses',
+              desc: 'Custom enterprise software packages, customer tenant licensing, and SLA compliance logs.',
+            },
+          ].map((m) => {
+            const Icon = m.icon;
+            return (
+              <div
+                key={m.title}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '14px',
+                  padding: '20px',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <div
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '10px',
+                      background: '#f0f9ff',
+                      border: '1px solid #bae6fd',
+                      color: '#0284c7',
+                      display: 'grid',
+                      placeItems: 'center',
+                    }}
+                  >
+                    <Icon size={20} />
+                  </div>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#0284c7', background: '#f0f9ff', padding: '2px 8px', borderRadius: '4px' }}>
+                    {m.tag}
+                  </span>
+                </div>
+                <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>{m.title}</h3>
+                <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.4, margin: 0 }}>{m.desc}</p>
+              </div>
+            );
+          })}
         </div>
 
-        <div style={{ display: 'flex', gap: '14px', justifyContent: 'center' }}>
-          <Link href="/" style={{ padding: '10px 20px', borderRadius: '8px', background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-            Return to ERP Suite Gateway
+        {/* NAVIGATION SHORTCUTS */}
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <Link
+            href="/"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '10px 18px',
+              borderRadius: '8px',
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              color: '#334155',
+              fontSize: '13px',
+              fontWeight: 700,
+              textDecoration: 'none',
+            }}
+          >
+            <ArrowLeft size={14} />
+            <span>Return to Department Suite</span>
           </Link>
-          <Link href="/finance" style={{ padding: '10px 20px', borderRadius: '8px', background: 'linear-gradient(135deg, #f97316, #ea580c)', color: '#fff', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-            Switch to Active Finance Desk →
+          <Link
+            href="/finance"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '10px 18px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+              color: '#ffffff',
+              fontSize: '13px',
+              fontWeight: 700,
+              textDecoration: 'none',
+              boxShadow: '0 2px 8px rgba(234, 88, 12, 0.2)',
+            }}
+          >
+            <Wallet size={14} />
+            <span>Switch to Active Finance Desk</span>
+            <ArrowRight size={14} />
           </Link>
         </div>
       </div>
-    </main>
+    </ConnectAppShell>
   );
 }

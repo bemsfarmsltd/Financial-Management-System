@@ -2,84 +2,156 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { ConnectAppShell } from '@/components/layout/ConnectAppShell';
+import { Users, ArrowLeft, ArrowRight, Wallet, UserCheck, CalendarDays, Coins } from 'lucide-react';
 
 export default function HumanResourcesPortalPage() {
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        background: 'radial-gradient(ellipse at 50% 0%, #581c87 0%, #070d17 70%, #030712 100%)',
-        color: '#f8fafc',
-        fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
-        padding: '0 0 60px',
-      }}
-    >
-      {/* HEADER */}
-      <header
-        style={{
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          background: 'rgba(7, 13, 23, 0.75)',
-          backdropFilter: 'blur(16px)',
-          padding: '16px 24px',
-        }}
-      >
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-            <img src="/bems-group-logo.png?v=20261024" alt="BEMS logo" style={{ width: 34, height: 34, background: '#fff', borderRadius: 8, padding: 2 }} />
-            <div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
-                <strong style={{ fontSize: '17px', fontWeight: 900, color: '#fff' }}>BEMS</strong>
-                <span style={{ fontSize: '15px', fontWeight: 800, color: '#a855f7' }}>HUMAN RESOURCES</span>
-              </div>
-            </div>
-          </Link>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <Link href="/" style={{ padding: '7px 14px', borderRadius: '8px', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>
-              ← ERP Suite Hub
-            </Link>
-            <Link href="/finance" style={{ padding: '7px 14px', borderRadius: '8px', background: 'linear-gradient(135deg, #f97316, #ea580c)', color: '#fff', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
-              Finance Desk →
-            </Link>
+    <ConnectAppShell>
+      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '16px 8px 48px' }}>
+        {/* HEADER CARD */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 100%)',
+            border: '1px solid #e9d5ff',
+            borderRadius: '16px',
+            padding: '28px 32px',
+            marginBottom: '24px',
+            boxShadow: '0 4px 16px -2px rgba(15, 23, 42, 0.04)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#f3e8ff',
+                color: '#7e22ce',
+                fontSize: '11px',
+                fontWeight: 800,
+                padding: '3px 10px',
+                borderRadius: '999px',
+                letterSpacing: '0.04em',
+              }}
+            >
+              <Users size={13} />
+              PEOPLE & HR PILLAR · PHASE 4 PIPELINE
+            </span>
           </div>
-        </div>
-      </header>
 
-      {/* CONTENT */}
-      <div style={{ maxWidth: '900px', margin: '60px auto 0', padding: '0 24px', textAlign: 'center' }}>
-        <div style={{ display: 'inline-block', padding: '4px 14px', borderRadius: '999px', background: 'rgba(168, 85, 247, 0.15)', border: '1px solid rgba(168, 85, 247, 0.3)', color: '#c084fc', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '16px' }}>
-          PEOPLE & TALENT PILLAR · IN ACTIVE DEVELOPMENT
+          <h1 style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', margin: '0 0 10px' }}>
+            Human Resources & Talent Operations
+          </h1>
+          <p style={{ fontSize: '14px', color: '#64748b', lineHeight: 1.6, margin: 0 }}>
+            Unified staff credentials, employee self-service onboarding, payroll attendance synchronizer,
+            and role-based permissions across all BEMS Group entities.
+          </p>
         </div>
-        <h1 style={{ fontSize: '38px', fontWeight: 900, color: '#ffffff', margin: '0 0 16px', letterSpacing: '-0.02em' }}>
-          Human Resources & Talent Management
-        </h1>
-        <p style={{ fontSize: '15px', color: '#94a3b8', lineHeight: 1.6, maxWidth: '640px', margin: '0 auto 40px' }}>
-          Unified staff records, employee self-service onboarding, payroll attendance synchronizer, and role-based permissions across all BEMS Group entities.
-        </p>
 
-        {/* ROADMAP MODULES */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', textAlign: 'left', marginBottom: '40px' }}>
+        {/* ROADMAP MODULES GRID */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '28px' }}>
           {[
-            { title: 'Employee Directory & Contracts', desc: 'Centralized staff credentials, designations, and subsidiary re-allocations.', tag: 'Phase 4.1' },
-            { title: 'Leave & Attendance Management', desc: 'Real-time clock-in audits, annual leave requests, and supervisor approvals.', tag: 'Phase 4.2' },
-            { title: 'Payroll Disbursals & Compliance', desc: 'Automated tax allowances, pension remittances, and pay-slip distribution.', tag: 'Phase 4.3' },
-          ].map((m) => (
-            <div key={m.title} style={{ padding: '20px', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-              <span style={{ fontSize: '10px', fontWeight: 800, color: '#c084fc', background: 'rgba(168, 85, 247, 0.15)', padding: '2px 8px', borderRadius: '4px' }}>{m.tag}</span>
-              <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', margin: '10px 0 6px' }}>{m.title}</h3>
-              <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>{m.desc}</p>
-            </div>
-          ))}
+            {
+              icon: UserCheck,
+              tag: 'Phase 4.1',
+              title: 'Employee Directory & Contracts',
+              desc: 'Centralized staff credentials, designations, employment contracts, and subsidiary re-allocations.',
+            },
+            {
+              icon: CalendarDays,
+              tag: 'Phase 4.2',
+              title: 'Leave & Attendance Management',
+              desc: 'Real-time clock-in audits, annual leave requests, sick leave approvals, and holiday calendars.',
+            },
+            {
+              icon: Coins,
+              tag: 'Phase 4.3',
+              title: 'Payroll Disbursals & Compliance',
+              desc: 'Automated tax allowances, pension remittances, gross-to-net calculators, and pay-slip distribution.',
+            },
+          ].map((m) => {
+            const Icon = m.icon;
+            return (
+              <div
+                key={m.title}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '14px',
+                  padding: '20px',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <div
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '10px',
+                      background: '#faf5ff',
+                      border: '1px solid #e9d5ff',
+                      color: '#7c3aed',
+                      display: 'grid',
+                      placeItems: 'center',
+                    }}
+                  >
+                    <Icon size={20} />
+                  </div>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#7c3aed', background: '#faf5ff', padding: '2px 8px', borderRadius: '4px' }}>
+                    {m.tag}
+                  </span>
+                </div>
+                <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>{m.title}</h3>
+                <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.4, margin: 0 }}>{m.desc}</p>
+              </div>
+            );
+          })}
         </div>
 
-        <div style={{ display: 'flex', gap: '14px', justifyContent: 'center' }}>
-          <Link href="/" style={{ padding: '10px 20px', borderRadius: '8px', background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-            Return to ERP Suite Gateway
+        {/* NAVIGATION SHORTCUTS */}
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <Link
+            href="/"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '10px 18px',
+              borderRadius: '8px',
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              color: '#334155',
+              fontSize: '13px',
+              fontWeight: 700,
+              textDecoration: 'none',
+            }}
+          >
+            <ArrowLeft size={14} />
+            <span>Return to Department Suite</span>
           </Link>
-          <Link href="/finance" style={{ padding: '10px 20px', borderRadius: '8px', background: 'linear-gradient(135deg, #f97316, #ea580c)', color: '#fff', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-            Switch to Active Finance Desk →
+          <Link
+            href="/finance"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '10px 18px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+              color: '#ffffff',
+              fontSize: '13px',
+              fontWeight: 700,
+              textDecoration: 'none',
+              boxShadow: '0 2px 8px rgba(234, 88, 12, 0.2)',
+            }}
+          >
+            <Wallet size={14} />
+            <span>Switch to Active Finance Desk</span>
+            <ArrowRight size={14} />
           </Link>
         </div>
       </div>
-    </main>
+    </ConnectAppShell>
   );
 }
