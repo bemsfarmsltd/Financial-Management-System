@@ -266,18 +266,23 @@ export async function DELETE(
       });
 
       // 6. Log audit event
-      await tx.auditLog.create({
+      await tx.auditEvent.create({
         data: {
-          action: "REQUEST_DELETED_BY_STAFF",
-          entityType: "EXPENDITURE_REQUEST",
-          entityId: expenditure.id,
-          performedById: actor!.id,
-          details: {
+          actorId: actor!.id,
+          actorName: actor!.legalName,
+          actorRole: actor!.role,
+          groupId: expenditure.groupId,
+          subsidiaryId: expenditure.subsidiaryId,
+          targetType: "REQUEST",
+          targetId: expenditure.id,
+          action: "DELETED",
+          correlationId: expenditure.requestNumber,
+          metadata: JSON.stringify({
             requestNumber: expenditure.requestNumber,
             amountMinor: Number(expenditure.amountMinor),
             deletedBy: actor!.legalName,
             deletedAt: new Date().toISOString(),
-          },
+          }),
         },
       });
     });
