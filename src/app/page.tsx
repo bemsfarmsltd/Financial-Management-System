@@ -2,7 +2,21 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Wallet, Truck, Code2, Users, ArrowRight } from 'lucide-react';
+import {
+  Wallet,
+  Truck,
+  Sprout,
+  Factory,
+  ShoppingBag,
+  Package,
+  Briefcase,
+  Users,
+  Wrench,
+  Scale,
+  ShieldCheck,
+  Code2,
+  ArrowRight,
+} from 'lucide-react';
 
 export default function EnterpriseModulesScreen() {
   const modules = [
@@ -17,7 +31,6 @@ export default function EnterpriseModulesScreen() {
       bgLight: '#fff7ed',
       borderLight: '#fed7aa',
       ctaText: 'Open Finance',
-      isPrimary: true,
     },
     {
       id: 'operations',
@@ -30,20 +43,66 @@ export default function EnterpriseModulesScreen() {
       bgLight: '#ecfdf5',
       borderLight: '#a7f3d0',
       ctaText: 'Open Operations',
-      isPrimary: false,
     },
     {
-      id: 'innovation',
-      title: 'Innovation & Tech',
-      href: '/innovation',
+      id: 'agribusiness',
+      title: 'Agribusiness & Farms',
+      href: '/agribusiness',
       status: 'Coming Soon',
       statusType: 'pipeline',
-      icon: Code2,
-      accentColor: '#0284c7',
-      bgLight: '#f0f9ff',
-      borderLight: '#bae6fd',
-      ctaText: 'Open Innovation',
-      isPrimary: false,
+      icon: Sprout,
+      accentColor: '#16a34a',
+      bgLight: '#f0fdf4',
+      borderLight: '#bbf7d0',
+      ctaText: 'Open Agribusiness',
+    },
+    {
+      id: 'production',
+      title: 'Processing & Production',
+      href: '/production',
+      status: 'Coming Soon',
+      statusType: 'pipeline',
+      icon: Factory,
+      accentColor: '#e11d48',
+      bgLight: '#fff1f2',
+      borderLight: '#fecdd3',
+      ctaText: 'Open Production',
+    },
+    {
+      id: 'procurement',
+      title: 'Procurement & Vendors',
+      href: '/procurement',
+      status: 'Coming Soon',
+      statusType: 'pipeline',
+      icon: ShoppingBag,
+      accentColor: '#d97706',
+      bgLight: '#fffbeb',
+      borderLight: '#fde68a',
+      ctaText: 'Open Procurement',
+    },
+    {
+      id: 'inventory',
+      title: 'Inventory & Warehouse',
+      href: '/inventory',
+      status: 'Coming Soon',
+      statusType: 'pipeline',
+      icon: Package,
+      accentColor: '#0d9488',
+      bgLight: '#f0fdfa',
+      borderLight: '#99f6e4',
+      ctaText: 'Open Inventory',
+    },
+    {
+      id: 'sales',
+      title: 'Sales & Commercial CRM',
+      href: '/sales',
+      status: 'Coming Soon',
+      statusType: 'pipeline',
+      icon: Briefcase,
+      accentColor: '#2563eb',
+      bgLight: '#eff6ff',
+      borderLight: '#bfdbfe',
+      ctaText: 'Open Sales',
     },
     {
       id: 'hr',
@@ -56,7 +115,54 @@ export default function EnterpriseModulesScreen() {
       bgLight: '#faf5ff',
       borderLight: '#e9d5ff',
       ctaText: 'Open HR',
-      isPrimary: false,
+    },
+    {
+      id: 'assets',
+      title: 'Asset & Facilities (EAM)',
+      href: '/assets',
+      status: 'Coming Soon',
+      statusType: 'pipeline',
+      icon: Wrench,
+      accentColor: '#475569',
+      bgLight: '#f8fafc',
+      borderLight: '#cbd5e1',
+      ctaText: 'Open Assets',
+    },
+    {
+      id: 'legal',
+      title: 'Legal & Compliance',
+      href: '/legal',
+      status: 'Coming Soon',
+      statusType: 'pipeline',
+      icon: Scale,
+      accentColor: '#4f46e5',
+      bgLight: '#eef2ff',
+      borderLight: '#c7d2fe',
+      ctaText: 'Open Legal',
+    },
+    {
+      id: 'risk-audit',
+      title: 'Audit & Risk Assurance',
+      href: '/risk-audit',
+      status: 'Coming Soon',
+      statusType: 'pipeline',
+      icon: ShieldCheck,
+      accentColor: '#dc2626',
+      bgLight: '#fef2f2',
+      borderLight: '#fecaca',
+      ctaText: 'Open Audit',
+    },
+    {
+      id: 'innovation',
+      title: 'Innovation & Tech',
+      href: '/innovation',
+      status: 'Coming Soon',
+      statusType: 'pipeline',
+      icon: Code2,
+      accentColor: '#0284c7',
+      bgLight: '#f0f9ff',
+      borderLight: '#bae6fd',
+      ctaText: 'Open Innovation',
     },
   ];
 
@@ -81,7 +187,7 @@ export default function EnterpriseModulesScreen() {
       >
         <div
           style={{
-            maxWidth: '1100px',
+            maxWidth: '1240px',
             margin: '0 auto',
             display: 'flex',
             alignItems: 'center',
@@ -139,17 +245,16 @@ export default function EnterpriseModulesScreen() {
       <main
         style={{
           flex: 1,
-          maxWidth: '1100px',
+          maxWidth: '1240px',
           margin: '0 auto',
           width: '100%',
-          padding: '60px 24px 80px',
+          padding: '40px 24px 60px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
         }}
       >
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <h1
             style={{
               fontSize: '32px',
@@ -166,12 +271,12 @@ export default function EnterpriseModulesScreen() {
           </p>
         </div>
 
-        {/* 4 CLEAN CARDS */}
+        {/* 12 CLEAN CARDS IN BALANCED GRID */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: '20px',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '18px',
             width: '100%',
           }}
         >
@@ -187,13 +292,13 @@ export default function EnterpriseModulesScreen() {
                   background: '#ffffff',
                   border: isLive ? `2px solid ${m.accentColor}` : '1px solid #e2e8f0',
                   borderRadius: '16px',
-                  padding: '28px 24px',
+                  padding: '22px 20px',
                   textDecoration: 'none',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'flex-start',
                   justifyContent: 'space-between',
-                  minHeight: '200px',
+                  minHeight: '175px',
                   boxShadow: isLive ? '0 10px 25px -4px rgba(234, 88, 12, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
                   transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                 }}
@@ -204,14 +309,14 @@ export default function EnterpriseModulesScreen() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      marginBottom: '20px',
+                      marginBottom: '16px',
                       width: '100%',
                     }}
                   >
                     <div
                       style={{
-                        width: '46px',
-                        height: '46px',
+                        width: '42px',
+                        height: '42px',
                         borderRadius: '12px',
                         background: m.bgLight,
                         border: `1px solid ${m.borderLight}`,
@@ -220,7 +325,7 @@ export default function EnterpriseModulesScreen() {
                         placeItems: 'center',
                       }}
                     >
-                      <Icon size={24} />
+                      <Icon size={20} />
                     </div>
 
                     <span
@@ -239,7 +344,7 @@ export default function EnterpriseModulesScreen() {
 
                   <h3
                     style={{
-                      fontSize: '18px',
+                      fontSize: '16px',
                       fontWeight: 800,
                       color: '#0f172a',
                       margin: 0,
@@ -257,7 +362,7 @@ export default function EnterpriseModulesScreen() {
                     fontSize: '13px',
                     fontWeight: 700,
                     color: isLive ? m.accentColor : '#64748b',
-                    marginTop: '24px',
+                    marginTop: '18px',
                   }}
                 >
                   <span>{m.ctaText}</span>
@@ -280,7 +385,7 @@ export default function EnterpriseModulesScreen() {
           color: '#94a3b8',
         }}
       >
-        © 2026 BEMS Group Holdings Limited
+        © 2026 BEMS Group Holdings Limited · Enterprise Resource Planning
       </footer>
     </div>
   );
