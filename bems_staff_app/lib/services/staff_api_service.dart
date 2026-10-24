@@ -671,7 +671,7 @@ class StaffApiService {
 
     final data = jsonDecode(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      return data as Map<String, dynamic>;
+      return Map<String, dynamic>.from(data as Map);
     }
     throw Exception(data['error']?.toString() ?? 'Could not load request messages.');
   }
@@ -706,7 +706,7 @@ class StaffApiService {
 
     final data = jsonDecode(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      return data as Map<String, dynamic>;
+      return Map<String, dynamic>.from(data as Map);
     }
     throw Exception(data['error']?.toString() ?? 'Could not post message.');
   }
@@ -762,7 +762,7 @@ class StaffApiService {
 
     final data = jsonDecode(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      return data['message'] as Map<String, dynamic>;
+      return Map<String, dynamic>.from(data['message'] as Map);
     }
     throw Exception(data['error']?.toString() ?? 'Could not send message to admin.');
   }

@@ -158,16 +158,19 @@ class _RequestChatScreenState extends State<RequestChatScreen> {
       );
 
       if (mounted) {
+        final rawMessages = res['messages'];
+        final List<dynamic> loadedMessages = rawMessages is List ? List<dynamic>.from(rawMessages) : [];
+        final rawParticipants = res['participants'];
+        final List<dynamic> loadedParticipants = rawParticipants is List ? List<dynamic>.from(rawParticipants) : [];
+
         setState(() {
-          _messages = res['messages'] ?? [];
-          _participants = res['participants'] ?? [];
+          _messages = loadedMessages;
+          _participants = loadedParticipants;
           if (!isBackground) _isLoading = false;
           _errorMessage = null;
         });
 
-        if (!isBackground) {
-          _scrollToBottom();
-        }
+        _scrollToBottom();
       }
     } catch (e) {
       if (mounted && !isBackground) {
@@ -197,19 +200,36 @@ class _RequestChatScreenState extends State<RequestChatScreen> {
 
     final attachmentUrl = _pendingAttachmentUrl;
     final attachmentName = _pendingAttachmentName;
+    final messageBody = text.isNotEmpty ? text : (attachmentName != null ? 'Attached: $attachmentName' : 'File attached');
+
+    // Optimistically show message immediately in chat list
+    final optimisticMessage = {
+      'id': 'temp-${DateTime.now().millisecondsSinceEpoch}',
+      'authorId': widget.currentUser.id,
+      'authorName': widget.currentUser.fullName,
+      'authorRole': widget.currentUser.role,
+      'body': messageBody,
+      'visibility': _visibility,
+      'recipientId': _visibility == 'PRIVATE' ? _selectedRecipientId : null,
+      'attachmentUrl': attachmentUrl,
+      'attachmentName': attachmentName,
+      'createdAt': DateTime.now().toIso8601String(),
+    };
 
     setState(() {
+      _messages.add(optimisticMessage);
       _isSending = true;
       _pendingAttachmentUrl = null;
       _pendingAttachmentName = null;
     });
     _textController.clear();
+    _scrollToBottom();
 
     try {
       await StaffApiService.sendRequestMessage(
         requestNumber: widget.requestNumber,
         employeeId: widget.currentUser.id,
-        text: text.isNotEmpty ? text : (attachmentName != null ? 'Attached: $attachmentName' : 'File attached'),
+        text: messageBody,
         visibility: _visibility,
         recipientId: _visibility == 'PRIVATE' ? _selectedRecipientId : null,
         attachmentUrl: attachmentUrl,
@@ -217,7 +237,6 @@ class _RequestChatScreenState extends State<RequestChatScreen> {
       );
 
       await _loadMessages(isBackground: true);
-      _scrollToBottom();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -228,7 +247,10 @@ class _RequestChatScreenState extends State<RequestChatScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isSending = false);
+      if (mounted) {
+        setState(() => _isSending = false);
+        _scrollToBottom();
+      }
     }
   }
 

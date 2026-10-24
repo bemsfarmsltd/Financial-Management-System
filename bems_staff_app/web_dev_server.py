@@ -94,6 +94,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_header("Content-Length", str(len(resp_body)))
                     self.end_headers()
                     self.wfile.write(resp_body)
+                    self.wfile.flush()
                     return
             except urllib.error.HTTPError as e:
                 resp_body = e.read()
@@ -103,6 +104,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(resp_body)))
                 self.end_headers()
                 self.wfile.write(resp_body)
+                self.wfile.flush()
                 return
             except Exception as e:
                 last_error = e
@@ -116,6 +118,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(err_json)))
         self.end_headers()
         self.wfile.write(err_json)
+        self.wfile.flush()
 
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
