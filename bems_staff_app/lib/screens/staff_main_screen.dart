@@ -9,6 +9,7 @@ import 'new_fund_request_screen.dart';
 import 'staff_login_screen.dart';
 import 'request_chat_screen.dart';
 import 'staff_admin_chat_screen.dart';
+import '../widgets/bems_pie_chart.dart';
 
 class StaffMainScreen extends StatefulWidget {
   final StaffUser user;
@@ -32,6 +33,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   // Search & Filter state for Requisitions
   String _searchQuery = '';
   String _selectedStatusFilter = 'ALL';
+  String _requisitionChartMetric = 'Category';
 
   @override
   void initState() {
@@ -2729,6 +2731,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
         const SizedBox(height: 16),
 
+        // Donut / Pie Chart Analytics Card
+        _buildRequisitionsAnalyticsCard(formatter),
+
         if (filtered.isEmpty)
           Container(
             padding: const EdgeInsets.all(32),
@@ -2768,6 +2773,189 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildRequisitionsAnalyticsCard(NumberFormat formatter) {
+    if (_requests.isEmpty) return const SizedBox.shrink();
+
+    final totalVal = _requests.fold<double>(0.0, (sum, r) => sum + r.amountNaira);
+    List<PieChartSegment> segments = [];
+
+    if (_requisitionChartMetric == 'Category') {
+      final Map<String, double> catMap = {};
+      final Map<String, int> countMap = {};
+      for (final r in _requests) {
+        catMap[r.category] = (catMap[r.category] ?? 0.0) + r.amountNaira;
+        countMap[r.category] = (countMap[r.category] ?? 0) + 1;
+      }
+      final colorPalette = [
+        const Color(0xFFEA580C), // Orange
+        const Color(0xFF3B82F6), // Blue
+        const Color(0xFF10B981), // Emerald
+        const Color(0xFF8B5CF6), // Purple
+        const Color(0xFF06B6D4), // Cyan
+        const Color(0xFFF59E0B), // Amber
+        const Color(0xFF64748B), // Slate
+      ];
+      int colorIdx = 0;
+      final sorted = catMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+      for (final entry in sorted) {
+        final label = entry.key
+            .replaceAll('_', ' ')
+            .toLowerCase()
+            .split(' ')
+            .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+            .join(' ');
+        segments.add(PieChartSegment(
+          label: label,
+          value: entry.value,
+          count: countMap[entry.key] ?? 1,
+          color: colorPalette[colorIdx % colorPalette.length],
+        ));
+        colorIdx++;
+      }
+    } else {
+      // By Status
+      double inReviewVal = 0.0;
+      int inReviewCount = 0;
+      double approvedVal = 0.0;
+      int approvedCount = 0;
+      double disbursedVal = 0.0;
+      int disbursedCount = 0;
+      double rejectedVal = 0.0;
+      int rejectedCount = 0;
+
+      for (final r in _requests) {
+        if (r.paymentStatus == 'PAID') {
+          disbursedVal += r.amountNaira;
+          disbursedCount++;
+        } else if (r.approvalStatus == 'APPROVED') {
+          approvedVal += r.amountNaira;
+          approvedCount++;
+        } else if (r.approvalStatus == 'REJECTED') {
+          rejectedVal += r.amountNaira;
+          rejectedCount++;
+        } else {
+          inReviewVal += r.amountNaira;
+          inReviewCount++;
+        }
+      }
+
+      if (inReviewCount > 0) {
+        segments.add(PieChartSegment(
+          label: 'In Review',
+          value: inReviewVal > 0 ? inReviewVal : inReviewCount.toDouble(),
+          count: inReviewCount,
+          color: const Color(0xFFEA580C),
+        ));
+      }
+      if (approvedCount > 0) {
+        segments.add(PieChartSegment(
+          label: 'Approved',
+          value: approvedVal > 0 ? approvedVal : approvedCount.toDouble(),
+          count: approvedCount,
+          color: const Color(0xFF3B82F6),
+        ));
+      }
+      if (disbursedCount > 0) {
+        segments.add(PieChartSegment(
+          label: 'Disbursed',
+          value: disbursedVal > 0 ? disbursedVal : disbursedCount.toDouble(),
+          count: disbursedCount,
+          color: const Color(0xFF10B981),
+        ));
+      }
+      if (rejectedCount > 0) {
+        segments.add(PieChartSegment(
+          label: 'Declined',
+          value: rejectedVal > 0 ? rejectedVal : rejectedCount.toDouble(),
+          count: rejectedCount,
+          color: const Color(0xFFEF4444),
+        ));
+      }
+    }
+
+    String compactTotal = '';
+    if (totalVal >= 1000000) {
+      compactTotal = '₦${(totalVal / 1000000).toStringAsFixed(1)}M';
+    } else if (totalVal >= 1000) {
+      compactTotal = '₦${(totalVal / 1000).toStringAsFixed(0)}K';
+    } else {
+      compactTotal = '₦${totalVal.toStringAsFixed(0)}';
+    }
+
+    return BemsAnalyticsChartCard(
+      title: 'Expenditure Distribution',
+      subtitle: 'Allocation by ${_requisitionChartMetric.toLowerCase()} (${_requests.length} requests total)',
+      icon: Icons.pie_chart_rounded,
+      segments: segments,
+      formatter: formatter,
+      centerLabel: compactTotal,
+      centerSublabel: 'TOTAL VALUE',
+      activeView: _requisitionChartMetric,
+      viewOptions: const ['Category', 'Status'],
+      onViewChanged: (newView) {
+        setState(() {
+          _requisitionChartMetric = newView;
+        });
+      },
+    );
+  }
+
+  Widget _buildSlaAnalyticsCard(NumberFormat formatter) {
+    int clearedCount = _cases.where((c) => c.status == 'CLOSED' || c.status == 'VERIFIED').length;
+    int inGraceCount = _cases.where((c) => !c.isOverdue && c.status != 'CLOSED').length;
+    int overdueCount = _cases.where((c) => c.isOverdue).length;
+
+    List<PieChartSegment> segments = [];
+    if (clearedCount == 0 && inGraceCount == 0 && overdueCount == 0) {
+      segments.add(const PieChartSegment(
+        label: 'Policy Compliant (Clean)',
+        value: 100,
+        count: 0,
+        color: Color(0xFF10B981),
+      ));
+    } else {
+      if (clearedCount > 0) {
+        segments.add(PieChartSegment(
+          label: 'Cleared & Verified',
+          value: clearedCount.toDouble(),
+          count: clearedCount,
+          color: const Color(0xFF10B981),
+        ));
+      }
+      if (inGraceCount > 0) {
+        segments.add(PieChartSegment(
+          label: 'Active in 72h Grace',
+          value: inGraceCount.toDouble(),
+          count: inGraceCount,
+          color: const Color(0xFFEA580C),
+        ));
+      }
+      if (overdueCount > 0) {
+        segments.add(PieChartSegment(
+          label: 'Overdue Risk',
+          value: overdueCount.toDouble(),
+          count: overdueCount,
+          color: const Color(0xFFEF4444),
+        ));
+      }
+    }
+
+    final totalCases = clearedCount + inGraceCount + overdueCount;
+    final compliancePct = overdueCount > 0 ? ((clearedCount + inGraceCount) / totalCases * 100).round() : 100;
+
+    return BemsAnalyticsChartCard(
+      title: '72h SLA Compliance Radar',
+      subtitle: 'Expense retirement compliance & deliverable audit score',
+      icon: Icons.track_changes_rounded,
+      segments: segments,
+      formatter: formatter,
+      centerLabel: '$compliancePct%',
+      centerSublabel: 'COMPLIANCE',
+      isCurrency: false,
+      viewOptions: const [],
     );
   }
 
@@ -3127,7 +3315,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ),
         ),
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 18),
+
+        // 72h SLA Compliance Donut / Pie Chart
+        _buildSlaAnalyticsCard(formatter),
+
+        const SizedBox(height: 18),
 
         const Text('Active Advances Requiring Proof', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
         const SizedBox(height: 12),
