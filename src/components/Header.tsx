@@ -187,13 +187,15 @@ export function Header() {
           </div>
 
           {/* New Request Button */}
-          <Link
-            href="/requests/new"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-xs transition"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">New Request</span>
-          </Link>
+          {!['GMD', 'SYSTEM_ADMIN'].includes(currentUser.role) && (
+            <Link
+              href="/requests/new"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-xs transition"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">New Request</span>
+            </Link>
+          )}
 
           {/* Generate Report Button (from Dribbble reference) */}
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition">

@@ -2987,9 +2987,16 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     if(target==='HR Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
     if(target==='Executive briefing') return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p)=>setActive(p)}/>;
     if(target==='Subsidiary portfolio') return <Businesses businesses={businesses} current={current} onSelect={selectBusiness} onAdd={onAddBusiness}/>;
-    if(target==='Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={currentRole !== 'GMD'}/>;
+    if(target==='Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={currentRole !== 'GMD' && currentRole !== 'SYSTEM_ADMIN'}/>;
     if(target==='Approvals & payments'||target==='Approvals & Policy Hub'||target==='Approvals desk') return <FundFlowWorkspace businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
-    if(target==='New fund request') { if (typeof window !== 'undefined') window.location.href = '/requests/new'; return null; }
+    if(target==='New fund request') {
+      if (currentRole === 'GMD' || currentRole === 'SYSTEM_ADMIN') {
+        setNotice('GMD and System Admin accounts are executive governance roles and do not submit fund requests.');
+        return null;
+      }
+      if (typeof window !== 'undefined') window.location.href = '/requests/new';
+      return null;
+    }
     if(target==='Request channels') return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={(p)=>p==='/requests'?setActive('Fund requests'):window.location.href=p}/>;
     if(target==='Draft requests') return <DraftRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
     if(target==='Approvals desk') return <ApprovalsDeskView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;

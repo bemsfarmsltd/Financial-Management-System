@@ -333,13 +333,15 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
 
           {/* TOP ACTIONS */}
           <div className="top-actions">
-            <Link href="/requests/new" className="top-action-btn" style={{ textDecoration: 'none' }}>
-              <span className="btn-icon">📁</span>
-              <div className="btn-text">
-                <strong>Fund Request Desk</strong>
-                <small>New Request +</small>
-              </div>
-            </Link>
+            {currentRole === 'Staff' && (
+              <Link href="/requests/new" className="top-action-btn" style={{ textDecoration: 'none' }}>
+                <span className="btn-icon">📁</span>
+                <div className="btn-text">
+                  <strong>Fund Request Desk</strong>
+                  <small>New Request +</small>
+                </div>
+              </Link>
+            )}
 
             <div className="top-popover-wrap">
               <button className="top-icon-btn" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={() => { setNotificationsOpen(value => !value); loadNotifications(); }}>

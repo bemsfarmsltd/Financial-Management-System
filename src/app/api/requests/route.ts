@@ -213,8 +213,8 @@ export async function POST(request: Request) {
     if (!actor) {
       return NextResponse.json({ error: "Sign in to submit a fund request." }, { status: 401 });
     }
-    if (actor.role === "GMD") {
-      return NextResponse.json({ error: "The GMD reviews requests and does not submit fund requests." }, { status: 403 });
+    if (actor.role === "GMD" || actor.role === "SYSTEM_ADMIN") {
+      return NextResponse.json({ error: "GMD and System Admin accounts are executive governance roles and do not submit fund requests." }, { status: 403 });
     }
 
     const body = await request.json();

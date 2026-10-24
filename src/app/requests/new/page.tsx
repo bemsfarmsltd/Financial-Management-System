@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NewRequestPage() {
   const actor = await getAuthenticatedEmployee();
-  if (!actor) {
+  if (!actor || actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN') {
     redirect('/');
   }
   const [subsidiaries, vendors, employees] = await Promise.all([
