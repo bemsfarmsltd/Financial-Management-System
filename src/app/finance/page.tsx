@@ -3133,28 +3133,6 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
             </div>
             <button aria-label={collapsed?'Expand navigation':'Collapse navigation'} title={collapsed?'Expand navigation':'Collapse navigation'} onClick={(e)=>{e.stopPropagation();setCollapsed(!collapsed)}}>{collapsed?'›':'‹'}</button>
           </div>
-          {!collapsed && (
-            <div style={{ padding: '0 12px 8px' }}>
-              <a
-                href="/"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '11px',
-                  color: '#94a3b8',
-                  textDecoration: 'none',
-                  padding: '5px 10px',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
-                  borderRadius: '6px',
-                }}
-              >
-                <span>←</span>
-                <span>ERP Suite Hub</span>
-              </a>
-            </div>
-          )}
           <nav aria-label="Product navigation">{navigation.map(group=><div className="nav-group" key={group.label}><p>{group.label}</p>{group.items.map(([name,icon])=>{const locked=isLocked(name);return <button type="button" title={locked?`${name} — locked`:collapsed?name:undefined} aria-current={active===name?'page':undefined} className={`${active===name?'nav-item active':'nav-item'}${locked?' locked':''}`} onClick={()=>{openModule(name);setTopPanel(null);setSwitcher(false)}} key={name}><span>{icon}</span><b>{name}</b>{locked?<em>⌾</em>:name==='Inbox'&&<small>3</small>}</button>})}</div>)}</nav>
           <button type="button" className="help-button" onClick={()=>setNotice('Help centre opened. Guides and support are available here.')}><span>?</span><div><strong>Need help?</strong><small>Guides and support</small></div></button>
         </aside>
