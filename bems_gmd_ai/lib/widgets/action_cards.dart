@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../theme/bems_theme.dart';
 import '../services/api_service.dart';
 
 class InteractiveActionCard extends StatefulWidget {
@@ -102,14 +101,14 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: BemsTheme.surfaceElevated,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: BemsTheme.borderAmber, width: 1.2),
-        boxShadow: [
+        border: Border.all(color: const Color(0xFFFED7AA), width: 1.2),
+        boxShadow: const [
           BoxShadow(
-            color: BemsTheme.primary.withOpacity(0.12),
-            blurRadius: 18,
-            offset: const Offset(0, 4),
+            color: Color(0x060F172A),
+            blurRadius: 14,
+            offset: Offset(0, 3),
           ),
         ],
       ),
@@ -119,19 +118,25 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'LIVE TREASURY LIQUIDITY',
-                style: Theme.of(context).textTheme.labelSmall,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFEA580C),
+                  letterSpacing: 0.8,
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.15),
+                  color: const Color(0xFFECFDF5),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFA7F3D0)),
                 ),
                 child: const Text(
                   '● Live Reconciled',
-                  style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: Color(0xFF059669), fontSize: 10, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -139,19 +144,21 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
           const SizedBox(height: 6),
           Text(
             totalCash,
-            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  color: BemsTheme.textPrimary,
-                  fontWeight: FontWeight.w900,
-                ),
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF0F172A),
+              letterSpacing: -0.5,
+            ),
           ),
           const SizedBox(height: 12),
           ...accounts.map((acc) => Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.25),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: BemsTheme.borderSubtle),
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -159,16 +166,16 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(acc['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
-                        Text('Acc: ${acc['account']}', style: const TextStyle(color: BemsTheme.textMuted, fontSize: 11)),
+                        Text(acc['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A))),
+                        Text('Acc: ${acc['account']}', style: const TextStyle(color: Color(0xFF64748B), fontSize: 11)),
                       ],
                     ),
                     Text(
                       acc['balance'] ?? '',
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w800,
                         fontSize: 14,
-                        color: BemsTheme.primaryLight,
+                        color: Color(0xFFEA580C),
                       ),
                     ),
                   ],
@@ -188,13 +195,14 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: BemsTheme.surfaceElevated,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF97316).withOpacity(0.5), width: 1.2),
-        boxShadow: [
+        border: Border.all(color: const Color(0xFFFED7AA), width: 1.2),
+        boxShadow: const [
           BoxShadow(
-            color: const Color(0xFFF97316).withOpacity(0.1),
-            blurRadius: 16,
+            color: Color(0x060F172A),
+            blurRadius: 14,
+            offset: Offset(0, 3),
           ),
         ],
       ),
@@ -204,27 +212,33 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'EXECUTIVE AUTHORIZATION QUEUE',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: const Color(0xFFF97316)),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFEA580C),
+                  letterSpacing: 0.8,
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF97316).withOpacity(0.15),
+                  color: const Color(0xFFFFF7ED),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFED7AA)),
                 ),
                 child: Text(
                   '$count Pending',
-                  style: const TextStyle(color: Color(0xFFFED7AA), fontSize: 10, fontWeight: FontWeight.bold),
+                  style: const TextStyle(color: Color(0xFFEA580C), fontSize: 10, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             total,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
           ),
           const SizedBox(height: 12),
           if (requests.isEmpty)
@@ -232,7 +246,7 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Text(
                 '✓ No requisitions currently pending authorization.',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
+                style: TextStyle(color: Color(0xFF059669), fontSize: 12, fontWeight: FontWeight.w600),
               ),
             )
           else
@@ -244,14 +258,14 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(10),
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isApproved
-                        ? Colors.green.withOpacity(0.5)
-                        : (isDeclined ? Colors.red.withOpacity(0.5) : Colors.white.withOpacity(0.08)),
+                        ? const Color(0xFFA7F3D0)
+                        : (isDeclined ? const Color(0xFFFECACA) : const Color(0xFFE2E8F0)),
                   ),
                 ),
                 child: Column(
@@ -266,18 +280,18 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
                             children: [
                               Text(
                                 r['title'] ?? '',
-                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
                               ),
                               Text(
                                 '${r['number']} · ${r['by']}',
-                                style: const TextStyle(fontSize: 11, color: Colors.white54),
+                                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                               ),
                             ],
                           ),
                         ),
                         Text(
                           r['amount'] ?? '',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFFF97316)),
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFFEA580C)),
                         ),
                       ],
                     ),
@@ -286,17 +300,17 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.15),
+                          color: const Color(0xFFECFDF5),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.check_circle_rounded, size: 14, color: Colors.greenAccent),
+                            Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF059669)),
                             SizedBox(width: 4),
                             Text(
                               'Authorized by GMD',
-                              style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                              style: TextStyle(color: Color(0xFF059669), fontSize: 11, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
@@ -305,17 +319,17 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.15),
+                          color: const Color(0xFFFEF2F2),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.cancel_rounded, size: 14, color: Colors.redAccent),
+                            Icon(Icons.cancel_rounded, size: 14, color: Color(0xFFDC2626)),
                             SizedBox(width: 4),
                             Text(
                               'Declined by GMD',
-                              style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                              style: TextStyle(color: Color(0xFFDC2626), fontSize: 11, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
@@ -324,22 +338,25 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          TextButton(
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.white60,
+                          OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFFDC2626),
+                              side: const BorderSide(color: Color(0xFFFECACA)),
+                              backgroundColor: const Color(0xFFFEF2F2),
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               visualDensity: VisualDensity.compact,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
                             onPressed: isProcessing ? null : () => _handleApproval(reqId, false),
-                            child: const Text('Decline', style: TextStyle(fontSize: 11)),
+                            child: const Text('Decline', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 8),
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFF97316),
+                              backgroundColor: const Color(0xFF059669),
                               foregroundColor: Colors.white,
                               elevation: 0,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                               visualDensity: VisualDensity.compact,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
@@ -378,9 +395,16 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: BemsTheme.surfaceElevated,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.withOpacity(0.4), width: 1.2),
+        border: Border.all(color: const Color(0xFFFDE68A), width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x060F172A),
+            blurRadius: 14,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -388,19 +412,25 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'ACCOUNTABILITY SLA MONITOR',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.amberAccent),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFD97706),
+                  letterSpacing: 0.8,
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.15),
+                  color: const Color(0xFFFEF3C7),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
                 ),
                 child: Text(
                   '$count Open Cases',
-                  style: const TextStyle(color: Colors.amberAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                  style: const TextStyle(color: Color(0xFFB45309), fontSize: 10, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -411,11 +441,12 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
             final isReminded = _remindedCaseIds.contains(caseId);
 
             return Container(
-              margin: const EdgeInsets.only(bottom: 6),
-              padding: const EdgeInsets.all(10),
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.25),
-                borderRadius: BorderRadius.circular(8),
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -423,17 +454,17 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(c['number'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
-                      Text(c['owner'] ?? '', style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                      Text(c['number'] ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Color(0xFF0F172A))),
+                      Text(c['owner'] ?? '', style: const TextStyle(color: Color(0xFF64748B), fontSize: 11)),
                     ],
                   ),
                   if (isReminded)
-                    const Text('⚡ Reminder Pushed', style: TextStyle(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold))
+                    const Text('⚡ Reminder Pushed', style: TextStyle(color: Color(0xFFD97706), fontSize: 11, fontWeight: FontWeight.bold))
                   else
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.amber.withOpacity(0.2),
-                        foregroundColor: Colors.amberAccent,
+                        backgroundColor: const Color(0xFFFEF3C7),
+                        foregroundColor: const Color(0xFF92400E),
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         visualDensity: VisualDensity.compact,
@@ -461,23 +492,33 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: BemsTheme.surfaceElevated,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3), width: 1.2),
+        border: Border.all(color: const Color(0xFFA7F3D0), width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x060F172A),
+            blurRadius: 14,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('EXECUTIVE DAILY SCORECARD', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: const Color(0xFF10B981))),
+          const Text(
+            'EXECUTIVE DAILY SCORECARD',
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF059669), letterSpacing: 0.8),
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: _buildMetricTile('LIQUID RESERVES', cash, const Color(0xFF10B981)),
+                child: _buildMetricTile('LIQUID RESERVES', cash, const Color(0xFF059669)),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _buildMetricTile('PENDING REVIEWS', '$pending', Colors.orangeAccent),
+                child: _buildMetricTile('PENDING REVIEWS', '$pending', const Color(0xFFEA580C)),
               ),
             ],
           ),
@@ -485,11 +526,11 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
           Row(
             children: [
               Expanded(
-                child: _buildMetricTile('OPEN ADVANCES', '$openCases', Colors.lightBlueAccent),
+                child: _buildMetricTile('OPEN ADVANCES', '$openCases', const Color(0xFF0284C7)),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _buildMetricTile('GROUP STAFF', '$staff', Colors.white),
+                child: _buildMetricTile('GROUP STAFF', '$staff', const Color(0xFF0F172A)),
               ),
             ],
           ),
@@ -500,17 +541,18 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
 
   Widget _buildMetricTile(String label, String value, Color color) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 9, color: BemsTheme.textMuted, fontWeight: FontWeight.bold)),
+          Text(label, style: const TextStyle(fontSize: 9, color: Color(0xFF64748B), fontWeight: FontWeight.w800)),
           const SizedBox(height: 3),
-          Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+          Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: color)),
         ],
       ),
     );

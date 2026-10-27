@@ -21,36 +21,22 @@ class _StudioShowcaseScreenState extends State<StudioShowcaseScreen> {
         final isDesktop = constraints.maxWidth > 950;
 
         return Scaffold(
-          backgroundColor: const Color(0xFF030508),
-          body: Container(
-            decoration: const BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment(0, -0.6),
-                radius: 1.4,
-                colors: [
-                  Color(0xFF381404), // Warm molten lava backlight
-                  Color(0xFF140803), // Mid obsidian amber
-                  Color(0xFF030508), // Studio pitch black
-                ],
-                stops: [0.0, 0.45, 1.0],
-              ),
-            ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  // Studio Header Navigation Bar
-                  _buildStudioTopBar(isDesktop),
+          backgroundColor: const Color(0xFFF8FAFC),
+          body: SafeArea(
+            child: Column(
+              children: [
+                // Studio Header Navigation Bar
+                _buildStudioTopBar(isDesktop),
 
-                  // Studio Canvas
-                  Expanded(
-                    child: Center(
-                      child: isDesktop && _activeViewIndex == 0
-                          ? _buildThreePhoneStudio(constraints)
-                          : _buildSinglePhoneFocus(constraints),
-                    ),
+                // Studio Canvas
+                Expanded(
+                  child: Center(
+                    child: isDesktop && _activeViewIndex == 0
+                        ? _buildThreePhoneStudio(constraints)
+                        : _buildSinglePhoneFocus(constraints),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
@@ -60,41 +46,46 @@ class _StudioShowcaseScreenState extends State<StudioShowcaseScreen> {
 
   Widget _buildStudioTopBar(bool isDesktop) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
               Container(
-                width: 32,
-                height: 32,
+                width: 34,
+                height: 34,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
-                    colors: [Color(0xFFF97316), Color(0xFFEA580C)],
+                    colors: [Color(0xFFEA580C), Color(0xFFC2410C)],
                   ),
                 ),
                 child: const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
               ),
               const SizedBox(width: 10),
-              Column(
+              const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'BEMS GMD EXECUTIVE AI',
+                  Text(
+                    'BEMS GMD EXECUTIVE SUITE',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
+                      color: Color(0xFF0F172A),
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
+                      letterSpacing: 0.6,
                     ),
                   ),
                   Text(
-                    'Obsidian Void & Molten Amber Edition',
+                    'BEMi Copilot · Unified Staff App Design System',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
+                      color: Color(0xFF64748B),
                       fontSize: 10,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
@@ -106,9 +97,9 @@ class _StudioShowcaseScreenState extends State<StudioShowcaseScreen> {
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.06),
+              color: const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withOpacity(0.1)),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -136,11 +127,11 @@ class _StudioShowcaseScreenState extends State<StudioShowcaseScreen> {
           color: isSelected ? const Color(0xFFEA580C) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           boxShadow: isSelected
-              ? [
+              ? const [
                   BoxShadow(
-                    color: const Color(0xFFEA580C).withOpacity(0.4),
-                    blurRadius: 12,
-                    offset: const Offset(0, 2),
+                    color: Color(0x20EA580C),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
                   ),
                 ]
               : null,
@@ -150,15 +141,15 @@ class _StudioShowcaseScreenState extends State<StudioShowcaseScreen> {
             Icon(
               icon,
               size: 13,
-              color: isSelected ? Colors.white : Colors.white60,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
             ),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
                 fontSize: 11.5,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? Colors.white : Colors.white60,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? Colors.white : const Color(0xFF64748B),
               ),
             ),
           ],
@@ -167,9 +158,8 @@ class _StudioShowcaseScreenState extends State<StudioShowcaseScreen> {
     );
   }
 
-  // 1-to-1 Recreation of the User's 3-Phone Studio Showcase Photo
+  // 3-Phone Studio Showcase
   Widget _buildThreePhoneStudio(BoxConstraints constraints) {
-    // Determine dynamic scale to fit nicely in desktop window
     final double scale = (constraints.maxHeight / 850).clamp(0.72, 0.98);
 
     return SingleChildScrollView(
@@ -205,7 +195,7 @@ class _StudioShowcaseScreenState extends State<StudioShowcaseScreen> {
             // Right Phone: Executive Chat Stream
             _buildInteractivePhoneCard(
               title: '3. Executive Chat Desk',
-              subtitle: 'Obsidian stream with mini molten avatars',
+              subtitle: 'Light stream with live DB action cards',
               scale: scale,
               child: const ExecutiveChatScreen(),
               onTap: () => setState(() => _activeViewIndex = 3),
@@ -236,19 +226,22 @@ class _StudioShowcaseScreenState extends State<StudioShowcaseScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.06),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.1)),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: const [
+                BoxShadow(color: Color(0x060F172A), blurRadius: 6, offset: Offset(0, 2)),
+              ],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.fullscreen_rounded, size: 14, color: Color(0xFFF97316)),
+                const Icon(Icons.fullscreen_rounded, size: 14, color: Color(0xFFEA580C)),
               ],
             ),
           ),

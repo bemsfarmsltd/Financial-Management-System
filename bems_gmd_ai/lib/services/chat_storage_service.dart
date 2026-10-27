@@ -106,4 +106,112 @@ class ChatStorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyActiveSessionId, id);
   }
+
+  // --- GMD Biometrics & Executive Security ---
+  static const String _keyBioConfigured = 'bems_biometric_configured';
+  static const String _keyBioEnabled = 'bems_biometric_enabled';
+  static const String _keyBioEnrolledAt = 'bems_biometric_enrolled_at';
+  static const String _keyBioFingerLabel = 'bems_biometric_finger_label';
+  static const String _keySecurityPin = 'bems_security_pin';
+  static const String _keyDefaultWorkstation = 'bems_default_workstation';
+  static const String _keyNotificationBridgeEnabled = 'bems_notification_bridge_enabled';
+
+  static Future<bool> isBiometricConfigured() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyBioConfigured) ?? false;
+  }
+
+  static Future<void> setBiometricConfigured(bool configured) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyBioConfigured, configured);
+    if (configured) {
+      // Auto-enable when newly configured
+      await prefs.setBool(_keyBioEnabled, true);
+      if (prefs.getString(_keyBioEnrolledAt) == null) {
+        await prefs.setString(_keyBioEnrolledAt, DateTime.now().toIso8601String());
+      }
+    }
+  }
+
+  static Future<bool> isBiometricEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    final configured = prefs.getBool(_keyBioConfigured) ?? false;
+    if (!configured) return false;
+    return prefs.getBool(_keyBioEnabled) ?? true;
+  }
+
+  static Future<void> setBiometricEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyBioEnabled, enabled);
+  }
+
+  static Future<String?> getBiometricEnrolledAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyBioEnrolledAt);
+  }
+
+  static Future<void> setBiometricEnrolledAt(String timestamp) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyBioEnrolledAt, timestamp);
+  }
+
+  static Future<String> getBiometricFingerLabel() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyBioFingerLabel) ?? 'GMD Primary Thumbprint';
+  }
+
+  static Future<void> setBiometricFingerLabel(String label) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyBioFingerLabel, label);
+  }
+
+  static Future<String?> getSecurityPin() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keySecurityPin);
+  }
+
+  static Future<void> setSecurityPin(String pin) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySecurityPin, pin);
+  }
+
+  static Future<bool> verifySecurityPin(String pin) async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_keySecurityPin);
+    if (saved == null || saved.isEmpty) {
+      // Default initial executive pin if unconfigured
+      return pin == '1234' || pin == '0000';
+    }
+    return saved == pin;
+  }
+
+  static Future<void> resetBiometrics() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyBioConfigured);
+    await prefs.remove(_keyBioEnabled);
+    await prefs.remove(_keyBioEnrolledAt);
+    await prefs.remove(_keyBioFingerLabel);
+    await prefs.remove(_keySecurityPin);
+  }
+
+  // --- Executive Workstation Preferences ---
+  static Future<String> getDefaultWorkstation() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyDefaultWorkstation) ?? 'all';
+  }
+
+  static Future<void> setDefaultWorkstation(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyDefaultWorkstation, id);
+  }
+
+  static Future<bool> isNotificationBridgeEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyNotificationBridgeEnabled) ?? true;
+  }
+
+  static Future<void> setNotificationBridgeEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyNotificationBridgeEnabled, enabled);
+  }
 }

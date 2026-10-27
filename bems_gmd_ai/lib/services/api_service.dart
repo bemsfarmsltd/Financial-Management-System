@@ -1,16 +1,26 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/auth_models.dart';
 import '../models/chat_models.dart';
 
 class ApiService {
+  static const String serviceToken = 'bems_ai_svc_9a7e2b1c4d6f80931e5f72ab4c10de';
   static const String primaryBaseUrl = 'https://bemserp.work';
   static const String fallbackBaseUrl = 'https://pink-horse-318730.hostingersite.com';
   static String _activeBaseUrl = primaryBaseUrl;
 
   static String get baseUrl => _activeBaseUrl;
 
+  static Map<String, String> get authHeaders => {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $serviceToken',
+        'x-bems-mobile-role': 'GMD',
+      };
+
   static List<String> get _candidateHosts => [
+        if (kIsWeb) Uri.base.origin,
+        'http://localhost:3000',
         _activeBaseUrl,
         if (_activeBaseUrl == primaryBaseUrl) fallbackBaseUrl else primaryBaseUrl,
       ];
@@ -68,10 +78,7 @@ class ApiService {
       final response = await _executeWithFailover(
         (host) => http.get(
           Uri.parse('$host/api/briefing?_t=$now'),
-          headers: {
-            'Content-Type': 'application/json',
-            'x-bems-mobile-role': 'GMD',
-          },
+          headers: authHeaders,
         ),
         timeout: const Duration(seconds: 10),
       );
@@ -109,10 +116,7 @@ class ApiService {
       final response = await _executeWithFailover(
         (host) => http.get(
           Uri.parse('$host/api/briefing?_t=$now'),
-          headers: {
-            'Content-Type': 'application/json',
-            'x-bems-mobile-role': 'GMD',
-          },
+          headers: authHeaders,
         ),
         timeout: const Duration(seconds: 12),
       );
@@ -138,13 +142,7 @@ class ApiService {
         final disbursements = (data['disbursements'] as List<dynamic>?) ?? [];
 
         return {
-          'treasury': {
-            'total': '₦0',
-            'reserveRatio': '100% Reconciled',
-            'runwayWeeks': 'N/A',
-            'accounts': [],
-            'recentDisbursements': disbursements,
-          },
+          'requests': requests,
           'pendingRequests': pending,
           'pendingCount': pending.length,
           'pendingSum': pendingSum,
@@ -152,18 +150,14 @@ class ApiService {
           'overdueCount': overdue.length,
           'budgets': budgets,
           'organizations': orgs,
+          'disbursements': disbursements,
+          'treasuryAccounts': (data['treasuryAccounts'] as List<dynamic>?) ?? [],
         };
       }
     } catch (_) {}
 
     return {
-      'treasury': {
-        'total': '₦0',
-        'reserveRatio': '100% Reconciled',
-        'runwayWeeks': 'N/A',
-        'accounts': [],
-        'recentDisbursements': [],
-      },
+      'requests': [],
       'pendingRequests': [],
       'pendingCount': 0,
       'pendingSum': 0,
@@ -171,6 +165,8 @@ class ApiService {
       'overdueCount': 0,
       'budgets': [],
       'organizations': [],
+      'disbursements': [],
+      'treasuryAccounts': [],
     };
   }
 
@@ -181,10 +177,7 @@ class ApiService {
     final response = await _executeWithFailover(
       (host) => http.post(
         Uri.parse('$host/api/ai/chat'),
-        headers: {
-          'Content-Type': 'application/json',
-          'x-bems-mobile-role': 'GMD',
-        },
+        headers: authHeaders,
         body: jsonEncode({
           'message': message,
           'history':
@@ -210,10 +203,7 @@ class ApiService {
     final response = await _executeWithFailover(
       (host) => http.post(
         Uri.parse('$host/api/approvals/decide'),
-        headers: {
-          'Content-Type': 'application/json',
-          'x-bems-mobile-role': 'GMD',
-        },
+        headers: authHeaders,
         body: jsonEncode({
           'requestId': requestId,
           'decision': decision,

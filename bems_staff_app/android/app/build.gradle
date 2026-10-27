@@ -37,6 +37,14 @@ android {
             signingConfig = signingConfigs.debug
         }
     }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def appName = "BEMS-Staff-Portal"
+            def vName = variant.versionName ?: "1.0.0"
+            outputFileName = "${appName}-v${vName}.apk"
+        }
+    }
 }
 
 flutter {

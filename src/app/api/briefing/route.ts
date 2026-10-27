@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to view the executive briefing.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive access is required.' }, { status: 403 });
-    const [organizations, requests, budgets, accountabilityCases, disbursements] = await Promise.all([
+    const [organizations, requests, budgets, accountabilityCases, disbursements, rawBankAccounts] = await Promise.all([
       prisma.organization.findMany({
         orderBy: { legalName: 'asc' }
       }),
@@ -49,8 +49,36 @@ export async function GET(request: Request) {
           verification: true,
         },
         orderBy: { paidAt: 'desc' }
+      }),
+      prisma.companyBankAccount.findMany({
+        where: { status: 'ACTIVE' },
+        include: { organization: true },
+        orderBy: { balance: 'desc' }
       })
     ]);
+
+    const treasuryAccounts = rawBankAccounts.map((a) => {
+      const balNum = Number(a.balance);
+      const limitNum = Number(a.dailyLimit);
+      return {
+        id: a.id,
+        bankName: a.bankName,
+        accountName: a.accountName,
+        accountNumber: a.accountNumber,
+        accountType: a.accountType,
+        currency: a.currency,
+        balance: balNum,
+        balanceNaira: balNum,
+        dailyLimit: limitNum,
+        scope: (a.organization?.code?.includes('HQ') || a.organization?.code?.includes('GROUP')) ? 'HQ' : 'LOG',
+        assignedSubsidiary: a.organization?.legalName || 'BEMS Group',
+        organization: {
+          id: a.organization.id,
+          legalName: a.organization.legalName,
+          code: a.organization.code,
+        }
+      };
+    });
 
     const serializedOrganizations = organizations.map(o => ({
       id: o.id,
@@ -171,6 +199,7 @@ export async function GET(request: Request) {
       budgets: serializedBudgets,
       accountabilityCases: serializedAccountabilityCases,
       disbursements: serializedDisbursements,
+      treasuryAccounts,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

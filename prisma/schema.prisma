@@ -30,6 +30,26 @@ model Organization {
   payrollAllocations   PayrollItemAllocation[]
   settings             WorkspaceSetting[]
   adminInvitations     AdminInvitation[]
+  bankAccounts         CompanyBankAccount[]
+}
+
+model CompanyBankAccount {
+  id                 String       @id @default(uuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankName           String
+  accountName        String
+  accountNumber      String       @unique
+  accountType        String       @default("Corporate Operational") // Corporate Operational | Corporate Escrow | Operational Float
+  currency           String       @default("NGN")
+  balance            Decimal      @default(0.0) @db.Decimal(18, 2)
+  dailyLimit         Decimal      @default(25000000.0) @db.Decimal(18, 2)
+  tier               String       @default("Primary Maker-Checker")
+  status             String       @default("ACTIVE") // ACTIVE | INACTIVE | FROZEN
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([organizationId, status])
 }
 
 model WorkspaceSetting {

@@ -22,6 +22,7 @@ dist/
 .env
 .env*.local
 .env.production
+*.apk
 
 # TypeScript build info
 *.tsbuildinfo

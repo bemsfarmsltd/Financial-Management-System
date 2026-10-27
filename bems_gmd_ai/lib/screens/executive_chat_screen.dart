@@ -50,7 +50,7 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
           id: 'msg-0',
           sender: 'assistant',
           timestamp: 'Just now',
-          content: 'Good day, Executive. I am BEMi (Bems Enterprise Machine Intelligence). How may I assist your treasury, approvals, or operational oversight today?',
+          content: 'Good day, GMD. I am BEMi (Bems Enterprise Machine Intelligence). How may I assist your group treasury, approvals, or strategic oversight today?',
         ),
       );
       _currentSession.messages = List.from(_messages);
@@ -95,7 +95,7 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
           id: 'msg-0',
           sender: 'assistant',
           timestamp: 'Just now',
-          content: 'Good day, Executive. Starting a new session with BEMi. How can I assist you?',
+          content: 'Good day, GMD. Starting a new session with BEMi. How can I assist you?',
         ),
       );
       _currentSession.messages = List.from(_messages);
@@ -185,123 +185,115 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: const Color(0xFF04060C),
+      backgroundColor: const Color(0xFFF8FAFC),
       drawer: ChatHistoryDrawer(
         activeSessionId: _currentSession.id,
         onSelectSession: _switchSession,
         onNewChat: _startNewChat,
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0, -0.6),
-            radius: 1.4,
-            colors: [
-              Color(0xFF381404),
-              Color(0xFF140803),
-              Color(0xFF04060C),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.history_rounded, color: Color(0xFF0F172A), size: 22),
+          tooltip: 'Chat History',
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
+        title: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEA580C),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  _currentSession.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
             ],
-            stops: [0.0, 0.5, 1.0],
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Top Bar with History Drawer, Title, and Close
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // History Menu Button
-                    IconButton(
-                      icon: const Icon(Icons.history_rounded, color: Colors.white70, size: 22),
-                      tooltip: 'Chat History',
-                      onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                    ),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_comment_outlined, color: Color(0xFFEA580C), size: 20),
+            tooltip: 'New Chat',
+            onPressed: _startNewChat,
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 20),
+            tooltip: 'Back',
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(color: Color(0xFFE2E8F0), height: 1),
+        ),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Chat Message Stream
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                itemCount: _messages.length,
+                itemBuilder: (context, index) {
+                  final msg = _messages[index];
+                  return _buildMessageItem(msg);
+                },
+              ),
+            ),
 
-                    // Active Session Title Pill
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: Colors.white.withOpacity(0.1)),
-                        ),
-                        child: Text(
-                          _currentSession.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
+            // Typing indicator
+            if (_isTyping)
+              Padding(
+                padding: const EdgeInsets.only(left: 20, bottom: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEA580C),
+                        shape: BoxShape.circle,
                       ),
                     ),
-
-                    Row(
-                      children: [
-                        // New Chat Button
-                        IconButton(
-                          icon: const Icon(Icons.add_comment_outlined, color: Color(0xFFF97316), size: 20),
-                          tooltip: 'New Chat',
-                          onPressed: _startNewChat,
-                        ),
-                        // Close Chat Button
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 20),
-                          tooltip: 'Back to Home',
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
+                    const SizedBox(width: 8),
+                    const Text(
+                      'BEMi analyzing group intelligence...',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
               ),
 
-              // Chat Message Stream
-              Expanded(
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  itemCount: _messages.length,
-                  itemBuilder: (context, index) {
-                    final msg = _messages[index];
-                    return _buildMessageItem(msg);
-                  },
-                ),
-              ),
-
-              // Typing indicator
-              if (_isTyping)
-                Padding(
-                  padding: const EdgeInsets.only(left: 24, bottom: 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFEA580C),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'BEMi analyzing group records...',
-                        style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.5)),
-                      ),
-                    ],
-                  ),
-                ),
-
-              // Bottom Input Bar
-              _buildBottomBar(),
-            ],
-          ),
+            // Bottom Input Bar
+            _buildBottomBar(),
+          ],
         ),
       ),
     );
@@ -318,17 +310,17 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
           decoration: BoxDecoration(
             color: const Color(0xFFEA580C),
             borderRadius: BorderRadius.circular(18).copyWith(bottomRight: const Radius.circular(4)),
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
-                color: const Color(0xFFEA580C).withOpacity(0.25),
+                color: Color(0x20EA580C),
                 blurRadius: 10,
-                offset: const Offset(0, 3),
+                offset: Offset(0, 3),
               ),
             ],
           ),
           child: Text(
             msg.content,
-            style: const TextStyle(fontSize: 14, color: Colors.white, height: 1.35),
+            style: const TextStyle(fontSize: 14, color: Colors.white, height: 1.35, fontWeight: FontWeight.w500),
           ),
         ),
       );
@@ -339,20 +331,20 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
           Row(
             children: [
               Container(
-                width: 22,
-                height: 22,
+                width: 24,
+                height: 24,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: [Color(0xFFEA580C), Color(0xFF9A3412)]),
+                  gradient: LinearGradient(colors: [Color(0xFFEA580C), Color(0xFFC2410C)]),
                 ),
                 child: const Center(
-                  child: Text('BEMi', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white)),
+                  child: Text('BEMi', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.white)),
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                'BEMi',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white.withOpacity(0.6)),
+              const Text(
+                'BEMi Intelligence',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
               ),
             ],
           ),
@@ -361,16 +353,23 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.08)),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x060F172A),
+                  blurRadius: 10,
+                  offset: Offset(0, 3),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   msg.content,
-                  style: const TextStyle(fontSize: 14, color: Colors.white, height: 1.45),
+                  style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A), height: 1.45, fontWeight: FontWeight.w500),
                 ),
                 if (msg.actionCard != null) ...[
                   const SizedBox(height: 12),
@@ -387,16 +386,24 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
   Widget _buildBottomBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF070B14),
-        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.08))),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
       ),
       child: Row(
         children: [
           // Voice Orb screen trigger
           IconButton(
-            icon: const Icon(Icons.graphic_eq_rounded, color: Color(0xFFF97316), size: 22),
-            tooltip: 'Kinetic Voice Mode',
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFED7AA)),
+              ),
+              child: const Icon(Icons.graphic_eq_rounded, color: Color(0xFFEA580C), size: 18),
+            ),
+            tooltip: 'Voice Command Mode',
             onPressed: () {
               Navigator.push(
                 context,
@@ -404,20 +411,21 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
               );
             },
           ),
+          const SizedBox(width: 4),
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
+                color: const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white.withOpacity(0.12)),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: TextField(
                 controller: _textController,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-                decoration: InputDecoration(
+                style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14),
+                decoration: const InputDecoration(
                   hintText: 'Ask BEMi or instruct...',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 13),
+                  hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
                   border: InputBorder.none,
                 ),
                 onSubmitted: (_) => _handleSend(),
@@ -425,17 +433,17 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          IconButton(
-            icon: Container(
-              width: 36,
-              height: 36,
+          GestureDetector(
+            onTap: () => _handleSend(),
+            child: Container(
+              width: 38,
+              height: 38,
               decoration: const BoxDecoration(
                 color: Color(0xFFEA580C),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 18),
+              child: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 20),
             ),
-            onPressed: () => _handleSend(),
           ),
         ],
       ),

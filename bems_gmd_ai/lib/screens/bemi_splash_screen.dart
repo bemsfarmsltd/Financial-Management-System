@@ -5,6 +5,7 @@ import '../widgets/kinetic_torus_iris.dart';
 import 'login_screen.dart';
 import 'welcome_entry_screen.dart';
 import 'executive_home_screen.dart';
+import 'biometric_auth_screen.dart';
 
 class BemiSplashScreen extends StatefulWidget {
   const BemiSplashScreen({super.key});
@@ -23,9 +24,11 @@ class _BemiSplashScreenState extends State<BemiSplashScreen> {
   Future<void> _bootstrapApp() async {
     final startTime = DateTime.now();
 
-    // 1. Resolve session in background
+    // 1. Resolve session and security configuration in background
     final user = await ChatStorageService.getUser();
     final hasSeenWelcome = await ChatStorageService.hasSeenWelcome();
+    final isBioConfigured = await ChatStorageService.isBiometricConfigured();
+    final isBioEnabled = await ChatStorageService.isBiometricEnabled();
 
     // 2. Guarantee a smooth 4.5s display duration
     final elapsed = DateTime.now().difference(startTime);
@@ -39,10 +42,17 @@ class _BemiSplashScreenState extends State<BemiSplashScreen> {
     Widget nextScreen;
     if (user == null) {
       nextScreen = const LoginScreen();
+    } else if (isBioConfigured && isBioEnabled) {
+      // Biometrics are configured: Always gate access with BiometricAuthScreen
+      nextScreen = BiometricAuthScreen(userName: user.fullName);
     } else if (!hasSeenWelcome) {
       nextScreen = WelcomeEntryScreen(userName: user.fullName);
     } else {
-      nextScreen = ExecutiveHomeScreen(userName: user.fullName);
+      // Not configured: Pass showBiometricPrompt: true to prompt GMD immediately
+      nextScreen = ExecutiveHomeScreen(
+        userName: user.fullName,
+        showBiometricPrompt: !isBioConfigured,
+      );
     }
 
     Navigator.pushReplacement(

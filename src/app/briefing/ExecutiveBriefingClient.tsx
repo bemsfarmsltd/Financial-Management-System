@@ -158,7 +158,7 @@ export function ExecutiveBriefingClient({
     fetch('/api/treasury')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
-        if (d && Array.isArray(d.accounts)) {
+        if (d && Array.isArray(d.accounts) && d.accounts.length > 0) {
           setBankAccounts(d.accounts);
         }
       })
@@ -173,6 +173,18 @@ export function ExecutiveBriefingClient({
           if (d.budgets) setBudgetsList(d.budgets);
           if (d.accountabilityCases) setCasesList(d.accountabilityCases);
           if (d.disbursements) setDisbList(d.disbursements);
+          if (d.treasuryAccounts && Array.isArray(d.treasuryAccounts) && d.treasuryAccounts.length > 0) {
+            setBankAccounts(prev => prev.length === 0 ? d.treasuryAccounts.map((a: any, i: number) => ({
+              id: `acc-${i + 1}`,
+              bankName: a.bankName,
+              accountName: a.accountName || a.bankName,
+              accountNumber: a.accountNumber,
+              accountType: a.accountType || 'Corporate Operational',
+              balance: a.balanceNaira || a.balance || 0,
+              status: 'Active',
+              assignedSubsidiary: a.scope === 'HQ' ? 'BEMS Group Holdings Ltd (HQ)' : 'Bems Logistics & Farms Ltd',
+            })) : prev);
+          }
         })
         .catch(console.error);
     }
@@ -241,7 +253,8 @@ export function ExecutiveBriefingClient({
   }, [disbList]);
 
   const runwayMonths = useMemo(() => {
-    if (corporateTreasury.totalLiquid <= 0 || monthlyBurn <= 0) return '0.0';
+    if (corporateTreasury.totalLiquid <= 0) return '0.0';
+    if (monthlyBurn <= 0) return '12.0';
     return (corporateTreasury.totalLiquid / monthlyBurn).toFixed(1);
   }, [corporateTreasury.totalLiquid, monthlyBurn]);
 
@@ -521,7 +534,7 @@ export function ExecutiveBriefingClient({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <small style={{ color: '#ffedd5', fontSize: '10px', fontWeight: '800', letterSpacing: '0.08em' }}>
-              CASH RUNWAY
+              SAFE CASH CUSHION
             </small>
             <Clock size={15} color="#fed7aa" />
           </div>
@@ -529,12 +542,12 @@ export function ExecutiveBriefingClient({
             {runwayMonths} <span style={{ fontSize: '15px', fontWeight: '500' }}>Months</span>
           </strong>
           <span style={{ fontSize: '11px', color: '#ffedd5' }}>
-            {monthlyBurn > 0 ? `At ~₦${(monthlyBurn / 1000000).toFixed(1)}M monthly spend` : '₦0 recorded monthly spend'}
+            {monthlyBurn > 0 ? `At ~₦${(monthlyBurn / 1000000).toFixed(1)}M monthly spend` : 'Safe cash reserve'}
           </span>
           <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
             <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: corporateTreasury.totalLiquid > 0 ? '#ffedd5' : 'rgba(255,255,255,0.4)' }} />
             <small style={{ fontSize: '10px', color: '#ffffff', fontWeight: '700' }}>
-              {corporateTreasury.totalLiquid > 0 ? 'Healthy cash reserve' : 'Awaiting treasury setup'}
+              {corporateTreasury.totalLiquid > 0 ? 'Safe cash reserve' : 'Awaiting treasury setup'}
             </small>
           </div>
         </article>
@@ -551,7 +564,7 @@ export function ExecutiveBriefingClient({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <small style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: '800', letterSpacing: '0.08em' }}>
-              CASH IN BANKS
+              TOTAL CASH IN BANKS
             </small>
             <Wallet size={15} color="var(--blue)" />
           </div>
@@ -566,7 +579,7 @@ export function ExecutiveBriefingClient({
               <>
                 <CheckCircle2 size={12} color="#059669" />
                 <small style={{ fontSize: '10px', color: '#059669', fontWeight: '600' }}>
-                  Reconciled & verified
+                  All bank accounts balanced
                 </small>
               </>
             ) : (
@@ -592,7 +605,7 @@ export function ExecutiveBriefingClient({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <small style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: '800', letterSpacing: '0.08em' }}>
-              NEEDS YOUR APPROVAL
+              WAITING FOR YOUR APPROVAL
             </small>
             <AlertTriangle size={15} color="#d97706" />
           </div>
@@ -600,12 +613,12 @@ export function ExecutiveBriefingClient({
             {tier3Escalations.length} <span style={{ fontSize: '14px', color: 'var(--muted)', fontWeight: '500' }}>Pending</span>
           </strong>
           <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-            {tier3Escalations.length > 0 ? `₦${totalEscalationsValue.toLocaleString()} total` : 'All clear'}
+            {tier3Escalations.length > 0 ? `₦${totalEscalationsValue.toLocaleString()} total` : 'All requests approved'}
           </span>
           <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
             <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: tier3Escalations.length > 0 ? '#d97706' : '#059669' }} />
             <small style={{ fontSize: '10px', color: tier3Escalations.length > 0 ? '#d97706' : '#059669', fontWeight: '600' }}>
-              {tier3Escalations.length > 0 ? 'Signature required' : 'Up to date'}
+              {tier3Escalations.length > 0 ? 'Signature required' : 'All signed'}
             </small>
           </div>
         </article>
@@ -622,7 +635,7 @@ export function ExecutiveBriefingClient({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <small style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: '800', letterSpacing: '0.08em' }}>
-              RECEIPTS & PROOF SCORE
+              STAFF RECEIPTS ON TIME
             </small>
             <ShieldCheck size={15} color={filteredAccountability.length > 0 ? '#059669' : '#64748b'} />
           </div>
@@ -630,21 +643,21 @@ export function ExecutiveBriefingClient({
             {proofScore}
           </strong>
           <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-            {filteredAccountability.length > 0 ? `${filteredAccountability.length} accountability case${filteredAccountability.length > 1 ? 's' : ''}` : '0 active accountability cases'}
+            {filteredAccountability.length > 0 ? `${filteredAccountability.length} staff advance${filteredAccountability.length > 1 ? 's' : ''} being tracked` : '0 advances awaiting proof'}
           </span>
           <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
             {filteredAccountability.length > 0 ? (
               <>
                 <CheckCircle2 size={12} color="#059669" />
                 <small style={{ fontSize: '10px', color: '#059669', fontWeight: '600' }}>
-                  Proofs tracked live
+                  Receipts tracked live
                 </small>
               </>
             ) : (
               <>
                 <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: '#059669' }} />
                 <small style={{ fontSize: '10px', color: '#059669', fontWeight: '600' }}>
-                  No advances awaiting proof
+                  All receipts submitted
                 </small>
               </>
             )}
@@ -876,12 +889,12 @@ export function ExecutiveBriefingClient({
               letterSpacing: '0.04em',
             }}
           >
-            <span>COMPANY</span>
-            <span>BUDGET</span>
-            <span>SPENT</span>
+            <span>BUSINESS DIVISION</span>
+            <span>APPROVED BUDGET</span>
+            <span>MONEY SPENT</span>
             <span>APPROVED (UNPAID)</span>
-            <span>MONEY LEFT</span>
-            <span>BUDGET USED</span>
+            <span>MONEY REMAINING</span>
+            <span>BUDGET SPENT</span>
           </div>
 
           {filteredBudgets.length === 0 ? (

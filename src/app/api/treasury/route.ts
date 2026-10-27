@@ -1,34 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
-import fs from 'node:fs';
-import path from 'node:path';
 
 export const dynamic = 'force-dynamic';
-
-const DATA_FILE = path.join(process.cwd(), 'src', 'data', 'company-bank-accounts.json');
-
-function readSavedAccounts(): any[] {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const content = fs.readFileSync(DATA_FILE, 'utf-8');
-      return JSON.parse(content) || [];
-    }
-  } catch (e) {
-    console.error('Error reading bank accounts file:', e);
-  }
-  return [];
-}
-
-function writeSavedAccounts(accounts: any[]) {
-  try {
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(DATA_FILE, JSON.stringify(accounts, null, 2), 'utf-8');
-  } catch (e) {
-    console.error('Error writing bank accounts file:', e);
-  }
-}
 
 function formatNaira(amount: number): string {
   return new Intl.NumberFormat('en-NG', {
@@ -51,9 +25,7 @@ export async function GET(req: NextRequest) {
 
     let reqWhere: any = { approvalStatus: 'APPROVED', paymentStatus: { in: ['UNPAID', 'RECIPIENT_REPORTED_ISSUE'] } };
     let disbWhere: any = { status: 'RECIPIENT_CONFIRMED' };
-
-    const rawAccounts = readSavedAccounts();
-    let filteredAccounts = rawAccounts;
+    let bankWhere: any = { status: 'ACTIVE' };
 
     if (subsidiary && subsidiary !== 'ALL') {
       const { resolveOrganizationScope } = await import('@/lib/organizations');
@@ -61,27 +33,18 @@ export async function GET(req: NextRequest) {
       if (!scope.isGroup) {
         reqWhere.subsidiaryId = { in: scope.organizationIds };
         disbWhere.request = { subsidiaryId: { in: scope.organizationIds } };
-
-        const subOrg = await prisma.organization.findFirst({
-          where: { id: { in: scope.organizationIds } },
-          select: { legalName: true, code: true }
-        });
-        const subNameLower = subOrg?.legalName?.toLowerCase() || '';
-        const subCodeLower = subOrg?.code?.toLowerCase() || '';
-
-        filteredAccounts = rawAccounts.filter((a: any) => {
-          const assigned = String(a.assignedSubsidiary || '').toLowerCase();
-          return (
-            assigned === subNameLower ||
-            assigned === subCodeLower ||
-            (subCodeLower && assigned.includes(subCodeLower)) ||
-            (subNameLower && assigned.includes(subNameLower))
-          );
-        });
+        bankWhere.organizationId = { in: scope.organizationIds };
       }
     }
 
-    // Calculate pending payout from DB
+    // 1. Fetch live Bank Accounts directly from PostgreSQL
+    const dbAccounts = await prisma.companyBankAccount.findMany({
+      where: bankWhere,
+      include: { organization: true },
+      orderBy: { balance: 'desc' }
+    });
+
+    // 2. Calculate pending payout from DB
     const approvedRequests = await prisma.expenditureRequest.findMany({
       where: reqWhere,
       select: { amountMinor: true }
@@ -89,7 +52,7 @@ export async function GET(req: NextRequest) {
     const pendingPipelineMinor = approvedRequests.reduce((acc, r) => acc + Number(r.amountMinor), 0);
     const pendingPipeline = pendingPipelineMinor / 100;
 
-    // Disbursed in last 30 days
+    // 3. Disbursed in last 30 days
     const disbursed = await prisma.disbursement.findMany({
       where: disbWhere,
       select: { amountMinor: true }
@@ -97,15 +60,35 @@ export async function GET(req: NextRequest) {
     const disbursedMinor = disbursed.reduce((acc, d) => acc + Number(d.amountMinor), 0);
     const mtdOutflow = disbursedMinor / 100;
 
-    const accounts = filteredAccounts.map((a: any) => ({
-      ...a,
-      balanceFormatted: formatNaira(Number(a.balance) || 0),
-      dailyLimitFormatted: formatNaira(Number(a.dailyLimit) || 25000000),
-    }));
+    const accounts = dbAccounts.map((a) => {
+      const balNum = Number(a.balance);
+      const limitNum = Number(a.dailyLimit);
+      return {
+        id: a.id,
+        bankName: a.bankName,
+        accountName: a.accountName,
+        accountNumber: a.accountNumber,
+        accountType: a.accountType,
+        currency: a.currency,
+        balance: balNum,
+        dailyLimit: limitNum,
+        assignedSubsidiary: a.organization?.legalName || 'BEMS Group',
+        tier: a.tier,
+        status: a.status === 'ACTIVE' ? 'Active' : a.status,
+        createdAt: a.createdAt.toISOString(),
+        balanceFormatted: formatNaira(balNum),
+        dailyLimitFormatted: formatNaira(limitNum),
+        organization: {
+          id: a.organization.id,
+          legalName: a.organization.legalName,
+          code: a.organization.code,
+        }
+      };
+    });
 
-    const totalLiquidReserves = accounts.reduce((acc: number, a: any) => acc + (Number(a.balance) || 0), 0);
+    const totalLiquidReserves = accounts.reduce((acc: number, a: any) => acc + a.balance, 0);
     const uncommittedReserves = Math.max(0, totalLiquidReserves - pendingPipeline);
-    const runwayMonths = totalLiquidReserves > 0 && mtdOutflow > 0 ? (totalLiquidReserves / mtdOutflow).toFixed(1) : '0.0';
+    const runwayMonths = totalLiquidReserves > 0 && mtdOutflow > 0 ? (totalLiquidReserves / mtdOutflow).toFixed(1) : (totalLiquidReserves > 0 ? '12.0' : '0.0');
 
     return NextResponse.json({
       accounts,
@@ -144,7 +127,8 @@ export async function POST(req: NextRequest) {
       currency,
       balance,
       dailyLimit,
-      assignedSubsidiary
+      assignedSubsidiary,
+      organizationId,
     } = body;
 
     if (!bankName || !bankName.trim()) {
@@ -157,58 +141,78 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '10-digit NUBAN account number is required.' }, { status: 400 });
     }
 
-    const accounts = readSavedAccounts();
-    const newId = `acc-${Date.now()}`;
-    const newAccount = {
-      id: newId,
-      bankName: bankName.trim(),
-      accountName: accountName.trim(),
-      accountNumber: accountNumber.trim(),
-      accountType: accountType || 'Corporate Operational',
-      currency: currency || 'NGN',
-      balance: Number(balance) || 0,
-      dailyLimit: Number(dailyLimit) || 25000000,
-      assignedSubsidiary: assignedSubsidiary || 'BEMS Group',
-      tier: 'Primary Maker-Checker',
-      status: 'Active',
-      createdAt: new Date().toISOString()
-    };
+    // Resolve target Organization
+    let targetOrgId = organizationId;
+    if (!targetOrgId && assignedSubsidiary) {
+      const org = await prisma.organization.findFirst({
+        where: {
+          OR: [
+            { legalName: { contains: assignedSubsidiary, mode: 'insensitive' } },
+            { code: { contains: assignedSubsidiary, mode: 'insensitive' } }
+          ]
+        }
+      });
+      if (org) targetOrgId = org.id;
+    }
 
-    accounts.push(newAccount);
-    writeSavedAccounts(accounts);
+    if (!targetOrgId) {
+      const defaultOrg = await prisma.organization.findFirst({ where: { type: 'GROUP' } });
+      targetOrgId = defaultOrg?.id;
+    }
+
+    if (!targetOrgId) {
+      return NextResponse.json({ error: 'Valid company organization is required.' }, { status: 400 });
+    }
+
+    const created = await prisma.companyBankAccount.upsert({
+      where: { accountNumber: accountNumber.trim() },
+      create: {
+        organizationId: targetOrgId,
+        bankName: bankName.trim(),
+        accountName: accountName.trim(),
+        accountNumber: accountNumber.trim(),
+        accountType: accountType || 'Corporate Operational',
+        currency: currency || 'NGN',
+        balance: Number(balance) || 0,
+        dailyLimit: Number(dailyLimit) || 25000000,
+        tier: 'Primary Maker-Checker',
+        status: 'ACTIVE',
+      },
+      update: {
+        organizationId: targetOrgId,
+        bankName: bankName.trim(),
+        accountName: accountName.trim(),
+        accountType: accountType || 'Corporate Operational',
+        balance: Number(balance) || 0,
+        dailyLimit: Number(dailyLimit) || 25000000,
+        status: 'ACTIVE',
+      },
+      include: { organization: true }
+    });
+
+    const balNum = Number(created.balance);
+    const limNum = Number(created.dailyLimit);
 
     return NextResponse.json({
-      message: 'Bank account added successfully.',
+      message: 'Bank account saved successfully to PostgreSQL.',
       account: {
-        ...newAccount,
-        balanceFormatted: formatNaira(newAccount.balance),
-        dailyLimitFormatted: formatNaira(newAccount.dailyLimit)
+        id: created.id,
+        bankName: created.bankName,
+        accountName: created.accountName,
+        accountNumber: created.accountNumber,
+        accountType: created.accountType,
+        currency: created.currency,
+        balance: balNum,
+        dailyLimit: limNum,
+        assignedSubsidiary: created.organization.legalName,
+        tier: created.tier,
+        status: 'Active',
+        balanceFormatted: formatNaira(balNum),
+        dailyLimitFormatted: formatNaira(limNum),
       }
     }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating bank account:', error);
     return NextResponse.json({ error: error.message || 'Failed to save bank account' }, { status: 500 });
-  }
-}
-
-export async function DELETE(req: NextRequest) {
-  try {
-    const actor = await getAuthenticatedEmployee(req);
-    if (!actor) return NextResponse.json({ error: 'Sign in to configure treasury accounts.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'COO'])) {
-      return NextResponse.json({ error: 'Only GMD or System Admin can delete bank accounts.' }, { status: 403 });
-    }
-
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ error: 'Account ID is required.' }, { status: 400 });
-
-    const accounts = readSavedAccounts();
-    const filtered = accounts.filter(a => a.id !== id);
-    writeSavedAccounts(filtered);
-
-    return NextResponse.json({ message: 'Bank account removed successfully.' });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Failed to remove bank account' }, { status: 500 });
   }
 }

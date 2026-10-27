@@ -8,9 +8,9 @@ void main() {
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF050811),
-      systemNavigationBarIconBrightness: Brightness.light,
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
   runApp(const BemsExecutiveAiApp());
@@ -22,9 +22,9 @@ class BemsExecutiveAiApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'BEMi - Bems Enterprise Machine Intelligence',
+      title: 'BEMS Executive - Fund Request & Accountability System',
       debugShowCheckedModeBanner: false,
-      theme: BemsTheme.darkTheme,
+      theme: BemsTheme.lightTheme,
       home: const BemiSplashScreen(),
     );
   }

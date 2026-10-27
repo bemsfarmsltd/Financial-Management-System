@@ -3,6 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'executive_chat_screen.dart';
+import '../widgets/charts/treasury_pie_chart.dart';
+import '../widgets/charts/expenditure_histogram.dart';
+import '../widgets/charts/subsidiary_burn_bars.dart';
+import '../widgets/charts/accountability_sla_gauge.dart';
+import '../models/workstation_scope.dart';
 
 class ExecutiveSystemDashboard extends StatefulWidget {
   final VoidCallback onOpenDrawer;
@@ -56,8 +61,8 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
         SnackBar(
           content: Text(
             decision == 'APPROVE'
-                ? 'Requisition approved and queued for treasury disbursement.'
-                : 'Requisition declined.',
+                ? '✓ Request approved & queued for bank payment.'
+                : 'Request declined.',
           ),
           backgroundColor: decision == 'APPROVE' ? const Color(0xFF059669) : const Color(0xFFDC2626),
           duration: const Duration(seconds: 2),
@@ -72,11 +77,13 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
     if (_selectedScope == 'all') return activeRequests;
 
     return activeRequests.where((r) {
-      final sub = (r['subsidiary'] ?? '').toString().toLowerCase();
+      final subMap = r['subsidiary'];
+      final subCode = (subMap is Map ? subMap['code'] : subMap)?.toString().toLowerCase() ?? '';
+      final subName = (subMap is Map ? subMap['legalName'] : subMap)?.toString().toLowerCase() ?? '';
       final dept = (r['department'] ?? '').toString().toLowerCase();
-      if (_selectedScope == 'FARMS') return sub.contains('farm') || dept.contains('farm') || dept.contains('agronomy');
-      if (_selectedScope == 'FEED') return sub.contains('feed') || dept.contains('feed');
-      if (_selectedScope == 'HAUL') return sub.contains('haul') || dept.contains('fleet') || dept.contains('logistics');
+      if (_selectedScope == 'SOFT') return subCode.contains('soft') || subName.contains('soft') || dept.contains('tech');
+      if (_selectedScope == 'LOG') return subCode.contains('log') || subName.contains('log') || dept.contains('supply');
+      if (_selectedScope == 'HQ') return subCode.contains('group') || subName.contains('group') || dept.contains('corp');
       return true;
     }).toList();
   }
@@ -84,65 +91,168 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
   @override
   Widget build(BuildContext context) {
     final currencyFormatter = NumberFormat.currency(locale: 'en_NG', symbol: '₦', decimalDigits: 0);
+    final currentWorkstation = WorkstationRepository.compute(
+      scope: _selectedScope,
+      data: _dashboardData,
+    );
 
     return Scaffold(
-      backgroundColor: const Color(0xFF04060C),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0, -0.6),
-            radius: 1.4,
-            colors: [
-              Color(0xFF381404),
-              Color(0xFF140803),
-              Color(0xFF04060C),
-            ],
-            stops: [0.0, 0.45, 1.0],
-          ),
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.segment_rounded, color: Color(0xFF0F172A), size: 22),
+          onPressed: widget.onOpenDrawer,
         ),
-        child: SafeArea(
-          child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Color(0xFFEA580C),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadData,
-                  color: const Color(0xFFEA580C),
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 100),
-                    children: [
-                      // Top Mode Selector (BEMi Copilot vs System Dashboard)
-                      _buildModeSelector(),
-
-                      const SizedBox(height: 16),
-
-                      // Subsidiary Scope Switcher
-                      _buildSubsidiaryScopeSelector(),
-
-                      const SizedBox(height: 16),
-
-                      // 4-Card Executive KPI Radar
-                      _buildKpiRadar(currencyFormatter),
-
-                      const SizedBox(height: 18),
-
-                      // Segmented Workspace Tabs
-                      _buildWorkspaceTabs(),
-
-                      const SizedBox(height: 16),
-
-                      // Tab Specific Content
-                      if (_currentTab == 0) ..._buildOverviewTab(currencyFormatter),
-                      if (_currentTab == 1) ..._buildApprovalsTab(currencyFormatter),
-                      if (_currentTab == 2) ..._buildTreasuryTab(currencyFormatter),
-                      if (_currentTab == 3) ..._buildAccountabilityBudgetsTab(currencyFormatter),
-                    ],
-                  ),
+        title: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFFEA580C), Color(0xFFC2410C)]),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child: Text('GMD', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 10)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Workstation Switcher Dropdown in Top Bar
+            PopupMenuButton<String>(
+              initialValue: _selectedScope,
+              tooltip: 'Switch Operating Workstation',
+              onSelected: (val) => setState(() => _selectedScope = val),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              color: Colors.white,
+              elevation: 8,
+              itemBuilder: (context) {
+                return WorkstationRepository.allWorkstations.map((ws) {
+                  final isCurrent = ws.code.toLowerCase() == _selectedScope.toLowerCase();
+                  return PopupMenuItem<String>(
+                    value: ws.code,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: ws.themeColor,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                ws.shortName,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                                  color: isCurrent ? const Color(0xFFEA580C) : const Color(0xFF0F172A),
+                                ),
+                              ),
+                              Text(
+                                ws.totalTreasuryDisplay,
+                                style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isCurrent)
+                          const Icon(Icons.check_rounded, size: 16, color: Color(0xFFEA580C)),
+                      ],
+                    ),
+                  );
+                }).toList();
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      currentWorkstation.shortName,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.arrow_drop_down_rounded, size: 18, color: Color(0xFF64748B)),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF64748B), size: 20),
+            onPressed: () {
+              setState(() => _isLoading = true);
+              _loadData();
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(color: Color(0xFFE2E8F0), height: 1),
+        ),
+      ),
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Color(0xFFEA580C),
+                ),
+              )
+            : RefreshIndicator(
+                onRefresh: _loadData,
+                color: const Color(0xFFEA580C),
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                  children: [
+                    // Top Mode Selector (BEMi Copilot vs System Dashboard)
+                    _buildModeSelector(),
+
+                    const SizedBox(height: 14),
+
+                    // Subsidiary Scope Switcher
+                    _buildSubsidiaryScopeSelector(currentWorkstation),
+
+                    const SizedBox(height: 16),
+
+                    // 4-Card Executive KPI Radar
+                    _buildKpiRadar(currencyFormatter, currentWorkstation),
+
+                    const SizedBox(height: 18),
+
+                    // Segmented Workspace Tabs
+                    _buildWorkspaceTabs(),
+
+                    const SizedBox(height: 16),
+
+                    // Tab Specific Content
+                    if (_currentTab == 0) ..._buildOverviewTab(currencyFormatter, currentWorkstation),
+                    if (_currentTab == 1) ..._buildApprovalsTab(currencyFormatter),
+                    if (_currentTab == 2) ..._buildTreasuryTab(currencyFormatter, currentWorkstation),
+                    if (_currentTab == 3) ..._buildAccountabilityBudgetsTab(currencyFormatter, currentWorkstation),
+                  ],
+                ),
+              ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: _buildFloatingCopilotPill(),
@@ -151,176 +261,226 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
 
   // 1. Mode Selector
   Widget _buildModeSelector() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: widget.onSwitchToAi,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(24),
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: widget.onSwitchToAi,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.auto_awesome_rounded, size: 14, color: Color(0xFF64748B)),
+                        SizedBox(width: 6),
+                        Text(
+                          'BEMi Copilot',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.auto_awesome_rounded, size: 14, color: Colors.white70),
-                    const SizedBox(width: 6),
-                    Text(
-                      'BEMi Copilot',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white.withOpacity(0.7),
+              ),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEA580C),
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x28EA580C),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.dashboard_customize_rounded, size: 14, color: Colors.white),
+                      SizedBox(width: 6),
+                      Text(
+                        'System Dashboard',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEA580C),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFEA580C).withOpacity(0.4),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.dashboard_customize_rounded, size: 14, color: Colors.white),
-                  SizedBox(width: 6),
-                  Text(
-                    'System Dashboard',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
+        ),
+        const SizedBox(height: 4),
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.swipe_rounded, size: 11, color: Color(0xFF94A3B8)),
+            SizedBox(width: 4),
+            Text(
+              'Swipe screen or tap pill to swap view',
+              style: TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 
-  // 2. Subsidiary Scope Selector
-  Widget _buildSubsidiaryScopeSelector() {
-    final scopes = [
-      {'code': 'all', 'label': 'All Subsidiaries'},
-      {'code': 'FARMS', 'label': 'BEMS Farms'},
-      {'code': 'FEED', 'label': 'BEMS Feed Mill'},
-      {'code': 'HAUL', 'label': 'Logistics & Haulage'},
-    ];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: scopes.map((s) {
-          final isSelected = _selectedScope == s['code'];
-          return GestureDetector(
-            onTap: () => setState(() => _selectedScope = s['code']!),
-            child: Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFFEA580C).withOpacity(0.2) : Colors.white.withOpacity(0.04),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isSelected ? const Color(0xFFEA580C) : Colors.white.withOpacity(0.08),
-                  width: isSelected ? 1.5 : 1,
+  // 2. Subsidiary / Workstation Scope Selector
+  Widget _buildSubsidiaryScopeSelector(WorkstationProfile currentWorkstation) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: WorkstationRepository.allWorkstations.map((ws) {
+              final isSelected = _selectedScope.toLowerCase() == ws.code.toLowerCase();
+              return GestureDetector(
+                onTap: () => setState(() => _selectedScope = ws.code),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFFFFF7ED) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0),
+                      width: isSelected ? 1.5 : 1,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x060F172A),
+                        blurRadius: 6,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: isSelected ? const Color(0xFFEA580C) : ws.themeColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Text(
+                        ws.shortName,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                          color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF475569),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Active Workstation Context Strip
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.business_rounded, size: 14, color: currentWorkstation.themeColor),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${currentWorkstation.fullName} · ${currentWorkstation.description}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (isSelected) ...[
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFEA580C),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                  Text(
-                    s['label']!,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                      color: isSelected ? Colors.white : Colors.white.withOpacity(0.6),
-                    ),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: currentWorkstation.themeColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  currentWorkstation.code.toUpperCase(),
+                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: currentWorkstation.themeColor),
+                ),
               ),
-            ),
-          );
-        }).toList(),
-      ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   // 3. 4-Card Executive KPI Radar
-  Widget _buildKpiRadar(NumberFormat formatter) {
-    final treasury = _dashboardData?['treasury'] ?? {};
+  Widget _buildKpiRadar(NumberFormat formatter, WorkstationProfile currentWorkstation) {
     final activeRequests = _getFilteredRequests();
     final pendingSum = activeRequests.fold<num>(
       0,
       (sum, r) => sum + (num.tryParse(r['amountNaira']?.toString() ?? '0') ?? 0),
     );
-    final overdueCount = _dashboardData?['overdueCount'] ?? 1;
 
     return Column(
       children: [
         Row(
           children: [
-            // KPI 1: Liquid Reserves
+            // KPI 1: Liquid Reserves (Workstation Scoped)
             Expanded(
               child: _buildKpiCard(
-                title: 'GROUP TREASURY',
-                value: treasury['total'] ?? '₦84.2M',
-                subtitle: '100% Reconciled',
+                title: '${currentWorkstation.code == 'all' ? 'TOTAL' : currentWorkstation.code} CASH IN BANKS',
+                value: currentWorkstation.totalTreasuryDisplay,
+                subtitle: 'All bank accounts balanced',
                 icon: Icons.account_balance_rounded,
-                iconColor: const Color(0xFFFB923C),
-                borderColor: const Color(0xFFEA580C).withOpacity(0.3),
-                badgeColor: const Color(0xFF059669).withOpacity(0.2),
-                badgeText: '18.4 WKS',
+                iconColor: currentWorkstation.themeColor,
+                badgeColor: currentWorkstation.themeColor.withOpacity(0.1),
+                badgeText: currentWorkstation.runwayWeeks,
               ),
             ),
             const SizedBox(width: 10),
-            // KPI 2: Pending Approvals
+            // KPI 2: Pending Approvals (Workstation Scoped)
             Expanded(
               child: _buildKpiCard(
-                title: 'PENDING GMD',
+                title: 'WAITING FOR YOUR APPROVAL',
                 value: formatter.format(pendingSum),
-                subtitle: '${activeRequests.length} requisitions',
+                subtitle: '${activeRequests.length} request(s)',
                 icon: Icons.verified_user_rounded,
-                iconColor: const Color(0xFFF97316),
-                borderColor: activeRequests.isNotEmpty ? const Color(0xFFF97316).withOpacity(0.3) : Colors.white12,
-                badgeColor: activeRequests.isNotEmpty ? const Color(0xFFEA580C).withOpacity(0.25) : const Color(0xFF059669).withOpacity(0.2),
-                badgeText: activeRequests.isNotEmpty ? 'ACTION' : 'CLEAR',
+                iconColor: const Color(0xFF0284C7),
+                badgeColor: activeRequests.isNotEmpty ? const Color(0xFFFFF7ED) : const Color(0xFFECFDF5),
+                badgeText: activeRequests.isNotEmpty ? '${activeRequests.length} WAITING' : 'ALL SIGNED',
               ),
             ),
           ],
@@ -328,31 +488,29 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
         const SizedBox(height: 10),
         Row(
           children: [
-            // KPI 3: 72h Cash Advances
+            // KPI 3: 72h Cash Advances (Workstation Scoped)
             Expanded(
               child: _buildKpiCard(
-                title: '72H ADVANCE SLA',
-                value: '$overdueCount OVERDUE',
-                subtitle: '2 active staff advances',
+                title: 'MONEY GIVEN TO STAFF',
+                value: currentWorkstation.overdueAdvances > 0 ? '${currentWorkstation.overdueAdvances} LATE' : 'ALL ON TIME',
+                subtitle: '${currentWorkstation.inProgressAdvances} staff holding money',
                 icon: Icons.timer_outlined,
-                iconColor: const Color(0xFFEF4444),
-                borderColor: const Color(0xFFEF4444).withOpacity(0.3),
-                badgeColor: const Color(0xFFEF4444).withOpacity(0.2),
-                badgeText: 'AUDIT',
+                iconColor: currentWorkstation.overdueAdvances > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                badgeColor: currentWorkstation.overdueAdvances > 0 ? const Color(0xFFFEF2F2) : const Color(0xFFECFDF5),
+                badgeText: currentWorkstation.overdueAdvances > 0 ? 'NEEDS ATTENTION' : 'ON TIME',
               ),
             ),
             const SizedBox(width: 10),
-            // KPI 4: Q4 Budget Run-rate
+            // KPI 4: Q4 Budget Run-rate (Workstation Scoped)
             Expanded(
               child: _buildKpiCard(
-                title: 'Q4 BUDGET BURN',
-                value: '67.4% BURN',
-                subtitle: '₦56.6M / ₦84M consumed',
+                title: 'QUARTERLY BUDGET SPENT',
+                value: currentWorkstation.burnBadge,
+                subtitle: '₦${(currentWorkstation.spentAmount / 1000000).toStringAsFixed(1)}M of ₦${(currentWorkstation.budgetCeiling / 1000000).toStringAsFixed(0)}M spent',
                 icon: Icons.pie_chart_outline_rounded,
-                iconColor: const Color(0xFF10B981),
-                borderColor: Colors.white12,
-                badgeColor: const Color(0xFF10B981).withOpacity(0.2),
-                badgeText: 'ON TRACK',
+                iconColor: currentWorkstation.themeColor,
+                badgeColor: currentWorkstation.themeColor.withOpacity(0.1),
+                badgeText: currentWorkstation.burnPercentage > 75 ? 'HIGH SPEND' : 'UNDER BUDGET',
               ),
             ),
           ],
@@ -361,22 +519,29 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
     );
   }
 
+
   Widget _buildKpiCard({
     required String title,
     required String value,
     required String subtitle,
     required IconData icon,
     required Color iconColor,
-    required Color borderColor,
     required Color badgeColor,
     required String badgeText,
   }) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x060F172A),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -384,7 +549,14 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, size: 16, color: iconColor),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: badgeColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 16, color: iconColor),
+              ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
@@ -393,7 +565,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                 ),
                 child: Text(
                   badgeText,
-                  style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: iconColor),
+                  style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: iconColor),
                 ),
               ),
             ],
@@ -401,20 +573,20 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
           const SizedBox(height: 10),
           Text(
             title,
-            style: TextStyle(
-              fontSize: 9,
+            style: const TextStyle(
+              fontSize: 9.5,
               fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-              color: Colors.white.withOpacity(0.5),
+              letterSpacing: 0.6,
+              color: Color(0xFF64748B),
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
           Text(
             value,
             style: const TextStyle(
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: FontWeight.w900,
-              color: Colors.white,
+              color: Color(0xFF0F172A),
               letterSpacing: -0.4,
             ),
             maxLines: 1,
@@ -423,7 +595,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4)),
+            style: const TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -437,17 +609,17 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
     final activeCount = _getFilteredRequests().length;
     final tabs = [
       {'label': 'Overview', 'icon': Icons.insights_rounded, 'badge': ''},
-      {'label': 'Approvals', 'icon': Icons.rule_rounded, 'badge': activeCount > 0 ? '$activeCount' : ''},
-      {'label': 'Treasury', 'icon': Icons.account_balance_rounded, 'badge': '3'},
-      {'label': 'Accountability', 'icon': Icons.verified_outlined, 'badge': '!'},
+      {'label': 'Requests to Sign', 'icon': Icons.rule_rounded, 'badge': activeCount > 0 ? '$activeCount' : ''},
+      {'label': 'Bank Accounts', 'icon': Icons.account_balance_rounded, 'badge': '3'},
+      {'label': 'Staff Receipts', 'icon': Icons.verified_outlined, 'badge': '!'},
     ];
 
     return Container(
-      padding: const EdgeInsets.all(3),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
         children: List.generate(tabs.length, (idx) {
@@ -461,14 +633,14 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFFEA580C) : Colors.transparent,
+                  color: isSelected ? Colors.white : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: isSelected
-                      ? [
+                      ? const [
                           BoxShadow(
-                            color: const Color(0xFFEA580C).withOpacity(0.4),
+                            color: Color(0x0A0F172A),
                             blurRadius: 8,
-                            offset: const Offset(0, 2),
+                            offset: Offset(0, 2),
                           ),
                         ]
                       : null,
@@ -479,7 +651,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                     Icon(
                       t['icon'] as IconData,
                       size: 13,
-                      color: isSelected ? Colors.white : Colors.white54,
+                      color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -487,7 +659,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                       style: TextStyle(
                         fontSize: 10.5,
                         fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                        color: isSelected ? Colors.white : Colors.white60,
+                        color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF64748B),
                       ),
                     ),
                     if (badge.isNotEmpty) ...[
@@ -495,12 +667,16 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                         decoration: BoxDecoration(
-                          color: isSelected ? Colors.black26 : const Color(0xFFEA580C),
+                          color: isSelected ? const Color(0xFFEA580C) : const Color(0xFFCBD5E1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           badge,
-                          style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.white),
+                          style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                            color: isSelected ? Colors.white : const Color(0xFF334155),
+                          ),
                         ),
                       ),
                     ],
@@ -515,7 +691,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
   }
 
   // TAB 0: OVERVIEW TAB
-  List<Widget> _buildOverviewTab(NumberFormat formatter) {
+  List<Widget> _buildOverviewTab(NumberFormat formatter, WorkstationProfile currentWorkstation) {
     final activeRequests = _getFilteredRequests();
 
     return [
@@ -525,25 +701,27 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
           margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                const Color(0xFFEA580C).withOpacity(0.25),
-                const Color(0xFF7C2D12).withOpacity(0.15),
-              ],
-            ),
+            color: const Color(0xFFFFF7ED),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.4)),
+            border: Border.all(color: const Color(0xFFFED7AA)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x060F172A),
+                blurRadius: 10,
+                offset: Offset(0, 3),
+              ),
+            ],
           ),
           child: Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEA580C).withOpacity(0.3),
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEA580C),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.bolt_rounded, color: Color(0xFFFB923C), size: 20),
+                child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -551,13 +729,13 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Executive Action Required',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
+                      'Requests Need Your Signature',
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${activeRequests.length} requisition(s) currently awaiting your authorization.',
-                      style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.65)),
+                      '${activeRequests.length} request(s) waiting for your approval in ${currentWorkstation.shortName}.',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
@@ -567,11 +745,11 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEA580C),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   elevation: 0,
                 ),
-                child: const Text('Review', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                child: const Text('View Requests', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
               ),
             ],
           ),
@@ -579,23 +757,74 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
 
       // Top Pending Requisition Card preview
       if (activeRequests.isNotEmpty) ...[
-        _buildSectionHeader('HIGH PRIORITY APPROVAL', 'Direct executive sign-off queue'),
+        _buildSectionHeader('URGENT REQUESTS NEEDING DECISION', 'Waiting for your final decision in ${currentWorkstation.shortName}'),
         const SizedBox(height: 10),
         _buildRequisitionCard(activeRequests.first, formatter),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
       ],
 
-      // Treasury Quick Health Card
-      _buildSectionHeader('TREASURY PORTFOLIO SUMMARY', 'Multi-bank cash reserves'),
+      // 1. Solid Multi-Bank Treasury Donut / Pie Chart (Workstation Scoped)
+      _buildSectionHeader(currentWorkstation.code == 'all' ? 'WHERE OUR MONEY IS KEPT' : '${currentWorkstation.code} BANK ACCOUNTS', 'Current balances in company bank accounts for ${currentWorkstation.shortName}'),
       const SizedBox(height: 10),
-      _buildTreasuryCard(formatter),
+      TreasuryPieChart(
+        key: ValueKey('pie_${currentWorkstation.code}'),
+        totalBalance: currentWorkstation.totalTreasuryAmount,
+        bankData: currentWorkstation.bankAccounts,
+      ),
 
-      const SizedBox(height: 16),
+      const SizedBox(height: 20),
 
-      // Accountability Radar Preview
-      _buildSectionHeader('72-HOUR RETIREMENT SLA', 'Staff unretired cash advances'),
+      // 2. Solid Monthly Expenditure Histogram (Workstation Scoped)
+      _buildSectionHeader(currentWorkstation.code == 'all' ? 'MONTHLY MONEY SPENT' : '${currentWorkstation.code} MONTHLY SPENDING', 'Actual money spent each month vs approved budget limit'),
       const SizedBox(height: 10),
-      _buildAccountabilityPreviewCard(),
+      ExpenditureHistogram(
+        key: ValueKey('hist_${currentWorkstation.code}'),
+        monthlyData: currentWorkstation.monthlyBurnHistory,
+      ),
+
+      const SizedBox(height: 20),
+
+      // 3. Subsidiary Budget Utilization Progress Bars (Horizontal Histogram)
+      _buildSectionHeader('SPENDING BY BUSINESS DIVISION', 'How much each business unit has spent this quarter'),
+      const SizedBox(height: 10),
+      const SubsidiaryBurnBars(
+        items: [
+          SubsidiaryBudgetItem(
+            entityName: 'BemsSoft Hub Ltd',
+            code: 'TECH',
+            budgetCeiling: 25000000,
+            spentAmount: 18500000,
+            themeColor: Color(0xFF2563EB),
+          ),
+          SubsidiaryBudgetItem(
+            entityName: 'Bems Logistics Ltd',
+            code: 'LOGS',
+            budgetCeiling: 45000000,
+            spentAmount: 32100000,
+            themeColor: Color(0xFFEA580C),
+          ),
+          SubsidiaryBudgetItem(
+            entityName: 'Group Corporate HQ',
+            code: 'CORP',
+            budgetCeiling: 14000000,
+            spentAmount: 6000000,
+            themeColor: Color(0xFF059669),
+          ),
+        ],
+      ),
+
+      const SizedBox(height: 20),
+
+      // 4. 72-Hour SLA Accountability Compliance Gauge (Workstation Scoped)
+      _buildSectionHeader(currentWorkstation.code == 'all' ? 'STAFF ADVANCE RECEIPTS STATUS' : '${currentWorkstation.code} STAFF RECEIPTS', 'Tracking receipts for money given to staff in ${currentWorkstation.shortName}'),
+      const SizedBox(height: 10),
+      AccountabilitySlaGauge(
+        key: ValueKey('sla_${currentWorkstation.code}'),
+        totalAdvances: currentWorkstation.totalAdvances,
+        retiredOnTime: currentWorkstation.retiredOnTime,
+        inProgress: currentWorkstation.inProgressAdvances,
+        overdueCount: currentWorkstation.overdueAdvances,
+      ),
     ];
   }
 
@@ -607,26 +836,22 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _buildSectionHeader('PENDING APPROVALS DESK', '${activeRequests.length} requisition(s) in review queue'),
+          _buildSectionHeader('REQUESTS WAITING FOR YOUR SIGNATURE', '${activeRequests.length} request(s) need your decision'),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: activeRequests.isNotEmpty
-                  ? const Color(0xFFEA580C).withOpacity(0.2)
-                  : const Color(0xFF059669).withOpacity(0.2),
+              color: activeRequests.isNotEmpty ? const Color(0xFFFFF7ED) : const Color(0xFFECFDF5),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: activeRequests.isNotEmpty
-                    ? const Color(0xFFEA580C).withOpacity(0.4)
-                    : const Color(0xFF059669).withOpacity(0.4),
+                color: activeRequests.isNotEmpty ? const Color(0xFFFED7AA) : const Color(0xFFA7F3D0),
               ),
             ),
             child: Text(
-              activeRequests.isNotEmpty ? '${activeRequests.length} REQUIRE SIGN-OFF' : 'ALL CLEAR',
+              activeRequests.isNotEmpty ? '${activeRequests.length} NEED SIGNATURE' : 'ALL SIGNED',
               style: TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.w800,
-                color: activeRequests.isNotEmpty ? const Color(0xFFFB923C) : const Color(0xFF34D399),
+                color: activeRequests.isNotEmpty ? const Color(0xFFEA580C) : const Color(0xFF059669),
               ),
             ),
           ),
@@ -638,23 +863,26 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
         Container(
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.04),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: const [
+              BoxShadow(color: Color(0x060F172A), blurRadius: 10, offset: Offset(0, 3)),
+            ],
           ),
           child: Column(
             children: [
-              const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF10B981), size: 44),
+              const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF059669), size: 44),
               const SizedBox(height: 12),
               const Text(
-                'Approvals Queue is Clear',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                'No Requests Waiting',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 4),
               Text(
-                'Zero requisitions currently awaiting executive authorization for ${_selectedScope == 'all' ? 'any subsidiary' : _selectedScope}.',
+                'All requests have been signed and approved for ${_selectedScope == 'all' ? 'all divisions' : _selectedScope}.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.5)),
+                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
               ),
             ],
           ),
@@ -665,29 +893,36 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
   }
 
   // TAB 2: TREASURY & BANKS
-  List<Widget> _buildTreasuryTab(NumberFormat formatter) {
-    final treasury = _dashboardData?['treasury'] ?? {};
-    final accounts = (treasury['accounts'] as List<dynamic>?) ?? [];
-    final recentDisb = (treasury['recentDisbursements'] as List<dynamic>?) ?? [];
+  List<Widget> _buildTreasuryTab(NumberFormat formatter, WorkstationProfile currentWorkstation) {
+    final recentDisb = (_dashboardData?['disbursements'] as List<dynamic>?) ??
+        (_dashboardData?['treasury']?['recentDisbursements'] as List<dynamic>?) ??
+        [];
 
     return [
-      _buildSectionHeader('GROUP TREASURY BALANCES', 'Consolidated multi-bank reserves'),
+      _buildSectionHeader(currentWorkstation.code == 'all' ? 'WHERE OUR MONEY IS KEPT' : '${currentWorkstation.code} BANK ACCOUNTS', 'Current balances in company bank accounts for ${currentWorkstation.shortName}'),
       const SizedBox(height: 10),
-      _buildTreasuryCard(formatter),
+      TreasuryPieChart(
+        key: ValueKey('treasury_tab_pie_${currentWorkstation.code}'),
+        totalBalance: currentWorkstation.totalTreasuryAmount,
+        bankData: currentWorkstation.bankAccounts,
+      ),
 
       const SizedBox(height: 20),
 
-      _buildSectionHeader('AUTHORIZED BANK ACCOUNTS', 'Direct liquid accounts & escrow reserves'),
+      _buildSectionHeader('COMPANY BANK ACCOUNTS', 'Direct balances in company bank accounts for ${currentWorkstation.shortName}'),
       const SizedBox(height: 10),
 
-      ...accounts.map((acc) {
+      ...currentWorkstation.bankAccounts.map((acc) {
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.04),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: const [
+              BoxShadow(color: Color(0x060F172A), blurRadius: 8, offset: Offset(0, 2)),
+            ],
           ),
           child: Row(
             children: [
@@ -695,10 +930,11 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFB923C).withOpacity(0.12),
+                  color: acc.color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: acc.color.withOpacity(0.2)),
                 ),
-                child: const Icon(Icons.account_balance_rounded, color: Color(0xFFFB923C), size: 20),
+                child: Icon(Icons.account_balance_rounded, color: acc.color, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -709,12 +945,12 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          acc['bank'] ?? 'Bank',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+                          acc.bankName,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
                         ),
                         Text(
-                          acc['balance'] ?? '₦0',
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
+                          formatter.format(acc.amount),
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
                         ),
                       ],
                     ),
@@ -725,17 +961,18 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                         Row(
                           children: [
                             Text(
-                              acc['accountNumber'] ?? '0000000000',
-                              style: TextStyle(
+                              acc.accountNumber,
+                              style: const TextStyle(
                                 fontSize: 11,
                                 fontFamily: 'monospace',
-                                color: Colors.white.withOpacity(0.5),
+                                color: Color(0xFF64748B),
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                             const SizedBox(width: 6),
                             GestureDetector(
                               onTap: () {
-                                Clipboard.setData(ClipboardData(text: acc['accountNumber'] ?? ''));
+                                Clipboard.setData(ClipboardData(text: acc.accountNumber));
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text('Account number copied to clipboard'),
@@ -743,13 +980,20 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                                   ),
                                 );
                               },
-                              child: Icon(Icons.copy_rounded, size: 12, color: Colors.white.withOpacity(0.4)),
+                              child: const Icon(Icons.copy_rounded, size: 12, color: Color(0xFF94A3B8)),
                             ),
                           ],
                         ),
-                        Text(
-                          acc['accountType'] ?? 'Account',
-                          style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: acc.color.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Available Cash',
+                            style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: acc.color),
+                          ),
                         ),
                       ],
                     ),
@@ -763,90 +1007,130 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
 
       const SizedBox(height: 20),
 
-      _buildSectionHeader('RECENT CONFIRMED DISBURSEMENTS', 'Direct bank payout transaction logs'),
+      _buildSectionHeader('RECENT PAYMENTS SENT OUT', 'Confirmed payments made from company bank accounts'),
       const SizedBox(height: 10),
 
-      ...recentDisb.map((disb) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(14),
+      if (recentDisb.isEmpty)
+        Container(
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.03),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withOpacity(0.06)),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF059669).withOpacity(0.15),
-                      shape: BoxShape.circle,
+          child: const Center(
+            child: Text(
+              'No payments sent out yet.',
+              style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+            ),
+          ),
+        )
+      else
+        ...recentDisb.map((disb) {
+          final amtNum = disb['amountNaira'] ?? (num.tryParse(disb['amount']?.toString().replaceAll(RegExp(r'[^\d.]'), '') ?? '0') ?? 0);
+          final bank = disb['bankName'] ?? disb['beneficiary'] ?? 'Bank Disbursement';
+          final payer = disb['payerOrg']?['legalName'] ?? disb['subsidiary'] ?? 'BEMS Group';
+          final ref = disb['externalReference'] ?? disb['reference'] ?? 'TRF';
+          String timeStr = 'Recently';
+          if (disb['paidAt'] != null) {
+            final dt = DateTime.tryParse(disb['paidAt'].toString());
+            if (dt != null) timeStr = DateFormat('MMM d, h:mm a').format(dt);
+          } else if (disb['time'] != null) {
+            timeStr = disb['time'].toString();
+          }
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: const [
+                BoxShadow(color: Color(0x060F172A), blurRadius: 6, offset: Offset(0, 2)),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFECFDF5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.arrow_outward_rounded, color: Color(0xFF059669), size: 16),
                     ),
-                    child: const Icon(Icons.arrow_outward_rounded, color: Color(0xFF34D399), size: 16),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        disb['beneficiary'] ?? 'Beneficiary',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${disb['subsidiary'] ?? 'Group'} · ${disb['time']}',
-                        style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.45)),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    disb['amount'] ?? '₦0',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    disb['reference'] ?? 'TRF',
-                    style: TextStyle(fontSize: 9, fontFamily: 'monospace', color: Colors.white.withOpacity(0.4)),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      }),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          bank,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$payer · $timeStr',
+                          style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      formatter.format(amtNum),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      ref,
+                      style: const TextStyle(fontSize: 9, fontFamily: 'monospace', color: Color(0xFF94A3B8)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }),
     ];
   }
 
   // TAB 3: ACCOUNTABILITY & BUDGETS
-  List<Widget> _buildAccountabilityBudgetsTab(NumberFormat formatter) {
+  List<Widget> _buildAccountabilityBudgetsTab(NumberFormat formatter, WorkstationProfile currentWorkstation) {
     final accountabilityCases = (_dashboardData?['accountabilityCases'] as List<dynamic>?) ?? [];
     final budgets = (_dashboardData?['budgets'] as List<dynamic>?) ?? [];
 
     return [
-      _buildSectionHeader('72-HOUR RETIREMENT RADAR', 'Mandatory expense retirements & receipts'),
+      _buildSectionHeader('STAFF ADVANCES & RECEIPTS', 'Tracking receipts for money given to staff (${currentWorkstation.name})'),
       const SizedBox(height: 10),
+      AccountabilitySlaGauge(
+        key: ValueKey('sla_${currentWorkstation.id}'),
+        totalAdvances: currentWorkstation.slaAdvances,
+        retiredOnTime: currentWorkstation.slaRetiredOnTime,
+        inProgress: currentWorkstation.slaInProgress,
+        overdueCount: currentWorkstation.slaOverdue,
+      ),
+      const SizedBox(height: 18),
 
       if (accountabilityCases.isEmpty)
         Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.04),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: const Center(
             child: Text(
-              'Zero unretired cash advances across subsidiaries.',
-              style: TextStyle(fontSize: 12, color: Colors.white70),
+              'All staff have submitted their receipts on time.',
+              style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
             ),
           ),
         )
@@ -854,7 +1138,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
         ...accountabilityCases.map((acc) {
           final isOverdue = acc['status'] == 'OVERDUE' || (acc['hoursRemaining'] is num && acc['hoursRemaining'] < 0);
           final staffName = acc['staffName'] ?? acc['request']?['requester']?['legalName'] ?? 'Staff Member';
-          final sub = acc['subsidiary'] ?? acc['request']?['subsidiary']?['legalName'] ?? 'BEMS Farms';
+          final sub = acc['subsidiary'] ?? acc['request']?['subsidiary']?['legalName'] ?? 'BEMS Group';
           final purpose = acc['purpose'] ?? acc['request']?['title'] ?? 'Operational advance';
           final amountNaira = num.tryParse(acc['amountNaira']?.toString() ?? acc['request']?['amountNaira']?.toString() ?? '0') ?? 0;
           final expectedProof = acc['expectedProof'] ?? 'Physical vendor receipt & completion certificate';
@@ -863,11 +1147,14 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isOverdue ? const Color(0xFFDC2626).withOpacity(0.08) : Colors.white.withOpacity(0.04),
+              color: isOverdue ? const Color(0xFFFEF2F2) : Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isOverdue ? const Color(0xFFEF4444).withOpacity(0.4) : Colors.white.withOpacity(0.08),
+                color: isOverdue ? const Color(0xFFFECACA) : const Color(0xFFE2E8F0),
               ),
+              boxShadow: const [
+                BoxShadow(color: Color(0x060F172A), blurRadius: 8, offset: Offset(0, 2)),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -881,29 +1168,29 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                           width: 8,
                           height: 8,
                           decoration: BoxDecoration(
-                            color: isOverdue ? const Color(0xFFEF4444) : const Color(0xFFF59E0B),
+                            color: isOverdue ? const Color(0xFFDC2626) : const Color(0xFFD97706),
                             shape: BoxShape.circle,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Text(
                           staffName,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
                         ),
                       ],
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: isOverdue ? const Color(0xFFEF4444).withOpacity(0.2) : const Color(0xFFF59E0B).withOpacity(0.2),
+                        color: isOverdue ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        isOverdue ? '24H OVERDUE' : 'DUE IN 18H',
+                        isOverdue ? 'LATE BY 24 HOURS' : 'RECEIPT DUE IN 18 HOURS',
                         style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w900,
-                          color: isOverdue ? const Color(0xFFFCA5A5) : const Color(0xFFFDE68A),
+                          color: isOverdue ? const Color(0xFFB91C1C) : const Color(0xFFB45309),
                         ),
                       ),
                     ),
@@ -912,28 +1199,29 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                 const SizedBox(height: 6),
                 Text(
                   purpose,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '$sub · Advance Amount: ${formatter.format(amountNaira)}',
-                  style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.5)),
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                 ),
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.black26,
+                    color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.receipt_long_rounded, size: 14, color: Color(0xFFFB923C)),
+                      const Icon(Icons.receipt_long_rounded, size: 14, color: Color(0xFFEA580C)),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Required: $expectedProof',
-                          style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.7)),
+                          'Proof required: $expectedProof',
+                          style: const TextStyle(fontSize: 10.5, color: Color(0xFF334155), fontWeight: FontWeight.w500),
                         ),
                       ),
                     ],
@@ -946,25 +1234,62 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
 
       const SizedBox(height: 24),
 
-      _buildSectionHeader('SUBSIDIARY BUDGET ALLOCATIONS', 'Real-time burn-rate & variance tracking'),
+      _buildSectionHeader('MONTHLY MONEY SPENT', 'Monthly spending vs approved budget limit (${currentWorkstation.name})'),
+      const SizedBox(height: 10),
+      ExpenditureHistogram(
+        key: ValueKey('hist_${currentWorkstation.id}'),
+        monthlyData: currentWorkstation.monthlyBurn,
+      ),
+
+      const SizedBox(height: 20),
+
+      _buildSectionHeader('SPENDING BY BUSINESS DIVISION', 'How much each business unit has spent this quarter (${currentWorkstation.name})'),
+      const SizedBox(height: 10),
+      SubsidiaryBurnBars(
+        key: ValueKey('subs_${currentWorkstation.id}'),
+        items: currentWorkstation.subsidiaries,
+      ),
+
+      const SizedBox(height: 20),
+
+      _buildSectionHeader('DEPARTMENT BUDGETS & SPENDING', 'Approved budget vs actual money spent'),
       const SizedBox(height: 10),
 
-      ...budgets.map((b) {
-        final dept = b['department'] ?? b['organization']?['legalName'] ?? 'Department';
-        final sub = b['subsidiary'] ?? 'BEMS Group';
-        final allocated = num.tryParse(b['allocatedAmount']?.toString() ?? '1') ?? 1;
-        final spent = num.tryParse(b['spentAmount']?.toString() ?? '0') ?? 0;
-        final burn = (spent / (allocated > 0 ? allocated : 1)).clamp(0.0, 1.0);
-        final percentFormatted = (burn * 100).toStringAsFixed(1);
-        final isHighBurn = burn > 0.75;
+      if (budgets.isEmpty)
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: const Center(
+            child: Text(
+              'No department budgets found.',
+              style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+            ),
+          ),
+        )
+      else
+        ...budgets.map((b) {
+          final dept = b['periodName'] ?? b['department'] ?? 'Q4 Allocation';
+          final sub = b['organization']?['legalName'] ?? b['subsidiary'] ?? 'BEMS Group';
+          final allocated = num.tryParse(b['totalAmount']?.toString() ?? b['allocatedAmount']?.toString() ?? '1') ?? 1;
+          final spent = num.tryParse(b['spentAmount']?.toString() ?? '0') ?? 0;
+          final burn = (spent / (allocated > 0 ? allocated : 1)).clamp(0.0, 1.0);
+          final percentFormatted = (burn * 100).toStringAsFixed(1);
+          final isHighBurn = burn > 0.75;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.04),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: const [
+              BoxShadow(color: Color(0x060F172A), blurRadius: 8, offset: Offset(0, 2)),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -977,26 +1302,26 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                     children: [
                       Text(
                         dept,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
                       ),
                       Text(
                         sub,
-                        style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4)),
+                        style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
                       ),
                     ],
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: isHighBurn ? const Color(0xFFEF4444).withOpacity(0.2) : const Color(0xFF10B981).withOpacity(0.2),
+                      color: isHighBurn ? const Color(0xFFFEE2E2) : const Color(0xFFECFDF5),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '$percentFormatted% UTILIZED',
+                      '$percentFormatted% SPENT',
                       style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
-                        color: isHighBurn ? const Color(0xFFFCA5A5) : const Color(0xFF6EE7B7),
+                        color: isHighBurn ? const Color(0xFFB91C1C) : const Color(0xFF059669),
                       ),
                     ),
                   ),
@@ -1008,9 +1333,9 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                 child: LinearProgressIndicator(
                   value: burn,
                   minHeight: 6,
-                  backgroundColor: Colors.white.withOpacity(0.08),
+                  backgroundColor: const Color(0xFFF1F5F9),
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    isHighBurn ? const Color(0xFFEF4444) : const Color(0xFFEA580C),
+                    isHighBurn ? const Color(0xFFDC2626) : const Color(0xFFEA580C),
                   ),
                 ),
               ),
@@ -1020,11 +1345,11 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                 children: [
                   Text(
                     'Spent: ${formatter.format(spent)}',
-                    style: TextStyle(fontSize: 10.5, color: Colors.white.withOpacity(0.6)),
+                    style: const TextStyle(fontSize: 10.5, color: Color(0xFF475569), fontWeight: FontWeight.w600),
                   ),
                   Text(
                     'Limit: ${formatter.format(allocated)}',
-                    style: TextStyle(fontSize: 10.5, color: Colors.white.withOpacity(0.4)),
+                    style: const TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8)),
                   ),
                 ],
               ),
@@ -1055,12 +1380,19 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: urgency == 'CRITICAL' ? const Color(0xFFEF4444).withOpacity(0.5) : Colors.white.withOpacity(0.08),
+          color: urgency == 'CRITICAL' ? const Color(0xFFFECACA) : const Color(0xFFE2E8F0),
           width: urgency == 'CRITICAL' ? 1.5 : 1,
         ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x060F172A),
+            blurRadius: 12,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1070,13 +1402,21 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
             children: [
               Row(
                 children: [
-                  Text(
-                    code,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFFFB923C),
-                      letterSpacing: 0.5,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7ED),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFFED7AA)),
+                    ),
+                    child: Text(
+                      code,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFFEA580C),
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
                   if (urgency == 'CRITICAL') ...[
@@ -1084,12 +1424,12 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444).withOpacity(0.2),
+                        color: const Color(0xFFFEE2E2),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Text(
                         'CRITICAL',
-                        style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFFCA5A5)),
+                        style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFDC2626)),
                       ),
                     ),
                   ],
@@ -1100,44 +1440,53 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                 style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
-                  color: Colors.white,
+                  color: Color(0xFF0F172A),
                   letterSpacing: -0.5,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
             purpose,
-            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
           ),
           const SizedBox(height: 4),
           Text(
-            '$sub · $dept\nRequester: $requester · Pay To: $beneficiary',
-            style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.5)),
+            '$sub · $dept\nRequester: $requester · Payee: $beneficiary',
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.35),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.black26,
-              borderRadius: BorderRadius.circular(8),
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Justification: $justification',
-                  style: TextStyle(fontSize: 10.5, color: Colors.white.withOpacity(0.7)),
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF334155), fontWeight: FontWeight.w500),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  'Required Proof: $deliverable',
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFFB923C)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.verified_outlined, size: 12, color: Color(0xFFEA580C)),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        'Proof: $deliverable',
+                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFFEA580C)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1150,24 +1499,24 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.04),
+                color: const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white.withOpacity(0.06)),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFFB923C)),
-                      const SizedBox(width: 6),
+                      Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFEA580C)),
+                      SizedBox(width: 6),
                       Text(
-                        'Inspect Justification & Deliverable Proof',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.85)),
+                        'View Full Details & Proof',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
                       ),
                     ],
                   ),
-                  const Icon(Icons.chevron_right_rounded, size: 16, color: Colors.white54),
+                  Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFF64748B)),
                 ],
               ),
             ),
@@ -1209,8 +1558,9 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                 child: OutlinedButton(
                   onPressed: isProcessing ? null : () => _handleDecision(id, 'REJECT'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFF87171),
-                    side: BorderSide(color: const Color(0xFFDC2626).withOpacity(0.6)),
+                    foregroundColor: const Color(0xFFDC2626),
+                    side: const BorderSide(color: Color(0xFFFECACA)),
+                    backgroundColor: const Color(0xFFFEF2F2),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -1248,7 +1598,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF0B132B),
+      backgroundColor: Colors.white,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1265,7 +1615,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white24,
+                    color: const Color(0xFFE2E8F0),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1279,35 +1629,35 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                     children: [
                       Text(
                         code,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFFFB923C)),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFFEA580C)),
                       ),
                       Text(
                         '$sub · $dept',
-                        style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.5)),
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                       ),
                     ],
                   ),
                   Text(
                     formattedAmount,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white),
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              const Divider(color: Colors.white12),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
+              const Divider(color: Color(0xFFE2E8F0)),
+              const SizedBox(height: 10),
 
               _buildAuditRow('Purpose', purpose),
               const SizedBox(height: 10),
               _buildAuditRow('Business Justification', justification),
               const SizedBox(height: 10),
-              _buildAuditRow('Expected Deliverable', deliverable),
+              _buildAuditRow('Expected Proof / Receipt', deliverable),
               const SizedBox(height: 10),
-              _buildAuditRow('Beneficiary & Payout Target', beneficiary),
+              _buildAuditRow('Person / Company Being Paid', beneficiary),
               const SizedBox(height: 10),
               _buildAuditRow('Submitted By', requester),
               const SizedBox(height: 10),
-              _buildAuditRow('Budget Alignment', budgetStatus),
+              _buildAuditRow('Budget Status', budgetStatus),
 
               const SizedBox(height: 24),
 
@@ -1324,8 +1674,9 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
                       ),
-                      child: const Text('Approve Requisition', style: TextStyle(fontWeight: FontWeight.w800)),
+                      child: const Text('Sign & Approve Request', style: TextStyle(fontWeight: FontWeight.w800)),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -1336,12 +1687,13 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                         _handleDecision(id, 'REJECT');
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFF87171),
-                        side: BorderSide(color: const Color(0xFFDC2626).withOpacity(0.6)),
+                        foregroundColor: const Color(0xFFDC2626),
+                        side: const BorderSide(color: Color(0xFFFECACA)),
+                        backgroundColor: const Color(0xFFFEF2F2),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text('Decline', style: TextStyle(fontWeight: FontWeight.w800)),
+                      child: const Text('Decline Request', style: TextStyle(fontWeight: FontWeight.w800)),
                     ),
                   ),
                 ],
@@ -1359,170 +1711,23 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
       children: [
         Text(
           label.toUpperCase(),
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 9.5,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.8,
-            color: const Color(0xFFFB923C).withOpacity(0.9),
+            color: Color(0xFFEA580C),
           ),
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 2),
         Text(
           value,
-          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white),
+          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
         ),
       ],
     );
   }
 
-  // TREASURY CARD
-  Widget _buildTreasuryCard(NumberFormat formatter) {
-    final treasury = _dashboardData?['treasury'] ?? {};
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFEA580C).withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.account_balance_rounded, color: Color(0xFFFB923C), size: 16),
-                  SizedBox(width: 8),
-                  Text(
-                    'GROUP TREASURY RESERVES',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.1,
-                      color: Color(0xFFFB923C),
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF059669).withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF059669).withOpacity(0.4)),
-                ),
-                child: const Text(
-                  '100% RECONCILED',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF34D399),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            treasury['total'] ?? '₦84,200,000',
-            style: const TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-              letterSpacing: -0.8,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Liquid reserve balances across authorized deposit institutions',
-            style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.55)),
-          ),
-          const SizedBox(height: 16),
-          const Divider(color: Colors.white12, height: 1),
-          const SizedBox(height: 14),
-
-          // Bank breakdown lines
-          _buildBankPreviewLine('Access Bank PLC', '₦52,800,000', 'Holding Master Reserve'),
-          const SizedBox(height: 10),
-          _buildBankPreviewLine('Zenith Bank PLC', '₦24,400,000', 'Operations Account'),
-          const SizedBox(height: 10),
-          _buildBankPreviewLine('Guaranty Trust Bank', '₦7,000,000', 'Emergency Escrow'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBankPreviewLine(String name, String amount, String role) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(name, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
-            Text(role, style: TextStyle(fontSize: 10.5, color: Colors.white.withOpacity(0.4))),
-          ],
-        ),
-        Text(amount, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Colors.white)),
-      ],
-    );
-  }
-
-  // ACCOUNTABILITY PREVIEW
-  Widget _buildAccountabilityPreviewCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFFEF4444).withOpacity(0.18),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.warning_amber_rounded, color: Color(0xFFF87171), size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '1 Overdue Staff Advance Alert',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Sunday Ogunleye (BEMS Farms) · ₦280,000 pending receipt clearance (24h past SLA).',
-                  style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.55)),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: () => setState(() => _currentTab = 3),
-            icon: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.white54),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildSectionHeader(String title, String subtitle) {
     return Column(
@@ -1534,13 +1739,13 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
             fontSize: 10,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.1,
-            color: Color(0xFFFB923C),
+            color: Color(0xFFEA580C),
           ),
         ),
         const SizedBox(height: 2),
         Text(
           subtitle,
-          style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.5)),
+          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
         ),
       ],
     );
@@ -1551,16 +1756,16 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       margin: const EdgeInsets.symmetric(horizontal: 24),
-      height: 50,
+      height: 48,
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A).withOpacity(0.96),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.5)),
-        boxShadow: [
+        border: Border.all(color: const Color(0xFFFED7AA)),
+        boxShadow: const [
           BoxShadow(
-            color: const Color(0xFFEA580C).withOpacity(0.3),
+            color: Color(0x18EA580C),
             blurRadius: 16,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -1583,7 +1788,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
               height: 24,
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: LinearGradient(colors: [Color(0xFFEA580C), Color(0xFF9A3412)]),
+                gradient: LinearGradient(colors: [Color(0xFFEA580C), Color(0xFFC2410C)]),
               ),
               child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 14),
             ),
@@ -1593,7 +1798,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: Colors.white,
+                color: Color(0xFF0F172A),
               ),
             ),
           ],

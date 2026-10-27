@@ -169,7 +169,7 @@ class _WelcomeEntryScreenState extends State<WelcomeEntryScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'EXECUTIVE APPROVAL QUEUE',
+                          'GMD APPROVAL QUEUE',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w900,

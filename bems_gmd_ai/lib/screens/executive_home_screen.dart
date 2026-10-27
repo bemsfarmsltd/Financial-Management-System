@@ -6,17 +6,21 @@ import '../widgets/chat_history_drawer.dart';
 import 'voice_orb_screen.dart';
 import 'executive_chat_screen.dart';
 import 'executive_system_dashboard.dart';
+import 'gmd_profile_screen.dart';
+import '../widgets/biometric_setup_dialog.dart';
 
 class ExecutiveHomeScreen extends StatefulWidget {
   final String userName;
   final String businessName;
   final String initialMode;
+  final bool showBiometricPrompt;
 
   const ExecutiveHomeScreen({
     super.key,
-    this.userName = 'Executive',
-    this.businessName = 'BEMS Group',
+    this.userName = 'Group Managing Director',
+    this.businessName = 'BEMS Group · GMD Cockpit',
     this.initialMode = 'ai',
+    this.showBiometricPrompt = false,
   });
 
   @override
@@ -26,15 +30,41 @@ class ExecutiveHomeScreen extends StatefulWidget {
 class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
   final GlobalKey<ScaffoldState> _homeScaffoldKey = GlobalKey<ScaffoldState>();
   AuthUser? _authUser;
-  late String _activeMode;
+  late final PageController _pageController;
+  int _currentPage = 0;
   String _selectedModel = 'BEMi 2.5';
   final List<String> _models = ['BEMi 2.5', 'Opus 4.8', 'Claude 3.7', 'GPT-4o'];
 
   @override
   void initState() {
     super.initState();
-    _activeMode = widget.initialMode;
+    _currentPage = widget.initialMode == 'dashboard' ? 1 : 0;
+    _pageController = PageController(initialPage: _currentPage);
     _loadUser();
+
+    if (widget.showBiometricPrompt) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final configured = await ChatStorageService.isBiometricConfigured();
+        if (!configured && mounted) {
+          BiometricSetupPromptDialog.show(context);
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _navigateToPage(int page) {
+    if (_currentPage == page) return;
+    _pageController.animateToPage(
+      page,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeInOutCubic,
+    );
   }
 
   Future<void> _loadUser() async {
@@ -71,173 +101,200 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
   Widget build(BuildContext context) {
     final effectiveUserName = _authUser?.fullName ?? widget.userName;
 
-    if (_activeMode == 'dashboard') {
-      return Scaffold(
-        key: _homeScaffoldKey,
-        drawer: ChatHistoryDrawer(user: _authUser),
-        backgroundColor: const Color(0xFF04060C),
-        body: ExecutiveSystemDashboard(
-          onOpenDrawer: () => _homeScaffoldKey.currentState?.openDrawer(),
-          onSwitchToAi: () => setState(() => _activeMode = 'ai'),
-        ),
-      );
-    }
-
     return Scaffold(
       key: _homeScaffoldKey,
       drawer: ChatHistoryDrawer(user: _authUser),
-      backgroundColor: const Color(0xFF04060C),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0, -0.4),
-            radius: 1.3,
-            colors: [
-              Color(0xFF381404), // Warm molten fiery backlight
-              Color(0xFF140803), // Deep burnt amber transition
-              Color(0xFF04060C), // Edge pitch obsidian void
-            ],
-            stops: [0.0, 0.45, 1.0],
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: PageView(
+        controller: _pageController,
+        physics: const BouncingScrollPhysics(),
+        onPageChanged: (page) {
+          setState(() => _currentPage = page);
+        },
+        children: [
+          _buildAiCockpit(context, effectiveUserName),
+          ExecutiveSystemDashboard(
+            onOpenDrawer: () => _homeScaffoldKey.currentState?.openDrawer(),
+            onSwitchToAi: () => _navigateToPage(0),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Top Bar with Monogram, Welcome, Search & Menu (Matching Screenshot 1)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFFF97316).withOpacity(0.6), width: 1.5),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFEA580C), Color(0xFF9A3412)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFEA580C).withOpacity(0.4),
-                                blurRadius: 10,
-                              ),
-                            ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAiCockpit(BuildContext context, String effectiveUserName) {
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Bar with Monogram, Welcome, Search & Menu
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                GestureDetector(
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const GmdProfileScreen()),
+                    );
+                    _loadUser();
+                  },
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFFFED7AA), width: 1.5),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFEA580C), Color(0xFFC2410C)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                          child: const Center(
-                            child: Text(
-                              'BG',
-                              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.businessName,
-                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white),
-                            ),
-                            Text(
-                              'Welcome back, $effectiveUserName',
-                              style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.6)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x1AEA580C),
+                              blurRadius: 8,
                             ),
                           ],
                         ),
-                      ],
+                        child: const Center(
+                          child: Text(
+                            'GMD',
+                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                widget.businessName,
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF0F172A)),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.arrow_forward_ios_rounded, size: 10, color: Color(0xFF94A3B8)),
+                            ],
+                          ),
+                          Text(
+                            'Welcome back, $effectiveUserName',
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Row(
+                  children: [
+                    // Search button
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFF1F5F9),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Icons.search_rounded, color: Color(0xFF475569), size: 18),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const ExecutiveChatScreen()),
+                          );
+                        },
+                      ),
                     ),
-                    Row(
-                      children: [
-                        // Search button
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.06),
-                          ),
-                          child: IconButton(
-                            padding: EdgeInsets.zero,
-                            icon: const Icon(Icons.search_rounded, color: Colors.white70, size: 18),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const ExecutiveChatScreen()),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Menu / History button (Opens Chat History Drawer)
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.06),
-                          ),
-                          child: IconButton(
-                            padding: EdgeInsets.zero,
-                            icon: const Icon(Icons.segment_rounded, color: Colors.white70, size: 20),
-                            onPressed: () {
-                              _homeScaffoldKey.currentState?.openDrawer();
-                            },
-                          ),
-                        ),
-                      ],
+                    const SizedBox(width: 8),
+                    // Menu / History button
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFF1F5F9),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Icons.segment_rounded, color: Color(0xFF475569), size: 20),
+                        onPressed: () {
+                          _homeScaffoldKey.currentState?.openDrawer();
+                        },
+                      ),
                     ),
                   ],
                 ),
-              ),
+              ],
+            ),
+          ),
 
-              // Mode Switcher Pill
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
-                child: Container(
+          const SizedBox(height: 12),
+
+          // Mode Switcher Pill with Swipe & Click Transition
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: Column(
+              children: [
+                Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
+                    color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(28),
-                    border: Border.all(color: Colors.white.withOpacity(0.12)),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: Row(
                     children: [
-                      // AI Copilot Option (Active)
+                      // AI Copilot Option
                       Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 9),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEA580C),
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFEA580C).withOpacity(0.4),
-                                blurRadius: 10,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.auto_awesome_rounded, size: 14, color: Colors.white),
-                              SizedBox(width: 6),
-                              Text(
-                                'BEMi Copilot',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
+                        child: GestureDetector(
+                          onTap: () => _navigateToPage(0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 9),
+                            decoration: BoxDecoration(
+                              color: _currentPage == 0 ? const Color(0xFFEA580C) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: _currentPage == 0
+                                  ? const [
+                                      BoxShadow(
+                                        color: Color(0x28EA580C),
+                                        blurRadius: 8,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.auto_awesome_rounded,
+                                  size: 14,
+                                  color: _currentPage == 0 ? Colors.white : const Color(0xFF64748B),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  'BEMi Copilot',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: _currentPage == 0 ? FontWeight.w800 : FontWeight.w700,
+                                    color: _currentPage == 0 ? Colors.white : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -245,24 +302,37 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                       // System Dashboard Option
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => setState(() => _activeMode = 'dashboard'),
+                          onTap: () => _navigateToPage(1),
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 9),
                             decoration: BoxDecoration(
-                              color: Colors.transparent,
+                              color: _currentPage == 1 ? const Color(0xFFEA580C) : Colors.transparent,
                               borderRadius: BorderRadius.circular(24),
+                              boxShadow: _currentPage == 1
+                                  ? const [
+                                      BoxShadow(
+                                        color: Color(0x28EA580C),
+                                        blurRadius: 8,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.dashboard_customize_rounded, size: 14, color: Colors.white70),
+                                Icon(
+                                  Icons.dashboard_customize_rounded,
+                                  size: 14,
+                                  color: _currentPage == 1 ? Colors.white : const Color(0xFF64748B),
+                                ),
                                 const SizedBox(width: 6),
                                 Text(
                                   'System Dashboard',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white.withOpacity(0.7),
+                                    fontWeight: _currentPage == 1 ? FontWeight.w800 : FontWeight.w700,
+                                    color: _currentPage == 1 ? Colors.white : const Color(0xFF64748B),
                                   ),
                                 ),
                               ],
@@ -273,220 +343,263 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                     ],
                   ),
                 ),
-              ),
-
-              const Spacer(),
-
-              // Giant Hero Typography (Matching user's reference exactly)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 4),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    Icon(Icons.swipe_rounded, size: 11, color: Color(0xFF94A3B8)),
+                    SizedBox(width: 4),
                     Text(
-                      'What are we\nbuilding today?',
-                      style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                            fontSize: 34,
-                            height: 1.12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.6,
-                            color: Colors.white,
-                          ),
-                    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.08, end: 0),
+                      'Swipe screen or tap pill to swap view',
+                      style: TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                    ),
                   ],
                 ),
-              ),
+              ],
+            ),
+          ),
 
-              const SizedBox(height: 24),
+          const Spacer(),
 
-              // Suggestion Cards Row (Horizontal swipe matching reference)
-              SizedBox(
-                height: 120,
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _suggestionCards.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    final card = _suggestionCards[index];
-                    return _buildSuggestionBentoCard(
-                      context,
-                      title: card['title']!,
-                      subtitle: card['subtitle']!,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ExecutiveChatScreen(initialPrompt: card['prompt']),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              // Large Rounded Input Card (Matching Screenshot 1)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ExecutiveChatScreen()),
-                    );
-                  },
-                  child: Container(
-                    height: 160,
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF101726).withOpacity(0.65),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.25), width: 1.2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFEA580C).withOpacity(0.12),
-                          blurRadius: 24,
-                          offset: const Offset(0, 6),
+          // Hero Typography
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFFED7AA)),
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Ask BEMi a question or instruct…',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.45),
-                            fontSize: 15,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
+                        child: const Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.06),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.auto_awesome_rounded, size: 12, color: Color(0xFFF97316)),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Grounded in Live DB',
-                                    style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.6)),
-                                  ),
-                                ],
-                              ),
+                            Icon(Icons.shield_outlined, size: 13, color: Color(0xFFEA580C)),
+                            SizedBox(width: 5),
+                            Text(
+                              'GMD EXECUTIVE INTELLIGENCE',
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFFEA580C)),
                             ),
                           ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'What are we\nstrategizing today?',
+                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                          fontSize: 32,
+                          height: 1.15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.6,
+                          color: const Color(0xFF0F172A),
+                        ),
+                  ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.08, end: 0),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Suggestion Cards Row (Horizontal swipe)
+            SizedBox(
+              height: 124,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                scrollDirection: Axis.horizontal,
+                itemCount: _suggestionCards.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final card = _suggestionCards[index];
+                  return _buildSuggestionBentoCard(
+                    context,
+                    title: card['title']!,
+                    subtitle: card['subtitle']!,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ExecutiveChatScreen(initialPrompt: card['prompt']),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Large Rounded Input Card
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ExecutiveChatScreen()),
+                  );
+                },
+                child: Container(
+                  height: 140,
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x080F172A),
+                        blurRadius: 18,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Ask BEMi a strategic question or instruct…',
+                        style: TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.attach_file_rounded, size: 16, color: Color(0xFF64748B)),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.analytics_outlined, size: 16, color: Color(0xFF64748B)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),
+            ),
 
-              const Spacer(),
+            const Spacer(),
 
-              // Floating Bottom Bar with Model Pill & Radiant Glowing Mic (Matching Screenshot 1)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Model Selector Pill (e.g., "Opus 4.8 ▾" / "BEMS 2.5 ▾")
-                    PopupMenuButton<String>(
-                      initialValue: _selectedModel,
-                      onSelected: (model) {
-                        setState(() => _selectedModel = model);
-                      },
-                      color: const Color(0xFF141F33),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      itemBuilder: (context) => _models.map((m) => PopupMenuItem(
-                        value: m,
-                        child: Text(m, style: const TextStyle(color: Colors.white, fontSize: 13)),
-                      )).toList(),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Colors.white.withOpacity(0.12)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.graphic_eq_rounded, size: 16, color: Color(0xFFF97316)),
-                            const SizedBox(width: 8),
-                            Text(
-                              _selectedModel,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
+            // Floating Bottom Bar with Model Pill & Radiant Glowing Mic
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Model Selector Pill
+                  PopupMenuButton<String>(
+                    initialValue: _selectedModel,
+                    onSelected: (model) {
+                      setState(() => _selectedModel = model);
+                    },
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    itemBuilder: (context) => _models.map((m) => PopupMenuItem(
+                      value: m,
+                      child: Text(m, style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600)),
+                    )).toList(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x060F172A),
+                            blurRadius: 10,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.graphic_eq_rounded, size: 16, color: Color(0xFFEA580C)),
+                          const SizedBox(width: 8),
+                          Text(
+                            _selectedModel,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
                             ),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Colors.white60),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF64748B)),
+                        ],
                       ),
                     ),
+                  ),
 
-                    // Radiant Glowing Circular Orange Mic Button (Opens Voice Orb Screen 2)
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          PageRouteBuilder(
-                            pageBuilder: (_, __, ___) => const VoiceOrbScreen(),
-                            transitionsBuilder: (_, animation, __, child) =>
-                                FadeTransition(opacity: animation, child: child),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        width: 58,
-                        height: 58,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFF97316), Color(0xFFEA580C)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFEA580C).withOpacity(0.7),
-                              blurRadius: 20,
-                              spreadRadius: 3,
-                              offset: const Offset(0, 4),
-                            ),
-                            BoxShadow(
-                              color: const Color(0xFFF97316).withOpacity(0.4),
-                              blurRadius: 36,
-                              spreadRadius: 6,
-                            ),
-                          ],
+                  // Circular Orange Mic Button
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        PageRouteBuilder(
+                          pageBuilder: (_, __, ___) => const VoiceOrbScreen(),
+                          transitionsBuilder: (_, animation, __, child) =>
+                              FadeTransition(opacity: animation, child: child),
                         ),
-                        child: const Icon(Icons.mic_rounded, color: Colors.white, size: 28),
+                      );
+                    },
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [Color(0xFFFB923C), Color(0xFFEA580C)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color(0x40EA580C),
+                            blurRadius: 16,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
                       ),
+                      child: const Icon(Icons.mic_rounded, color: Colors.white, size: 28),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildSuggestionBentoCard(
@@ -498,17 +611,17 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 170,
+        width: 175,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFF101726).withOpacity(0.75),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.3), width: 1.1),
-          boxShadow: [
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: const [
             BoxShadow(
-              color: const Color(0xFFEA580C).withOpacity(0.08),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
+              color: Color(0x060F172A),
+              blurRadius: 12,
+              offset: Offset(0, 3),
             ),
           ],
         ),
@@ -516,7 +629,14 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Icon(Icons.star_rounded, color: Color(0xFFF97316), size: 16),
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFF7ED),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFEA580C), size: 14),
+            ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -524,14 +644,14 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                   title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Colors.white, height: 1.2),
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Color(0xFF0F172A), height: 1.25),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.5)),
+                  style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                 ),
               ],
             ),
