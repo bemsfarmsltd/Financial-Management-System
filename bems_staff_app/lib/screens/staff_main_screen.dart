@@ -185,7 +185,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${req.requestNumber} · ${req.subsidiary}${req.department.isNotEmpty ? " · " + req.department : ""}',
+                          '${req.requestNumber} · ${req.subsidiary}${req.department.isNotEmpty ? " · ${req.department}" : ""}',
                           style: const TextStyle(fontSize: 11, color: Color(0xFFEA580C), fontWeight: FontWeight.w700),
                         ),
                       ],
