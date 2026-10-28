@@ -71,6 +71,7 @@ export async function GET(req: NextRequest) {
         accountType: a.accountType,
         currency: a.currency,
         balance: balNum,
+        balanceNaira: balNum,
         dailyLimit: limitNum,
         assignedSubsidiary: a.organization?.legalName || 'BEMS Group',
         tier: a.tier,

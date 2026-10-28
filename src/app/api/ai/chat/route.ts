@@ -3,24 +3,7 @@ import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee } from '@/lib/auth';
 import { stageAction } from '@/lib/staged-actions';
-import fs from 'node:fs';
-import path from 'node:path';
-
-export const dynamic = 'force-dynamic';
-
-const DATA_FILE = path.join(process.cwd(), 'src', 'data', 'company-bank-accounts.json');
-
-function readSavedAccounts(): any[] {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const content = fs.readFileSync(DATA_FILE, 'utf-8');
-      return JSON.parse(content) || [];
-    }
-  } catch (e) {
-    console.error('Error reading bank accounts file:', e);
-  }
-  return [];
-}
+import { getConsolidatedTreasury } from '@/lib/financial-metrics';
 
 function formatNaira(amount: number): string {
   return new Intl.NumberFormat('en-NG', {
@@ -222,9 +205,9 @@ title: "<Chart Title>"
       }
     }
 
-    // 1. Fetch live telemetry from DB & local store (Internal Engine)
-    const [bankAccounts, pendingRequests, totalActiveStaff, orgs, openCases] = await Promise.all([
-      Promise.resolve(readSavedAccounts()),
+    // 1. Fetch live telemetry from DB via canonical financial calculator
+    const [treasuryData, pendingRequests, totalActiveStaff, orgs, openCases] = await Promise.all([
+      getConsolidatedTreasury().catch(() => ({ accounts: [], totalCash: 0, totalCashFormatted: '₦0', safeRunwayMonths: 0, pendingPipeline: 0 })),
       prisma.expenditureRequest.findMany({
         where: { approvalStatus: { in: ['SUBMITTED', 'IN_REVIEW'] } },
         take: 5,
@@ -240,7 +223,8 @@ title: "<Chart Title>"
       }).catch(() => []),
     ]);
 
-    const totalCash = bankAccounts.reduce((sum, b) => sum + (Number(b.balance) || 0), 0);
+    const bankAccounts = treasuryData.accounts;
+    const totalCash = treasuryData.totalCash;
     const pendingCount = pendingRequests.length;
     const pendingSum = pendingRequests.reduce((sum, r) => sum + (Number(r.amountMinor) || 0) / 100, 0);
 

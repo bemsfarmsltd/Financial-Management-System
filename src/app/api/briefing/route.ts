@@ -70,7 +70,7 @@ export async function GET(request: Request) {
         balance: balNum,
         balanceNaira: balNum,
         dailyLimit: limitNum,
-        scope: (a.organization?.code?.includes('HQ') || a.organization?.code?.includes('GROUP')) ? 'HQ' : 'LOG',
+        scope: (a.organization?.code === 'BEMS-LOG' ? 'LOG' : a.organization?.code === 'BEMS-SOFT' ? 'SOFT' : 'HQ'),
         assignedSubsidiary: a.organization?.legalName || 'BEMS Group',
         organization: {
           id: a.organization.id,
@@ -200,6 +200,8 @@ export async function GET(request: Request) {
       accountabilityCases: serializedAccountabilityCases,
       disbursements: serializedDisbursements,
       treasuryAccounts,
+    }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' }
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -416,45 +416,50 @@ export async function executeStagedAction(params: {
         extension_hours: hours,
       };
     } else if (action.actionType === 'treasury_account') {
-      const { bank_name, account_number, account_name, balance, subsidiary_id, subsidiary_name } = materialPayload;
+      const { bank_name, account_number, account_name, balance, subsidiary_id } = materialPayload;
 
-      const dataFilePath = path.join(process.cwd(), 'src', 'data', 'company-bank-accounts.json');
-      let accounts: any[] = [];
-      try {
-        if (fs.existsSync(dataFilePath)) {
-          accounts = JSON.parse(fs.readFileSync(dataFilePath, 'utf-8')) || [];
-        }
-      } catch {
-        accounts = [];
+      // Resolve valid organization ID
+      let targetOrgId = subsidiary_id;
+      if (!targetOrgId || targetOrgId === 'bems-group-hq' || targetOrgId === 'ALL') {
+        const hqOrg = await tx.organization.findFirst({
+          where: { code: { in: ['BEMS-HQ', 'BEMS-GROUP'] } },
+        });
+        targetOrgId = hqOrg?.id || (await tx.organization.findFirst())?.id;
       }
 
-      const existingIndex = accounts.findIndex(a => a.accountNumber === account_number);
-      const newAccount = {
-        id: `acc-${Date.now()}`,
-        bankName: bank_name,
-        accountNumber: account_number,
-        accountName: account_name || 'BEMS Group Operations',
-        balance: Number(balance) || 0,
-        subsidiaryId: subsidiary_id || 'bems-group-hq',
-        subsidiaryName: subsidiary_name || 'BEMS Group Holding HQ',
-        currency: 'NGN',
-        verified: true,
-        updatedAt: new Date().toISOString(),
-      };
-
-      if (existingIndex >= 0) {
-        accounts[existingIndex] = { ...accounts[existingIndex], ...newAccount };
-      } else {
-        accounts.push(newAccount);
-      }
-
-      fs.mkdirSync(path.dirname(dataFilePath), { recursive: true });
-      fs.writeFileSync(dataFilePath, JSON.stringify(accounts, null, 2));
+      const dbAccount = await tx.companyBankAccount.upsert({
+        where: { accountNumber: account_number },
+        update: {
+          bankName: bank_name,
+          accountName: account_name || 'BEMS Group Operations',
+          balance: Number(balance) || 0,
+          organizationId: targetOrgId!,
+          status: 'ACTIVE',
+        },
+        create: {
+          bankName: bank_name,
+          accountName: account_name || 'BEMS Group Operations',
+          accountNumber: account_number,
+          balance: Number(balance) || 0,
+          organizationId: targetOrgId!,
+          currency: 'NGN',
+          status: 'ACTIVE',
+        },
+        include: { organization: true },
+      });
 
       recordType = 'treasury_account';
       recordId = account_number;
       url = `/treasury`;
-      resultRecord = newAccount;
+      resultRecord = {
+        id: dbAccount.id,
+        bankName: dbAccount.bankName,
+        accountNumber: dbAccount.accountNumber,
+        accountName: dbAccount.accountName,
+        balance: Number(dbAccount.balance),
+        organizationId: dbAccount.organizationId,
+        currency: dbAccount.currency,
+      };
     } else if (action.actionType === 'intercompany_note') {
       const { source_entity_id, target_entity_id, amount, note_type, description } = materialPayload;
 
