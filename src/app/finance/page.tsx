@@ -120,6 +120,8 @@ type Business = {
   readiness: number;
   color: string;
   aiEnabled: boolean;
+  code?: string;
+  type?: string;
 };
 
 type OnboardingData = {

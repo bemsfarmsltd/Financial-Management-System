@@ -38,6 +38,8 @@ export async function GET(
         actorId: actor.id,
         actorName: actor.legalName,
         actorRole: actor.role,
+        groupId: 'BEMS-GROUP',
+        correlationId: `CORR-COMP-${Date.now()}`,
         targetType: 'STAFF_COMPENSATION',
         targetId: employeeId,
         action: 'STAFF_COMPENSATION_ACCESSED',
@@ -60,17 +62,17 @@ export async function GET(
       employee_number: emp.employeeNumber,
       employee_name: emp.legalName,
       current_compensation: {
-        base_gross_minor: current ? Number(current.baseGrossSalaryMinor) : 0,
-        base_gross_formatted: current ? `₦${(Number(current.baseGrossSalaryMinor) / 100).toLocaleString()}` : '₦0',
+        base_gross_minor: current ? Number(current.grossMinor) : 0,
+        base_gross_formatted: current ? `₦${(Number(current.grossMinor) / 100).toLocaleString()}` : '₦0',
         effective_from: current?.effectiveFrom?.toISOString() || null,
         version: current?.version || 1,
       },
       history: compensations.map(c => ({
         version: c.version,
-        amount_formatted: `₦${(Number(c.baseGrossSalaryMinor) / 100).toLocaleString()}`,
+        amount_formatted: `₦${(Number(c.grossMinor) / 100).toLocaleString()}`,
         effective_from: c.effectiveFrom.toISOString(),
         change_reason: c.changeReason,
-        approved_by_id: c.approvedById,
+        approved_by_id: c.approvedBy,
       })),
     });
   } catch (err: any) {

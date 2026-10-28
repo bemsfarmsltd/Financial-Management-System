@@ -75,8 +75,8 @@ export async function GET(
 
       return {
         id: emp.id,
-        email: emp.email,
-        fullName: emp.fullName || emp.legalName || 'BEMS Employee',
+        email: emp.workEmail,
+        fullName: emp.legalName || 'BEMS Employee',
         role: emp.role || 'STAFF',
         status: emp.status === 'INVITED' ? 'Invited' : emp.status === 'SUSPENDED' ? 'Suspended' : 'Active',
         isOwner: emp.role === 'GMD' || emp.role === 'SYSTEM_ADMIN',

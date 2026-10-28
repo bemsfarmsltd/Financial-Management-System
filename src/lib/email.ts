@@ -93,7 +93,7 @@ export async function sendEmail({ to, subject, html, text, eventType = 'GENERAL_
   }
 
   // 2. SMTP Transporter fallback
-
+  const transporter = getTransporter();
   if (transporter) {
     try {
       const info = await transporter.sendMail({

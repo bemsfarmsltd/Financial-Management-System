@@ -85,7 +85,16 @@ export async function GET(request: Request) {
       select: { id: true, amountMinor: true },
     }),
     prisma.disbursement.findMany({
-      where: { requestId: { not: null }, paidAt: { gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1)), lt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) }, ...(subsidiaryId === 'ALL' && category === 'ALL' && status === 'ALL' ? {} : { request: { ...(subsidiaryId === 'ALL' ? {} : { subsidiaryId }), ...(category === 'ALL' ? {} : { category }), ...(status === 'ALL' ? {} : { approvalStatus: status }) } }) },
+      where: {
+        requestId: { not: null },
+        paidAt: { gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1)), lt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) },
+        request: {
+          ...subsidiaryFilter,
+          ...staffFilter,
+          ...(category === 'ALL' ? {} : { category }),
+          ...(status === 'ALL' ? {} : { approvalStatus: status })
+        }
+      },
       select: { amountMinor: true },
     }),
     prisma.organization.findMany({ where: { type: 'SUBSIDIARY', status: 'ACTIVE' }, select: { id: true, legalName: true }, orderBy: { legalName: 'asc' } }),

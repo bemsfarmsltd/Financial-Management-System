@@ -316,7 +316,7 @@ title: "<Chart Title>"
 
         reply = `I have staged the executive authorization for **${matched.requestNumber}** (**₦${(Number(matched.amountMinor) / 100).toLocaleString()}**). In accordance with the BEMS Staged-Action security policy, no write has been committed yet.\n\nPlease review the cryptographic preview card below and click **Authorize & Execute Action** to commit the decision to the ledger.`;
         actionCard = {
-          type: 'STAGED_ACTION',
+          cardType: 'STAGED_ACTION',
           ...staged,
         };
       } else {
@@ -438,7 +438,7 @@ title: "<Chart Title>"
 
         reply = `I have staged the corporate onboarding authorization for **${pendingStaff.legalName}** (${pendingStaff.employeeNumber}).\n\nPlease review their dossier below and click **Authorize & Execute Action** to grant active enterprise system credentials.`;
         actionCard = {
-          type: 'STAGED_ACTION',
+          cardType: 'STAGED_ACTION',
           ...staged,
         };
       } else {
@@ -472,7 +472,7 @@ title: "<Chart Title>"
 
         reply = `I have staged the retiral clearance for **${targetCase.request?.requestNumber || 'ADV'}** belonging to **${targetCase.owner?.legalName || 'Staff'}**.\n\nPlease review the retiral card below and click **Authorize & Execute Action** to reconcile the ledger and lift any requisition restrictions.`;
         actionCard = {
-          type: 'STAGED_ACTION',
+          cardType: 'STAGED_ACTION',
           ...staged,
         };
       } else {
@@ -507,7 +507,7 @@ title: "<Chart Title>"
 
         reply = `I have staged a **GMD Emergency Override** for **${targetReq.requestNumber}** (**₦${(Number(targetReq.amountMinor) / 100).toLocaleString()}**).\n\nThis will bypass intermediate matrix stages and mark the requisition immediately approved for direct treasury disbursement.`;
         actionCard = {
-          type: 'STAGED_ACTION',
+          cardType: 'STAGED_ACTION',
           ...staged,
         };
       } else {

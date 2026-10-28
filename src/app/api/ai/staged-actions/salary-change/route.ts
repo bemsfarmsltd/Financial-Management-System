@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     }
 
     const currentComp = emp.employmentAgreements?.[0]?.compensations?.[0];
-    const currentGross = currentComp ? Number(currentComp.baseGrossSalaryMinor) / 100 : 0;
+    const currentGross = currentComp ? Number(currentComp.grossMinor) / 100 : 0;
 
     let targetGross = Number(amount) || currentGross;
     if (percentage) {

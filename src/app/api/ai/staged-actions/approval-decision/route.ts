@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       title: item.title,
       amount: amountFormatted,
       requester: item.requester?.legalName || 'Staff',
-      subsidiary: item.organization?.legalName || 'BEMS Group',
+      subsidiary: item.subsidiary?.legalName || 'BEMS Group',
       vendor: item.vendor?.name || 'Direct / Internal',
       current_status: item.approvalStatus,
       decision_to_apply: decision,

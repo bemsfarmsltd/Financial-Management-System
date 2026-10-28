@@ -76,7 +76,7 @@ export async function POST(request: Request) {
   const checksum = createHash('sha256').update(bytes).digest('hex');
   const safeName = fileName.replace(/[\\/\r\n]/g, '_').slice(0, 180);
   const attachment = await prisma.$transaction(async tx => {
-    const record = await tx.attachment.create({ data: { ownerType: 'ACCOUNTABILITY', ownerId: accCase.id, requestId: accCase.requestId, fileName: safeName, fileUrl: '', checksum, contentType: normalizedType, fileData: bytes, notes: notes || null, uploadedById: actor.id } });
+    const record = await tx.attachment.create({ data: { ownerType: 'ACCOUNTABILITY', ownerId: accCase.id, requestId: accCase.requestId, fileName: safeName, fileUrl: '', checksum, contentType: normalizedType, fileData: bytes as any, notes: notes || null, uploadedById: actor.id } });
     await tx.attachment.update({ where: { id: record.id }, data: { fileUrl: `/api/accountability/evidence/${record.id}` } });
     await tx.accountabilityCase.update({ where: { id: accCase.id }, data: { status: 'EVIDENCE_SUBMITTED' } });
     await tx.expenditureRequest.update({ where: { id: accCase.requestId }, data: { accountabilityStatus: 'EVIDENCE_SUBMITTED' } });

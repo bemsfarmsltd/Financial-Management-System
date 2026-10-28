@@ -42,7 +42,7 @@ export async function POST(req: Request) {
         title: reqItem.title,
         amount: amountFormatted,
         requester: reqItem.requester?.legalName || 'Staff',
-        subsidiary: reqItem.subsidiary?.name || 'BEMS Group',
+        subsidiary: reqItem.subsidiary?.legalName || 'BEMS Group',
         justification: justification || 'Emergency operational continuity',
         action: 'BYPASS_INTERMEDIATE_APPROVALS',
       },

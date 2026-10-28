@@ -68,11 +68,11 @@ export async function GET(
         include: { lines: true },
       });
       if (budget) {
-        const totalAllocated = Number(budget.totalAmountMinor) / 100;
+        const totalAllocated = budget.totalAmount;
         budgetImpact = {
           budgetId: budget.id,
           totalAllocated,
-          currency: budget.currency,
+          currency: 'NGN',
           impactAmount: amountNaira,
           status: budget.status,
         };

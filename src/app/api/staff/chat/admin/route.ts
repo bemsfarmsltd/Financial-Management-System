@@ -207,11 +207,11 @@ export async function POST(req: Request) {
     if (isAdmin) {
       await prisma.systemNotification.create({
         data: {
-          recipientId: targetEmployeeId,
+          employeeId: targetEmployeeId,
+          kind: 'CHAT',
           title: `New message from ${actor.legalName} (Admin)`,
-          message: messageText.length > 100 ? `${messageText.slice(0, 100)}...` : messageText,
-          category: 'CHAT',
-          deepLink: '/helpdesk',
+          body: messageText.length > 100 ? `${messageText.slice(0, 100)}...` : messageText,
+          linkUrl: '/helpdesk',
         },
       });
     } else {
@@ -228,11 +228,11 @@ export async function POST(req: Request) {
       if (admins.length > 0) {
         await prisma.systemNotification.createMany({
           data: admins.map((adm) => ({
-            recipientId: adm.id,
+            employeeId: adm.id,
+            kind: 'CHAT',
             title: `Staff message from ${actor.legalName}`,
-            message: messageText.length > 100 ? `${messageText.slice(0, 100)}...` : messageText,
-            category: 'CHAT',
-            deepLink: `/helpdesk?employeeId=${targetEmployeeId}`,
+            body: messageText.length > 100 ? `${messageText.slice(0, 100)}...` : messageText,
+            linkUrl: `/helpdesk?employeeId=${targetEmployeeId}`,
           })),
         });
       }

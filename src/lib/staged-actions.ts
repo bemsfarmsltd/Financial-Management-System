@@ -186,15 +186,17 @@ export async function executeStagedAction(params: {
       const budget = await tx.budget.create({
         data: {
           organizationId: organization_id,
-          period,
-          totalAmountMinor: BigInt(Math.round(total_amount * 100)),
-          currency: currency || 'NGN',
+          fiscalYear: new Date().getFullYear(),
+          fiscalPeriod: period || 'Q4',
+          periodName: period || `Budget ${new Date().getFullYear()}`,
+          totalAmount: Number(total_amount),
           createdById: actor.id,
           status: 'ACTIVE',
           lines: {
             create: (allocations || []).map((line: any) => ({
-              categoryName: line.line_name || line.categoryName || 'General',
-              allocatedAmountMinor: BigInt(Math.round((line.amount || 0) * 100)),
+              departmentName: line.department || 'Operations',
+              category: line.line_name || line.categoryName || 'General',
+              allocatedAmount: Number(line.amount || 0),
             })),
           },
         },
@@ -241,7 +243,7 @@ export async function executeStagedAction(params: {
         },
       });
 
-      if (req.requesterId) notificationsSent.push(req.requesterId);
+      if (req.requestedById) notificationsSent.push(req.requestedById);
 
       recordType = 'fund_request';
       recordId = updatedReq.requestNumber;
@@ -291,18 +293,18 @@ export async function executeStagedAction(params: {
 
       const agreement = await tx.employmentAgreement.findFirst({
         where: { employeeId: employee_id, status: 'ACTIVE' },
-        orderBy: { effectiveFrom: 'desc' },
+        orderBy: { startDate: 'desc' },
       });
 
       if (agreement) {
         await tx.compensationAgreement.create({
           data: {
-            agreementId: agreement.id,
+            employmentAgreementId: agreement.id,
             version: 2,
-            baseGrossSalaryMinor: BigInt(Math.round(amount * 100)),
+            grossMinor: BigInt(Math.round(amount * 100)),
             effectiveFrom: effective_date ? new Date(effective_date) : new Date(),
             changeReason: reason || 'Executive AI salary modification',
-            approvedById: actor.id,
+            approvedBy: actor.id,
           },
         });
       }
@@ -372,12 +374,12 @@ export async function executeStagedAction(params: {
       const updated = await tx.accountabilityCase.update({
         where: { id: accCase.id },
         data: {
-          status: 'RECONCILED',
-          evidenceNotes: clearance_notes || 'Receipts inspected and cleared by GMD via Executive AI',
+          status: 'CLOSED',
+          closureNotes: clearance_notes || 'Receipts inspected and cleared by GMD via Executive AI',
         },
       });
 
-      if (accCase.ownerId) notificationsSent.push(accCase.ownerId);
+      if (accCase.ownerUserId) notificationsSent.push(accCase.ownerUserId);
       recordType = 'accountability_case';
       recordId = accCase.request?.requestNumber || accCase.id;
       url = `/accountability`;
@@ -400,11 +402,11 @@ export async function executeStagedAction(params: {
         where: { id: case_id },
         data: {
           dueAt: newDueAt,
-          evidenceNotes: `${accCase.evidenceNotes ? accCase.evidenceNotes + '\n' : ''}GMD Granted +${hours}h extension: ${reason || 'Executive discretion'}`,
+          closureNotes: `${accCase.closureNotes ? accCase.closureNotes + '\n' : ''}GMD Granted +${hours}h extension: ${reason || 'Executive discretion'}`,
         },
       });
 
-      if (accCase.ownerId) notificationsSent.push(accCase.ownerId);
+      if (accCase.ownerUserId) notificationsSent.push(accCase.ownerUserId);
       recordType = 'accountability_case';
       recordId = accCase.request?.requestNumber || accCase.id;
       url = `/accountability`;
@@ -530,7 +532,7 @@ export async function executeStagedAction(params: {
         },
       });
 
-      if (reqItem.requesterId) notificationsSent.push(reqItem.requesterId);
+      if (reqItem.requestedById) notificationsSent.push(reqItem.requestedById);
       recordType = 'fund_request';
       recordId = updated.requestNumber;
       url = `/requests/${updated.requestNumber}`;

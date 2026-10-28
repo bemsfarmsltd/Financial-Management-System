@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
       success: true,
       id: request.id,
       systemId: toSystemRequestId(request.id),
-      requestNumber,
+      requestNumber: request.requestNumber,
       message: 'Emergency bypass registered. Alert dispatched to GMD WhatsApp bridge. Payout envelope cleared.',
       bridgeMessage
     });

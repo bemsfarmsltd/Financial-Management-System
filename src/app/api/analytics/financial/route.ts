@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     // Aggregate real metrics based on dataset
     const [requests, disbursements, budgets, cases] = await Promise.all([
       prisma.expenditureRequest.findMany({
-        where: orgId ? { organizationId: orgId } : undefined,
+        where: orgId ? { subsidiaryId: orgId } : undefined,
         select: { id: true, amountMinor: true, approvalStatus: true, category: true, createdAt: true },
       }),
       prisma.disbursement.findMany({
@@ -29,7 +29,7 @@ export async function GET(req: Request) {
         include: { lines: true },
       }),
       prisma.accountabilityCase.findMany({
-        where: orgId ? { request: { organizationId: orgId } } : undefined,
+        where: orgId ? { request: { subsidiaryId: orgId } } : undefined,
         select: { id: true, status: true, dueAt: true },
       }),
     ]);
