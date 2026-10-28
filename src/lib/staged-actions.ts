@@ -51,6 +51,17 @@ export interface StageActionInput {
 }
 
 export async function stageAction(input: StageActionInput) {
+  // Strict Read-Only Guardrail: AI_ANALYST cannot stage actions under any circumstances
+  if (input.userId) {
+    const creator = await prisma.employee.findUnique({
+      where: { id: input.userId },
+      select: { role: true },
+    });
+    if (creator?.role === 'AI_ANALYST') {
+      throw new Error('The AI Analyst role is strictly read-only and prohibited from staging ledger actions.');
+    }
+  }
+
   const hash = computeConfirmationHash(input.materialPayload);
   const actionId = `sa_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
   const expiresAt = new Date(Date.now() + STAGED_ACTION_TTL_MINUTES * 60 * 1000);
@@ -113,6 +124,15 @@ export async function executeStagedAction(params: {
       ok: false,
       errorCode: 'NOT_FOUND',
       message: `Staged action ${actionId} not found.`,
+    };
+  }
+
+  // 1b. Role permission check
+  if (actor.role === 'AI_ANALYST') {
+    return {
+      ok: false,
+      errorCode: 'NOT_PERMITTED',
+      message: 'The AI Analyst role has strictly read-only informational access and cannot execute ledger actions.',
     };
   }
 

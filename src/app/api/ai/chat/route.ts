@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
 
     const userName = actor ? actor.legalName.split(' ')[0] : 'GMD';
     const normalized = message.toLowerCase();
+    const isReadOnlyUser = !actor || actor.role === 'AI_ANALYST';
 
     // Check if AI Analyst chat access is paused by admin
     if (actor && actor.role === 'AI_ANALYST') {
@@ -103,9 +104,10 @@ export async function POST(req: NextRequest) {
           user: {
             id: actor.id,
             name: actor.legalName,
-            title: (actor as any).jobTitle || (actor.role === 'GMD' ? 'Group Managing Director' : 'System Admin'),
+            title: (actor as any).jobTitle || (actor.role === 'GMD' ? 'Group Managing Director' : actor.role === 'AI_ANALYST' ? 'AI Financial Analyst (Read-Only)' : 'System Admin'),
             role: actor.role,
-            permissions: ['all'],
+            permissions: isReadOnlyUser ? ['read_only_inquiry', 'data_analytics'] : ['all'],
+            can_execute_actions: !isReadOnlyUser,
           },
           query: queryText,
           message: queryText,
@@ -122,8 +124,7 @@ export async function POST(req: NextRequest) {
 title: "<Chart Title>"
 <Label>: <Value>
 \`\`\`
-3. Requisition & Action Cards: Use structured cards ONLY for items requiring review, requisition approval decisions (REQ-XXXX-XXXX), or staged actions.
-4. User Instruction Adherence: If user asks for paragraphs, provide detailed prose. If user asks for a graph or histogram, provide a visual chart block.`,
+3. Requisition & Action Cards: Use structured cards ONLY for items requiring review, requisition approval decisions (REQ-XXXX-XXXX), or staged actions.${isReadOnlyUser ? '\n4. STRICT READ-ONLY MODE: The active user has the AI Analyst role. They have read-only access to query information, ledger statistics, and financial intelligence. They CANNOT execute actions, stage approvals, or commit ledger writes. Do NOT stage any actions for this user.' : '\n4. User Instruction Adherence: If user asks for paragraphs, provide detailed prose. If user asks for a graph or histogram, provide a visual chart block.'}`,
           },
           conversation_history: conversationHistory,
           chat_history: conversationHistory,
@@ -162,14 +163,18 @@ title: "<Chart Title>"
           }
 
           return NextResponse.json({
-            message: reply,
-            actionCard: n8nData.staged_action
-              ? {
-                  type: 'STAGED_ACTION',
-                  ...n8nData.staged_action,
-                }
-              : n8nData.actionCard || null,
-            staged_action: n8nData.staged_action || null,
+            message: isReadOnlyUser && n8nData.staged_action
+              ? `${reply}\n\n*(Note: Staged actions suppressed — the AI Analyst role has read-only informational access).*`
+              : reply,
+            actionCard: isReadOnlyUser
+              ? null
+              : n8nData.staged_action
+                ? {
+                    type: 'STAGED_ACTION',
+                    ...n8nData.staged_action,
+                  }
+                : n8nData.actionCard || null,
+            staged_action: isReadOnlyUser ? null : (n8nData.staged_action || null),
             citations: n8nData.citations || [],
             quick_replies: n8nData.quick_replies || n8nData.quickReplies || [],
             timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
@@ -251,9 +256,13 @@ title: "<Chart Title>"
       normalized.includes('stage approval') ||
       normalized.includes('authorize request')
     ) {
-      const matched = pendingRequests.find((r) =>
-        normalized.includes(r.requestNumber.toLowerCase()) || normalized.includes(r.id.toLowerCase())
-      ) || pendingRequests[0];
+      if (isReadOnlyUser) {
+        reply = `🔒 **Read-Only Informational Access:** The AI Analyst role is strictly restricted to data queries, financial analytics, and informational reporting. Action execution, approvals, and ledger writes are reserved for the Group Managing Director and System Administrator.`;
+        actionCard = null;
+      } else {
+        const matched = pendingRequests.find((r) =>
+          normalized.includes(r.requestNumber.toLowerCase()) || normalized.includes(r.id.toLowerCase())
+        ) || pendingRequests[0];
 
       if (matched && actor) {
         const staged = await stageAction({
@@ -284,6 +293,7 @@ title: "<Chart Title>"
         };
       } else {
         reply = `There are currently no pending requests requiring approval. The queue is all clear!`;
+      }
       }
     } else if (
       normalized.includes('approval') ||
@@ -369,112 +379,127 @@ title: "<Chart Title>"
       normalized.includes('approve onboarding') ||
       normalized.includes('approve registration')
     ) {
-      const pendingStaff = await prisma.employee.findFirst({
-        where: { approvalStatus: 'PENDING_APPROVAL' },
-        include: { assignments: { include: { subsidiary: true, department: true } } },
-      });
-
-      if (pendingStaff && actor) {
-        const sub = pendingStaff.assignments?.[0]?.subsidiary;
-        const dept = pendingStaff.assignments?.[0]?.department;
-
-        const staged = await stageAction({
-          userId: actor.id,
-          actionType: 'staff_approval',
-          materialPayload: {
-            employee_id: pendingStaff.id,
-            employee_number: pendingStaff.employeeNumber,
-            name: pendingStaff.legalName,
-            subsidiary: sub?.legalName || 'BEMS Group',
-          },
-          summary: `Authorize corporate onboarding for ${pendingStaff.legalName} (${pendingStaff.employeeNumber})`,
-          preview: {
-            staff_id: pendingStaff.employeeNumber,
-            full_name: pendingStaff.legalName,
-            work_email: pendingStaff.workEmail,
-            role_assigned: pendingStaff.role,
-            subsidiary: sub?.legalName || 'BEMS Group',
-            department: dept?.name || 'General Operations',
-            disbursement_bank: `${pendingStaff.bankName || 'Recorded'} · ${pendingStaff.accountNumber || 'Verified'}`,
-          },
+      if (isReadOnlyUser) {
+        reply = `🔒 **Read-Only Informational Access:** The AI Analyst role cannot authorize staff onboarding or credentials. Please log in as Group Managing Director or System Administrator to approve staff.`;
+        actionCard = null;
+      } else {
+        const pendingStaff = await prisma.employee.findFirst({
+          where: { approvalStatus: 'PENDING_APPROVAL' },
+          include: { assignments: { include: { subsidiary: true, department: true } } },
         });
 
-        reply = `I have staged the corporate onboarding authorization for **${pendingStaff.legalName}** (${pendingStaff.employeeNumber}).\n\nPlease review their dossier below and click **Authorize & Execute Action** to grant active enterprise system credentials.`;
-        actionCard = {
-          cardType: 'STAGED_ACTION',
-          ...staged,
-        };
-      } else {
-        reply = `All staff self-registration dossiers have already been reviewed and approved! The onboarding queue is clear.`;
+        if (pendingStaff && actor) {
+          const sub = pendingStaff.assignments?.[0]?.subsidiary;
+          const dept = pendingStaff.assignments?.[0]?.department;
+
+          const staged = await stageAction({
+            userId: actor.id,
+            actionType: 'staff_approval',
+            materialPayload: {
+              employee_id: pendingStaff.id,
+              employee_number: pendingStaff.employeeNumber,
+              name: pendingStaff.legalName,
+              subsidiary: sub?.legalName || 'BEMS Group',
+            },
+            summary: `Authorize corporate onboarding for ${pendingStaff.legalName} (${pendingStaff.employeeNumber})`,
+            preview: {
+              staff_id: pendingStaff.employeeNumber,
+              full_name: pendingStaff.legalName,
+              work_email: pendingStaff.workEmail,
+              role_assigned: pendingStaff.role,
+              subsidiary: sub?.legalName || 'BEMS Group',
+              department: dept?.name || 'General Operations',
+              disbursement_bank: `${pendingStaff.bankName || 'Recorded'} · ${pendingStaff.accountNumber || 'Verified'}`,
+            },
+          });
+
+          reply = `I have staged the corporate onboarding authorization for **${pendingStaff.legalName}** (${pendingStaff.employeeNumber}).\n\nPlease review their dossier below and click **Authorize & Execute Action** to grant active enterprise system credentials.`;
+          actionCard = {
+            cardType: 'STAGED_ACTION',
+            ...staged,
+          };
+        } else {
+          reply = `All staff self-registration dossiers have already been reviewed and approved! The onboarding queue is clear.`;
+        }
       }
     } else if (
       normalized.includes('clear case') ||
       normalized.includes('clear advance') ||
       normalized.includes('clear accountability')
     ) {
-      const targetCase = openCases[0];
-
-      if (targetCase && actor) {
-        const staged = await stageAction({
-          userId: actor.id,
-          actionType: 'accountability_clearance',
-          materialPayload: {
-            case_id: targetCase.id,
-            request_number: targetCase.request?.requestNumber || 'ADV',
-            clearance_notes: 'Physical receipts inspected and reconciled by GMD via Executive AI',
-          },
-          summary: `Grant final retiral clearance for case ${targetCase.request?.requestNumber || 'ADV'} (${targetCase.owner?.legalName || 'Requester'})`,
-          preview: {
-            request_number: targetCase.request?.requestNumber || 'ADV',
-            requester: targetCase.owner?.legalName || 'Staff',
-            current_status: targetCase.status,
-            reconciled_action: 'RECONCILED & CLOSED',
-            reconciliation_officer: actor.legalName,
-          },
-        });
-
-        reply = `I have staged the retiral clearance for **${targetCase.request?.requestNumber || 'ADV'}** belonging to **${targetCase.owner?.legalName || 'Staff'}**.\n\nPlease review the retiral card below and click **Authorize & Execute Action** to reconcile the ledger and lift any requisition restrictions.`;
-        actionCard = {
-          cardType: 'STAGED_ACTION',
-          ...staged,
-        };
+      if (isReadOnlyUser) {
+        reply = `🔒 **Read-Only Informational Access:** Retiral clearances and advance closures can only be signed off by the Group Managing Director or System Administrator.`;
+        actionCard = null;
       } else {
-        reply = `There are currently no open advance cases requiring retiral clearance. All accounts are 100% reconciled!`;
+        const targetCase = openCases[0];
+
+        if (targetCase && actor) {
+          const staged = await stageAction({
+            userId: actor.id,
+            actionType: 'accountability_clearance',
+            materialPayload: {
+              case_id: targetCase.id,
+              request_number: targetCase.request?.requestNumber || 'ADV',
+              clearance_notes: 'Physical receipts inspected and reconciled by GMD via Executive AI',
+            },
+            summary: `Grant final retiral clearance for case ${targetCase.request?.requestNumber || 'ADV'} (${targetCase.owner?.legalName || 'Requester'})`,
+            preview: {
+              request_number: targetCase.request?.requestNumber || 'ADV',
+              requester: targetCase.owner?.legalName || 'Staff',
+              current_status: targetCase.status,
+              reconciled_action: 'RECONCILED & CLOSED',
+              reconciliation_officer: actor.legalName,
+            },
+          });
+
+          reply = `I have staged the retiral clearance for **${targetCase.request?.requestNumber || 'ADV'}** belonging to **${targetCase.owner?.legalName || 'Staff'}**.\n\nPlease review the retiral card below and click **Authorize & Execute Action** to reconcile the ledger and lift any requisition restrictions.`;
+          actionCard = {
+            cardType: 'STAGED_ACTION',
+            ...staged,
+          };
+        } else {
+          reply = `There are currently no open advance cases requiring retiral clearance. All accounts are 100% reconciled!`;
+        }
       }
     } else if (
       normalized.includes('emergency override') ||
       normalized.includes('emergency approval')
     ) {
-      const targetReq = pendingRequests[0];
-
-      if (targetReq && actor) {
-        const staged = await stageAction({
-          userId: actor.id,
-          actionType: 'emergency_override',
-          materialPayload: {
-            request_id: targetReq.id,
-            request_number: targetReq.requestNumber,
-            justification: 'GMD Emergency Operational Continuity Override',
-            amount: Number(targetReq.amountMinor) / 100,
-          },
-          summary: `GMD Emergency Override: Authorize immediate payout for ${targetReq.requestNumber} (₦${(Number(targetReq.amountMinor) / 100).toLocaleString()})`,
-          preview: {
-            request_number: targetReq.requestNumber,
-            title: targetReq.title,
-            amount: `₦${(Number(targetReq.amountMinor) / 100).toLocaleString()}`,
-            requester: targetReq.requester?.legalName || 'Staff',
-            override_authority: 'Group Managing Director',
-            action: 'BYPASS_MATRIX_DIRECT_APPROVAL',
-          },
-        });
-
-        reply = `I have staged a **GMD Emergency Override** for **${targetReq.requestNumber}** (**₦${(Number(targetReq.amountMinor) / 100).toLocaleString()}**).\n\nThis will bypass intermediate matrix stages and mark the requisition immediately approved for direct treasury disbursement.`;
-        actionCard = {
-          cardType: 'STAGED_ACTION',
-          ...staged,
-        };
+      if (isReadOnlyUser) {
+        reply = `🔒 **Read-Only Informational Access:** Emergency bypass overrides require sovereign executive authority (GMD only).`;
+        actionCard = null;
       } else {
-        reply = `There are currently no requisitions pending review to apply an emergency override to.`;
+        const targetReq = pendingRequests[0];
+
+        if (targetReq && actor) {
+          const staged = await stageAction({
+            userId: actor.id,
+            actionType: 'emergency_override',
+            materialPayload: {
+              request_id: targetReq.id,
+              request_number: targetReq.requestNumber,
+              justification: 'GMD Emergency Operational Continuity Override',
+              amount: Number(targetReq.amountMinor) / 100,
+            },
+            summary: `GMD Emergency Override: Authorize immediate payout for ${targetReq.requestNumber} (₦${(Number(targetReq.amountMinor) / 100).toLocaleString()})`,
+            preview: {
+              request_number: targetReq.requestNumber,
+              title: targetReq.title,
+              amount: `₦${(Number(targetReq.amountMinor) / 100).toLocaleString()}`,
+              requester: targetReq.requester?.legalName || 'Staff',
+              override_authority: 'Group Managing Director',
+              action: 'BYPASS_MATRIX_DIRECT_APPROVAL',
+            },
+          });
+
+          reply = `I have staged a **GMD Emergency Override** for **${targetReq.requestNumber}** (**₦${(Number(targetReq.amountMinor) / 100).toLocaleString()}**).\n\nThis will bypass intermediate matrix stages and mark the requisition immediately approved for direct treasury disbursement.`;
+          actionCard = {
+            cardType: 'STAGED_ACTION',
+            ...staged,
+          };
+        } else {
+          reply = `There are currently no requisitions pending review to apply an emergency override to.`;
+        }
       }
     } else if (
       normalized.includes('recurring') ||
