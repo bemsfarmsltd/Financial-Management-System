@@ -236,15 +236,304 @@ const defaultSettings: Record<string, SettingRecord> = {
   'data.retention': { auditYears: 7, receiptYears: 7, exportFormat: 'CSV' },
   'ai.access': { allowAiAnalystChat: true },
 };
-export function WorkspaceSettingsModule({ businessName, setNotice }: { businessName: string; setNotice: (message: string) => void }) {
-  const [organizations,setOrganizations]=useState<OrgRecord[]>([]);const [organizationId,setOrganizationId]=useState('');const [settings,setSettings]=useState<Record<string,SettingRecord>>(defaultSettings);const [profile,setProfile]=useState({name:'',currency:'NGN',timezone:'Africa/Lagos'});const [section,setSection]=useState('Organization');const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [saving,setSaving]=useState(false);
+type MobileGateItem = {
+  appId: string;
+  appName: string;
+  packageName: string;
+  minimumAllowedVersion: string;
+  latestVersionAvailable: string;
+  forceUpdate: boolean;
+  directDownloadUrl: string;
+  upgradePromptNotes: string | null;
+};
+
+const initialGates: Record<string, MobileGateItem> = {
+  GMD_APP: {
+    appId: 'GMD_APP',
+    appName: 'BEMS GMD Executive Cockpit',
+    packageName: 'com.bemsgroup.gmd_ai',
+    minimumAllowedVersion: '1.0.1',
+    latestVersionAvailable: '1.0.1',
+    forceUpdate: true,
+    directDownloadUrl: 'https://bemserp.work/download/gmd-app.apk',
+    upgradePromptNotes: 'Critical executive balance sync and cryptographic maker-checker enhancements.',
+  },
+  STAFF_APP: {
+    appId: 'STAFF_APP',
+    appName: 'BEMS Staff Portal',
+    packageName: 'com.bemsgroup.staff',
+    minimumAllowedVersion: '1.0.1',
+    latestVersionAvailable: '1.0.1',
+    forceUpdate: true,
+    directDownloadUrl: 'https://bemserp.work/download/staff-app.apk',
+    upgradePromptNotes: 'Streamlined expenditure requisitions, offline drafts and receipt uploads.',
+  },
+};
+
+export function WorkspaceSettingsModule({ businessName, setNotice, initialSection = 'Organization' }: { businessName: string; setNotice: (message: string) => void; initialSection?: string }) {
+  const [organizations,setOrganizations]=useState<OrgRecord[]>([]);const [organizationId,setOrganizationId]=useState('');const [settings,setSettings]=useState<Record<string,SettingRecord>>(defaultSettings);const [profile,setProfile]=useState({name:'',currency:'NGN',timezone:'Africa/Lagos'});
+  const [section,setSection]=useState(initialSection || 'Organization');
+  const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [saving,setSaving]=useState(false);
+
+  // Mobile App Gate and Upload States
+  const [mobileGates, setMobileGates] = useState<Record<string, MobileGateItem>>(initialGates);
+  const [loadingMobile, setLoadingMobile] = useState(false);
+  const [savingGates, setSavingGates] = useState(false);
+  const [gmdFile, setGmdFile] = useState<File | null>(null);
+  const [staffFile, setStaffFile] = useState<File | null>(null);
+  const [gmdVersion, setGmdVersion] = useState('1.0.1');
+  const [staffVersion, setStaffVersion] = useState('1.0.1');
+  const [gmdApplyMin, setGmdApplyMin] = useState(true);
+  const [staffApplyMin, setStaffApplyMin] = useState(true);
+  const [uploadingGmd, setUploadingGmd] = useState(false);
+  const [uploadingStaff, setUploadingStaff] = useState(false);
+
+  useEffect(() => {
+    if (initialSection) {
+      setSection(initialSection === 'Mobile App Version Control' ? 'Mobile App Settings' : initialSection);
+    }
+  }, [initialSection]);
+
+  const loadMobileData = useCallback(async () => {
+    try {
+      setLoadingMobile(true);
+      const res = await fetch('/api/admin/mobile-apps');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.gates) {
+          setMobileGates(prev => ({ ...prev, ...data.gates }));
+        }
+      }
+    } catch {
+      // Retain fallback
+    } finally {
+      setLoadingMobile(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (section === 'Mobile App Settings' || section === 'Mobile App Version Control') {
+      void loadMobileData();
+    }
+  }, [section, loadMobileData]);
+
+  const handleMobileGateChange = (appId: string, field: keyof MobileGateItem, value: any) => {
+    setMobileGates(prev => ({
+      ...prev,
+      [appId]: {
+        ...prev[appId],
+        [field]: value,
+      },
+    }));
+  };
+
+  const saveMobileGates = async () => {
+    try {
+      setSavingGates(true);
+      await Promise.all([
+        fetch('/api/admin/mobile-apps', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mobileGates.GMD_APP),
+        }),
+        fetch('/api/admin/mobile-apps', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mobileGates.STAFF_APP),
+        }),
+      ]);
+      setNotice('✓ Mobile Gate rules saved! Minimum allowed versions enforced immediately across all mobile devices.');
+      await loadMobileData();
+    } catch {
+      setNotice('Error saving mobile gate rules.');
+    } finally {
+      setSavingGates(false);
+    }
+  };
+
+  const uploadMobileApk = async (appId: 'GMD_APP' | 'STAFF_APP') => {
+    const isGmd = appId === 'GMD_APP';
+    const file = isGmd ? gmdFile : staffFile;
+    const version = isGmd ? gmdVersion : staffVersion;
+    const applyAsMin = isGmd ? gmdApplyMin : staffApplyMin;
+    if (!file) {
+      setNotice(`Please select an APK file for ${isGmd ? 'BEMS GMD Executive Cockpit' : 'BEMS Staff Portal'}.`);
+      return;
+    }
+    try {
+      if (isGmd) setUploadingGmd(true);
+      else setUploadingStaff(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('appId', appId);
+      formData.append('version', version);
+      formData.append('applyAsMin', applyAsMin ? 'true' : 'false');
+      formData.append('notes', mobileGates[appId]?.upgradePromptNotes || '');
+      const res = await fetch('/api/admin/mobile-apps/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to deploy APK');
+      setNotice(`✓ Successfully uploaded ${isGmd ? 'BEMS GMD Cockpit' : 'BEMS Staff Portal'} v${version} (${data.release?.fileSize || 'Done'})!`);
+      if (isGmd) setGmdFile(null);
+      else setStaffFile(null);
+      await loadMobileData();
+    } catch (err: any) {
+      setNotice(err.message || 'Error uploading APK.');
+    } finally {
+      if (isGmd) setUploadingGmd(false);
+      else setUploadingStaff(false);
+    }
+  };
+
   const load=useCallback(async()=>{setLoading(true);setError('');try{const data=await api<{organizations:OrgRecord[]}>('/api/organizations');setOrganizations(data.organizations);const found=data.organizations.find(o=>o.name.toLowerCase()===businessName.toLowerCase())||data.organizations[0];if(found){setOrganizationId(found.id);setProfile({name:found.name,currency:found.defaultCurrency,timezone:found.timezone});const saved=await api<{settings:Record<string,SettingRecord>}>(`/api/settings?organizationId=${encodeURIComponent(found.id)}`);setSettings({...defaultSettings,...saved.settings})}}catch(e){setError(errorText(e))}finally{setLoading(false)}},[businessName]);useEffect(()=>{void load()},[load]);
   const switchOrg=async(id:string)=>{setOrganizationId(id);const org=organizations.find(x=>x.id===id);if(org)setProfile({name:org.name,currency:org.defaultCurrency,timezone:org.timezone});try{const saved=await api<{settings:Record<string,SettingRecord>}>(`/api/settings?organizationId=${encodeURIComponent(id)}`);setSettings({...defaultSettings,...saved.settings})}catch(e){setError(errorText(e))}};
   const save=async()=>{setSaving(true);setError('');try{if(section==='Organization'){await api(`/api/organizations/${organizationId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({legalName:profile.name,defaultCurrency:profile.currency,timezone:profile.timezone})})}else{const key=section==='Approval controls'?'approval.controls':section==='AI & Copilot Access'?'ai.access':section==='Notifications'?'notifications.preferences':'data.retention';await api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({organizationId,key,value:settings[key]})})}setNotice(`${section} settings saved.`);await load()}catch(e){setError(errorText(e))}finally{setSaving(false)}};
   const current=settings[section==='Approval controls'?'approval.controls':section==='AI & Copilot Access'?'ai.access':section==='Notifications'?'notifications.preferences':'data.retention']||{};
   const toggle=(key:string)=>setSettings(prev=>{const group=section==='Approval controls'?'approval.controls':section==='AI & Copilot Access'?'ai.access':'notifications.preferences';return {...prev,[group]:{...prev[group],[key]:!prev[group]?.[key]}}});
-  const titles=['Organization','Approval controls','AI & Copilot Access','Notifications','Data & retention','Mobile App Version Control'];
-  return <><PageHeading eyebrow="GROUP ADMINISTRATION" title="Settings" description="Manage saved company profiles, approval controls, AI copilot access, notifications, and evidence retention."/><section style={{...card,display:'grid',gridTemplateColumns:'220px 1fr',gap:22,minHeight:450}}><nav style={{display:'grid',alignContent:'start',gap:6}}>{titles.map(t=><button key={t} style={section===t?{...primary,textAlign:'left'}:{...secondary,textAlign:'left'}} onClick={()=>setSection(t)}>{t}</button>)}</nav><div>{loading?<p>Loading settings…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:<><div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap'}}><div><small style={{color:'#7788a0',fontWeight:800}}>{section.toUpperCase()}</small><h2 style={{margin:'5px 0 16px'}}>{section} settings</h2></div><select style={{...input,width:'auto',minWidth:260}} value={organizationId} onChange={e=>void switchOrg(e.target.value)}>{organizations.map(o=><option value={o.id} key={o.id}>{o.name}</option>)}</select></div>{section==='Organization'?<div style={{display:'grid',gap:12,maxWidth:650}}><label>Legal name<input style={{...input,display:'block',marginTop:4}} value={profile.name} onChange={e=>setProfile(p=>({...p,name:e.target.value}))}/></label><label>Default currency<select style={{...input,display:'block',marginTop:4}} value={profile.currency} onChange={e=>setProfile(p=>({...p,currency:e.target.value}))}><option value="NGN">NGN — Nigerian naira</option><option value="USD">USD — US dollar</option><option value="GBP">GBP — British pound</option></select></label><label>Timezone<select style={{...input,display:'block',marginTop:4}} value={profile.timezone} onChange={e=>setProfile(p=>({...p,timezone:e.target.value}))}>{['Africa/Lagos','UTC','Europe/London','America/New_York'].map(x=><option key={x}>{x}</option>)}</select></label></div>:section==='Approval controls'?<div style={{display:'grid',gap:12}}><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.requireDecisionReason)} onChange={()=>toggle('requireDecisionReason')}/>Require a reason for declines and clarification</label><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.requireAssignedDisbursementOwner)} onChange={()=>toggle('requireAssignedDisbursementOwner')}/>Require the GMD to assign a payment recorder at final approval</label><p style={{color:'#70819b'}}>Duplicate receipt detection and staff salary-change notices stay enforced for financial control.</p></div>:section==='AI & Copilot Access'?<div style={{display:'grid',gap:16,maxWidth:680}}><label style={{display:'flex',gap:14,alignItems:'flex-start',padding:16,background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,cursor:'pointer'}}><input type="checkbox" style={{marginTop:3,width:18,height:18,accentColor:'#7c3aed'}} checked={current.allowAiAnalystChat!==false} onChange={()=>toggle('allowAiAnalystChat')}/><div><b style={{display:'block',fontSize:14,color:'#0f172a'}}>Enable AI Copilot & Chat for AI Analyst Role</b><span style={{display:'block',marginTop:4,fontSize:13,color:'#64748b',lineHeight:1.5}}>When enabled, users assigned the dedicated <strong>AI Analyst</strong> role can interactively converse with the AI Copilot, analyze live ledger requisitions, query balances, and ask financial questions in <strong>strict read-only mode</strong>. They cannot execute or stage ledger actions. When disabled, their chat access is paused.</span></div></label><div style={{padding:12,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:8,color:'#1e40af',fontSize:12.5}}>🔒 <strong>Read-Only Safeguard:</strong> The AI Analyst role is strictly restricted to informational inquiry, analytics, and queries. Executive approvals, payment executions, and ledger writes are exclusively reserved for GMD and System Admin accounts.</div><div style={{padding:12,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,color:'#166534',fontSize:12.5}}>✦ Note: GMD & System Admin accounts always retain full AI Copilot conversational capabilities.</div></div>:section==='Notifications'?<div style={{display:'grid',gap:12}}><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.taskAssignmentAlerts)} onChange={()=>toggle('taskAssignmentAlerts')}/>Notify the assignee when a follow-up task is assigned</label><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.reviewEvidenceAlerts)} onChange={()=>toggle('reviewEvidenceAlerts')}/>Notify reviewers when staff upload evidence</label><p style={{color:'#70819b'}}>Payment confirmation and salary-change notifications remain mandatory. Salary notices include the exact reason recorded by the GMD.</p></div>:section==='Data & retention'?<div style={{display:'grid',gap:12,maxWidth:480}}><label>Audit history retention<select style={{...input,display:'block',marginTop:4}} value={String(current.auditYears||7)} onChange={e=>setSettings(p=>({...p,'data.retention':{...p['data.retention'],auditYears:Number(e.target.value)}}))}>{[3,5,7,10].map(n=><option key={n} value={n}>{n} years</option>)}</select></label><label>Receipt evidence retention<select style={{...input,display:'block',marginTop:4}} value={String(current.receiptYears||7)} onChange={e=>setSettings(p=>({...p,'data.retention':{...p['data.retention'],receiptYears:Number(e.target.value)}}))}>{[3,5,7,10].map(n=><option key={n} value={n}>{n} years</option>)}</select></label><p style={{color:'#7b8aa1',fontSize:13}}>Records remain available for audit during this period. Retention settings do not automatically delete financial records.</p></div>:<div style={{display:'grid',gap:16,maxWidth:720}}><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))',gap:16}}><div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:12,padding:18,boxShadow:'0 2px 6px rgba(0,0,0,0.03)'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}><div><b style={{fontSize:15,color:'#0f172a',display:'block'}}>BEMS GMD Executive Cockpit</b><span style={{fontSize:12,color:'#64748b'}}>Package: com.bemsgroup.gmd_ai</span></div><span style={{background:'#ffedd5',color:'#c2410c',fontWeight:700,fontSize:11,padding:'3px 8px',borderRadius:6}}>v1.0.1+3</span></div><p style={{fontSize:12.5,color:'#475569',margin:'0 0 14px',lineHeight:1.5}}>GMD Executive AI Cockpit, real-time treasury monitoring, and Maker-Checker sign-off.</p><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><a href="/download/gmd-app.apk" style={{...primary,textDecoration:'none',fontSize:12.5,padding:'8px 14px',display:'inline-flex',alignItems:'center',gap:6}}>⬇ Download APK (23.7 MB)</a></div></div><div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:12,padding:18,boxShadow:'0 2px 6px rgba(0,0,0,0.03)'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}><div><b style={{fontSize:15,color:'#0f172a',display:'block'}}>BEMS Staff Portal</b><span style={{fontSize:12,color:'#64748b'}}>Package: com.bemsgroup.staff</span></div><span style={{background:'#dbeafe',color:'#1d4ed8',fontWeight:700,fontSize:11,padding:'3px 8px',borderRadius:6}}>v1.0.1+3</span></div><p style={{fontSize:12.5,color:'#475569',margin:'0 0 14px',lineHeight:1.5}}>Requisitions, 72h advance retirements, expense tracking, and disbursement verification.</p><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><a href="/download/staff-app.apk" style={{...primary,textDecoration:'none',fontSize:12.5,padding:'8px 14px',display:'inline-flex',alignItems:'center',gap:6}}>⬇ Download APK (24.3 MB)</a></div></div></div><div style={{padding:16,background:'#f8fafc',border:'1px solid #cbd5e1',borderRadius:10,display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}><div><b style={{display:'block',fontSize:13.5,color:'#0f172a'}}>Full Version Control & Release Gate Console</b><span style={{fontSize:12.5,color:'#64748b',display:'block',marginTop:2}}>Configure minimum allowed versions, mandatory lockouts, and upload new APK builds.</span></div><a href="/admin/settings/mobile-apps" style={{...secondary,textDecoration:'none',display:'inline-flex',alignItems:'center',gap:6,fontWeight:700,fontSize:13}}>Open Version Control Console →</a></div></div>}{section!=='Mobile App Version Control'&&<button style={{...primary,marginTop:22}} disabled={saving} onClick={()=>void save()}>{saving?'Saving…':'Save changes'}</button>}</>}</div></section></>;
+  const titles=['Organization','Approval controls','AI & Copilot Access','Notifications','Data & retention','Mobile App Settings'];
+  const isMobileSection = section === 'Mobile App Settings' || section === 'Mobile App Version Control';
+
+  return <><PageHeading eyebrow="GROUP ADMINISTRATION" title="Settings" description="Manage saved company profiles, approval controls, AI copilot access, notifications, and mobile app version gates."/><section style={{...card,display:'grid',gridTemplateColumns:'220px 1fr',gap:22,minHeight:450}}><nav style={{display:'grid',alignContent:'start',gap:6}}>{titles.map(t=><button key={t} style={(section===t || (t==='Mobile App Settings' && isMobileSection))?{...primary,textAlign:'left'}:{...secondary,textAlign:'left'}} onClick={()=>setSection(t)}>{t}</button>)}</nav><div>{loading?<p>Loading settings…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:<><div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap',marginBottom:16}}><div><small style={{color:'#7788a0',fontWeight:800}}>{section.toUpperCase()}</small><h2 style={{margin:'5px 0 0',fontSize:22,color:'#0f172a'}}>{isMobileSection ? 'Mobile App Settings & Version Control' : `${section} settings`}</h2></div>{!isMobileSection&&<select style={{...input,width:'auto',minWidth:260}} value={organizationId} onChange={e=>void switchOrg(e.target.value)}>{organizations.map(o=><option value={o.id} key={o.id}>{o.name}</option>)}</select>}</div>{section==='Organization'?<div style={{display:'grid',gap:12,maxWidth:650}}><label>Legal name<input style={{...input,display:'block',marginTop:4}} value={profile.name} onChange={e=>setProfile(p=>({...p,name:e.target.value}))}/></label><label>Default currency<select style={{...input,display:'block',marginTop:4}} value={profile.currency} onChange={e=>setProfile(p=>({...p,currency:e.target.value}))}><option value="NGN">NGN — Nigerian naira</option><option value="USD">USD — US dollar</option><option value="GBP">GBP — British pound</option></select></label><label>Timezone<select style={{...input,display:'block',marginTop:4}} value={profile.timezone} onChange={e=>setProfile(p=>({...p,timezone:e.target.value}))}>{['Africa/Lagos','UTC','Europe/London','America/New_York'].map(x=><option key={x}>{x}</option>)}</select></label></div>:section==='Approval controls'?<div style={{display:'grid',gap:12}}><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.requireDecisionReason)} onChange={()=>toggle('requireDecisionReason')}/>Require a reason for declines and clarification</label><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.requireAssignedDisbursementOwner)} onChange={()=>toggle('requireAssignedDisbursementOwner')}/>Require the GMD to assign a payment recorder at final approval</label><p style={{color:'#70819b'}}>Duplicate receipt detection and staff salary-change notices stay enforced for financial control.</p></div>:section==='AI & Copilot Access'?<div style={{display:'grid',gap:16,maxWidth:680}}><label style={{display:'flex',gap:14,alignItems:'flex-start',padding:16,background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,cursor:'pointer'}}><input type="checkbox" style={{marginTop:3,width:18,height:18,accentColor:'#7c3aed'}} checked={current.allowAiAnalystChat!==false} onChange={()=>toggle('allowAiAnalystChat')}/><div><b style={{display:'block',fontSize:14,color:'#0f172a'}}>Enable AI Copilot & Chat for AI Analyst Role</b><span style={{display:'block',marginTop:4,fontSize:13,color:'#64748b',lineHeight:1.5}}>When enabled, users assigned the dedicated <strong>AI Analyst</strong> role can interactively converse with the AI Copilot, analyze live ledger requisitions, query balances, and ask financial questions in <strong>strict read-only mode</strong>. They cannot execute or stage ledger actions. When disabled, their chat access is paused.</span></div></label><div style={{padding:12,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:8,color:'#1e40af',fontSize:12.5}}>🔒 <strong>Read-Only Safeguard:</strong> The AI Analyst role is strictly restricted to informational inquiry, analytics, and queries. Executive approvals, payment executions, and ledger writes are exclusively reserved for GMD and System Admin accounts.</div><div style={{padding:12,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,color:'#166534',fontSize:12.5}}>✦ Note: GMD & System Admin accounts always retain full AI Copilot conversational capabilities.</div></div>:section==='Notifications'?<div style={{display:'grid',gap:12}}><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.taskAssignmentAlerts)} onChange={()=>toggle('taskAssignmentAlerts')}/>Notify the assignee when a follow-up task is assigned</label><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.reviewEvidenceAlerts)} onChange={()=>toggle('reviewEvidenceAlerts')}/>Notify reviewers when staff upload evidence</label><p style={{color:'#70819b'}}>Payment confirmation and salary-change notifications remain mandatory. Salary notices include the exact reason recorded by the GMD.</p></div>:section==='Data & retention'?<div style={{display:'grid',gap:12,maxWidth:480}}><label>Audit history retention<select style={{...input,display:'block',marginTop:4}} value={String(current.auditYears||7)} onChange={e=>setSettings(p=>({...p,'data.retention':{...p['data.retention'],auditYears:Number(e.target.value)}}))}>{[3,5,7,10].map(n=><option key={n} value={n}>{n} years</option>)}</select></label><label>Receipt evidence retention<select style={{...input,display:'block',marginTop:4}} value={String(current.receiptYears||7)} onChange={e=>setSettings(p=>({...p,'data.retention':{...p['data.retention'],receiptYears:Number(e.target.value)}}))}>{[3,5,7,10].map(n=><option key={n} value={n}>{n} years</option>)}</select></label><p style={{color:'#7b8aa1',fontSize:13}}>Records remain available for audit during this period. Retention settings do not automatically delete financial records.</p></div>:/* Mobile App Settings Embedded Console */<div style={{display:'grid',gap:20,maxWidth:880}}>
+  {/* Status & Save Banner */}
+  <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'14px 18px',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}>
+    <div>
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
+        <span style={{width:8,height:8,borderRadius:'50%',background:'#10b981'}}/>
+        <b style={{fontSize:13.5,color:'#166534'}}>HTTP 426 Version Upgrade Gate Active</b>
+      </div>
+      <p style={{margin:0,fontSize:12.5,color:'#15803d'}}>Enforce minimum client versions, trigger immediate lockout for obsolete APKs, and save gate rules live.</p>
+    </div>
+    <button style={{...primary,padding:'8px 16px',fontSize:13}} disabled={savingGates} onClick={saveMobileGates}>
+      {savingGates ? 'Saving gate rules…' : '💾 Save Mobile Gate Rules'}
+    </button>
+  </div>
+
+  {/* Quick Direct Download Badges */}
+  <div>
+    <h4 style={{fontSize:13,textTransform:'uppercase',letterSpacing:'0.04em',color:'#64748b',margin:'0 0 10px'}}>Active Production APK Binaries</h4>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))',gap:14}}>
+      <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,padding:16,boxShadow:'0 1px 3px rgba(0,0,0,0.03)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+          <div>
+            <b style={{fontSize:14,color:'#0f172a',display:'block'}}>BEMS GMD Executive Cockpit</b>
+            <span style={{fontSize:11.5,color:'#64748b'}}>Package: com.bemsgroup.gmd_ai</span>
+          </div>
+          <span style={{background:'#ffedd5',color:'#c2410c',fontWeight:700,fontSize:11,padding:'2px 7px',borderRadius:5}}>v{mobileGates.GMD_APP?.latestVersionAvailable || '1.0.1'}</span>
+        </div>
+        <p style={{fontSize:12,color:'#475569',margin:'0 0 12px',lineHeight:1.4}}>{mobileGates.GMD_APP?.upgradePromptNotes || 'Executive AI Cockpit and real-time treasury monitoring.'}</p>
+        <a href="/download/gmd-app.apk" style={{...primary,textDecoration:'none',fontSize:12,padding:'7px 12px',display:'inline-flex',alignItems:'center',gap:6}}>
+          ⬇ Download APK (23.7 MB)
+        </a>
+      </div>
+
+      <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,padding:16,boxShadow:'0 1px 3px rgba(0,0,0,0.03)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+          <div>
+            <b style={{fontSize:14,color:'#0f172a',display:'block'}}>BEMS Staff Portal</b>
+            <span style={{fontSize:11.5,color:'#64748b'}}>Package: com.bemsgroup.staff</span>
+          </div>
+          <span style={{background:'#dbeafe',color:'#1d4ed8',fontWeight:700,fontSize:11,padding:'2px 7px',borderRadius:5}}>v{mobileGates.STAFF_APP?.latestVersionAvailable || '1.0.1'}</span>
+        </div>
+        <p style={{fontSize:12,color:'#475569',margin:'0 0 12px',lineHeight:1.4}}>{mobileGates.STAFF_APP?.upgradePromptNotes || 'Requisitions, 72h advance retirements, and expense tracking.'}</p>
+        <a href="/download/BEMS-Staff-Portal.apk" style={{...primary,textDecoration:'none',fontSize:12,padding:'7px 12px',display:'inline-flex',alignItems:'center',gap:6}}>
+          ⬇ Download APK (24.3 MB)
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {/* Real-time Version Gate Editor */}
+  <div>
+    <h4 style={{fontSize:13,textTransform:'uppercase',letterSpacing:'0.04em',color:'#64748b',margin:'0 0 10px'}}>Version Gate & Upgrade Policies</h4>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))',gap:16}}>
+      {/* GMD Gate Form */}
+      <div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,padding:16,display:'grid',gap:10}}>
+        <b style={{fontSize:13.5,color:'#0f172a'}}>GMD Executive Cockpit Gate</b>
+        <label style={{fontSize:12,color:'#334155',fontWeight:600}}>
+          Minimum Allowed Version (HTTP 426 Threshold)
+          <input style={{...input,marginTop:4,fontSize:13}} value={mobileGates.GMD_APP?.minimumAllowedVersion || '1.0.1'} onChange={e => handleMobileGateChange('GMD_APP', 'minimumAllowedVersion', e.target.value)} placeholder="e.g. 1.0.1"/>
+        </label>
+        <label style={{fontSize:12,color:'#334155',fontWeight:600}}>
+          Latest Version Available
+          <input style={{...input,marginTop:4,fontSize:13}} value={mobileGates.GMD_APP?.latestVersionAvailable || '1.0.1'} onChange={e => handleMobileGateChange('GMD_APP', 'latestVersionAvailable', e.target.value)} placeholder="e.g. 1.0.1"/>
+        </label>
+        <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12,color:'#1e293b',cursor:'pointer'}}>
+          <input type="checkbox" checked={Boolean(mobileGates.GMD_APP?.forceUpdate)} onChange={e => handleMobileGateChange('GMD_APP', 'forceUpdate', e.target.checked)}/>
+          Lock out app users below minimum allowed version
+        </label>
+        <label style={{fontSize:12,color:'#334155',fontWeight:600}}>
+          Direct APK Download URL
+          <input style={{...input,marginTop:4,fontSize:12}} value={mobileGates.GMD_APP?.directDownloadUrl || 'https://bemserp.work/download/gmd-app.apk'} onChange={e => handleMobileGateChange('GMD_APP', 'directDownloadUrl', e.target.value)}/>
+        </label>
+      </div>
+
+      {/* Staff Gate Form */}
+      <div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,padding:16,display:'grid',gap:10}}>
+        <b style={{fontSize:13.5,color:'#0f172a'}}>BEMS Staff Portal Gate</b>
+        <label style={{fontSize:12,color:'#334155',fontWeight:600}}>
+          Minimum Allowed Version (HTTP 426 Threshold)
+          <input style={{...input,marginTop:4,fontSize:13}} value={mobileGates.STAFF_APP?.minimumAllowedVersion || '1.0.1'} onChange={e => handleMobileGateChange('STAFF_APP', 'minimumAllowedVersion', e.target.value)} placeholder="e.g. 1.0.1"/>
+        </label>
+        <label style={{fontSize:12,color:'#334155',fontWeight:600}}>
+          Latest Version Available
+          <input style={{...input,marginTop:4,fontSize:13}} value={mobileGates.STAFF_APP?.latestVersionAvailable || '1.0.1'} onChange={e => handleMobileGateChange('STAFF_APP', 'latestVersionAvailable', e.target.value)} placeholder="e.g. 1.0.1"/>
+        </label>
+        <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12,color:'#1e293b',cursor:'pointer'}}>
+          <input type="checkbox" checked={Boolean(mobileGates.STAFF_APP?.forceUpdate)} onChange={e => handleMobileGateChange('STAFF_APP', 'forceUpdate', e.target.checked)}/>
+          Lock out app users below minimum allowed version
+        </label>
+        <label style={{fontSize:12,color:'#334155',fontWeight:600}}>
+          Direct APK Download URL
+          <input style={{...input,marginTop:4,fontSize:12}} value={mobileGates.STAFF_APP?.directDownloadUrl || 'https://bemserp.work/download/staff-app.apk'} onChange={e => handleMobileGateChange('STAFF_APP', 'directDownloadUrl', e.target.value)}/>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  {/* Quick APK Binary Upload Section */}
+  <div style={{background:'#fff',border:'1px solid #cbd5e1',borderRadius:10,padding:18}}>
+    <h4 style={{fontSize:13,textTransform:'uppercase',letterSpacing:'0.04em',color:'#64748b',margin:'0 0 12px'}}>Deploy New APK Build Directly</h4>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))',gap:16}}>
+      {/* GMD Upload */}
+      <div style={{display:'grid',gap:8,background:'#f8fafc',padding:14,borderRadius:8,border:'1px solid #e2e8f0'}}>
+        <b style={{fontSize:13,color:'#0f172a'}}>Upload GMD Cockpit APK</b>
+        <input type="file" accept=".apk" onChange={e => setGmdFile(e.target.files?.[0] || null)} style={{fontSize:12}}/>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <input style={{...input,padding:'6px 10px',fontSize:12,maxWidth:120}} value={gmdVersion} onChange={e => setGmdVersion(e.target.value)} placeholder="Version"/>
+          <label style={{display:'flex',gap:6,alignItems:'center',fontSize:11.5,color:'#475569',cursor:'pointer'}}>
+            <input type="checkbox" checked={gmdApplyMin} onChange={e => setGmdApplyMin(e.target.checked)}/> Apply as min version
+          </label>
+        </div>
+        <button style={{...secondary,fontSize:12,padding:'7px 12px',fontWeight:700,width:'fit-content'}} disabled={uploadingGmd || !gmdFile} onClick={() => uploadMobileApk('GMD_APP')}>
+          {uploadingGmd ? 'Uploading APK…' : '⬆ Upload GMD APK'}
+        </button>
+      </div>
+
+      {/* Staff Upload */}
+      <div style={{display:'grid',gap:8,background:'#f8fafc',padding:14,borderRadius:8,border:'1px solid #e2e8f0'}}>
+        <b style={{fontSize:13,color:'#0f172a'}}>Upload Staff Portal APK</b>
+        <input type="file" accept=".apk" onChange={e => setStaffFile(e.target.files?.[0] || null)} style={{fontSize:12}}/>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <input style={{...input,padding:'6px 10px',fontSize:12,maxWidth:120}} value={staffVersion} onChange={e => setStaffVersion(e.target.value)} placeholder="Version"/>
+          <label style={{display:'flex',gap:6,alignItems:'center',fontSize:11.5,color:'#475569',cursor:'pointer'}}>
+            <input type="checkbox" checked={staffApplyMin} onChange={e => setStaffApplyMin(e.target.checked)}/> Apply as min version
+          </label>
+        </div>
+        <button style={{...secondary,fontSize:12,padding:'7px 12px',fontWeight:700,width:'fit-content'}} disabled={uploadingStaff || !staffFile} onClick={() => uploadMobileApk('STAFF_APP')}>
+          {uploadingStaff ? 'Uploading APK…' : '⬆ Upload Staff APK'}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {/* Advanced link */}
+  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10,fontSize:12.5,color:'#64748b'}}>
+    <span>Looking for full APK release logs, hashes, and detailed version history?</span>
+    <a href="/admin/settings/mobile-apps" style={{color:'#ea580c',fontWeight:700,textDecoration:'none'}}>Open Full Dedicated Release Console →</a>
+  </div>
+</div>}{!isMobileSection&&<button style={{...primary,marginTop:22}} disabled={saving} onClick={()=>void save()}>{saving?'Saving…':'Save changes'}</button>}</>}</div></section></>;
 }
 
 type AnalyticsData = {

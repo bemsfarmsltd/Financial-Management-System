@@ -191,7 +191,7 @@ export default function MobileAppsManagementPage() {
       <header style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#64748b', marginBottom: 4 }}>
-            <Link href="/finance" style={{ color: '#0284c7', textDecoration: 'none', fontWeight: 600 }}>Settings</Link>
+            <Link href="/finance?tab=Settings" style={{ color: '#0284c7', textDecoration: 'none', fontWeight: 600 }}>Admin Settings</Link>
             <span>/</span>
             <span style={{ color: '#334155', fontWeight: 600 }}>Mobile Apps</span>
           </div>

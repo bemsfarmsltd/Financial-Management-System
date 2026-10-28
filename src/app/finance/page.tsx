@@ -242,12 +242,13 @@ const gmdNavGroups = [
     ]
   },
   {
-    label: 'PEOPLE & REPORTS',
+    label: 'ADMINISTRATION & GOVERNANCE',
     items: [
       ['Staff profiles', '♙'],
       ['Staff onboarding', '👤'],
       ['Audit logs', '≡'],
-      ['Settings', '⚙'],
+      ['Admin Settings', '⚙'],
+      ['Mobile App Settings', '📱'],
     ]
   },
 ];
@@ -3027,8 +3028,11 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
       if (target === 'Request channels') {
         return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={(p)=>p==='/requests'?setActive('My requests'):window.location.href=p}/>;
       }
-      if (target === 'Settings & Profile' || target === 'Settings') {
+      if (target === 'Settings & Profile' || target === 'Settings' || target === 'Admin Settings') {
         return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
+      }
+      if (target === 'Mobile App Settings' || target === 'Mobile settings' || target === 'Mobile App Version Control') {
+        return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice} initialSection="Mobile App Settings"/>;
       }
       return (
         <StaffWorkspaceModule
@@ -3050,7 +3054,8 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
       if (target === 'Analytics & BI') return <LiveAnalyticsBIPage/>;
       if (target === 'Audit logs') return <LiveAuditLogsModule scope={activeScope} setNotice={setNotice}/>;
       if (target === 'Intercompany notes') return <LiveIntercompanyModule scope={activeScope} setNotice={setNotice}/>;
-      if (target === 'Settings') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
+      if (target === 'Settings' || target === 'Admin Settings') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
+      if (target === 'Mobile App Settings' || target === 'Mobile settings' || target === 'Mobile App Version Control') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice} initialSection="Mobile App Settings"/>;
       if (target === 'Overview') {
         return (
           <RoleOverviewModule
@@ -3306,7 +3311,8 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
     if(target==='Team & access') return <TeamAccessPage business={current} setNotice={setNotice}/>;
     if(target==='Security & compliance') return <SecurityCompliancePage name="Security & compliance" setNotice={setNotice}/>;
     if(target==='System configuration') return <ConfigurationCenter setNotice={setNotice}/>;
-    if(target==='Settings') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
+    if(target==='Settings' || target==='Admin Settings') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
+    if(target==='Mobile App Settings' || target==='Mobile settings' || target==='Mobile App Version Control') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice} initialSection="Mobile App Settings"/>;
     return <DetailedModule name={target} business={current} cases={cases} onResolveCase={resolveCase} onAddCase={addCase} setNotice={setNotice}/>;
   },[active,current,currentRole,businesses,onAddBusiness,selectBusiness,onUpdateBusiness,setNotice,cases,resolveCase,addCase,user]);
 

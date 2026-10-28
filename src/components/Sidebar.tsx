@@ -18,6 +18,7 @@ import {
   Layers,
   ChevronRight,
   Smartphone,
+  Settings,
 } from "lucide-react";
 
 export function Sidebar() {
@@ -89,6 +90,20 @@ export function Sidebar() {
       href: "/audit",
       icon: History,
       roles: ["GMD", "SYSTEM_ADMIN"],
+    },
+    {
+      name: "Admin Settings",
+      href: "/finance?tab=Settings",
+      icon: Settings,
+      roles: ["GMD", "SYSTEM_ADMIN"],
+    },
+    {
+      name: "Mobile App Gates",
+      href: "/finance?tab=Mobile+App+Settings",
+      icon: Smartphone,
+      roles: ["GMD", "SYSTEM_ADMIN"],
+      badge: "HTTP 426",
+      badgeColor: "bg-orange-500/20 text-orange-400 border border-orange-500/30",
     },
   ];
 
