@@ -5,6 +5,8 @@ import { NewRequestForm } from "./NewRequestForm";
 import { redirect } from 'next/navigation';
 import { getAuthenticatedEmployee } from '@/lib/auth';
 
+import { ConnectAppShell } from "@/components/layout/ConnectAppShell";
+
 export const dynamic = "force-dynamic";
 
 export default async function NewRequestPage() {
@@ -53,11 +55,15 @@ export default async function NewRequestPage() {
   ]);
 
   return (
-    <NewRequestForm
-      subsidiaries={subsidiaries}
-      vendors={vendors}
-      employees={employees}
-      currentStaff={currentStaff}
-    />
+    <ConnectAppShell>
+      <div style={{ padding: '24px 20px', maxWidth: '1000px', margin: '0 auto' }}>
+        <NewRequestForm
+          subsidiaries={subsidiaries}
+          vendors={vendors}
+          employees={employees}
+          currentStaff={currentStaff}
+        />
+      </div>
+    </ConnectAppShell>
   );
 }

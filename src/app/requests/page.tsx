@@ -16,15 +16,49 @@ export default async function RequestsPage() {
   }
 
   const isStaff = actor.role === 'STAFF';
-  const requests = await prisma.expenditureRequest.findMany({
-    where: isStaff ? { requestedById: actor.id } : undefined,
-    include: {
-      subsidiary: true,
-      requester: true,
-      channel: true,
-    },
-    orderBy: { createdAt: 'desc' }
-  });
+  const [requests, subsidiaries, vendors, currentStaff] = await Promise.all([
+    prisma.expenditureRequest.findMany({
+      where: isStaff ? { requestedById: actor.id } : undefined,
+      include: {
+        subsidiary: true,
+        requester: true,
+        channel: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.organization.findMany({
+      where: { status: 'ACTIVE' },
+      orderBy: { legalName: 'asc' },
+      select: { id: true, legalName: true, code: true, type: true },
+    }),
+    prisma.vendor.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, category: true, bankName: true, accountNumber: true, accountName: true },
+    }),
+    prisma.employee.findUnique({
+      where: { id: actor.id },
+      select: {
+        id: true,
+        legalName: true,
+        workEmail: true,
+        employeeNumber: true,
+        bankName: true,
+        accountNumber: true,
+        accountName: true,
+        assignments: {
+          where: { status: 'ACTIVE' },
+          select: {
+            subsidiaryId: true,
+            departmentId: true,
+            positionName: true,
+            isPrimary: true,
+            subsidiary: { select: { id: true, legalName: true, code: true } },
+            department: { select: { id: true, name: true } },
+          },
+        },
+      },
+    }),
+  ]);
 
   const rows = requests.map((request) => ({
     id: request.id,
@@ -46,7 +80,12 @@ export default async function RequestsPage() {
 
   return (
     <ConnectAppShell>
-      <RequestsInventoryClient requests={rows} />
+      <RequestsInventoryClient
+        requests={rows}
+        subsidiaries={subsidiaries}
+        vendors={vendors}
+        currentStaff={currentStaff}
+      />
     </ConnectAppShell>
   );
 }

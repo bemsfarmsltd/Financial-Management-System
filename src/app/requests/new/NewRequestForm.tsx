@@ -57,11 +57,13 @@ interface CurrentStaff {
   assignments?: StaffAssignment[];
 }
 
-interface NewRequestFormProps {
+export interface NewRequestFormProps {
   subsidiaries: Subsidiary[];
   vendors: Vendor[];
-  employees: any[];
+  employees?: any[];
   currentStaff?: CurrentStaff | null;
+  onClose?: () => void;
+  isModal?: boolean;
 }
 
 const CATEGORIES = [
@@ -86,8 +88,10 @@ interface UploadedAttachment {
 export function NewRequestForm({
   subsidiaries,
   vendors,
-  employees,
+  employees = [],
   currentStaff,
+  onClose,
+  isModal = false,
 }: NewRequestFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -256,50 +260,80 @@ export function NewRequestForm({
       {/* Top Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <Link
-            href="/requests"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              fontSize: '12.5px',
-              fontWeight: 600,
-              color: '#ea580c',
-              textDecoration: 'none',
-              marginBottom: 6,
-            }}
-          >
-            <ChevronLeft size={16} /> Cancel &amp; Back to Requests
-          </Link>
-          <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px 0' }}>
+          {isModal ? (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#ea580c', fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
+              <ShieldCheck size={15} /> BEMS REQUISITION GATEWAY
+            </div>
+          ) : (
+            <Link
+              href="/requests"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: '12.5px',
+                fontWeight: 600,
+                color: '#ea580c',
+                textDecoration: 'none',
+                marginBottom: 6,
+              }}
+            >
+              <ChevronLeft size={16} /> Cancel &amp; Back to Requests
+            </Link>
+          )}
+          <h1 style={{ fontSize: isModal ? '20px' : '24px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px 0' }}>
             Submit New Fund / Expenditure Request
           </h1>
-          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+          <p style={{ fontSize: '12.5px', color: '#64748b', margin: 0 }}>
             Create an expenditure requisition with supporting documentation and route through deterministic policy checks.
           </p>
         </div>
 
-        {currentStaff && (
-          <div
-            style={{
-              background: '#f1f5f9',
-              border: '1px solid #e2e8f0',
-              borderRadius: '8px',
-              padding: '6px 14px',
-              fontSize: '12px',
-              color: '#334155',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <span style={{ fontWeight: 700, color: '#0f172a' }}>{currentStaff.legalName}</span>
-            <span>·</span>
-            <span style={{ fontFamily: 'monospace', color: '#ea580c', fontWeight: 700 }}>
-              {currentStaff.employeeNumber}
-            </span>
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {currentStaff && (
+            <div
+              style={{
+                background: '#f1f5f9',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                color: '#334155',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span style={{ fontWeight: 700, color: '#0f172a' }}>{currentStaff.legalName}</span>
+              <span>·</span>
+              <span style={{ fontFamily: 'monospace', color: '#ea580c', fontWeight: 700 }}>
+                {currentStaff.employeeNumber}
+              </span>
+            </div>
+          )}
+
+          {isModal && onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: '#64748b',
+              }}
+              aria-label="Close modal"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       {errorMsg && (
@@ -882,21 +916,40 @@ export function NewRequestForm({
 
         {/* Form Actions */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', paddingTop: '10px' }}>
-          <Link
-            href="/requests"
-            style={{
-              padding: '10px 18px',
-              borderRadius: '8px',
-              border: '1px solid #cbd5e1',
-              background: '#ffffff',
-              color: '#475569',
-              fontSize: '13px',
-              fontWeight: 600,
-              textDecoration: 'none',
-            }}
-          >
-            Cancel
-          </Link>
+          {isModal && onClose ? (
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: '10px 18px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                background: '#ffffff',
+                color: '#475569',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          ) : (
+            <Link
+              href="/requests"
+              style={{
+                padding: '10px 18px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                background: '#ffffff',
+                color: '#475569',
+                fontSize: '13px',
+                fontWeight: 600,
+                textDecoration: 'none',
+              }}
+            >
+              Cancel
+            </Link>
+          )}
 
           <button
             type="submit"

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { RequestDossierModal, type RequestDossier } from '@/components/requests/RequestDossierModal';
+import { NewRequestModal } from '@/components/requests/NewRequestModal';
 
 type RequestRow = {
   id: string;
@@ -21,6 +22,13 @@ type RequestRow = {
   createdAt: string;
 };
 
+interface RequestsInventoryClientProps {
+  requests: RequestRow[];
+  subsidiaries?: any[];
+  vendors?: any[];
+  currentStaff?: any;
+}
+
 const label = (value: string) => value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 const badgeClass = (value: string) => {
   if (['APPROVED', 'VERIFIED_PAID', 'VERIFIED', 'CLOSED'].includes(value)) return 'good';
@@ -29,7 +37,12 @@ const badgeClass = (value: string) => {
 };
 const amount = (minor: string, currency: string) => `${currency === 'NGN' ? '₦' : currency} ${(Number(minor) / 100).toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
 
-export function RequestsInventoryClient({ requests }: { requests: RequestRow[] }) {
+export function RequestsInventoryClient({
+  requests,
+  subsidiaries = [],
+  vendors = [],
+  currentStaff = null,
+}: RequestsInventoryClientProps) {
   const [query, setQuery] = useState('');
   const [approvalFilter, setApprovalFilter] = useState('ALL');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
@@ -37,6 +50,16 @@ export function RequestsInventoryClient({ requests }: { requests: RequestRow[] }
   const [selectedRequest, setSelectedRequest] = useState<RequestDossier | null>(null);
   const [dossierLoading, setDossierLoading] = useState(false);
   const [dossierError, setDossierError] = useState('');
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('create') === 'true' || params.get('create') === '1') {
+        setIsCreateOpen(true);
+      }
+    }
+  }, []);
 
   const openRequestDossier = async (identifier: string) => {
     setDossierLoading(true);
@@ -84,12 +107,32 @@ export function RequestsInventoryClient({ requests }: { requests: RequestRow[] }
 
   return (
     <>
-      <div className="section-header">
+      <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <p className="kicker">EXPENDITURE INVENTORY</p>
           <h1>Master Fund Requests</h1>
           <p>Review requests across subsidiaries, follow each approval and payment status, and open its private channel.</p>
         </div>
+        <button
+          type="button"
+          onClick={() => setIsCreateOpen(true)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 18px',
+            borderRadius: 8,
+            border: 'none',
+            background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+            color: '#ffffff',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+          }}
+        >
+          <span>＋</span> Submit New Fund Request
+        </button>
       </div>
 
       <div className="customer-summary">
@@ -138,6 +181,13 @@ export function RequestsInventoryClient({ requests }: { requests: RequestRow[] }
       </section>
       {dossierLoading && <div className="request-dossier-loading" role="status">Loading request history…</div>}
       {selectedRequest && <RequestDossierModal request={selectedRequest} onClose={() => setSelectedRequest(null)} />}
+      <NewRequestModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        subsidiaries={subsidiaries}
+        vendors={vendors}
+        currentStaff={currentStaff}
+      />
     </>
   );
 }
