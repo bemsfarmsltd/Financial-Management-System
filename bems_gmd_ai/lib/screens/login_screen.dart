@@ -12,8 +12,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _emailController = TextEditingController(text: 'gmd@bemsfarms.com');
-  final TextEditingController _passwordController = TextEditingController(text: 'admin123');
+  final TextEditingController _emailController = TextEditingController(text: 'bemssoftbusiness@gmail.com');
+  final TextEditingController _passwordController = TextEditingController(text: 'BemsGmd2026!');
   bool _obscurePassword = true;
   bool _isLoading = false;
   String? _errorMessage;
@@ -294,7 +294,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             keyboardType: TextInputType.emailAddress,
                             style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14, fontWeight: FontWeight.w500),
                             decoration: const InputDecoration(
-                              hintText: 'gmd@bemsfarms.com',
+                              hintText: 'bemssoftbusiness@gmail.com',
                               hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
                               prefixIcon: Icon(Icons.email_outlined, color: Color(0xFFEA580C), size: 18),
                               border: InputBorder.none,

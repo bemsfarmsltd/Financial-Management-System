@@ -45,7 +45,30 @@ export async function GET(request: Request) {
   const attachments = await prisma.attachment.findMany({ where: { ownerType: 'ACCOUNTABILITY' }, select: { id: true, ownerId: true, fileName: true, contentType: true, uploadedAt: true, notes: true }, orderBy: { uploadedAt: 'desc' } });
   const attachmentMap = new Map<string, typeof attachments>();
   for (const attachment of attachments) if (attachment.ownerId) attachmentMap.set(attachment.ownerId, [...(attachmentMap.get(attachment.ownerId) || []), attachment]);
-  const safeCases = cases.map(c => ({ ...c, request: { ...c.request, systemId: toSystemRequestId(c.request.id), amountMinor: Number(c.request.amountMinor), disbursements: c.request.disbursements.map(d => ({ ...d, amountMinor: Number(d.amountMinor) })) }, attachments: (attachmentMap.get(c.id) || []).map(a => ({ ...a, url: `/api/accountability/evidence/${a.id}` })) }));
+  const safeCases = cases.map(c => {
+    const naira = Number(c.request.amountMinor) / 100;
+    return {
+      ...c,
+      amount: naira,
+      amountNaira: naira,
+      requestNumber: c.request.requestNumber,
+      title: c.request.title,
+      request: {
+        ...c.request,
+        amount: naira,
+        amountNaira: naira,
+        systemId: toSystemRequestId(c.request.id),
+        amountMinor: Number(c.request.amountMinor),
+        disbursements: c.request.disbursements.map(d => ({
+          ...d,
+          amount: Number(d.amountMinor) / 100,
+          amountNaira: Number(d.amountMinor) / 100,
+          amountMinor: Number(d.amountMinor)
+        }))
+      },
+      attachments: (attachmentMap.get(c.id) || []).map(a => ({ ...a, url: `/api/accountability/evidence/${a.id}` }))
+    };
+  });
   return NextResponse.json({ cases: safeCases });
 }
 

@@ -105,6 +105,8 @@ export async function GET(request: Request) {
         requestNumber: req.requestNumber,
         title: req.title,
         amount: amountNgn,
+        amountNaira: amountNgn,
+        amountMinor: Number(req.amountMinor),
         amountFormatted: `₦${amountNgn.toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
         currency: req.currency || 'NGN',
         category: req.category,

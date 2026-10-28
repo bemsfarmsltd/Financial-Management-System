@@ -92,6 +92,8 @@ export async function GET(req: NextRequest) {
 
     const safeApproved = approvedRequests.map(r => ({
       ...r,
+      amount: Number(r.amountMinor) / 100,
+      amountNaira: Number(r.amountMinor) / 100,
       amountMinor: Number(r.amountMinor),
       amountFormatted: formatNaira(r.amountMinor),
       canRecord: !r.disbursementAssigneeId || r.disbursementAssigneeId === actor.id || actor.role === 'SYSTEM_ADMIN'
@@ -99,10 +101,14 @@ export async function GET(req: NextRequest) {
 
     const safeAwaiting = awaitingChecker.map(d => ({
       ...d,
+      amount: Number(d.amountMinor) / 100,
+      amountNaira: Number(d.amountMinor) / 100,
       amountMinor: Number(d.amountMinor),
       amountFormatted: formatNaira(d.amountMinor),
       request: d.request ? {
         ...d.request,
+        amount: Number(d.request.amountMinor) / 100,
+        amountNaira: Number(d.request.amountMinor) / 100,
         systemId: toSystemRequestId(d.request.id),
         amountMinor: Number(d.request.amountMinor),
         amountFormatted: formatNaira(d.request.amountMinor)
@@ -111,10 +117,14 @@ export async function GET(req: NextRequest) {
 
     const safeVerified = verifiedDisbursements.map(d => ({
       ...d,
+      amount: Number(d.amountMinor) / 100,
+      amountNaira: Number(d.amountMinor) / 100,
       amountMinor: Number(d.amountMinor),
       amountFormatted: formatNaira(d.amountMinor),
       request: d.request ? {
         ...d.request,
+        amount: Number(d.request.amountMinor) / 100,
+        amountNaira: Number(d.request.amountMinor) / 100,
         systemId: toSystemRequestId(d.request.id),
         amountMinor: Number(d.request.amountMinor),
         amountFormatted: formatNaira(d.request.amountMinor)

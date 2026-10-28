@@ -59,6 +59,8 @@ export async function GET(request: Request) {
 
     const safeDisbursements = disbursements.map((d) => ({
       id: d.id,
+      amount: Number(d.amountMinor) / 100,
+      amountNaira: Number(d.amountMinor) / 100,
       amountMinor: Number(d.amountMinor),
       amountFormatted: formatNaira(d.amountMinor),
       bankName: d.bankName || d.beneficiaryBank,
@@ -75,6 +77,8 @@ export async function GET(request: Request) {
             requestNumber: d.request.requestNumber,
             title: d.request.title,
             category: d.request.category,
+            amount: Number(d.request.amountMinor) / 100,
+            amountNaira: Number(d.request.amountMinor) / 100,
             amountMinor: Number(d.request.amountMinor),
             amountFormatted: formatNaira(d.request.amountMinor),
             deliverable: d.request.deliverable,

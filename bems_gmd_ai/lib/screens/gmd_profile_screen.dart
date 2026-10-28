@@ -428,9 +428,9 @@ class _GmdProfileScreenState extends State<GmdProfileScreen> with SingleTickerPr
       );
     }
 
-    final fullName = _user?.fullName ?? 'Dr. Benjamin Adeleke';
+    final fullName = _user?.fullName ?? 'Dr Pastra';
     final role = _user?.role ?? 'Group Managing Director';
-    final email = _user?.email ?? 'gmd@bemsfarms.com';
+    final email = _user?.email ?? 'bemssoftbusiness@gmail.com';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),

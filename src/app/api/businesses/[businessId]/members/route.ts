@@ -28,8 +28,8 @@ export async function GET(
     const fallbackSeed = [
       {
         id: 'emp-gmd',
-        email: 'gmd@bemsfarms.com',
-        fullName: 'Dr. Benjamin (GMD)',
+        email: 'bemssoftbusiness@gmail.com',
+        fullName: 'Dr Pastra (GMD)',
         role: 'GMD',
         status: 'Active',
         isOwner: true,
@@ -104,8 +104,8 @@ export async function GET(
     return NextResponse.json([
       {
         id: 'emp-gmd',
-        email: 'gmd@bemsfarms.com',
-        fullName: 'Dr. Benjamin (GMD)',
+        email: 'bemssoftbusiness@gmail.com',
+        fullName: 'Dr Pastra (GMD)',
         role: 'GMD',
         status: 'Active',
         isOwner: true,

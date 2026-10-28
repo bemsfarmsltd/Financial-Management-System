@@ -1711,7 +1711,7 @@ function TeamAccessPage({business,setNotice}:{business:Business;setNotice:(x:str
       .catch(()=>{
         // Graceful fallback to avoid leaving the screen broken
         setRows([
-          { email: 'gmd@bemsfarms.com', fullName: 'Dr. Benjamin (GMD)', role: 'GMD', status: 'Active', isOwner: true, employeeNumber: 'BEMS-HQ-2026-0001', jobTitle: 'Group Managing Director / CEO', department: 'Executive Board' },
+          { email: 'bemssoftbusiness@gmail.com', fullName: 'Dr Pastra (GMD)', role: 'GMD', status: 'Active', isOwner: true, employeeNumber: 'BEMS-HQ-2026-0001', jobTitle: 'Group Managing Director / CEO', department: 'Executive Board' },
           { email: 'finance@bemsfarms.com', fullName: 'Group Finance Controller', role: 'FINANCE_CONTROLLER', status: 'Active', isOwner: false, employeeNumber: 'BEMS-HQ-2026-0002', jobTitle: 'Financial Controller', department: 'Treasury & Finance' }
         ]);
         setMembersStatus('ready');
