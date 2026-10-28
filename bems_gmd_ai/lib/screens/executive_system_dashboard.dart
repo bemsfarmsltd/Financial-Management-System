@@ -129,7 +129,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
               color: Colors.white,
               elevation: 8,
               itemBuilder: (context) {
-                return WorkstationRepository.allWorkstations.map((ws) {
+                return WorkstationRepository.getWorkstations(_dashboardData).map((ws) {
                   final isCurrent = ws.code.toLowerCase() == _selectedScope.toLowerCase();
                   return PopupMenuItem<String>(
                     value: ws.code,
@@ -358,7 +358,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
           child: Row(
-            children: WorkstationRepository.allWorkstations.map((ws) {
+            children: WorkstationRepository.getWorkstations(_dashboardData).map((ws) {
               final isSelected = _selectedScope.toLowerCase() == ws.code.toLowerCase();
               return GestureDetector(
                 onTap: () => setState(() => _selectedScope = ws.code),

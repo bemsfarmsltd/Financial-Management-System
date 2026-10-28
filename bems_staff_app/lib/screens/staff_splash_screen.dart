@@ -24,8 +24,15 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
     final startTime = DateTime.now();
     final gateFuture = StaffApiService.checkVersionGate();
     final user = await StaffStorageService.getUser();
-    if (user != null && user.token.isNotEmpty) {
-      StaffApiService.sessionToken = user.token;
+    bool isSessionValid = false;
+    if (user != null) {
+      if (user.token.isNotEmpty) {
+        StaffApiService.sessionToken = user.token;
+      }
+      isSessionValid = await StaffApiService.verifySession(user);
+      if (!isSessionValid) {
+        await StaffStorageService.clearUser();
+      }
     }
 
     final gateInfo = await gateFuture;
@@ -46,8 +53,10 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
         downloadUrl: gateInfo['directDownloadUrl']?.toString() ?? 'https://bemserp.work/download/staff-app.apk',
         notes: gateInfo['upgradePromptNotes']?.toString() ?? 'A critical update is required to continue.',
       );
+    } else if (user == null || !isSessionValid) {
+      nextScreen = const StaffLoginScreen();
     } else {
-      nextScreen = user != null ? StaffMainScreen(user: user) : const StaffLoginScreen();
+      nextScreen = StaffMainScreen(user: user);
     }
 
     Navigator.pushReplacement(

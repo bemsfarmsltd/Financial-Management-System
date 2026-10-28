@@ -82,8 +82,8 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
     },
     {
       'title': 'Optimize cash reserves',
-      'subtitle': '₦84.2M treasury balance across subsidiaries',
-      'prompt': 'Optimize treasury cash reserves and show breakdown across Access and Zenith Bank.',
+      'subtitle': 'Treasury balance & liquidity across subsidiaries',
+      'prompt': 'Optimize treasury cash reserves and show breakdown across company bank accounts.',
     },
     {
       'title': 'Audit approvals & 72h advances',

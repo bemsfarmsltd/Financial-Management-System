@@ -8,7 +8,7 @@ class StaffApiService {
   static const String fallbackBaseUrl = 'https://pink-horse-318730.hostingersite.com';
   static String _activeBaseUrl = primaryBaseUrl;
 
-  static const String appVersion = '1.0.0';
+  static const String appVersion = '1.0.1';
   static const String appId = 'STAFF_APP';
 
   // Global callbacks for app-level interception
@@ -83,6 +83,31 @@ class StaffApiService {
     throw lastError is Exception
         ? lastError
         : Exception('Connection failed. Please check your internet connectivity.');
+  }
+
+  /// Verify session with backend on startup
+  static Future<bool> verifySession(StaffUser user) async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/auth/session'),
+          headers: _headers(token: user.token, employeeId: user.id),
+        ),
+        timeout: const Duration(seconds: 8),
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic> && data['user'] != null) {
+          final returnedUser = data['user'];
+          if (returnedUser['id'] == user.id || returnedUser['workEmail'] == user.email) {
+            sessionToken = user.token;
+            return true;
+          }
+        }
+      }
+    } catch (_) {}
+    return false;
   }
 
   /// Check version gate status against backend

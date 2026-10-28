@@ -4,6 +4,7 @@ class AuthUser {
   final String fullName;
   final String role;
   final String? organizationId;
+  final String? token;
 
   AuthUser({
     required this.id,
@@ -11,6 +12,7 @@ class AuthUser {
     required this.fullName,
     required this.role,
     this.organizationId,
+    this.token,
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class AuthUser {
       fullName: json['fullName']?.toString() ?? json['name']?.toString() ?? 'Executive',
       role: json['role']?.toString() ?? 'GMD',
       organizationId: json['organizationId']?.toString(),
+      token: json['token']?.toString(),
     );
   }
 
@@ -30,6 +33,7 @@ class AuthUser {
       'fullName': fullName,
       'role': role,
       'organizationId': organizationId,
+      'token': token,
     };
   }
 }

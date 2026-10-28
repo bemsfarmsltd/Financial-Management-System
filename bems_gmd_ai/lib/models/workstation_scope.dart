@@ -121,176 +121,65 @@ class WorkstationRepository {
     shortName: 'All Workstations',
     fullName: 'BEMS Group Holdings (Consolidated)',
     description: 'Consolidated conglomerate operations & treasury pools',
-    totalTreasuryDisplay: '₦84.2M',
-    totalTreasuryAmount: 84200000.0,
-    runwayWeeks: '18 Wks Reserve',
-    budgetCeiling: 84000000.0,
-    spentAmount: 56600000.0,
-    burnBadge: '67.4% Spent',
+    totalTreasuryDisplay: '₦0.00',
+    totalTreasuryAmount: 0.0,
+    runwayWeeks: '0 Wks Reserve',
+    budgetCeiling: 0.0,
+    spentAmount: 0.0,
+    burnBadge: '0.0% Spent',
     themeColor: Color(0xFFEA580C),
-    bankAccounts: [
-      BankShareData(
-        bankName: 'Access Bank PLC',
-        accountNumber: '0128471920',
-        amount: 48250000.0,
-        color: Color(0xFFEA580C),
-      ),
-      BankShareData(
-        bankName: 'Zenith Bank PLC',
-        accountNumber: '1014829103',
-        amount: 26800000.0,
-        color: Color(0xFF2563EB),
-      ),
-      BankShareData(
-        bankName: 'Guaranty Trust Bank',
-        accountNumber: '0239104821',
-        amount: 9150000.0,
-        color: Color(0xFF059669),
-      ),
-    ],
-    monthlyBurnHistory: [
-      MonthlyBurnData(month: 'Jun', actualSpent: 14200000, budgetCeiling: 25000000),
-      MonthlyBurnData(month: 'Jul', actualSpent: 18500000, budgetCeiling: 25000000),
-      MonthlyBurnData(month: 'Aug', actualSpent: 16200000, budgetCeiling: 25000000),
-      MonthlyBurnData(month: 'Sep', actualSpent: 22800000, budgetCeiling: 30000000),
-      MonthlyBurnData(month: 'Oct', actualSpent: 24600000, budgetCeiling: 30000000, isCurrentMonth: true),
-      MonthlyBurnData(month: 'Nov', actualSpent: 12500000, budgetCeiling: 30000000),
-    ],
-    totalAdvances: 38,
-    retiredOnTime: 32,
-    inProgressAdvances: 4,
-    overdueAdvances: 2,
-  );
-
-  static const WorkstationProfile bemsSoft = WorkstationProfile(
-    code: 'SOFT',
-    shortName: 'BemsSoft Hub',
-    fullName: 'BemsSoft Hub Ltd (Tech & Cloud)',
-    description: 'Cloud VPS, software engineers, DevOps & SaaS platform',
-    totalTreasuryDisplay: '₦24.4M',
-    totalTreasuryAmount: 24400000.0,
-    runwayWeeks: '22 Wks Reserve',
-    budgetCeiling: 25000000.0,
-    spentAmount: 18500000.0,
-    burnBadge: '74.0% Spent',
-    themeColor: Color(0xFF2563EB),
-    bankAccounts: [
-      BankShareData(
-        bankName: 'Zenith Bank PLC (Tech)',
-        accountNumber: '1012938475',
-        amount: 19800000.0,
-        color: Color(0xFF2563EB),
-      ),
-      BankShareData(
-        bankName: 'Standard Chartered (Cloud Escrow)',
-        accountNumber: '0098765432',
-        amount: 4600000.0,
-        color: Color(0xFF38BDF8),
-      ),
-    ],
-    monthlyBurnHistory: [
-      MonthlyBurnData(month: 'Jun', actualSpent: 3800000, budgetCeiling: 7000000),
-      MonthlyBurnData(month: 'Jul', actualSpent: 4200000, budgetCeiling: 7000000),
-      MonthlyBurnData(month: 'Aug', actualSpent: 3900000, budgetCeiling: 7000000),
-      MonthlyBurnData(month: 'Sep', actualSpent: 5100000, budgetCeiling: 8000000),
-      MonthlyBurnData(month: 'Oct', actualSpent: 5800000, budgetCeiling: 8000000, isCurrentMonth: true),
-      MonthlyBurnData(month: 'Nov', actualSpent: 3100000, budgetCeiling: 8000000),
-    ],
-    totalAdvances: 12,
-    retiredOnTime: 12,
+    bankAccounts: [],
+    monthlyBurnHistory: [],
+    totalAdvances: 0,
+    retiredOnTime: 0,
     inProgressAdvances: 0,
     overdueAdvances: 0,
   );
 
-  static const WorkstationProfile bemsLogistics = WorkstationProfile(
-    code: 'LOG',
-    shortName: 'Bems Logistics',
-    fullName: 'Bems Logistics & Farms Ltd (Supply Chain)',
-    description: 'Fleet transport, bulk diesel, weighbridge & agritech ops',
-    totalTreasuryDisplay: '₦7.0M',
-    totalTreasuryAmount: 7000000.0,
-    runwayWeeks: '12 Wks Reserve',
-    budgetCeiling: 45000000.0,
-    spentAmount: 32100000.0,
-    burnBadge: '71.3% Spent',
-    themeColor: Color(0xFFEA580C),
-    bankAccounts: [
-      BankShareData(
-        bankName: 'Guaranty Trust Bank (Logistics)',
-        accountNumber: '0239485716',
-        amount: 5200000.0,
-        color: Color(0xFFEA580C),
-      ),
-      BankShareData(
-        bankName: 'Access Waybill Float',
-        accountNumber: '0123456789',
-        amount: 1800000.0,
-        color: Color(0xFFF97316),
-      ),
-    ],
-    monthlyBurnHistory: [
-      MonthlyBurnData(month: 'Jun', actualSpent: 7500000, budgetCeiling: 12000000),
-      MonthlyBurnData(month: 'Jul', actualSpent: 9800000, budgetCeiling: 12000000),
-      MonthlyBurnData(month: 'Aug', actualSpent: 8600000, budgetCeiling: 12000000),
-      MonthlyBurnData(month: 'Sep', actualSpent: 12400000, budgetCeiling: 15000000),
-      MonthlyBurnData(month: 'Oct', actualSpent: 13800000, budgetCeiling: 15000000, isCurrentMonth: true),
-      MonthlyBurnData(month: 'Nov', actualSpent: 6900000, budgetCeiling: 15000000),
-    ],
-    totalAdvances: 19,
-    retiredOnTime: 14,
-    inProgressAdvances: 3,
-    overdueAdvances: 2,
-  );
+  static List<WorkstationProfile> getWorkstations(Map<String, dynamic>? data) {
+    final list = <WorkstationProfile>[allGroup];
+    final orgs = (data?['organizations'] as List<dynamic>?) ?? [];
+    final colors = [
+      const Color(0xFF2563EB),
+      const Color(0xFFEA580C),
+      const Color(0xFF059669),
+      const Color(0xFFD97706),
+      const Color(0xFF7C3AED),
+      const Color(0xFF0D9488),
+    ];
+    int idx = 0;
+    for (final org in orgs) {
+      final code = (org['code'] ?? org['id'] ?? 'SUB').toString();
+      final name = (org['legalName'] ?? org['name'] ?? 'Subsidiary').toString();
+      list.add(WorkstationProfile(
+        code: code,
+        shortName: name.length > 20 ? '${name.substring(0, 18)}…' : name,
+        fullName: name,
+        description: 'Subsidiary operations & department budgets',
+        totalTreasuryDisplay: '₦0.00',
+        totalTreasuryAmount: 0.0,
+        runwayWeeks: '0 Wks Reserve',
+        budgetCeiling: 0.0,
+        spentAmount: 0.0,
+        burnBadge: '0.0% Spent',
+        themeColor: colors[idx % colors.length],
+        bankAccounts: const [],
+        monthlyBurnHistory: const [],
+        totalAdvances: 0,
+        retiredOnTime: 0,
+        inProgressAdvances: 0,
+        overdueAdvances: 0,
+      ));
+      idx++;
+    }
+    return list;
+  }
 
-  static const WorkstationProfile corporateHq = WorkstationProfile(
-    code: 'HQ',
-    shortName: 'Corporate HQ',
-    fullName: 'BEMS Group Corporate Services (HQ)',
-    description: 'Board administration, legal, executive payroll & audit',
-    totalTreasuryDisplay: '₦52.8M',
-    totalTreasuryAmount: 52800000.0,
-    runwayWeeks: '28 Wks Reserve',
-    budgetCeiling: 14000000.0,
-    spentAmount: 6000000.0,
-    burnBadge: '42.8% Spent',
-    themeColor: Color(0xFF059669),
-    bankAccounts: [
-      BankShareData(
-        bankName: 'Access Bank Master Reserve',
-        accountNumber: '0129384756',
-        amount: 48800000.0,
-        color: Color(0xFF059669),
-      ),
-      BankShareData(
-        bankName: 'Zenith Executive Escrow',
-        accountNumber: '1012938475',
-        amount: 4000000.0,
-        color: Color(0xFF10B981),
-      ),
-    ],
-    monthlyBurnHistory: [
-      MonthlyBurnData(month: 'Jun', actualSpent: 2900000, budgetCeiling: 6000000),
-      MonthlyBurnData(month: 'Jul', actualSpent: 4500000, budgetCeiling: 6000000),
-      MonthlyBurnData(month: 'Aug', actualSpent: 3700000, budgetCeiling: 6000000),
-      MonthlyBurnData(month: 'Sep', actualSpent: 5300000, budgetCeiling: 7000000),
-      MonthlyBurnData(month: 'Oct', actualSpent: 5000000, budgetCeiling: 7000000, isCurrentMonth: true),
-      MonthlyBurnData(month: 'Nov', actualSpent: 2500000, budgetCeiling: 7000000),
-    ],
-    totalAdvances: 7,
-    retiredOnTime: 6,
-    inProgressAdvances: 1,
-    overdueAdvances: 0,
-  );
+  static List<WorkstationProfile> get allWorkstations => [allGroup];
 
-  static const List<WorkstationProfile> allWorkstations = [
-    allGroup,
-    bemsSoft,
-    bemsLogistics,
-    corporateHq,
-  ];
-
-  static WorkstationProfile getByCode(String code) {
-    return allWorkstations.firstWhere(
+  static WorkstationProfile getByCode(String code, [Map<String, dynamic>? data]) {
+    final workstations = getWorkstations(data);
+    return workstations.firstWhere(
       (w) => w.code.toLowerCase() == code.toLowerCase(),
       orElse: () => allGroup,
     );
@@ -479,19 +368,21 @@ class WorkstationRepository {
 
     final double burnPct = totalAllocated > 0 ? (totalSpent / totalAllocated) * 100 : 0.0;
     final double runway = (totalSpent > 0 && liquidBalance > 0)
-        ? ((liquidBalance / totalSpent) * 4.3).clamp(4.0, 52.0)
-        : 18.4;
+        ? ((liquidBalance / totalSpent) * 4.3).clamp(1.0, 52.0)
+        : 0.0;
 
     String displayTreasury;
-    if (liquidBalance >= 1000000) {
+    if (liquidBalance <= 0) {
+      displayTreasury = '₦0.00';
+    } else if (liquidBalance >= 1000000) {
       displayTreasury = '₦${(liquidBalance / 1000000).toStringAsFixed(1)}M';
     } else if (liquidBalance >= 1000) {
       displayTreasury = '₦${(liquidBalance / 1000).toStringAsFixed(0)}K';
     } else {
-      displayTreasury = '₦${liquidBalance.toStringAsFixed(0)}';
+      displayTreasury = '₦${liquidBalance.toStringAsFixed(2)}';
     }
 
-    final base = getByCode(scope);
+    final base = getByCode(scope, data);
 
     return WorkstationProfile(
       code: scope,
@@ -500,12 +391,12 @@ class WorkstationRepository {
       description: base.description,
       totalTreasuryDisplay: displayTreasury,
       totalTreasuryAmount: liquidBalance,
-      runwayWeeks: '${runway.toStringAsFixed(0)} Wks Reserve',
-      budgetCeiling: totalAllocated > 0 ? totalAllocated : base.budgetCeiling,
+      runwayWeeks: runway > 0 ? '${runway.toStringAsFixed(0)} Wks Reserve' : '0 Wks Reserve',
+      budgetCeiling: totalAllocated,
       spentAmount: totalSpent,
       burnBadge: '${burnPct.toStringAsFixed(1)}% Spent',
       themeColor: base.themeColor,
-      bankAccounts: dynamicBankAccounts.isNotEmpty ? dynamicBankAccounts : (rawTreasuryAccounts.isNotEmpty ? <BankShareData>[] : base.bankAccounts),
+      bankAccounts: dynamicBankAccounts,
       monthlyBurnHistory: dynamicMonthlyBurn,
       totalAdvances: totalAdv,
       retiredOnTime: retiredCount,

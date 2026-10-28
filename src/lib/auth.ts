@@ -132,7 +132,7 @@ export async function getAuthenticatedEmployee(req?: Request): Promise<Authentic
 
       const employee = targetUserId
         ? await prisma.employee.findFirst({ where: { id: targetUserId, status: 'ACTIVE', approvalStatus: 'APPROVED' } })
-        : await prisma.employee.findFirst({ where: { role: 'GMD', status: 'ACTIVE', approvalStatus: 'APPROVED' } });
+        : await prisma.employee.findFirst({ where: { role: { in: ['GMD', 'SYSTEM_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' } });
 
       if (employee) {
         return {

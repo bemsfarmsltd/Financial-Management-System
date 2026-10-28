@@ -10,8 +10,12 @@ class ApiService {
   static const String fallbackBaseUrl = 'https://pink-horse-318730.hostingersite.com';
   static String _activeBaseUrl = primaryBaseUrl;
 
-  static const String appVersion = '1.0.0';
+  static const String appVersion = '1.0.1';
   static const String appId = 'GMD_APP';
+
+  // Active user session attributes
+  static String? activeUserToken;
+  static String? activeUserId;
 
   // Global callbacks for app-level interception
   static void Function(Map<String, dynamic> updateInfo)? onUpgradeRequired;
@@ -21,7 +25,10 @@ class ApiService {
 
   static Map<String, String> get authHeaders => {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $serviceToken',
+        'Authorization': (activeUserToken != null && activeUserToken!.isNotEmpty)
+            ? 'Bearer $activeUserToken'
+            : 'Bearer $serviceToken',
+        if (activeUserId != null && activeUserId!.isNotEmpty) 'x-user-id': activeUserId!,
         'x-bems-mobile-role': 'GMD',
         'x-app-id': appId,
         'x-app-version': appVersion,
@@ -29,7 +36,6 @@ class ApiService {
 
   static List<String> get _candidateHosts => [
         if (kIsWeb) Uri.base.origin,
-        'http://localhost:3000',
         _activeBaseUrl,
         if (_activeBaseUrl == primaryBaseUrl) fallbackBaseUrl else primaryBaseUrl,
       ];
@@ -64,6 +70,41 @@ class ApiService {
     throw lastError is Exception
         ? lastError
         : Exception('Connection failed. Please check your internet connectivity.');
+  }
+
+  /// Verify session with backend on startup
+  static Future<bool> verifySession(AuthUser user) async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/auth/session'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': (user.token != null && user.token!.isNotEmpty)
+                ? 'Bearer ${user.token}'
+                : 'Bearer $serviceToken',
+            'x-user-id': user.id,
+            'x-bems-mobile-role': 'GMD',
+            'x-app-id': appId,
+            'x-app-version': appVersion,
+          },
+        ),
+        timeout: const Duration(seconds: 8),
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic> && data['user'] != null) {
+          final returnedUser = data['user'];
+          if (returnedUser['id'] == user.id || returnedUser['workEmail'] == user.email) {
+            activeUserToken = user.token;
+            activeUserId = user.id;
+            return true;
+          }
+        }
+      }
+    } catch (_) {}
+    return false;
   }
 
   /// Check version gate status against backend
@@ -105,7 +146,14 @@ class ApiService {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data['user'] != null) {
-        return AuthUser.fromJson(data['user']);
+        final userMap = Map<String, dynamic>.from(data['user']);
+        if (data['token'] != null) {
+          userMap['token'] = data['token'];
+          activeUserToken = data['token']?.toString();
+        }
+        final authUser = AuthUser.fromJson(userMap);
+        activeUserId = authUser.id;
+        return authUser;
       }
       throw Exception('Invalid user payload from server');
     } else {

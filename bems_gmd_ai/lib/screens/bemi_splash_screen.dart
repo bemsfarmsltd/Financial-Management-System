@@ -33,9 +33,18 @@ class _BemiSplashScreenState extends State<BemiSplashScreen> {
     final isBioConfigured = await ChatStorageService.isBiometricConfigured();
     final isBioEnabled = await ChatStorageService.isBiometricEnabled();
 
+    // 2. Concurrently verify session with server if user exists
+    bool isSessionValid = false;
+    if (user != null) {
+      isSessionValid = await ApiService.verifySession(user);
+      if (!isSessionValid) {
+        await ChatStorageService.clearUser();
+      }
+    }
+
     final gateInfo = await gateFuture;
 
-    // 2. Guarantee a smooth 3.5s display duration
+    // 3. Guarantee a smooth 3.5s display duration
     final elapsed = DateTime.now().difference(startTime);
     final remaining = const Duration(milliseconds: 3500) - elapsed;
     if (remaining > Duration.zero) {
@@ -54,7 +63,7 @@ class _BemiSplashScreenState extends State<BemiSplashScreen> {
         downloadUrl: gateInfo['directDownloadUrl']?.toString() ?? 'https://bemserp.work/download/gmd-app.apk',
         notes: gateInfo['upgradePromptNotes']?.toString() ?? 'A critical update is required to continue.',
       );
-    } else if (user == null) {
+    } else if (user == null || !isSessionValid) {
       nextScreen = const LoginScreen();
     } else if (isBioConfigured && isBioEnabled) {
       // Biometrics are configured: Always gate access with BiometricAuthScreen
