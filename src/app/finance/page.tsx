@@ -490,8 +490,18 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
   const [bootstrapAvailable, setBootstrapAvailable] = useState(false);
   const [bootstrapConfigured, setBootstrapConfigured] = useState(false);
   const [adminExists, setAdminExists] = useState(false);
+  const [bootstrapStep, setBootstrapStep] = useState<'form' | 'verify'>('form');
+  const [bootstrapOtp, setBootstrapOtp] = useState('');
+  const [bootstrapNotice, setBootstrapNotice] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [devRoles, setDevRoles] = useState<{ role: string; label: string }[]>([]);
   const [devRoleBusy, setDevRoleBusy] = useState('');
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => setResendCooldown(c => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -551,12 +561,50 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
       });
   };
 
-  const submitBootstrap = (e: FormEvent) => {
-    e.preventDefault(); setError(''); setBusy(true);
-    authRequest<{ user?: AuthUser; error?: string }>('/api/auth/bootstrap', { bootstrapSecret, fullName: signupForm.fullName || 'System Admin', email: loginForm.email, password: loginForm.password }).then(({ ok, data }) => {
+  const requestBootstrapCode = (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    setError(''); setBootstrapNotice(''); setBusy(true);
+    authRequest<{ ok?: boolean; message?: string; error?: string }>('/api/auth/bootstrap', {
+      action: 'send_code',
+      bootstrapSecret,
+      fullName: signupForm.fullName || 'System Admin',
+      email: loginForm.email,
+      password: loginForm.password,
+    }).then(({ ok, data }) => {
       setBusy(false);
-      if (ok && data.user) { onAuthed(data.user); return; }
-      setError(data.error || 'Could not create the first System Admin account.');
+      if (ok && data.ok) {
+        setBootstrapStep('verify');
+        setBootstrapNotice(data.message || `Verification code sent to ${loginForm.email}`);
+        setResendCooldown(60);
+        return;
+      }
+      setError(data.error || 'Could not send verification code.');
+    }).catch(() => {
+      setBusy(false);
+      setError('Network connection error. Please try again.');
+    });
+  };
+
+  const submitBootstrapVerify = (e: FormEvent) => {
+    e.preventDefault();
+    setError(''); setBusy(true);
+    authRequest<{ user?: AuthUser; error?: string }>('/api/auth/bootstrap', {
+      action: 'verify',
+      bootstrapSecret,
+      fullName: signupForm.fullName || 'System Admin',
+      email: loginForm.email,
+      password: loginForm.password,
+      code: bootstrapOtp.trim(),
+    }).then(({ ok, data }) => {
+      setBusy(false);
+      if (ok && data.user) {
+        onAuthed(data.user);
+        return;
+      }
+      setError(data.error || 'Invalid verification code or setup error.');
+    }).catch(() => {
+      setBusy(false);
+      setError('Network connection error. Please try again.');
     });
   };
 
@@ -1218,11 +1266,108 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
         </form>
       )}
 
-      {view==='setup' && <form className="journey-card" onSubmit={submitBootstrap}>
-        <p className="kicker">ONE-TIME INITIALIZATION</p><h2>Create the first System Admin</h2><p className="lead">This setup is available only before a System Admin account exists. Keep the setup key private.</p>
-        <div className="form-grid"><label className="full">Setup key<input required type="password" value={bootstrapSecret} onChange={e=>setBootstrapSecret(e.target.value)}/></label><label className="full">Full name<input required value={signupForm.fullName} onChange={e=>setSignupForm(old=>({...old, fullName: e.target.value}))}/></label><label className="full">Work email<input required type="email" value={loginForm.email} onChange={e=>setLoginForm(old=>({...old, email: e.target.value}))}/></label><label className="full">Password<input required type="password" minLength={12} value={loginForm.password} onChange={e=>setLoginForm(old=>({...old, password: e.target.value}))} placeholder="At least 12 characters"/></label></div>
-        {error && <p className="auth-error">{error}</p>}<footer className="journey-actions"><span/><button className="continue-button" disabled={busy}>{busy?'Setting up…':'Create System Admin'} <span>→</span></button></footer>
-      </form>}
+      {view==='setup' && bootstrapStep==='form' && (
+        <form className="journey-card" onSubmit={requestBootstrapCode}>
+          <p className="kicker">ONE-TIME INITIALIZATION · STEP 1 OF 2</p>
+          <h2>Create the first System Admin</h2>
+          <p className="lead">This setup is available only before a System Admin account exists. A 6-digit verification code will be sent to your work email to verify administrative ownership.</p>
+          <div className="form-grid">
+            <label className="full">Setup key
+              <input required type="password" value={bootstrapSecret} onChange={e=>setBootstrapSecret(e.target.value)} placeholder="Enter the master bootstrap secret"/>
+            </label>
+            <label className="full">Full name
+              <input required value={signupForm.fullName} onChange={e=>setSignupForm(old=>({...old, fullName: e.target.value}))} placeholder="e.g. Adebayo Ogunlesi"/>
+            </label>
+            <label className="full">Work email
+              <input required type="email" value={loginForm.email} onChange={e=>setLoginForm(old=>({...old, email: e.target.value}))} placeholder="admin@bemsgroup.com"/>
+            </label>
+            <label className="full">Password
+              <input required type="password" minLength={10} value={loginForm.password} onChange={e=>setLoginForm(old=>({...old, password: e.target.value}))} placeholder="At least 10 characters"/>
+            </label>
+          </div>
+          {error && <p className="auth-error">{error}</p>}
+          <footer className="journey-actions">
+            <button type="button" className="back-button" onClick={() => { setError(''); setView('login'); }}>
+              ← Back to Sign in
+            </button>
+            <button type="submit" className="continue-button" disabled={busy}>
+              {busy ? 'Sending code…' : 'Send Verification Code'} <span>→</span>
+            </button>
+          </footer>
+        </form>
+      )}
+
+      {view==='setup' && bootstrapStep==='verify' && (
+        <form className="journey-card" onSubmit={submitBootstrapVerify}>
+          <div className="verification-icon">🔐</div>
+          <p className="kicker">ONE-TIME INITIALIZATION · STEP 2 OF 2</p>
+          <h2>Verify administrator email</h2>
+          <p className="lead">
+            We sent a 6-digit verification code to <strong>{loginForm.email}</strong>. Enter the passcode below to verify your email and activate your System Admin profile.
+          </p>
+          {bootstrapNotice && (
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', padding: '12px 16px', borderRadius: 10, fontSize: 13, marginBottom: 20 }}>
+              ✓ {bootstrapNotice}
+            </div>
+          )}
+          <div style={{ maxWidth: 280, margin: '20px 0' }}>
+            <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 8, letterSpacing: '0.04em' }}>
+              6-DIGIT PASSCODE
+              <input
+                required
+                type="text"
+                maxLength={6}
+                autoFocus
+                value={bootstrapOtp}
+                onChange={e => setBootstrapOtp(e.target.value.replace(/\D/g, ''))}
+                placeholder="••••••"
+                style={{
+                  width: '100%',
+                  height: 56,
+                  fontSize: 28,
+                  fontWeight: 900,
+                  letterSpacing: '0.35em',
+                  textAlign: 'center',
+                  borderRadius: 10,
+                  border: '2px solid #fdba74',
+                  background: '#fffbf7',
+                  color: '#ea580c',
+                  outline: 'none',
+                }}
+              />
+            </label>
+          </div>
+          {error && <p className="auth-error">{error}</p>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12 }}>
+            <button
+              type="button"
+              className="resend"
+              disabled={busy || resendCooldown > 0}
+              onClick={() => requestBootstrapCode()}
+              style={{ cursor: resendCooldown > 0 ? 'not-allowed' : 'pointer', opacity: resendCooldown > 0 ? 0.6 : 1 }}
+            >
+              {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend verification code'}
+            </button>
+            <span style={{ color: '#cbd5e1' }}>•</span>
+            <button
+              type="button"
+              className="resend"
+              onClick={() => { setError(''); setBootstrapStep('form'); }}
+              style={{ color: '#64748b' }}
+            >
+              Change email / Edit details
+            </button>
+          </div>
+          <footer className="journey-actions">
+            <button type="button" className="back-button" onClick={() => { setError(''); setBootstrapStep('form'); }}>
+              ← Edit Details
+            </button>
+            <button type="submit" className="continue-button" disabled={busy || bootstrapOtp.length !== 6}>
+              {busy ? 'Verifying…' : 'Verify & Create System Admin'} <span>→</span>
+            </button>
+          </footer>
+        </form>
+      )}
 
       {view==='pending' && (
         <div className="journey-card" style={{ textAlign: 'center', padding: '32px 24px' }}>

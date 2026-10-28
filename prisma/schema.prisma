@@ -712,3 +712,13 @@ model StaffAdminMessage {
   @@index([employeeId, createdAt])
 }
 
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  email     String
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email, expiresAt])
+}

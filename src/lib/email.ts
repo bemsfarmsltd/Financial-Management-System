@@ -692,3 +692,47 @@ export async function sendGmdRequisitionAlert(params: {
     }),
   });
 }
+
+/**
+ * Dispatch 6-digit OTP email for initial System Admin registration
+ */
+export async function sendAdminVerificationOtpEmail(params: {
+  email: string;
+  fullName: string;
+  code: string;
+}): Promise<{ success: boolean; simulated?: boolean; messageId?: string; error?: string }> {
+  const content = `
+    <p style="margin: 0 0 16px 0; color: #334155; font-size: 15px; line-height: 1.6;">
+      Hello <strong>${params.fullName}</strong>,
+    </p>
+    <p style="margin: 0 0 20px 0; color: #475569; font-size: 14px; line-height: 1.6;">
+      You are completing the initial setup as the primary <strong>System Administrator</strong> for the BEMS Group Financial Management System.
+    </p>
+    <div style="background: #f8fafc; border: 2px dashed #ea580c; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+      <span style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 8px;">
+        One-Time Verification Passcode
+      </span>
+      <div style="font-size: 36px; font-weight: 900; color: #ea580c; letter-spacing: 0.25em; font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;">
+        ${params.code}
+      </div>
+      <span style="font-size: 12px; color: #94a3b8; display: block; margin-top: 8px;">
+        Valid for 10 minutes · Do not share this code with anyone
+      </span>
+    </div>
+    <p style="margin: 0; color: #64748b; font-size: 13px; line-height: 1.5;">
+      If you did not initiate this setup, please disregard this email. The root administrator account will not be created without this verification code.
+    </p>
+  `;
+
+  return sendEmail({
+    to: params.email,
+    subject: `🔐 [BEMS Group] ${params.code} is your System Admin Verification Code`,
+    eventType: 'ADMIN_EMAIL_VERIFICATION',
+    html: wrapEmailTemplate({
+      title: 'Verify Your Administrator Email',
+      preheader: `Your BEMS Group System Admin verification code is ${params.code}.`,
+      badge: 'Security Verification',
+      content,
+    }),
+  });
+}
