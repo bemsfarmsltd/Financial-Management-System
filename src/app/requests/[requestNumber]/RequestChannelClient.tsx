@@ -556,6 +556,32 @@ export function RequestChannelClient({ request }: RequestChannelClientProps) {
             <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
               {request.deliverable}
             </p>
+
+            {/* Supporting Document Attachments */}
+            {Array.isArray(request.attachments) && request.attachments.length > 0 && (
+              <div className="pt-3 border-t border-slate-200">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2">
+                  Supporting Documents ({request.attachments.length})
+                </h4>
+                <div className="space-y-1.5">
+                  {request.attachments.map((att: any) => (
+                    <a
+                      key={att.id}
+                      href={att.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between p-2 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs text-blue-700 transition"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <Paperclip className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                        <span className="truncate font-semibold">{att.fileName}</span>
+                      </span>
+                      <Download className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Vendor Details */}

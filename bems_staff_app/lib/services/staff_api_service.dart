@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../models/staff_models.dart';
 
 class StaffApiService {
@@ -169,12 +170,27 @@ class StaffApiService {
     required List<int> bytes,
     required String filename,
   }) async {
+    final cleanName = filename.isNotEmpty ? filename : 'avatar.jpg';
+    final ext = cleanName.contains('.') ? cleanName.split('.').last.toLowerCase() : 'jpg';
+    final mimeType = (ext == 'png')
+        ? MediaType('image', 'png')
+        : (ext == 'webp')
+            ? MediaType('image', 'webp')
+            : (ext == 'pdf')
+                ? MediaType('application', 'pdf')
+                : MediaType('image', 'jpeg');
+
     dynamic lastError;
     for (final host in _candidateHosts) {
       try {
         final uri = Uri.parse('$host/api/upload');
         final request = http.MultipartRequest('POST', uri)
-          ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+          ..files.add(http.MultipartFile.fromBytes(
+            'file',
+            bytes,
+            filename: cleanName.endsWith('.$ext') ? cleanName : '$cleanName.$ext',
+            contentType: mimeType,
+          ));
 
         final streamedResponse =
             await request.send().timeout(const Duration(seconds: 25));

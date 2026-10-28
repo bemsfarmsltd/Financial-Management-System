@@ -889,7 +889,7 @@ export function ExecutiveBriefingClient({
               letterSpacing: '0.04em',
             }}
           >
-            <span>BUSINESS DIVISION</span>
+            <span>SUBSIDIARY</span>
             <span>APPROVED BUDGET</span>
             <span>MONEY SPENT</span>
             <span>APPROVED (UNPAID)</span>

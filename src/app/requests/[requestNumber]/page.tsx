@@ -22,6 +22,7 @@ export default async function RequestDetailPage({
       subsidiary: true,
       requester: true,
       vendor: true,
+      attachments: true,
       disbursements: {
         orderBy: { createdAt: 'desc' },
         include: {

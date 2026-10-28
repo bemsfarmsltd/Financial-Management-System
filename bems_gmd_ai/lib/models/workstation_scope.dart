@@ -54,65 +54,7 @@ class WorkstationProfile {
   int get slaOverdue => overdueAdvances;
   List<MonthlyBurnData> get monthlyBurn => monthlyBurnHistory;
 
-  List<SubsidiaryBudgetItem> get subsidiaries => customSubsidiaries ?? _defaultSubsidiaries;
-
-  List<SubsidiaryBudgetItem> get _defaultSubsidiaries {
-    if (code == 'SOFT') {
-      return const [
-        SubsidiaryBudgetItem(
-          entityName: 'BemsSoft Hub Ltd',
-          code: 'TECH',
-          budgetCeiling: 25000000,
-          spentAmount: 18500000,
-          themeColor: Color(0xFF2563EB),
-        ),
-      ];
-    } else if (code == 'LOG') {
-      return const [
-        SubsidiaryBudgetItem(
-          entityName: 'Bems Logistics Ltd',
-          code: 'LOGS',
-          budgetCeiling: 45000000,
-          spentAmount: 32100000,
-          themeColor: Color(0xFFEA580C),
-        ),
-      ];
-    } else if (code == 'HQ') {
-      return const [
-        SubsidiaryBudgetItem(
-          entityName: 'Group Corporate HQ',
-          code: 'CORP',
-          budgetCeiling: 14000000,
-          spentAmount: 6000000,
-          themeColor: Color(0xFF059669),
-        ),
-      ];
-    } else {
-      return const [
-        SubsidiaryBudgetItem(
-          entityName: 'BemsSoft Hub Ltd',
-          code: 'TECH',
-          budgetCeiling: 25000000,
-          spentAmount: 18500000,
-          themeColor: Color(0xFF2563EB),
-        ),
-        SubsidiaryBudgetItem(
-          entityName: 'Bems Logistics Ltd',
-          code: 'LOGS',
-          budgetCeiling: 45000000,
-          spentAmount: 32100000,
-          themeColor: Color(0xFFEA580C),
-        ),
-        SubsidiaryBudgetItem(
-          entityName: 'Group Corporate HQ',
-          code: 'CORP',
-          budgetCeiling: 14000000,
-          spentAmount: 6000000,
-          themeColor: Color(0xFF059669),
-        ),
-      ];
-    }
-  }
+  List<SubsidiaryBudgetItem> get subsidiaries => customSubsidiaries ?? const [];
 }
 
 class WorkstationRepository {
@@ -286,9 +228,9 @@ class WorkstationRepository {
       }
     }
 
-    // If no bank accounts found in DB, use uncommitted budget as estimated reserve if available, else 0.0
-    if (liquidBalance <= 0 && rawTreasuryAccounts.isEmpty) {
-      liquidBalance = totalAllocated > 0 ? (totalAllocated - totalSpent) : 0.0;
+    // If no bank accounts found in DB, liquid balance is strictly 0.0
+    if (rawTreasuryAccounts.isEmpty) {
+      liquidBalance = 0.0;
     }
 
     // 6. Monthly burn history from live database requests
@@ -308,7 +250,7 @@ class WorkstationRepository {
         }
       }
     }
-    final double monthlyCeiling = totalAllocated > 0 ? (totalAllocated / 3.0) : 25000000.0;
+    final double monthlyCeiling = totalAllocated > 0 ? (totalAllocated / 3.0) : 0.0;
     final List<MonthlyBurnData> dynamicMonthlyBurn = months.map((m) {
       final actual = monthActuals[m] ?? 0.0;
       return MonthlyBurnData(
@@ -331,38 +273,82 @@ class WorkstationRepository {
     final retiredCount = scopedCases.where((c) => c['status'] == 'RETIRED' || c['status'] == 'RESOLVED').length;
     final inProgCount = scopedCases.where((c) => c['status'] == 'OPEN' || c['status'] == 'SUBMITTED').length;
 
-    // 8. Dynamic Subsidiary Bars from real DB budgets
+    // 8. Dynamic Subsidiary Bars from real DB budgets & registered subsidiaries
     final List<SubsidiaryBudgetItem> dynamicSubsidiaries = [];
-    if (scope == 'all' && budgets.isNotEmpty) {
-      for (final b in budgets) {
-        final name = b['organization']?['legalName'] ?? 'Subsidiary';
-        final code = b['organization']?['code'] ?? 'SUB';
+    if (scope == 'all') {
+      if (budgets.isNotEmpty) {
+        for (final b in budgets) {
+          final org = b['organization'] is Map ? b['organization'] : null;
+          final name = org?['legalName'] ?? org?['name'] ?? 'Subsidiary';
+          final code = org?['code'] ?? 'SUB';
+          final ceiling = (num.tryParse(b['totalAmount']?.toString() ?? '0') ?? 0).toDouble();
+          final spent = (num.tryParse(b['spentAmount']?.toString() ?? '0') ?? 0).toDouble();
+          Color c = const Color(0xFFEA580C);
+          if (code.toString().contains('SOFT')) c = const Color(0xFF2563EB);
+          if (code.toString().contains('LOG')) c = const Color(0xFFEA580C);
+          if (code.toString().contains('GROUP') || code.toString().contains('HQ')) c = const Color(0xFF059669);
+          dynamicSubsidiaries.add(SubsidiaryBudgetItem(
+            entityName: name.toString(),
+            code: code.toString(),
+            budgetCeiling: ceiling,
+            spentAmount: spent,
+            themeColor: c,
+          ));
+        }
+      } else {
+        final rawOrgs = (data['organizations'] as List?) ?? [];
+        for (final org in rawOrgs) {
+          if (org is Map) {
+            final name = org['legalName'] ?? org['name'] ?? 'Subsidiary';
+            final code = org['code'] ?? 'SUB';
+            double orgSpent = 0.0;
+            for (final r in (data['requests'] as List? ?? [])) {
+              if (r is Map) {
+                final subMap = r['subsidiary'];
+                final subCode = (subMap is Map ? subMap['code'] : subMap)?.toString().toLowerCase() ?? '';
+                final subName = (subMap is Map ? subMap['legalName'] : subMap)?.toString().toLowerCase() ?? '';
+                if (subCode.contains(code.toString().toLowerCase()) || subName.contains(name.toString().toLowerCase())) {
+                  orgSpent += (num.tryParse(r['amountNaira']?.toString() ?? '0') ?? 0).toDouble();
+                }
+              }
+            }
+            Color c = const Color(0xFFEA580C);
+            if (code.toString().contains('SOFT')) c = const Color(0xFF2563EB);
+            if (code.toString().contains('LOG')) c = const Color(0xFFEA580C);
+            if (code.toString().contains('GROUP') || code.toString().contains('HQ')) c = const Color(0xFF059669);
+            dynamicSubsidiaries.add(SubsidiaryBudgetItem(
+              entityName: name.toString(),
+              code: code.toString(),
+              budgetCeiling: 0.0,
+              spentAmount: orgSpent,
+              themeColor: c,
+            ));
+          }
+        }
+      }
+    } else if (scopedBudgets.isNotEmpty) {
+      for (final b in scopedBudgets) {
+        final org = b['organization'] is Map ? b['organization'] : null;
+        final name = org?['legalName'] ?? org?['name'] ?? 'Subsidiary';
+        final code = org?['code'] ?? scope;
         final ceiling = (num.tryParse(b['totalAmount']?.toString() ?? '0') ?? 0).toDouble();
         final spent = (num.tryParse(b['spentAmount']?.toString() ?? '0') ?? 0).toDouble();
-        Color c = const Color(0xFFEA580C);
-        if (code.toString().contains('SOFT')) c = const Color(0xFF2563EB);
-        if (code.toString().contains('LOG')) c = const Color(0xFFEA580C);
-        if (code.toString().contains('GROUP') || code.toString().contains('HQ')) c = const Color(0xFF059669);
         dynamicSubsidiaries.add(SubsidiaryBudgetItem(
           entityName: name.toString(),
           code: code.toString(),
-          budgetCeiling: ceiling > 0 ? ceiling : 25000000.0,
+          budgetCeiling: ceiling,
           spentAmount: spent,
-          themeColor: c,
+          themeColor: _getScopeColor(scope),
         ));
       }
-    } else if (scopedBudgets.isNotEmpty) {
-      final b = scopedBudgets.first;
-      final name = b['organization']?['legalName'] ?? 'Business Unit';
-      final code = b['organization']?['code'] ?? scope;
-      final ceiling = (num.tryParse(b['totalAmount']?.toString() ?? '0') ?? 0).toDouble();
-      final spent = (num.tryParse(b['spentAmount']?.toString() ?? '0') ?? 0).toDouble();
+    } else {
+      final base = getByCode(scope, data);
       dynamicSubsidiaries.add(SubsidiaryBudgetItem(
-        entityName: name.toString(),
-        code: code.toString(),
-        budgetCeiling: ceiling > 0 ? ceiling : 25000000.0,
-        spentAmount: spent,
-        themeColor: _getScopeColor(scope),
+        entityName: base.fullName,
+        code: scope,
+        budgetCeiling: 0.0,
+        spentAmount: totalSpent,
+        themeColor: base.themeColor,
       ));
     }
 

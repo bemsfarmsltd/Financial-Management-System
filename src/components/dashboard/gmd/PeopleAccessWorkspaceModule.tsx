@@ -72,6 +72,8 @@ export function PeopleAccessWorkspaceModule({
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
   const [copiedId, setCopiedId] = useState('');
+  const [resendingId, setResendingId] = useState('');
+  const [showCompleted, setShowCompleted] = useState(false);
 
   // Row approval configuration state
   const [approvalRoles, setApprovalRoles] = useState<Record<string, string>>({});
@@ -235,11 +237,32 @@ export function PeopleAccessWorkspaceModule({
     }
   };
 
+  const resendInvitation = async (id: string) => {
+    setResendingId(id);
+    try {
+      const res = await fetch('/api/staff/invite/resend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to resend email.');
+      setNotice(data.message || 'Invitation email dispatched successfully.');
+      await load();
+    } catch (err: any) {
+      setError(err.message || 'Could not resend email.');
+    } finally {
+      setResendingId('');
+    }
+  };
+
   const filteredDepts = inviteForm.subsidiaryId
     ? departments.filter((d) => d.organizationId === inviteForm.subsidiaryId)
     : departments;
 
   const pendingInvitations = invitations.filter((inv) => inv.status === 'PENDING');
+  const completedInvitations = invitations.filter((inv) => inv.status === 'COMPLETED');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
@@ -394,6 +417,28 @@ export function PeopleAccessWorkspaceModule({
 
                   <button
                     type="button"
+                    onClick={() => void resendInvitation(inv.id)}
+                    disabled={resendingId === inv.id}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #fed7aa',
+                      color: '#c2410c',
+                      padding: '5px 12px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    <Send size={12} className={resendingId === inv.id ? 'animate-spin' : ''} />
+                    {resendingId === inv.id ? 'Sending...' : 'Resend Email'}
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => void revokeInvitation(inv.id)}
                     style={{
                       background: 'transparent',
@@ -420,6 +465,68 @@ export function PeopleAccessWorkspaceModule({
             <div style={{ fontSize: 13, color: '#64748b' }}>
               No outstanding executive invitations. Click <strong>&quot;Invite Executive / Admin Role&quot;</strong> above to dispatch a link.
             </div>
+          </div>
+        )}
+
+        {completedInvitations.length > 0 && (
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed #fed7aa' }}>
+            <button
+              type="button"
+              onClick={() => setShowCompleted((prev) => !prev)}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                color: '#64748b',
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <span>{showCompleted ? '▼' : '►'}</span>
+              <span>Completed Onboardings &amp; Active Leadership Accounts ({completedInvitations.length})</span>
+            </button>
+
+            {showCompleted && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                {completedInvitations.map((inv) => (
+                  <div
+                    key={inv.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      borderRadius: 8,
+                      border: '1px solid #bbf7d0',
+                      background: '#f0fdf4',
+                      fontSize: 12.5,
+                      flexWrap: 'wrap',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#166534', fontWeight: 800, fontSize: 12 }}>
+                        ✓
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, color: '#166534' }}>{inv.workEmail}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                          {inv.role} · 🏢 {inv.subsidiary?.legalName || 'Subsidiary'}
+                          {inv.positionName && ` (${inv.positionName})`}
+                        </div>
+                      </div>
+                    </div>
+                    <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 9px', borderRadius: 6, fontWeight: 700, fontSize: 11 }}>
+                      Account Active &amp; Verified
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </section>

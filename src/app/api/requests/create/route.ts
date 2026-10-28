@@ -152,7 +152,28 @@ export async function POST(request: Request) {
       });
     });
 
-    // Trigger multi-channel alert via WhatsApp, Slack & Real-Time Executive Email to GMD
+    // Save any supporting documentation attachments
+    if (Array.isArray(body.attachments) && body.attachments.length > 0) {
+      for (const att of body.attachments) {
+        if (att && att.fileUrl && att.fileName) {
+          try {
+            await prisma.attachment.create({
+              data: {
+                ownerType: "REQUEST",
+                ownerId: newRequest.id,
+                requestId: newRequest.id,
+                fileName: att.fileName,
+                fileUrl: att.fileUrl,
+                contentType: att.contentType || "application/octet-stream",
+                uploadedById: actor.id,
+              },
+            });
+          } catch (attErr) {
+            console.error("Failed to link attachment to request:", attErr);
+          }
+        }
+      }
+    }
     try {
       const org = await prisma.organization.findUnique({ where: { id: subsidiaryId }, select: { legalName: true } });
       await notifyApprovalRequired({

@@ -19,12 +19,16 @@ export async function POST(request: Request) {
       }
 
       const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const cleanExt = ['jpg', 'jpeg', 'png', 'webp', 'pdf'].includes(ext) ? ext : 'jpg';
-      const isPdf = cleanExt === 'pdf';
+      const validExtensions = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
+      const isKnownExtension = validExtensions.includes(ext);
+      const isMimeMatch = file.type.startsWith('image/') || file.type === 'application/pdf';
 
-      if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+      if (!isMimeMatch && !isKnownExtension) {
         return NextResponse.json({ error: 'Only image files (JPG, PNG, WebP) and PDF documents are permitted.' }, { status: 400 });
       }
+
+      const cleanExt = isKnownExtension ? ext : 'jpg';
+      const isPdf = cleanExt === 'pdf' || file.type === 'application/pdf';
 
       if (file.size > 12 * 1024 * 1024) {
         return NextResponse.json({ error: 'File size exceeds maximum 12MB limit.' }, { status: 400 });

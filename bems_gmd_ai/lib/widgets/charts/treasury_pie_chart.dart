@@ -179,9 +179,11 @@ class _TreasuryPieChartState extends State<TreasuryPieChart> with SingleTickerPr
                             ),
                           ),
                           const SizedBox(height: 2),
-                          const Text(
-                            '3 Institutions',
-                            style: TextStyle(
+                          Text(
+                            widget.bankData.isEmpty
+                                ? '0 Linked Accounts'
+                                : '${widget.bankData.length} Institution${widget.bankData.length == 1 ? '' : 's'}',
+                            style: const TextStyle(
                               fontSize: 9.5,
                               color: Color(0xFF94A3B8),
                               fontWeight: FontWeight.w600,

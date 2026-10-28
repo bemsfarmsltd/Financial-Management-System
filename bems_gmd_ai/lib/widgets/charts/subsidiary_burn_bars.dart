@@ -65,7 +65,7 @@ class SubsidiaryBurnBars extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'SPENDING BY BUSINESS DIVISION',
+                        'EXPENDITURE BY SUBSIDIARY',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -74,7 +74,7 @@ class SubsidiaryBurnBars extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'How much each business unit has spent this quarter',
+                        'Quarterly expenditure & budget utilization across subsidiaries',
                         style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
                       ),
                     ],
@@ -97,7 +97,17 @@ class SubsidiaryBurnBars extends StatelessWidget {
 
           const SizedBox(height: 18),
 
-          ...items.map((item) {
+          if (items.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              alignment: Alignment.center,
+              child: const Text(
+                'No subsidiary expenditures recorded this period.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+              ),
+            )
+          else
+            ...items.map((item) {
             final burnPct = item.burnPercentage;
             Color statusColor;
             String statusLabel;

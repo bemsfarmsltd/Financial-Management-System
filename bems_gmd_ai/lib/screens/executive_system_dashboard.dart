@@ -785,32 +785,11 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
       const SizedBox(height: 20),
 
       // 3. Subsidiary Budget Utilization Progress Bars (Horizontal Histogram)
-      _buildSectionHeader('SPENDING BY BUSINESS DIVISION', 'How much each business unit has spent this quarter'),
+      _buildSectionHeader('EXPENDITURE BY SUBSIDIARY', 'Quarterly expenditure & budget utilization across subsidiaries'),
       const SizedBox(height: 10),
-      const SubsidiaryBurnBars(
-        items: [
-          SubsidiaryBudgetItem(
-            entityName: 'BemsSoft Hub Ltd',
-            code: 'TECH',
-            budgetCeiling: 25000000,
-            spentAmount: 18500000,
-            themeColor: Color(0xFF2563EB),
-          ),
-          SubsidiaryBudgetItem(
-            entityName: 'Bems Logistics Ltd',
-            code: 'LOGS',
-            budgetCeiling: 45000000,
-            spentAmount: 32100000,
-            themeColor: Color(0xFFEA580C),
-          ),
-          SubsidiaryBudgetItem(
-            entityName: 'Group Corporate HQ',
-            code: 'CORP',
-            budgetCeiling: 14000000,
-            spentAmount: 6000000,
-            themeColor: Color(0xFF059669),
-          ),
-        ],
+      SubsidiaryBurnBars(
+        key: ValueKey('subs_${currentWorkstation.code}'),
+        items: currentWorkstation.subsidiaries,
       ),
 
       const SizedBox(height: 20),
@@ -1243,7 +1222,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
 
       const SizedBox(height: 20),
 
-      _buildSectionHeader('SPENDING BY BUSINESS DIVISION', 'How much each business unit has spent this quarter (${currentWorkstation.name})'),
+      _buildSectionHeader('EXPENDITURE BY SUBSIDIARY', 'Quarterly expenditure & budget utilization across subsidiaries (${currentWorkstation.name})'),
       const SizedBox(height: 10),
       SubsidiaryBurnBars(
         key: ValueKey('subs_${currentWorkstation.id}'),
