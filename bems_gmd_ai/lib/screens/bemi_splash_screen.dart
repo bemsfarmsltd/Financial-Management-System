@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/chat_storage_service.dart';
+import '../services/api_service.dart';
 import '../widgets/kinetic_torus_iris.dart';
 import 'login_screen.dart';
 import 'welcome_entry_screen.dart';
 import 'executive_home_screen.dart';
 import 'biometric_auth_screen.dart';
+import 'app_upgrade_screen.dart';
 
 class BemiSplashScreen extends StatefulWidget {
   const BemiSplashScreen({super.key});
@@ -24,15 +26,18 @@ class _BemiSplashScreenState extends State<BemiSplashScreen> {
   Future<void> _bootstrapApp() async {
     final startTime = DateTime.now();
 
-    // 1. Resolve session and security configuration in background
+    // 1. Check version gate concurrently with session bootstrap
+    final gateFuture = ApiService.checkVersionGate();
     final user = await ChatStorageService.getUser();
     final hasSeenWelcome = await ChatStorageService.hasSeenWelcome();
     final isBioConfigured = await ChatStorageService.isBiometricConfigured();
     final isBioEnabled = await ChatStorageService.isBiometricEnabled();
 
-    // 2. Guarantee a smooth 4.5s display duration
+    final gateInfo = await gateFuture;
+
+    // 2. Guarantee a smooth 3.5s display duration
     final elapsed = DateTime.now().difference(startTime);
-    final remaining = const Duration(milliseconds: 4500) - elapsed;
+    final remaining = const Duration(milliseconds: 3500) - elapsed;
     if (remaining > Duration.zero) {
       await Future.delayed(remaining);
     }
@@ -40,7 +45,16 @@ class _BemiSplashScreenState extends State<BemiSplashScreen> {
     if (!mounted) return;
 
     Widget nextScreen;
-    if (user == null) {
+
+    // A. Priority 1: Mandatory Version Gate
+    if (gateInfo != null && gateInfo['upgradeRequired'] == true) {
+      nextScreen = AppUpgradeScreen(
+        currentVersion: ApiService.appVersion,
+        requiredVersion: gateInfo['minimumAllowedVersion']?.toString() ?? '1.0.1',
+        downloadUrl: gateInfo['directDownloadUrl']?.toString() ?? 'https://bemserp.work/download/gmd-app.apk',
+        notes: gateInfo['upgradePromptNotes']?.toString() ?? 'A critical update is required to continue.',
+      );
+    } else if (user == null) {
       nextScreen = const LoginScreen();
     } else if (isBioConfigured && isBioEnabled) {
       // Biometrics are configured: Always gate access with BiometricAuthScreen

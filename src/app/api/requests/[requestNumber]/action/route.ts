@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { requestIdentifierWhere, toSystemRequestId } from '@/lib/request-id';
+import { enforceMobileVersionGate } from '@/lib/mobile-gate';
 
 const messageSelect = {
   id: true,
@@ -20,6 +21,9 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ requestNumber: string }> },
 ) {
+  const gateBlock = await enforceMobileVersionGate(_request);
+  if (gateBlock) return gateBlock;
+
   const actor = await getAuthenticatedEmployee(_request);
   if (!actor) return NextResponse.json({ error: 'Sign in to open request chat.' }, { status: 401 });
 
@@ -70,6 +74,9 @@ export async function POST(
   { params }: { params: Promise<{ requestNumber: string }> },
 ) {
   try {
+    const gateBlock = await enforceMobileVersionGate(request);
+    if (gateBlock) return gateBlock;
+
     const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to continue.' }, { status: 401 });
 

@@ -722,3 +722,35 @@ model EmailVerificationToken {
 
   @@index([email, expiresAt])
 }
+
+model MobileAppGate {
+  id                     String   @id @default(uuid())
+  appId                  String   @unique // GMD_APP | STAFF_APP
+  appName                String   // "BEMS GMD AI" | "BEMS Staff App"
+  packageName            String   // "com.bemsgroup.gmd_ai" | "com.bemsgroup.staff"
+  minimumAllowedVersion  String   @default("1.0.0")
+  latestVersionAvailable String   @default("1.0.0")
+  forceUpdate            Boolean  @default(true)
+  directDownloadUrl      String   @default("https://bemserp.work/download/gmd-app.apk")
+  upgradePromptNotes     String?
+  updatedAt              DateTime @updatedAt
+  updatedById            String?
+
+  releases               MobileAppRelease[]
+}
+
+model MobileAppRelease {
+  id          String         @id @default(uuid())
+  appId       String         // GMD_APP | STAFF_APP
+  appGate     MobileAppGate? @relation(fields: [appId], references: [appId], onDelete: Cascade)
+  version     String         // e.g. "1.0.1"
+  fileName    String         // e.g. "BemsGmdAi-v1.0.1.apk"
+  fileSize    String         // e.g. "58.4 MB"
+  downloadUrl String         // e.g. "/downloads/gmd-app.apk"
+  status      String         @default("ACTIVE") // ACTIVE | ARCHIVE
+  notes       String?
+  uploadedBy  String         // Admin email
+  createdAt   DateTime       @default(now())
+
+  @@index([appId, status])
+}

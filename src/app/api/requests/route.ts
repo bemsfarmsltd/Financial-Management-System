@@ -4,11 +4,15 @@ import { getAuthenticatedEmployee, hasAnyRole } from "@/lib/auth";
 import { toSystemRequestId } from "@/lib/request-id";
 import { notifyApprovalRequired } from "@/lib/notifications/bridge";
 import { createWithUniqueRequestNumber } from "@/lib/request-number";
+import { enforceMobileVersionGate } from "@/lib/mobile-gate";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const gateBlock = await enforceMobileVersionGate(request);
+    if (gateBlock) return gateBlock;
+
     const actor = await getAuthenticatedEmployee(request);
     const { searchParams } = new URL(request.url);
 
@@ -220,6 +224,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const gateBlock = await enforceMobileVersionGate(request);
+    if (gateBlock) return gateBlock;
+
     const actor = await getAuthenticatedEmployee(request);
 
     if (!actor) {

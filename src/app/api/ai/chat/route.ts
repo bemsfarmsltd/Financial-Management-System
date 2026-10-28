@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee } from '@/lib/auth';
 import { stageAction } from '@/lib/staged-actions';
 import { getConsolidatedTreasury } from '@/lib/financial-metrics';
+import { enforceMobileVersionGate } from '@/lib/mobile-gate';
 
 function formatNaira(amount: number): string {
   return new Intl.NumberFormat('en-NG', {
@@ -15,6 +16,9 @@ function formatNaira(amount: number): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const gateBlock = await enforceMobileVersionGate(req);
+    if (gateBlock) return gateBlock;
+
     const actor = await getAuthenticatedEmployee(req);
     const body = await req.json().catch(() => ({}));
     const message: string = (body.message || '').trim();

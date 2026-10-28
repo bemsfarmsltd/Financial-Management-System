@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { enforceMobileVersionGate } from '@/lib/mobile-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,9 @@ function formatNaira(amount: number): string {
 
 export async function GET(req: NextRequest) {
   try {
+    const gateBlock = await enforceMobileVersionGate(req);
+    if (gateBlock) return gateBlock;
+
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view treasury information.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'COO', 'DIRECTOR', 'HEAD_OF_ADMIN', 'AI_ANALYST', 'FINANCE_CONTROLLER', 'HR'])) {

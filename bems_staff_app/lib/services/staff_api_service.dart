@@ -8,12 +8,21 @@ class StaffApiService {
   static const String fallbackBaseUrl = 'https://pink-horse-318730.hostingersite.com';
   static String _activeBaseUrl = primaryBaseUrl;
 
+  static const String appVersion = '1.0.0';
+  static const String appId = 'STAFF_APP';
+
+  // Global callbacks for app-level interception
+  static void Function(Map<String, dynamic> updateInfo)? onUpgradeRequired;
+  static void Function()? onSessionInvalidated;
+
   static String? sessionToken;
 
   static Map<String, String> _headers({String? token, String? employeeId}) {
     final effectiveToken = (token != null && token.isNotEmpty) ? token : sessionToken;
     return {
       'Content-Type': 'application/json',
+      'x-app-id': appId,
+      'x-app-version': appVersion,
       if (effectiveToken != null && effectiveToken.isNotEmpty) 'Authorization': 'Bearer $effectiveToken',
       if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
     };
@@ -46,6 +55,18 @@ class StaffApiService {
       try {
         final res = await requestFn(host).timeout(timeout);
         _activeBaseUrl = host;
+
+        if (res.statusCode == 426) {
+          try {
+            final data = jsonDecode(res.body);
+            onUpgradeRequired?.call(data is Map<String, dynamic> ? data : {});
+          } catch (_) {
+            onUpgradeRequired?.call({});
+          }
+        } else if (res.statusCode == 401 || res.statusCode == 403) {
+          onSessionInvalidated?.call();
+        }
+
         return res;
       } catch (e) {
         lastError = e;
@@ -62,6 +83,27 @@ class StaffApiService {
     throw lastError is Exception
         ? lastError
         : Exception('Connection failed. Please check your internet connectivity.');
+  }
+
+  /// Check version gate status against backend
+  static Future<Map<String, dynamic>?> checkVersionGate() async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/mobile/version-check?appId=$appId&version=$appVersion'),
+          headers: _headers(),
+        ),
+        timeout: const Duration(seconds: 8),
+      );
+
+      if (res.statusCode == 200 || res.statusCode == 426) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic>) {
+          return data;
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// Authenticate against production Next.js backend with work credentials

@@ -4,6 +4,7 @@ import '../services/staff_storage_service.dart';
 import '../widgets/kinetic_torus_iris.dart';
 import 'staff_login_screen.dart';
 import 'staff_main_screen.dart';
+import 'app_upgrade_screen.dart';
 
 class StaffSplashScreen extends StatefulWidget {
   const StaffSplashScreen({super.key});
@@ -21,20 +22,33 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
 
   Future<void> _bootstrap() async {
     final startTime = DateTime.now();
+    final gateFuture = StaffApiService.checkVersionGate();
     final user = await StaffStorageService.getUser();
     if (user != null && user.token.isNotEmpty) {
       StaffApiService.sessionToken = user.token;
     }
 
+    final gateInfo = await gateFuture;
+
     final elapsed = DateTime.now().difference(startTime);
-    final remaining = const Duration(milliseconds: 3500) - elapsed;
+    final remaining = const Duration(milliseconds: 3000) - elapsed;
     if (remaining > Duration.zero) {
       await Future.delayed(remaining);
     }
 
     if (!mounted) return;
 
-    final nextScreen = user != null ? StaffMainScreen(user: user) : const StaffLoginScreen();
+    Widget nextScreen;
+    if (gateInfo != null && gateInfo['upgradeRequired'] == true) {
+      nextScreen = StaffAppUpgradeScreen(
+        currentVersion: StaffApiService.appVersion,
+        requiredVersion: gateInfo['minimumAllowedVersion']?.toString() ?? '1.0.1',
+        downloadUrl: gateInfo['directDownloadUrl']?.toString() ?? 'https://bemserp.work/download/staff-app.apk',
+        notes: gateInfo['upgradePromptNotes']?.toString() ?? 'A critical update is required to continue.',
+      );
+    } else {
+      nextScreen = user != null ? StaffMainScreen(user: user) : const StaffLoginScreen();
+    }
 
     Navigator.pushReplacement(
       context,
