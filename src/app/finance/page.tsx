@@ -3636,7 +3636,16 @@ export default function Home() {
   }
 
   if (status === 'error') return <main className="app-loading error"><p>Could not reach the BEMS Group API. Confirm the backend is running on port 4001.</p><button onClick={retryLoad}>Retry →</button></main>;
-  if (addingBusiness) return <CorporateSubsidiaryModal onCancel={businesses.length ? () => setAddingBusiness(false) : undefined} onComplete={handleSubsidiaryCreated} />;
   if (businesses.length === 0 && authStatus === 'signed-in') return <CorporateSubsidiaryModal onComplete={handleSubsidiaryCreated} />;
-  return <AppWorkspace user={user} onSignOut={signOut} onAddBusiness={()=>setAddingBusiness(true)} businesses={businesses} currentId={currentId||businesses[0].id} setCurrentId={setCurrentId} onUpdateBusiness={updateBusiness}/>;
+  return (
+    <>
+      <AppWorkspace user={user} onSignOut={signOut} onAddBusiness={()=>setAddingBusiness(true)} businesses={businesses} currentId={currentId||businesses[0].id} setCurrentId={setCurrentId} onUpdateBusiness={updateBusiness}/>
+      {addingBusiness && (
+        <CorporateSubsidiaryModal
+          onCancel={businesses.length ? () => setAddingBusiness(false) : undefined}
+          onComplete={handleSubsidiaryCreated}
+        />
+      )}
+    </>
+  );
 }

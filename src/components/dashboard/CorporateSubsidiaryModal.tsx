@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, FormEvent } from 'react';
+import React, { useState, useEffect, FormEvent } from 'react';
 
 export interface CorporateSubsidiaryModalProps {
   onCancel?: () => void;
@@ -33,7 +33,18 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Auto-generate a clean uppercase code if user hasn't typed their own
+  // Close modal when pressing Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onCancel) {
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onCancel]);
+
+  // Auto-generate uppercase entity code if user hasn't typed a custom one
   const handleNameChange = (val: string) => {
     setLegalName(val);
     if (!codeManuallyEdited) {
@@ -102,45 +113,82 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
   };
 
   return (
-    <main
+    <div
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && onCancel) {
+          onCancel();
+        }
+      }}
       style={{
-        minHeight: '100vh',
-        background: '#0b1329',
+        position: 'fixed',
+        inset: 0,
+        zIndex: 140,
+        background: 'rgba(9, 24, 52, 0.65)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '32px 16px',
-        color: '#f8fafc',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        padding: '24px 16px',
+        overflowY: 'auto',
       }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="corporate-subsidiary-title"
         style={{
           width: '100%',
-          maxWidth: 880,
-          background: '#0f172a',
-          border: '1px solid #1e293b',
+          maxWidth: 820,
+          background: '#ffffff',
           borderRadius: 16,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.04)',
           overflow: 'hidden',
+          fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+          color: '#0f172a',
         }}
       >
         {/* Header Bar */}
         <div
           style={{
-            padding: '24px 32px',
-            borderBottom: '1px solid #1e293b',
+            padding: '20px 28px',
+            borderBottom: '1px solid #e2e8f0',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            background: 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)',
+            background: '#ffffff',
           }}
         >
           <div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#f97316', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 800,
+                color: '#ea580c',
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                display: 'inline-block',
+                background: '#fff7ed',
+                border: '1px solid #fed7aa',
+                padding: '3px 8px',
+                borderRadius: 4,
+                marginBottom: 6,
+              }}
+            >
               Corporate Entity Registry
             </div>
-            <h1 style={{ margin: '4px 0 0', fontSize: 22, fontWeight: 700, color: '#f8fafc' }}>
+            <h1
+              id="corporate-subsidiary-title"
+              style={{
+                margin: 0,
+                fontSize: 20,
+                fontWeight: 700,
+                color: '#0f172a',
+                letterSpacing: '-0.02em',
+              }}
+            >
               Register Subsidiary Company
             </h1>
           </div>
@@ -149,14 +197,18 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
               type="button"
               onClick={onCancel}
               style={{
-                background: 'transparent',
-                border: '1px solid #334155',
-                color: '#94a3b8',
+                background: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                color: '#475569',
                 borderRadius: 8,
-                padding: '8px 16px',
-                fontSize: 13,
+                padding: '8px 14px',
+                fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.15s ease',
               }}
             >
               ← Back to workspace
@@ -165,17 +217,18 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} style={{ padding: '32px' }}>
+        <form onSubmit={handleSubmit} style={{ padding: '28px' }}>
           {error && (
             <div
               style={{
-                marginBottom: 24,
+                marginBottom: 20,
                 padding: '12px 16px',
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid #ef4444',
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
                 borderRadius: 8,
-                color: '#fca5a5',
-                fontSize: 14,
+                color: '#991b1b',
+                fontSize: 13,
+                fontWeight: 500,
               }}
             >
               ⚠ {error}
@@ -185,8 +238,8 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             {/* Legal Name */}
             <div style={{ gridColumn: 'span 2' }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#cbd5e1', marginBottom: 6 }}>
-                Subsidiary Legal Name <span style={{ color: '#f97316' }}>*</span>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                Subsidiary Legal Name <span style={{ color: '#ea580c' }}>*</span>
               </label>
               <input
                 required
@@ -196,12 +249,12 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
                 placeholder="e.g. Bems Farms Limited"
                 style={{
                   width: '100%',
-                  padding: '12px 14px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  padding: '11px 14px',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
                   borderRadius: 8,
-                  color: '#f8fafc',
-                  fontSize: 15,
+                  color: '#0f172a',
+                  fontSize: 14,
                   outline: 'none',
                 }}
               />
@@ -209,8 +262,8 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
 
             {/* Entity Code */}
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#cbd5e1', marginBottom: 6 }}>
-                Entity Code (Prefix for REQ numbers) <span style={{ color: '#f97316' }}>*</span>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                Entity Code (Prefix for REQ numbers) <span style={{ color: '#ea580c' }}>*</span>
               </label>
               <input
                 required
@@ -223,12 +276,12 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
                 placeholder="e.g. BFARM"
                 style={{
                   width: '100%',
-                  padding: '12px 14px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  padding: '11px 14px',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
                   borderRadius: 8,
-                  color: '#f8fafc',
-                  fontSize: 15,
+                  color: '#0f172a',
+                  fontSize: 14,
                   textTransform: 'uppercase',
                   fontWeight: 700,
                   letterSpacing: '0.05em',
@@ -242,7 +295,7 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
 
             {/* Classification */}
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#cbd5e1', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
                 Subsidiary Classification
               </label>
               <select
@@ -250,11 +303,11 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
                 onChange={(e) => setEntityType(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '12px 14px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  padding: '11px 14px',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
                   borderRadius: 8,
-                  color: '#f8fafc',
+                  color: '#0f172a',
                   fontSize: 14,
                   outline: 'none',
                 }}
@@ -268,7 +321,7 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
 
             {/* CAC RC Number */}
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#cbd5e1', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
                 CAC / RC Registration Number <span style={{ color: '#64748b', fontWeight: 400 }}>(Optional)</span>
               </label>
               <input
@@ -278,11 +331,11 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
                 placeholder="e.g. RC-1849204"
                 style={{
                   width: '100%',
-                  padding: '12px 14px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  padding: '11px 14px',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
                   borderRadius: 8,
-                  color: '#f8fafc',
+                  color: '#0f172a',
                   fontSize: 14,
                   outline: 'none',
                 }}
@@ -291,7 +344,7 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
 
             {/* Operating Currency */}
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#cbd5e1', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
                 Default Ledger Currency
               </label>
               <select
@@ -299,11 +352,11 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
                 onChange={(e) => setCurrency(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '12px 14px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  padding: '11px 14px',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
                   borderRadius: 8,
-                  color: '#f8fafc',
+                  color: '#0f172a',
                   fontSize: 14,
                   outline: 'none',
                 }}
@@ -317,7 +370,7 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
 
             {/* Location */}
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#cbd5e1', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
                 Operating Location / Farm Site
               </label>
               <select
@@ -325,11 +378,11 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
                 onChange={(e) => setLocation(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '12px 14px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  padding: '11px 14px',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
                   borderRadius: 8,
-                  color: '#f8fafc',
+                  color: '#0f172a',
                   fontSize: 14,
                   outline: 'none',
                 }}
@@ -350,10 +403,10 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
                     width: '100%',
                     marginTop: 8,
                     padding: '10px 14px',
-                    background: '#1e293b',
-                    border: '1px solid #334155',
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
                     borderRadius: 8,
-                    color: '#f8fafc',
+                    color: '#0f172a',
                     fontSize: 14,
                   }}
                 />
@@ -362,7 +415,7 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
 
             {/* Initial Operating Budget Allocation */}
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#cbd5e1', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
                 Initial Monthly Budget Ceiling (₦)
               </label>
               <input
@@ -374,11 +427,11 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
                 placeholder="25000000"
                 style={{
                   width: '100%',
-                  padding: '12px 14px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  padding: '11px 14px',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
                   borderRadius: 8,
-                  color: '#f8fafc',
+                  color: '#0f172a',
                   fontSize: 14,
                   outline: 'none',
                 }}
@@ -389,8 +442,8 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
             </div>
 
             {/* Core Operating Departments */}
-            <div style={{ gridColumn: 'span 2', marginTop: 8 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#cbd5e1', marginBottom: 8 }}>
+            <div style={{ gridColumn: 'span 2', marginTop: 4 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 8 }}>
                 Initial Core Departments
               </label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
@@ -403,12 +456,12 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
                       onClick={() => toggleDept(dept)}
                       style={{
                         padding: '8px 14px',
-                        background: selected ? 'rgba(249, 115, 22, 0.15)' : '#1e293b',
-                        border: `1px solid ${selected ? '#f97316' : '#334155'}`,
-                        color: selected ? '#fed7aa' : '#94a3b8',
+                        background: selected ? '#fff7ed' : '#f1f5f9',
+                        border: `1px solid ${selected ? '#ea580c' : '#cbd5e1'}`,
+                        color: selected ? '#c2410c' : '#475569',
                         borderRadius: 20,
                         fontSize: 13,
-                        fontWeight: 600,
+                        fontWeight: selected ? 700 : 500,
                         cursor: 'pointer',
                         transition: 'all 0.15s ease',
                       }}
@@ -425,9 +478,9 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
           {/* Footer Actions */}
           <div
             style={{
-              marginTop: 32,
-              paddingTop: 24,
-              borderTop: '1px solid #1e293b',
+              marginTop: 28,
+              paddingTop: 20,
+              borderTop: '1px solid #e2e8f0',
               display: 'flex',
               justifyContent: 'flex-end',
               gap: 12,
@@ -438,12 +491,12 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
                 type="button"
                 onClick={onCancel}
                 style={{
-                  padding: '12px 20px',
-                  background: 'transparent',
-                  border: '1px solid #334155',
-                  color: '#94a3b8',
+                  padding: '11px 20px',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  color: '#475569',
                   borderRadius: 8,
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: 600,
                   cursor: 'pointer',
                 }}
@@ -455,15 +508,15 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
               type="submit"
               disabled={submitting}
               style={{
-                padding: '12px 28px',
-                background: submitting ? '#9a3412' : '#ea580c',
+                padding: '11px 26px',
+                background: submitting ? '#9a3412' : 'linear-gradient(135deg, #f97316, #ea580c)',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: 8,
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: 700,
                 cursor: submitting ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 12px rgba(234, 88, 12, 0.3)',
+                boxShadow: '0 4px 14px rgba(234, 88, 12, 0.25)',
               }}
             >
               {submitting ? 'Registering Subsidiary…' : 'Register Subsidiary Entity →'}
@@ -471,6 +524,6 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
           </div>
         </form>
       </div>
-    </main>
+    </div>
   );
 }
