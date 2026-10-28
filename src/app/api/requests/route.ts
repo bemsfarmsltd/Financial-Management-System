@@ -169,7 +169,7 @@ export async function GET(request: Request) {
         paymentStatus: req.paymentStatus,
         accountabilityStatus: req.accountabilityStatus,
         requestType: req.requestType,
-        urgency: req.urgency,
+        urgency: (req.neededBy && new Date(req.neededBy).getTime() - Date.now() < 48 * 3600 * 1000) ? 'HIGH' : 'NORMAL',
         statusLabel,
         stepIndex,
         submittedDate: req.createdAt ? new Date(req.createdAt).toLocaleDateString("en-NG", {
