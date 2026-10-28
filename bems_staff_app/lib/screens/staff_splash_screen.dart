@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
 import '../widgets/kinetic_torus_iris.dart';
 import 'staff_login_screen.dart';
@@ -21,6 +22,9 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
   Future<void> _bootstrap() async {
     final startTime = DateTime.now();
     final user = await StaffStorageService.getUser();
+    if (user != null && user.token.isNotEmpty) {
+      StaffApiService.sessionToken = user.token;
+    }
 
     final elapsed = DateTime.now().difference(startTime);
     final remaining = const Duration(milliseconds: 3500) - elapsed;

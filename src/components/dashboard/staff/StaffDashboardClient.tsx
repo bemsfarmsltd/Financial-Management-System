@@ -126,7 +126,7 @@ export function StaffDashboardClient({ user, businessName = 'BEMS Group' }: Staf
         fetch('/api/staff/disbursements').then((r) => (r.ok ? r.json() : { awaitingConfirmation: [], recentDisbursements: [] })),
       ]);
 
-      const rawRequests = reqRes.requests || [];
+      const rawRequests = Array.isArray(reqRes) ? reqRes : (reqRes?.requests || []);
       const myRequests = rawRequests.filter(
         (r: any) =>
           r.requestedById === user.id ||
@@ -135,7 +135,7 @@ export function StaffDashboardClient({ user, businessName = 'BEMS Group' }: Staf
       );
       setRequests(myRequests);
 
-      const rawCases = caseRes.cases || [];
+      const rawCases = Array.isArray(caseRes) ? caseRes : (caseRes?.cases || []);
       const myCases = rawCases.filter(
         (c: any) =>
           c.ownerUserId === user.id ||

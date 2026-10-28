@@ -3,38 +3,7 @@ import { getAuthenticatedEmployee } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(request: Request) {
-  let actor = await getAuthenticatedEmployee(request);
-  if (!actor) {
-    const fallbackEmpId = request.headers.get('x-employee-id');
-    if (fallbackEmpId) {
-      const emp = await prisma.employee.findUnique({
-        where: { id: fallbackEmpId },
-        select: { id: true, employeeNumber: true, legalName: true, workEmail: true, phone: true, role: true, avatarUrl: true, status: true, approvalStatus: true },
-      });
-      if (emp && emp.status === 'ACTIVE' && emp.approvalStatus === 'APPROVED') {
-        actor = emp;
-      }
-    }
-  }
-  if (!actor) {
-    const mobileRole = request.headers.get('x-bems-mobile-role');
-    if (mobileRole === 'GMD' || mobileRole === 'SYSTEM_ADMIN') {
-      const emp = await prisma.employee.findFirst({
-        where: { role: mobileRole, status: 'ACTIVE', approvalStatus: 'APPROVED' },
-      });
-      if (emp) {
-        actor = {
-          id: emp.id,
-          employeeNumber: emp.employeeNumber,
-          legalName: emp.legalName,
-          workEmail: emp.workEmail,
-          phone: emp.phone,
-          role: emp.role,
-          avatarUrl: emp.avatarUrl,
-        };
-      }
-    }
-  }
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to view notifications.' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
@@ -104,19 +73,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  let actor = await getAuthenticatedEmployee(request);
-  if (!actor) {
-    const fallbackEmpId = request.headers.get('x-employee-id');
-    if (fallbackEmpId) {
-      const emp = await prisma.employee.findUnique({
-        where: { id: fallbackEmpId },
-        select: { id: true, employeeNumber: true, legalName: true, workEmail: true, phone: true, role: true, avatarUrl: true, status: true, approvalStatus: true },
-      });
-      if (emp && emp.status === 'ACTIVE' && emp.approvalStatus === 'APPROVED') {
-        actor = emp;
-      }
-    }
-  }
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to update notifications.' }, { status: 401 });
   try {
     const body = await request.json();

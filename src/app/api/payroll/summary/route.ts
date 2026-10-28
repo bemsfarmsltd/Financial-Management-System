@@ -30,7 +30,27 @@ export async function GET(req: Request) {
           effectiveFrom: { lte: now },
           OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }],
         },
-        select: { grossMinor: true },
+        select: {
+          grossMinor: true,
+          costAllocations: {
+            select: { subsidiaryId: true, percentage: true },
+          },
+          employmentAgreement: {
+            select: {
+              employerEntityId: true,
+              employee: {
+                select: {
+                  assignments: {
+                    where: { status: 'ACTIVE' },
+                    orderBy: { isPrimary: 'desc' },
+                    take: 1,
+                    select: { subsidiaryId: true },
+                  },
+                },
+              },
+            },
+          },
+        },
       }),
     ]);
 
@@ -39,6 +59,40 @@ export async function GET(req: Request) {
     const totalMonthlyRunRate = latestBatch
       ? Number(latestBatch.totalGrossMinor) / 100
       : totalContractSalaries;
+
+    // Calculate real subsidiary allocation breakdown based on cost allocations and employee assignments
+    const subCostMap = new Map<string, number>();
+    orgs.forEach(o => subCostMap.set(o.id, 0));
+
+    let totalAllocatedMinor = 0;
+    for (const c of activeCompAgreements) {
+      const gross = Number(c.grossMinor);
+      if (c.costAllocations && c.costAllocations.length > 0) {
+        for (const alloc of c.costAllocations) {
+          const portion = gross * (alloc.percentage / 100);
+          subCostMap.set(alloc.subsidiaryId, (subCostMap.get(alloc.subsidiaryId) || 0) + portion);
+          totalAllocatedMinor += portion;
+        }
+      } else {
+        const fallbackSubId = c.employmentAgreement?.employee?.assignments?.[0]?.subsidiaryId || c.employmentAgreement?.employerEntityId;
+        if (fallbackSubId) {
+          subCostMap.set(fallbackSubId, (subCostMap.get(fallbackSubId) || 0) + gross);
+          totalAllocatedMinor += gross;
+        }
+      }
+    }
+
+    const subsidiaryAllocations = orgs.map(o => {
+      const orgMinor = subCostMap.get(o.id) || 0;
+      const pct = totalAllocatedMinor > 0 ? Math.round((orgMinor / totalAllocatedMinor) * 100) : 0;
+      return {
+        subsidiary: o.legalName,
+        code: o.code,
+        share_percent: `${pct}%`,
+        allocated_amount: orgMinor / 100,
+        allocated_amount_formatted: `₦${(orgMinor / 100).toLocaleString()}`,
+      };
+    });
 
     return NextResponse.json({
       ok: true,
@@ -49,11 +103,7 @@ export async function GET(req: Request) {
         latest_batch_period: latestBatch ? 'Current Cycle' : (totalContractSalaries > 0 ? 'Active Contracts Sum' : 'No Batch Prepared'),
         payment_status: latestBatch ? latestBatch.status : (totalContractSalaries > 0 ? 'SCHEDULED' : 'PENDING_REGISTRATION'),
         upcoming_deadlines: '25th of the month (Statutory Tax & Pension Remittance)',
-        subsidiary_allocations: orgs.map(o => ({
-          subsidiary: o.legalName,
-          code: o.code,
-          share_percent: `${Math.round(100 / (orgs.length || 1))}%`,
-        })),
+        subsidiary_allocations: subsidiaryAllocations,
         issues: [],
       },
       as_of: new Date().toISOString(),

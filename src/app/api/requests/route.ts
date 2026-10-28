@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     }
 
     if (minAmount && !isNaN(minAmount)) {
-      where.amount = { gte: minAmount };
+      where.amountMinor = { gte: BigInt(Math.round(minAmount * 100)) };
     }
 
     if (dateFrom || dateTo) {
@@ -220,28 +220,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    let actor = await getAuthenticatedEmployee(request);
-    if (!actor) {
-      const fallbackEmpId = request.headers.get("x-employee-id");
-      if (fallbackEmpId) {
-        const emp = await prisma.employee.findUnique({
-          where: { id: fallbackEmpId },
-          select: {
-            id: true,
-            employeeNumber: true,
-            legalName: true,
-            workEmail: true,
-            phone: true,
-            role: true,
-            status: true,
-            approvalStatus: true,
-          },
-        });
-        if (emp && emp.status === "ACTIVE" && emp.approvalStatus === "APPROVED") {
-          actor = emp as any;
-        }
-      }
-    }
+    const actor = await getAuthenticatedEmployee(request);
 
     if (!actor) {
       return NextResponse.json({ error: "Sign in to submit a fund request." }, { status: 401 });

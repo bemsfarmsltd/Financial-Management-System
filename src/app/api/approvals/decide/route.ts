@@ -7,26 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    let actor = await getAuthenticatedEmployee(request);
-    if (!actor) {
-      const mobileRole = request.headers.get('x-bems-mobile-role');
-      if (mobileRole === 'GMD' || mobileRole === 'SYSTEM_ADMIN') {
-        const emp = await prisma.employee.findFirst({
-          where: { role: mobileRole, status: 'ACTIVE', approvalStatus: 'APPROVED' },
-        });
-        if (emp) {
-          actor = {
-            id: emp.id,
-            employeeNumber: emp.employeeNumber,
-            legalName: emp.legalName,
-            workEmail: emp.workEmail,
-            phone: emp.phone,
-            role: emp.role,
-            avatarUrl: emp.avatarUrl,
-          };
-        }
-      }
-    }
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to record an approval decision.' }, { status: 401 });
     const body = await request.json();
     const { requestId, requestIds, decision, note, disbursementAssigneeId } = body;

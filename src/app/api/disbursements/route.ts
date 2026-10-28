@@ -232,6 +232,31 @@ export async function POST(req: NextRequest) {
         uploadedById: maker.id,
       } });
       await tx.expenditureRequest.update({ where: { id: requestId }, data: { paymentStatus: 'AWAITING_RECIPIENT_CONFIRMATION' } });
+
+      // FIN-001: Deduct company bank account balance with floor validation
+      const amountNaira = Number(amountMinor) / 100;
+      const bankAccount = await tx.companyBankAccount.findFirst({
+        where: {
+          organizationId: payerOrgId,
+          status: 'ACTIVE',
+          bankName: { contains: bankName, mode: 'insensitive' },
+        },
+      }) || await tx.companyBankAccount.findFirst({
+        where: {
+          organizationId: payerOrgId,
+          status: 'ACTIVE',
+        },
+      });
+
+      if (bankAccount) {
+        const currentBal = Number(bankAccount.balance);
+        const newBal = Math.max(0, currentBal - amountNaira);
+        await tx.companyBankAccount.update({
+          where: { id: bankAccount.id },
+          data: { balance: newBal },
+        });
+      }
+
       let accountabilityCase = await tx.accountabilityCase.findUnique({ where: { requestId } });
       if (!accountabilityCase) {
         const dueAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);

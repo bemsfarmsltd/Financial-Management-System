@@ -182,7 +182,7 @@ export function ExecutiveBriefingClient({
               accountType: a.accountType || 'Corporate Operational',
               balance: a.balanceNaira || a.balance || 0,
               status: 'Active',
-              assignedSubsidiary: a.scope === 'HQ' ? 'BEMS Group Holdings Ltd (HQ)' : 'Bems Logistics & Farms Ltd',
+              assignedSubsidiary: a.assignedSubsidiary || a.organization?.legalName || (a.scope === 'HQ' ? 'BEMS Group Holdings Ltd (HQ)' : 'BEMS Subsidiary'),
             })) : prev);
           }
         })

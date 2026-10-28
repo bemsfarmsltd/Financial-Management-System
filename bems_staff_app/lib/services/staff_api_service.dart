@@ -8,6 +8,17 @@ class StaffApiService {
   static const String fallbackBaseUrl = 'https://pink-horse-318730.hostingersite.com';
   static String _activeBaseUrl = primaryBaseUrl;
 
+  static String? sessionToken;
+
+  static Map<String, String> _headers({String? token, String? employeeId}) {
+    final effectiveToken = (token != null && token.isNotEmpty) ? token : sessionToken;
+    return {
+      'Content-Type': 'application/json',
+      if (effectiveToken != null && effectiveToken.isNotEmpty) 'Authorization': 'Bearer $effectiveToken',
+      if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
+    };
+  }
+
   static String get baseUrl => _activeBaseUrl;
 
   static List<String> get _candidateHosts {
@@ -72,7 +83,13 @@ class StaffApiService {
     final data = jsonDecode(response.body);
 
     if (response.statusCode == 200 && data['user'] != null) {
-      return StaffUser.fromJson(data['user']);
+      final userMap = Map<String, dynamic>.from(data['user'] as Map);
+      if (data['token'] != null) {
+        final t = data['token'].toString();
+        userMap['token'] = t;
+        sessionToken = t;
+      }
+      return StaffUser.fromJson(userMap);
     }
 
     final errorMessage = data['error']?.toString() ??
@@ -120,11 +137,9 @@ class StaffApiService {
   static Future<Map<String, dynamic>> fetchStaffDashboard({
     required String userEmail,
     String? employeeId,
+    String? token,
   }) async {
-    final headers = {
-      'Content-Type': 'application/json',
-      if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
-    };
+    final headers = _headers(token: token, employeeId: employeeId);
 
     for (final host in _candidateHosts) {
       try {
@@ -212,6 +227,7 @@ class StaffApiService {
     required String urgency,
     required String neededBy,
     String? employeeId,
+    String? token,
     String? dueDate,
     bool isRecurring = false,
     String? recurringInterval,
@@ -222,10 +238,7 @@ class StaffApiService {
     final res = await _executeWithFailover(
       (host) => http.post(
         Uri.parse('$host/api/requests'),
-        headers: {
-          'Content-Type': 'application/json',
-          if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
-        },
+        headers: _headers(token: token, employeeId: employeeId),
         body: jsonEncode({
           'title': title,
           'justification': justification,
@@ -266,15 +279,13 @@ class StaffApiService {
     required String disbursementId,
     required String decision,
     String? employeeId,
+    String? token,
     String? note,
   }) async {
     final res = await _executeWithFailover(
       (host) => http.post(
         Uri.parse('$host/api/disbursements/confirm'),
-        headers: {
-          'Content-Type': 'application/json',
-          if (employeeId != null) 'x-employee-id': employeeId,
-        },
+        headers: _headers(token: token, employeeId: employeeId),
         body: jsonEncode({
           'disbursementId': disbursementId,
           'decision': decision,
@@ -302,16 +313,14 @@ class StaffApiService {
     required String receiptName,
     required List<int> fileBytes,
     String? employeeId,
+    String? token,
     String contentType = 'image/jpeg',
   }) async {
     final base64String = base64Encode(fileBytes);
     final res = await _executeWithFailover(
       (host) => http.post(
         Uri.parse('$host/api/accountability/evidence'),
-        headers: {
-          'Content-Type': 'application/json',
-          if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
-        },
+        headers: _headers(token: token, employeeId: employeeId),
         body: jsonEncode({
           'caseId': caseId,
           'notes': notes,
@@ -335,15 +344,12 @@ class StaffApiService {
   }
 
   /// Retrieve live corporate enterprise structure (active subsidiaries and departments)
-  static Future<List<Map<String, dynamic>>> fetchOrganizationStructure({String? employeeId}) async {
+  static Future<List<Map<String, dynamic>>> fetchOrganizationStructure({String? employeeId, String? token}) async {
     try {
       final res = await _executeWithFailover(
         (host) => http.get(
           Uri.parse('$host/api/meta/structure'),
-          headers: {
-            'Content-Type': 'application/json',
-            if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
-          },
+          headers: _headers(token: token, employeeId: employeeId),
         ),
       );
 
@@ -357,15 +363,12 @@ class StaffApiService {
   }
 
   /// Retrieve approved vendor registry for 3-way matching
-  static Future<List<Map<String, dynamic>>> fetchVendors({String? employeeId}) async {
+  static Future<List<Map<String, dynamic>>> fetchVendors({String? employeeId, String? token}) async {
     try {
       final res = await _executeWithFailover(
         (host) => http.get(
           Uri.parse('$host/api/vendors'),
-          headers: {
-            'Content-Type': 'application/json',
-            if (employeeId != null && employeeId.isNotEmpty) 'x-employee-id': employeeId,
-          },
+          headers: _headers(token: token, employeeId: employeeId),
         ),
       );
 
@@ -381,15 +384,13 @@ class StaffApiService {
   /// Fetch in-app notifications for staff member
   static Future<List<Map<String, dynamic>>> fetchNotifications({
     required String employeeId,
+    String? token,
   }) async {
     try {
       final res = await _executeWithFailover(
         (host) => http.get(
           Uri.parse('$host/api/notifications'),
-          headers: {
-            'Content-Type': 'application/json',
-            'x-employee-id': employeeId,
-          },
+          headers: _headers(token: token, employeeId: employeeId),
         ),
       );
 
@@ -403,15 +404,12 @@ class StaffApiService {
   }
 
   /// Mark all notifications read
-  static Future<bool> markNotificationsRead({required String employeeId}) async {
+  static Future<bool> markNotificationsRead({required String employeeId, String? token}) async {
     try {
       final res = await _executeWithFailover(
         (host) => http.patch(
           Uri.parse('$host/api/notifications'),
-          headers: {
-            'Content-Type': 'application/json',
-            'x-employee-id': employeeId,
-          },
+          headers: _headers(token: token, employeeId: employeeId),
           body: jsonEncode({'markAllRead': true}),
         ),
       );
@@ -431,11 +429,12 @@ class StaffApiService {
     required String salaryBankName,
     required String salaryAccountNumber,
     required String salaryAccountName,
+    String? token,
   }) async {
     final res = await _executeWithFailover(
       (host) => http.post(
         Uri.parse('$host/api/staff/$employeeId/banking'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(token: token, employeeId: employeeId),
         body: jsonEncode({
           'bankName': bankName,
           'accountNumber': accountNumber,
@@ -462,11 +461,12 @@ class StaffApiService {
   static Future<bool> updatePhoneNumber({
     required String employeeId,
     required String phone,
+    String? token,
   }) async {
     final res = await _executeWithFailover(
       (host) => http.post(
         Uri.parse('$host/api/staff/$employeeId/contact'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(token: token, employeeId: employeeId),
         body: jsonEncode({'phone': phone}),
       ),
     );
@@ -487,11 +487,12 @@ class StaffApiService {
     required String employeeId,
     required String oldPassword,
     required String newPassword,
+    String? token,
   }) async {
     final res = await _executeWithFailover(
       (host) => http.post(
         Uri.parse('$host/api/staff/$employeeId/password'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(token: token, employeeId: employeeId),
         body: jsonEncode({
           'oldPassword': oldPassword,
           'newPassword': newPassword,
@@ -658,14 +659,12 @@ class StaffApiService {
   static Future<Map<String, dynamic>> getRequestChat({
     required String requestNumber,
     required String employeeId,
+    String? token,
   }) async {
     final res = await _executeWithFailover(
       (host) => http.get(
         Uri.parse('$host/api/requests/${Uri.encodeComponent(requestNumber)}/action'),
-        headers: {
-          'Content-Type': 'application/json',
-          'x-employee-id': employeeId,
-        },
+        headers: _headers(token: token, employeeId: employeeId),
       ),
     );
 
@@ -685,14 +684,12 @@ class StaffApiService {
     String? recipientId,
     String? attachmentUrl,
     String? attachmentName,
+    String? token,
   }) async {
     final res = await _executeWithFailover(
       (host) => http.post(
         Uri.parse('$host/api/requests/${Uri.encodeComponent(requestNumber)}/action'),
-        headers: {
-          'Content-Type': 'application/json',
-          'x-employee-id': employeeId,
-        },
+        headers: _headers(token: token, employeeId: employeeId),
         body: jsonEncode({
           'action': 'SEND_MESSAGE',
           'text': text.trim(),
@@ -718,15 +715,13 @@ class StaffApiService {
   /// Fetch direct messages between this staff member and company administrators
   static Future<List<Map<String, dynamic>>> getAdminChat({
     required String employeeId,
+    String? token,
   }) async {
     try {
       final res = await _executeWithFailover(
         (host) => http.get(
           Uri.parse('$host/api/staff/chat/admin'),
-          headers: {
-            'Content-Type': 'application/json',
-            'x-employee-id': employeeId,
-          },
+          headers: _headers(token: token, employeeId: employeeId),
         ),
       );
 
@@ -744,14 +739,12 @@ class StaffApiService {
     required String text,
     String? attachmentUrl,
     String? attachmentName,
+    String? token,
   }) async {
     final res = await _executeWithFailover(
       (host) => http.post(
         Uri.parse('$host/api/staff/chat/admin'),
-        headers: {
-          'Content-Type': 'application/json',
-          'x-employee-id': employeeId,
-        },
+        headers: _headers(token: token, employeeId: employeeId),
         body: jsonEncode({
           'message': text.trim(),
           if (attachmentUrl != null) 'attachmentUrl': attachmentUrl,
@@ -771,11 +764,12 @@ class StaffApiService {
   static Future<bool> updateEmployeeAvatar({
     required String employeeId,
     required String avatarUrl,
+    String? token,
   }) async {
     final res = await _executeWithFailover(
       (host) => http.post(
         Uri.parse('$host/api/staff/$employeeId/contact'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(token: token, employeeId: employeeId),
         body: jsonEncode({'avatarUrl': avatarUrl}),
       ),
     );
@@ -787,14 +781,12 @@ class StaffApiService {
   static Future<bool> deleteFundRequest({
     required String requestNumber,
     required String employeeId,
+    String? token,
   }) async {
     final res = await _executeWithFailover(
       (host) => http.delete(
         Uri.parse('$host/api/requests/${Uri.encodeComponent(requestNumber)}'),
-        headers: {
-          'Content-Type': 'application/json',
-          'x-employee-id': employeeId,
-        },
+        headers: _headers(token: token, employeeId: employeeId),
       ),
     );
 

@@ -20,19 +20,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ requestNumber: string }> },
 ) {
-  let actor = await getAuthenticatedEmployee(_request);
-  if (!actor) {
-    const fallbackEmpId = _request.headers.get('x-employee-id');
-    if (fallbackEmpId) {
-      const emp = await prisma.employee.findUnique({
-        where: { id: fallbackEmpId },
-        select: { id: true, employeeNumber: true, legalName: true, workEmail: true, phone: true, role: true, avatarUrl: true, status: true, approvalStatus: true },
-      });
-      if (emp && emp.status === 'ACTIVE' && emp.approvalStatus === 'APPROVED') {
-        actor = emp;
-      }
-    }
-  }
+  const actor = await getAuthenticatedEmployee(_request);
   if (!actor) return NextResponse.json({ error: 'Sign in to open request chat.' }, { status: 401 });
 
   const { requestNumber } = await params;
@@ -82,19 +70,7 @@ export async function POST(
   { params }: { params: Promise<{ requestNumber: string }> },
 ) {
   try {
-    let actor = await getAuthenticatedEmployee(request);
-    if (!actor) {
-      const fallbackEmpId = request.headers.get('x-employee-id');
-      if (fallbackEmpId) {
-        const emp = await prisma.employee.findUnique({
-          where: { id: fallbackEmpId },
-          select: { id: true, employeeNumber: true, legalName: true, workEmail: true, phone: true, role: true, avatarUrl: true, status: true, approvalStatus: true },
-        });
-        if (emp && emp.status === 'ACTIVE' && emp.approvalStatus === 'APPROVED') {
-          actor = emp;
-        }
-      }
-    }
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to continue.' }, { status: 401 });
 
     const { requestNumber } = await params;

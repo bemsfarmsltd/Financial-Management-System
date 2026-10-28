@@ -195,7 +195,10 @@ export function ApprovalsDeskView({
   const [newReqCategory, setNewReqCategory] = useState('IT_SOFTWARE');
   const [newReqJustification, setNewReqJustification] = useState('');
   const [newReqDeliverable, setNewReqDeliverable] = useState('');
-  const [newReqNeededBy, setNewReqNeededBy] = useState('2026-10-24');
+  const [newReqNeededBy, setNewReqNeededBy] = useState(() => {
+    const d = new Date(Date.now() + 7 * 86400000);
+    return d.toISOString().split('T')[0];
+  });
 
   const fetchApprovals = async () => {
     try {

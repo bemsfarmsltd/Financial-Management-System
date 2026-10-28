@@ -9,7 +9,18 @@ export async function POST(
   { params }: { params: Promise<{ employeeId: string }> }
 ) {
   try {
+    const actor = await getAuthenticatedEmployee(request);
+    if (!actor) {
+      return NextResponse.json({ error: 'Sign in to update banking details.' }, { status: 401 });
+    }
+
     const { employeeId } = await params;
+    const isOwner = actor.id === employeeId;
+    const isPrivileged = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN' || actor.role === 'FINANCE_CONTROLLER';
+    if (!isOwner && !isPrivileged) {
+      return NextResponse.json({ error: 'Forbidden. You can only update your own bank details.' }, { status: 403 });
+    }
+
     const body = await request.json();
 
     const bankName = typeof body.bankName === 'string' ? body.bankName.trim() : null;

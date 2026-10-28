@@ -4,31 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(req: Request) {
   try {
-    let actor = await getAuthenticatedEmployee(req);
-
-    // Support mobile fallback header if session cookie not present
-    if (!actor) {
-      const fallbackEmpId = req.headers.get('x-employee-id');
-      if (fallbackEmpId) {
-        const emp = await prisma.employee.findUnique({
-          where: { id: fallbackEmpId },
-          select: {
-            id: true,
-            employeeNumber: true,
-            legalName: true,
-            workEmail: true,
-            phone: true,
-            role: true,
-            avatarUrl: true,
-            status: true,
-            approvalStatus: true,
-          },
-        });
-        if (emp && emp.status === 'ACTIVE' && emp.approvalStatus === 'APPROVED') {
-          actor = emp;
-        }
-      }
-    }
+    const actor = await getAuthenticatedEmployee(req);
 
     if (!actor) {
       return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });
@@ -139,31 +115,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    let actor = await getAuthenticatedEmployee(req);
-
-    // Support mobile fallback header
-    if (!actor) {
-      const fallbackEmpId = req.headers.get('x-employee-id');
-      if (fallbackEmpId) {
-        const emp = await prisma.employee.findUnique({
-          where: { id: fallbackEmpId },
-          select: {
-            id: true,
-            employeeNumber: true,
-            legalName: true,
-            workEmail: true,
-            phone: true,
-            role: true,
-            avatarUrl: true,
-            status: true,
-            approvalStatus: true,
-          },
-        });
-        if (emp && emp.status === 'ACTIVE' && emp.approvalStatus === 'APPROVED') {
-          actor = emp;
-        }
-      }
-    }
+    const actor = await getAuthenticatedEmployee(req);
 
     if (!actor) {
       return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });

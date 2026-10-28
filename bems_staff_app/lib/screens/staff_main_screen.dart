@@ -46,6 +46,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     final data = await StaffApiService.fetchStaffDashboard(
       userEmail: _currentUser.email,
       employeeId: _currentUser.id,
+      token: _currentUser.token,
     );
     if (mounted) {
       setState(() {
@@ -61,6 +62,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     await StaffApiService.confirmDisbursement(
       disbursementId: disb.id,
       employeeId: _currentUser.id,
+      token: _currentUser.token,
       decision: 'RECEIVED',
     );
     if (!mounted) return;

@@ -73,6 +73,30 @@ export async function POST(request: Request) {
         body: `A payroll transfer for ${batch.period.year}-${String(batch.period.month).padStart(2, '0')} was recorded. Review the receipt and confirm whether the salary reached your account.`,
         linkUrl: '/payroll'
       } });
+      // FIN-001: Deduct company bank account balance with floor validation
+      const amountNaira = Number(item.netMinor) / 100;
+      const bankAccount = await tx.companyBankAccount.findFirst({
+        where: {
+          organizationId: batch.paymentEntityId!,
+          status: 'ACTIVE',
+          bankName: { contains: bankName, mode: 'insensitive' },
+        },
+      }) || await tx.companyBankAccount.findFirst({
+        where: {
+          organizationId: batch.paymentEntityId!,
+          status: 'ACTIVE',
+        },
+      });
+
+      if (bankAccount) {
+        const currentBal = Number(bankAccount.balance);
+        const newBal = Math.max(0, currentBal - amountNaira);
+        await tx.companyBankAccount.update({
+          where: { id: bankAccount.id },
+          data: { balance: newBal },
+        });
+      }
+
       await tx.auditEvent.create({ data: {
         actorId: actor.id,
         actorName: actor.legalName,

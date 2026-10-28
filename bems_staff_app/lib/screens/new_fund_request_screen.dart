@@ -280,6 +280,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
         urgency: _selectedUrgency,
         neededBy: _selectedUrgency == 'CRITICAL' ? 'Immediate' : 'Within 24 Hours',
         employeeId: widget.user.id,
+        token: widget.user.token,
         dueDate: formattedDue,
         isRecurring: _isRecurring,
         recurringInterval: _isRecurring ? _recurringInterval : null,

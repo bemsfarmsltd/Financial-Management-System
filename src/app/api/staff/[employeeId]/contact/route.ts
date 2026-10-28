@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getAuthenticatedEmployee } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +9,18 @@ export async function POST(
   { params }: { params: Promise<{ employeeId: string }> }
 ) {
   try {
+    const actor = await getAuthenticatedEmployee(request);
+    if (!actor) {
+      return NextResponse.json({ error: 'Sign in to update profile contact details.' }, { status: 401 });
+    }
+
     const { employeeId } = await params;
+    const isOwner = actor.id === employeeId;
+    const isPrivileged = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN';
+    if (!isOwner && !isPrivileged) {
+      return NextResponse.json({ error: 'Forbidden. You can only update your own profile details.' }, { status: 403 });
+    }
+
     const body = await request.json();
 
     const phone = typeof body.phone === 'string' ? body.phone.trim() : null;

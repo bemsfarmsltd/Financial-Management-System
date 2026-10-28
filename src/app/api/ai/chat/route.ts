@@ -15,26 +15,7 @@ function formatNaira(amount: number): string {
 
 export async function POST(req: NextRequest) {
   try {
-    let actor = await getAuthenticatedEmployee(req);
-    if (!actor) {
-      const mobileRole = req.headers.get('x-bems-mobile-role');
-      if (mobileRole === 'GMD' || mobileRole === 'SYSTEM_ADMIN') {
-        const emp = await prisma.employee.findFirst({
-          where: { role: mobileRole, status: 'ACTIVE', approvalStatus: 'APPROVED' },
-        });
-        if (emp) {
-          actor = {
-            id: emp.id,
-            employeeNumber: emp.employeeNumber,
-            legalName: emp.legalName,
-            workEmail: emp.workEmail,
-            phone: emp.phone,
-            role: emp.role,
-            avatarUrl: emp.avatarUrl,
-          };
-        }
-      }
-    }
+    const actor = await getAuthenticatedEmployee(req);
     const body = await req.json().catch(() => ({}));
     const message: string = (body.message || '').trim();
 
@@ -192,13 +173,7 @@ title: "<Chart Title>"
         } else {
           const errData = await n8nRes.json().catch(() => ({}));
           console.warn(`n8n webhook responded with status ${n8nRes.status}:`, errData);
-
-          if (errData.detail?.includes('Payment required') || errData.error === 'AI_UNAVAILABLE') {
-            return NextResponse.json({
-              message: `⚠️ **AI Model Notice**\n\nThe external AI workflow reported an upstream quota/billing limit (*"${errData.detail || 'Payment required on LLM provider'}"*).\n\n### 📊 Live BEMS Database Status\n• **Active Staff Headcount:** 9\n• **Pending Requisitions:** REQ-2026-0042 (₦450k), REQ-2026-0004 (₦650k)\n• **Approved Unpaid:** REQ-2026-0001 (₦450k)\n• **Open Accountability:** REQ-2026-0003 (₦1.2m, due 24 Oct)\n\n*The n8n automation engineer has been notified to refresh provider credits.*`,
-              timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-            });
-          }
+          // Gracefully fall back to internal PostgreSQL database engine
         }
       } catch (n8nErr: any) {
         console.warn(`n8n webhook unreachable (${n8nErr.message}). Gracefully falling back to internal engine.`);

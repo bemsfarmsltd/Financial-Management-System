@@ -22,6 +22,7 @@ export interface ConsolidatedTreasury {
   totalCashFormatted: string;
   safeRunwayMonths: number;
   pendingPipeline: number;
+  monthlyBurn?: number;
 }
 
 export function formatNaira(amount: number): string {
@@ -42,16 +43,23 @@ export async function getConsolidatedTreasury(subsidiaryId?: string): Promise<Co
     paymentStatus: { in: ['UNPAID', 'RECIPIENT_REPORTED_ISSUE'] },
   };
 
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  let disbWhere: any = {
+    paidAt: { gte: ninetyDaysAgo },
+    status: { in: ['RECIPIENT_CONFIRMED', 'AWAITING_RECIPIENT_CONFIRMATION'] },
+  };
+
   if (subsidiaryId && subsidiaryId !== 'ALL' && subsidiaryId !== 'bems-group-hq') {
     const { resolveOrganizationScope } = await import('@/lib/organizations');
     const scope = await resolveOrganizationScope(subsidiaryId);
     if (!scope.isGroup) {
       bankWhere.organizationId = { in: scope.organizationIds };
       reqWhere.subsidiaryId = { in: scope.organizationIds };
+      disbWhere.payerOrgId = { in: scope.organizationIds };
     }
   }
 
-  const [rawAccounts, approvedRequests] = await Promise.all([
+  const [rawAccounts, approvedRequests, trailingDisbursements] = await Promise.all([
     prisma.companyBankAccount.findMany({
       where: bankWhere,
       include: { organization: true },
@@ -59,6 +67,10 @@ export async function getConsolidatedTreasury(subsidiaryId?: string): Promise<Co
     }),
     prisma.expenditureRequest.findMany({
       where: reqWhere,
+      select: { amountMinor: true },
+    }),
+    prisma.disbursement.findMany({
+      where: disbWhere,
       select: { amountMinor: true },
     }),
   ]);
@@ -87,9 +99,16 @@ export async function getConsolidatedTreasury(subsidiaryId?: string): Promise<Co
   const pendingPipelineMinor = approvedRequests.reduce((acc, r) => acc + Number(r.amountMinor), 0);
   const pendingPipeline = pendingPipelineMinor / 100;
 
-  // Monthly burn rate based on active operational budgets (~₦30M/mo across group)
-  const estimatedMonthlyBurn = 30000000;
-  const safeRunwayMonths = estimatedMonthlyBurn > 0 ? Number((totalCash / estimatedMonthlyBurn).toFixed(1)) : 0;
+  const trailingDisbMinor = trailingDisbursements.reduce((acc, d) => acc + Number(d.amountMinor), 0);
+  const trailingDisbNaira = trailingDisbMinor / 100;
+
+  // Dynamic monthly burn rate computed from trailing 90 days (3 months)
+  // If no trailing payouts yet, fallback to pending pipeline or ₦10M baseline floor
+  const dynamicMonthlyBurn = trailingDisbNaira > 0
+    ? Math.round(trailingDisbNaira / 3)
+    : (pendingPipeline > 0 ? pendingPipeline : 10000000);
+
+  const safeRunwayMonths = dynamicMonthlyBurn > 0 ? Number((totalCash / dynamicMonthlyBurn).toFixed(1)) : 0;
 
   return {
     accounts,
@@ -97,6 +116,7 @@ export async function getConsolidatedTreasury(subsidiaryId?: string): Promise<Co
     totalCashFormatted: formatNaira(totalCash),
     safeRunwayMonths,
     pendingPipeline,
+    monthlyBurn: dynamicMonthlyBurn,
   };
 }
 

@@ -152,19 +152,7 @@ export async function DELETE(
   { params }: { params: Promise<{ requestNumber?: string; id?: string }> }
 ) {
   try {
-    let actor = await getAuthenticatedEmployee(request);
-    if (!actor) {
-      const fallbackEmpId = request.headers.get("x-employee-id");
-      if (fallbackEmpId) {
-        const emp = await prisma.employee.findUnique({
-          where: { id: fallbackEmpId },
-          select: { id: true, employeeNumber: true, legalName: true, workEmail: true, role: true, status: true, approvalStatus: true },
-        });
-        if (emp && emp.status === "ACTIVE" && emp.approvalStatus === "APPROVED") {
-          actor = emp as any;
-        }
-      }
-    }
+    const actor = await getAuthenticatedEmployee(request);
 
     if (!actor) {
       return NextResponse.json({ error: "Unauthorized. Please sign in to delete request." }, { status: 401 });

@@ -5,25 +5,7 @@ import { prisma } from '@/lib/prisma';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    let actor = await getAuthenticatedEmployee(request);
-
-    if (!actor) {
-      const fallbackEmpId = (typeof body.employeeId === 'string' ? body.employeeId : null) || request.headers.get('x-employee-id');
-      if (fallbackEmpId) {
-        const emp = await prisma.employee.findUnique({ where: { id: fallbackEmpId } });
-        if (emp && emp.status === 'ACTIVE' && emp.approvalStatus === 'APPROVED') {
-          actor = {
-            id: emp.id,
-            employeeNumber: emp.employeeNumber,
-            legalName: emp.legalName,
-            workEmail: emp.workEmail,
-            phone: emp.phone,
-            role: emp.role,
-            avatarUrl: emp.avatarUrl,
-          };
-        }
-      }
-    }
+    const actor = await getAuthenticatedEmployee(request);
 
     if (!actor) return NextResponse.json({ error: 'Sign in to confirm receipt.' }, { status: 401 });
     const disbursementId = typeof body.disbursementId === 'string' ? body.disbursementId : '';

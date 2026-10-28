@@ -397,8 +397,9 @@ class WorkstationRepository {
       }
     }
 
-    if (liquidBalance <= 0) {
-      liquidBalance = totalAllocated > 0 ? (totalAllocated - totalSpent) : 84200000.0;
+    // If no bank accounts found in DB, use uncommitted budget as estimated reserve if available, else 0.0
+    if (liquidBalance <= 0 && rawTreasuryAccounts.isEmpty) {
+      liquidBalance = totalAllocated > 0 ? (totalAllocated - totalSpent) : 0.0;
     }
 
     // 6. Monthly burn history from live database requests
@@ -423,7 +424,7 @@ class WorkstationRepository {
       final actual = monthActuals[m] ?? 0.0;
       return MonthlyBurnData(
         month: m,
-        actualSpent: actual > 0 ? actual : (monthlyCeiling * 0.12),
+        actualSpent: actual,
         budgetCeiling: monthlyCeiling,
         isCurrentMonth: m == 'Oct',
       );
@@ -436,7 +437,7 @@ class WorkstationRepository {
       return matchesScope(subCode, subName);
     }).toList();
 
-    final totalAdv = scopedCases.isEmpty ? 1 : scopedCases.length;
+    final totalAdv = scopedCases.length;
     final overdueCount = scopedCases.where((c) => c['status'] == 'OVERDUE').length;
     final retiredCount = scopedCases.where((c) => c['status'] == 'RETIRED' || c['status'] == 'RESOLVED').length;
     final inProgCount = scopedCases.where((c) => c['status'] == 'OPEN' || c['status'] == 'SUBMITTED').length;
@@ -484,8 +485,10 @@ class WorkstationRepository {
     String displayTreasury;
     if (liquidBalance >= 1000000) {
       displayTreasury = '₦${(liquidBalance / 1000000).toStringAsFixed(1)}M';
-    } else {
+    } else if (liquidBalance >= 1000) {
       displayTreasury = '₦${(liquidBalance / 1000).toStringAsFixed(0)}K';
+    } else {
+      displayTreasury = '₦${liquidBalance.toStringAsFixed(0)}';
     }
 
     final base = getByCode(scope);
@@ -502,7 +505,7 @@ class WorkstationRepository {
       spentAmount: totalSpent,
       burnBadge: '${burnPct.toStringAsFixed(1)}% Spent',
       themeColor: base.themeColor,
-      bankAccounts: dynamicBankAccounts.isNotEmpty ? dynamicBankAccounts : base.bankAccounts,
+      bankAccounts: dynamicBankAccounts.isNotEmpty ? dynamicBankAccounts : (rawTreasuryAccounts.isNotEmpty ? <BankShareData>[] : base.bankAccounts),
       monthlyBurnHistory: dynamicMonthlyBurn,
       totalAdvances: totalAdv,
       retiredOnTime: retiredCount,

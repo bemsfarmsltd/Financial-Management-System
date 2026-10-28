@@ -41,6 +41,7 @@ class StaffUser {
   final String bvnMask;
 
   final String avatarUrl;
+  final String token;
 
   const StaffUser({
     required this.id,
@@ -76,6 +77,7 @@ class StaffUser {
     this.ninMask = '',
     this.bvnMask = '',
     this.avatarUrl = '',
+    this.token = '',
   });
 
   StaffUser copyWith({
@@ -94,6 +96,7 @@ class StaffUser {
     String? nextOfKinRelationship,
     String? nextOfKinAddress,
     String? avatarUrl,
+    String? token,
   }) {
     return StaffUser(
       id: id,
@@ -129,6 +132,7 @@ class StaffUser {
       ninMask: ninMask,
       bvnMask: bvnMask,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      token: token ?? this.token,
     );
   }
 
@@ -167,6 +171,7 @@ class StaffUser {
       ninMask: json['ninMask']?.toString() ?? '',
       bvnMask: json['bvnMask']?.toString() ?? '',
       avatarUrl: json['avatarUrl']?.toString() ?? '',
+      token: json['token']?.toString() ?? '',
     );
   }
 
@@ -204,6 +209,7 @@ class StaffUser {
         'ninMask': ninMask,
         'bvnMask': bvnMask,
         'avatarUrl': avatarUrl,
+        'token': token,
       };
 }
 

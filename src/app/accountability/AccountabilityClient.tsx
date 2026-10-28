@@ -11,6 +11,10 @@ export function AccountabilityClient({ initialCases }: { initialCases: any[] }) 
     setTimeout(() => setNotice(null), 5000);
   };
 
+  const verifiedCount = cases.filter(c => c.status === 'CLOSED' || c.status === 'VERIFIED').length;
+  const overdueCount = cases.filter(c => (c.status === 'OPEN' || c.status === 'PENDING') && c.dueAt && new Date(c.dueAt).getTime() < Date.now()).length;
+  const complianceScore = cases.length > 0 ? ((verifiedCount / cases.length) * 100).toFixed(1) + '%' : '100.0%';
+
   return (
     <>
       <div className="section-header">
@@ -34,19 +38,19 @@ export function AccountabilityClient({ initialCases }: { initialCases: any[] }) 
           <span>Under audit review</span>
         </article>
         <article>
-          <small>CLOSURE DEADLINE</small>
-          <strong style={{ color: '#d97706' }}>3 Days</strong>
-          <span>Countdown remaining</span>
+          <small>VERIFIED & CLOSED</small>
+          <strong style={{ color: '#059669' }}>{verifiedCount}</strong>
+          <span>Deliverables cleared</span>
         </article>
         <article>
           <small>AUDIT COMPLIANCE SCORE</small>
-          <strong style={{ color: '#059669' }}>96.4%</strong>
+          <strong style={{ color: '#059669' }}>{complianceScore}</strong>
           <span>Group-wide score</span>
         </article>
         <article>
-          <small>BLOCKED USERS</small>
-          <strong>0</strong>
-          <span>Zero defaulters</span>
+          <small>OVERDUE CASES</small>
+          <strong style={{ color: overdueCount > 0 ? '#dc2626' : 'var(--navy)' }}>{overdueCount}</strong>
+          <span>{overdueCount > 0 ? 'Action required' : 'Zero defaulters'}</span>
         </article>
       </div>
 

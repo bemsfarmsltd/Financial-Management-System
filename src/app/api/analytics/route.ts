@@ -6,7 +6,7 @@ import { toSystemRequestId } from '@/lib/request-id';
 export const dynamic = 'force-dynamic';
 
 const pendingStatuses = ['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'];
-const unpaidStatuses = ['UNPAID'];
+const unpaidStatuses = ['UNPAID', 'RECIPIENT_REPORTED_ISSUE'];
 
 function periodBounds(period: string, now: Date) {
   const end = new Date(now);
