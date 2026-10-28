@@ -67,6 +67,21 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
   const currentSub = subsidiaries.find(s => s.id === currentSubId) || subsidiaries[0];
 
   useEffect(() => {
+    if (!initialRole) {
+      fetch('/api/auth/session')
+        .then(r => r.json())
+        .then(d => {
+          if (d?.user?.role) {
+            const r = d.user.role;
+            if (r === 'STAFF') setCurrentRole('Staff');
+            else if (r === 'HR') setCurrentRole('HR');
+            else if (r === 'SYSTEM_ADMIN') setCurrentRole('SystemAdmin');
+            else if (r === 'GMD') setCurrentRole('GMD');
+          }
+        })
+        .catch(() => {});
+    }
+
     fetch('/api/organizations')
       .then(r => r.json())
       .then(d => {
@@ -79,7 +94,7 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
         }
       })
       .catch(() => {});
-  }, []);
+  }, [initialRole]);
 
   const loadNotifications = async () => {
     try {

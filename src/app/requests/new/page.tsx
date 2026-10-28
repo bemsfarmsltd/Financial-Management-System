@@ -14,6 +14,9 @@ export default async function NewRequestPage() {
   if (!actor || actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN') {
     redirect('/');
   }
+  if (actor.role === 'STAFF') {
+    redirect('/staff?create=true');
+  }
   const [subsidiaries, vendors, employees, currentStaff] = await Promise.all([
     prisma.organization.findMany({
       where: { status: "ACTIVE" },

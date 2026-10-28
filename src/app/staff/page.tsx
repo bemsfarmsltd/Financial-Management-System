@@ -25,17 +25,58 @@ export default async function StaffPage() {
   };
 
   let businessName = 'BEMS Group';
-  const assignment = await prisma.employeeAssignment.findFirst({
-    where: { employeeId: actor.id },
-    include: { subsidiary: true },
-  });
+  const [assignment, subsidiaries, vendors, currentStaff] = await Promise.all([
+    prisma.employeeAssignment.findFirst({
+      where: { employeeId: actor.id },
+      include: { subsidiary: true },
+    }),
+    prisma.organization.findMany({
+      where: { status: 'ACTIVE' },
+      orderBy: { legalName: 'asc' },
+      select: { id: true, legalName: true, code: true, type: true },
+    }),
+    prisma.vendor.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, category: true, bankName: true, accountNumber: true, accountName: true },
+    }),
+    prisma.employee.findUnique({
+      where: { id: actor.id },
+      select: {
+        id: true,
+        legalName: true,
+        workEmail: true,
+        employeeNumber: true,
+        bankName: true,
+        accountNumber: true,
+        accountName: true,
+        assignments: {
+          where: { status: 'ACTIVE' },
+          select: {
+            subsidiaryId: true,
+            departmentId: true,
+            positionName: true,
+            isPrimary: true,
+            subsidiary: { select: { id: true, legalName: true, code: true } },
+            department: { select: { id: true, name: true } },
+          },
+        },
+      },
+    }),
+  ]);
+
   if (assignment?.subsidiary) {
     businessName = assignment.subsidiary.legalName;
   }
 
   return (
     <ConnectAppShell initialRole="Staff">
-      <StaffDashboardClient user={staffUser} businessName={businessName} />
+      <StaffDashboardClient
+        user={staffUser}
+        businessName={businessName}
+        subsidiaries={subsidiaries}
+        vendors={vendors}
+        currentStaff={currentStaff}
+      />
     </ConnectAppShell>
   );
 }

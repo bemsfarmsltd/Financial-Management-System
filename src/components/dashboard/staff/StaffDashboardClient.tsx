@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import { NewRequestModal } from '@/components/requests/NewRequestModal';
 import {
   FileText,
   Clock,
@@ -97,10 +98,29 @@ interface AccountabilityItem {
 interface StaffDashboardClientProps {
   user: StaffUser;
   businessName?: string;
+  subsidiaries?: any[];
+  vendors?: any[];
+  currentStaff?: any;
 }
 
-export function StaffDashboardClient({ user, businessName = 'BEMS Group' }: StaffDashboardClientProps) {
+export function StaffDashboardClient({
+  user,
+  businessName = 'BEMS Group',
+  subsidiaries = [],
+  vendors = [],
+  currentStaff = null,
+}: StaffDashboardClientProps) {
   const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('create') === 'true' || params.get('create') === '1') {
+        setIsCreateModalOpen(true);
+      }
+    }
+  }, []);
   const [cases, setCases] = useState<AccountabilityItem[]>([]);
   const [disbursementsAwaiting, setDisbursementsAwaiting] = useState<DisbursementItem[]>([]);
   const [allDisbursements, setAllDisbursements] = useState<DisbursementItem[]>([]);
@@ -407,8 +427,9 @@ export function StaffDashboardClient({ user, businessName = 'BEMS Group' }: Staf
             <Upload size={16} /> 72h Evidence Vault
           </Link>
 
-          <Link
-            href="/requests/new"
+          <button
+            type="button"
+            onClick={() => setIsCreateModalOpen(true)}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -420,13 +441,13 @@ export function StaffDashboardClient({ user, businessName = 'BEMS Group' }: Staf
               padding: '11px 20px',
               fontSize: '13.5px',
               fontWeight: '700',
-              textDecoration: 'none',
+              cursor: 'pointer',
               boxShadow: '0 4px 14px rgba(234, 88, 12, 0.4)',
               transition: 'all 0.15s ease',
             }}
           >
             <Plus size={16} /> New Fund Request
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -907,22 +928,24 @@ export function StaffDashboardClient({ user, businessName = 'BEMS Group' }: Staf
               <div style={{ fontSize: '12.5px', color: '#94a3b8', marginTop: '4px' }}>
                 Create a new fund request to request advances, petty cash, or vendor payments.
               </div>
-              <Link
-                href="/requests/new"
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
                 style={{
                   display: 'inline-block',
                   marginTop: '16px',
                   background: '#ea580c',
                   color: '#ffffff',
+                  border: 'none',
                   borderRadius: '8px',
                   padding: '8px 16px',
                   fontSize: '12.5px',
                   fontWeight: '700',
-                  textDecoration: 'none',
+                  cursor: 'pointer',
                 }}
               >
                 + Create New Request
-              </Link>
+              </button>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1294,6 +1317,18 @@ export function StaffDashboardClient({ user, businessName = 'BEMS Group' }: Staf
           </div>
         </div>
       )}
+
+      {/* In-System Fund Request Modal for Staff */}
+      <NewRequestModal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          loadStaffData();
+        }}
+        subsidiaries={subsidiaries}
+        vendors={vendors}
+        currentStaff={currentStaff}
+      />
     </div>
   );
 }
