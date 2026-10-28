@@ -41,6 +41,7 @@ import { PeopleAccessWorkspaceModule } from "@/components/dashboard/gmd/PeopleAc
 import { StaffWorkspaceModule } from "@/components/dashboard/staff/StaffWorkspaceModule";
 import { NIGERIAN_STATES, NIGERIAN_STATE_LGAS, RESIDENTIAL_CITIES_AND_STATES } from "@/lib/nigeriaGeoData";
 import { CorporateSubsidiaryModal } from "@/components/dashboard/CorporateSubsidiaryModal";
+import { EditSubsidiaryModal } from "@/components/dashboard/EditSubsidiaryModal";
 
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -1475,7 +1476,7 @@ function OldOverview({business,user,cases,setActive,setNotice}:{business:Busines
   </>;
 }
 
-function Businesses({businesses,current,onSelect,onAdd}:{businesses:Business[];current:Business;onSelect:(id:string)=>void;onAdd:()=>void}) {
+function Businesses({businesses,current,onSelect,onAdd,onEdit}:{businesses:Business[];current:Business;onSelect:(id:string)=>void;onAdd:()=>void;onEdit?:(b:Business)=>void}) {
   return (
     <>
       <SectionHeader
@@ -1503,16 +1504,53 @@ function Businesses({businesses,current,onSelect,onAdd}:{businesses:Business[];c
             <h3>{b.name}</h3>
             <p>{b.industry || 'Operating Subsidiary'}</p>
             <div className="business-stats">
-              <span><strong>{(b as any).departmentCount || 4}</strong>depts</span>
-              <span><strong>{(b as any).staffCount || (b.name.includes('Farms') ? 18 : 12)}</strong>staff</span>
-              <span><strong>{(b as any).budgetFormatted || '₦25M'}</strong>budget</span>
+              <span><strong>{typeof (b as any).departmentCount === 'number' ? (b as any).departmentCount : 0}</strong>depts</span>
+              <span><strong>{typeof (b as any).staffCount === 'number' ? (b as any).staffCount : 0}</strong>staff</span>
+              <span><strong>{(b as any).budgetFormatted || '₦0'}</strong>budget</span>
             </div>
             <div className="business-progress">
               <i style={{ width: '100%', background: b.color || '#ea580c' }} />
             </div>
-            <button onClick={() => onSelect(b.id)}>
-              {current.id === b.id ? 'Current Subsidiary' : 'Open Subsidiary'} <span>→</span>
-            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={() => onSelect(b.id)}
+                style={{
+                  flex: 1,
+                  padding: '7px 10px',
+                  borderRadius: 7,
+                  border: 0,
+                  background: current.id === b.id ? '#fff7ed' : '#f8fafc',
+                  color: current.id === b.id ? '#ea580c' : '#334155',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                }}
+              >
+                {current.id === b.id ? 'Current Subsidiary ✓' : 'Open Subsidiary →'}
+              </button>
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={() => onEdit(b)}
+                  title="Edit Subsidiary Profile"
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: 7,
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#475569',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Edit ✎
+                </button>
+              )}
+            </div>
           </article>
         ))}
         <button className="add-business-card" onClick={onAdd}>
@@ -2756,7 +2794,7 @@ function VendorsModule({business,setNotice,onNavigate}:{business:Business;setNot
   </>;
 }
 
-function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurrentId,onUpdateBusiness}:{user:AuthUser;onSignOut:()=>void;onAddBusiness:()=>void;businesses:Business[];currentId:string;setCurrentId:(value:string)=>void;onUpdateBusiness:(id:string,patch:Partial<Business>)=>Promise<Business>}) {
+function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,currentId,setCurrentId,onUpdateBusiness}:{user:AuthUser;onSignOut:()=>void;onAddBusiness:()=>void;onEditBusiness?:(b:Business)=>void;businesses:Business[];currentId:string;setCurrentId:(value:string)=>void;onUpdateBusiness:(id:string,patch:Partial<Business>)=>Promise<Business>}) {
   const safeUser: AuthUser = user;
   const current = (businesses && businesses.length > 0 ? (businesses.find(b=>b.id===currentId) || businesses[0]) : defaultBemsBusinesses[0]) || defaultBemsBusinesses[0];
   const isGroupScope = (current as any).code === 'BEMS-GROUP' || (current as any).type === 'GROUP' || current.id === 'bems-group-hq' || current.id === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30';
@@ -3230,7 +3268,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,businesses,currentId,setCurr
     if(target==='Payroll sign-off'||target==='Hybrid payroll') return <PayrollSignOffView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='HR Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
     if(target==='Executive briefing') return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p)=>setActive(p)}/>;
-    if(target==='Subsidiary portfolio') return <Businesses businesses={businesses} current={current} onSelect={selectBusiness} onAdd={onAddBusiness}/>;
+    if(target==='Subsidiary portfolio') return <Businesses businesses={businesses} current={current} onSelect={selectBusiness} onAdd={onAddBusiness} onEdit={onEditBusiness}/>;
     if(target==='Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={currentRole !== 'GMD' && currentRole !== 'SYSTEM_ADMIN'}/>;
     if(target==='Approvals & payments'||target==='Approvals & Policy Hub'||target==='Approvals desk') return <FundFlowWorkspace businessName={current.name} userName={safeUser.fullName} scope={activeScope} businessId={current.id} businessCode={(current as any).code} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='New fund request') {
@@ -3603,6 +3641,25 @@ export default function Home() {
     }
     setAddingBusiness(false);
   };
+
+  const [editingSubsidiary, setEditingSubsidiary] = useState<Business | null>(null);
+
+  const handleSubsidiaryUpdated = (updatedOrg: any) => {
+    if (updatedOrg && (updatedOrg.id || updatedOrg.name)) {
+      setBusinesses(old => old.map(b => {
+        if (b.id !== updatedOrg.id) return b;
+        return {
+          ...b,
+          ...updatedOrg,
+          name: updatedOrg.name || updatedOrg.legalName || b.name,
+          industry: updatedOrg.industry || b.industry,
+          initials: updatedOrg.initials || (updatedOrg.code ? updatedOrg.code.replace(/^BEMS-?/, '').slice(0, 2) : b.initials),
+          budgetFormatted: updatedOrg.budgetFormatted || (b as any).budgetFormatted,
+        };
+      }));
+    }
+  };
+
   const updateBusiness=(id:string,patch:Partial<Business>)=>apiPatch<Business>(`/api/businesses/${id}`,patch).then(updated=>{
     setBusinesses(old=>old.map(b=>b.id===id?updated:b));
     return updated;
@@ -3636,11 +3693,21 @@ export default function Home() {
   if (businesses.length === 0 && authStatus === 'signed-in') return <CorporateSubsidiaryModal onComplete={handleSubsidiaryCreated} />;
   return (
     <>
-      <AppWorkspace user={user} onSignOut={signOut} onAddBusiness={()=>setAddingBusiness(true)} businesses={businesses} currentId={currentId||businesses[0].id} setCurrentId={setCurrentId} onUpdateBusiness={updateBusiness}/>
+      <AppWorkspace user={user} onSignOut={signOut} onAddBusiness={()=>setAddingBusiness(true)} onEditBusiness={(b)=>setEditingSubsidiary(b)} businesses={businesses} currentId={currentId||businesses[0].id} setCurrentId={setCurrentId} onUpdateBusiness={updateBusiness}/>
       {addingBusiness && (
         <CorporateSubsidiaryModal
           onCancel={businesses.length ? () => setAddingBusiness(false) : undefined}
           onComplete={handleSubsidiaryCreated}
+        />
+      )}
+      {editingSubsidiary && (
+        <EditSubsidiaryModal
+          subsidiary={editingSubsidiary}
+          onCancel={() => setEditingSubsidiary(null)}
+          onComplete={(updated) => {
+            handleSubsidiaryUpdated(updated);
+            setEditingSubsidiary(null);
+          }}
         />
       )}
     </>

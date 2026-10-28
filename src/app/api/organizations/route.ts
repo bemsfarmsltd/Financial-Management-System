@@ -45,9 +45,10 @@ export async function GET() {
           initials: o.code.replace(/^BEMS-?/, '').slice(0, 2) || o.legalName.slice(0, 2).toUpperCase(),
           color: o.type === 'GROUP' ? '#ea580c' : '#0d8a70',
           readiness: 100,
-          departmentCount: o.departments.length || 2,
-          staffCount: o.employeeAssignments.length || 4,
-          budgetFormatted: totalBudget > 0 ? `₦${(totalBudget / 1000000).toFixed(0)}M` : '₦50M',
+          departmentCount: o.departments.length,
+          staffCount: o.employeeAssignments.length,
+          budgetFormatted: totalBudget > 0 ? `₦${(totalBudget / 1000000).toFixed(0)}M` : '₦0',
+          budget: totalBudget,
         };
       })
     });
