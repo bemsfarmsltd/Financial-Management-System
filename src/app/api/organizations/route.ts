@@ -10,27 +10,44 @@ export async function GET() {
     const orgs = await prisma.organization.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
-        departments: { select: { id: true } },
+        departments: { select: { id: true, name: true, code: true } },
         employeeAssignments: { select: { id: true } },
         budgets: { where: { status: 'ACTIVE' }, select: { totalAmount: true } },
+        settings: { where: { key: { in: ['SUBSIDIARY_INDUSTRY', 'HEADQUARTERS_LOCATION', 'RC_NUMBER'] } } },
       },
     });
     return NextResponse.json({
       organizations: orgs.map(o => {
         const totalBudget = o.budgets.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+        const industrySetting = o.settings.find(s => s.key === 'SUBSIDIARY_INDUSTRY');
+        const hqSetting = o.settings.find(s => s.key === 'HEADQUARTERS_LOCATION');
+        const rcSetting = o.settings.find(s => s.key === 'RC_NUMBER');
+
+        const resolvedIndustry = industrySetting?.value || (
+          o.type === 'GROUP' 
+            ? 'Holding & Conglomerate HQ' 
+            : o.type === 'TECH_IP_ENTITY' 
+            ? 'Technology & Digital Platforms'
+            : o.type === 'AGRICULTURAL_HUB' 
+            ? 'Agro-Allied & Food Processing' 
+            : 'Operating Commercial Subsidiary'
+        );
+
         return {
           id: o.id,
           name: o.legalName,
           code: o.code,
           type: o.type,
           status: o.status === 'ACTIVE' ? 'Live' : 'Setup',
-          industry: o.type === 'GROUP' ? 'Holding & Conglomerate HQ' : o.type === 'AGRICULTURAL_HUB' ? 'Agricultural Hub & Processing' : 'Operating Subsidiary',
+          industry: resolvedIndustry,
+          headquarters: hqSetting?.value || 'Lagos, Nigeria',
+          rcNumber: rcSetting?.value || null,
           initials: o.code.replace(/^BEMS-?/, '').slice(0, 2) || o.legalName.slice(0, 2).toUpperCase(),
           color: o.type === 'GROUP' ? '#ea580c' : '#0d8a70',
           readiness: 100,
           departmentCount: o.departments.length || 2,
           staffCount: o.employeeAssignments.length || 4,
-          budgetFormatted: totalBudget > 0 ? `₦${(totalBudget / 1000000).toFixed(0)}M` : '₦25M',
+          budgetFormatted: totalBudget > 0 ? `₦${(totalBudget / 1000000).toFixed(0)}M` : '₦50M',
         };
       })
     });
@@ -67,19 +84,53 @@ export async function POST(req: Request) {
       ? code.trim().toUpperCase() 
       : ('BS-' + words.map((w: string) => w[0]).join('').toUpperCase().slice(0, 4));
 
+    const validTypes = [
+      'OPERATING_SUBSIDIARY',
+      'TECH_IP_ENTITY',
+      'SPECIAL_PURPOSE_VEHICLE',
+      'INFRASTRUCTURE_SITE',
+      'REGIONAL_OFFICE',
+      'AGRICULTURAL_HUB',
+      'GROUP',
+      'SUBSIDIARY'
+    ];
+
     // 1. Create Organization in Prisma
     const newOrg = await prisma.organization.create({
       data: {
         legalName: name.trim(),
         code: generatedCode,
-        type: body.type && ['OPERATING_SUBSIDIARY', 'AGRICULTURAL_HUB', 'SPECIAL_PURPOSE_VEHICLE', 'REGIONAL_OFFICE', 'GROUP', 'SUBSIDIARY'].includes(body.type) ? body.type : 'SUBSIDIARY',
+        type: body.type && validTypes.includes(body.type) ? body.type : 'SUBSIDIARY',
         status: 'ACTIVE',
         defaultCurrency: body.currency && ['NGN', 'USD', 'GBP', 'EUR'].includes(body.currency) ? body.currency : 'NGN',
         timezone: 'Africa/Lagos',
       },
     });
 
-    // 2. Create Initial Departments if provided
+    // 2. Persist metadata in WorkspaceSetting
+    if (industry) {
+      try {
+        await prisma.workspaceSetting.create({
+          data: { organizationId: newOrg.id, key: 'SUBSIDIARY_INDUSTRY', value: industry, updatedById: actor.id },
+        });
+      } catch {}
+    }
+    if (headquarters) {
+      try {
+        await prisma.workspaceSetting.create({
+          data: { organizationId: newOrg.id, key: 'HEADQUARTERS_LOCATION', value: headquarters, updatedById: actor.id },
+        });
+      } catch {}
+    }
+    if (rcNumber) {
+      try {
+        await prisma.workspaceSetting.create({
+          data: { organizationId: newOrg.id, key: 'RC_NUMBER', value: rcNumber, updatedById: actor.id },
+        });
+      } catch {}
+    }
+
+    // 3. Create Initial Departments if provided
     const createdDepts: { id: string; name: string; code: string }[] = [];
     if (Array.isArray(departments) && departments.length > 0) {
       for (const dName of departments) {
@@ -116,7 +167,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Create Initial Active Budget if amount provided
+    // 4. Create Initial Active Budget if amount provided
     const budgetAmount = Number(initialBudget) || 0;
     if (budgetAmount > 0) {
       const now = new Date();
@@ -149,7 +200,7 @@ export async function POST(req: Request) {
           type: newOrg.type,
           status: 'Live',
           industry: industry || 'Enterprise Technology',
-          initials: newOrg.code.replace('BEMS-', '').slice(0, 2) || 'BS',
+          initials: newOrg.code.replace(/^BEMS-?/, '').slice(0, 2) || 'BS',
           color: color || '#ea580c',
           rcNumber: rcNumber || `RC-${Math.floor(1000000 + Math.random() * 9000000)}`,
           headquarters: headquarters || 'Lagos, Nigeria',
