@@ -61,9 +61,9 @@ export async function POST(req: Request) {
       data: {
         legalName: name.trim(),
         code: generatedCode,
-        type: 'SUBSIDIARY',
+        type: body.type && ['OPERATING_SUBSIDIARY', 'AGRICULTURAL_HUB', 'SPECIAL_PURPOSE_VEHICLE', 'REGIONAL_OFFICE', 'GROUP', 'SUBSIDIARY'].includes(body.type) ? body.type : 'SUBSIDIARY',
         status: 'ACTIVE',
-        defaultCurrency: 'NGN',
+        defaultCurrency: body.currency && ['NGN', 'USD', 'GBP', 'EUR'].includes(body.currency) ? body.currency : 'NGN',
         timezone: 'Africa/Lagos',
       },
     });

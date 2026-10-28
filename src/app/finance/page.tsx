@@ -40,6 +40,7 @@ import { UniversalClickToAskProvider } from "@/components/ai/UniversalClickToAsk
 import { PeopleAccessWorkspaceModule } from "@/components/dashboard/gmd/PeopleAccessWorkspaceModule";
 import { StaffWorkspaceModule } from "@/components/dashboard/staff/StaffWorkspaceModule";
 import { NIGERIAN_STATES, NIGERIAN_STATE_LGAS, RESIDENTIAL_CITIES_AND_STATES } from "@/lib/nigeriaGeoData";
+import { CorporateSubsidiaryModal } from "@/components/dashboard/CorporateSubsidiaryModal";
 
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -1426,40 +1427,6 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
       )}
       {view==='login' && bootstrapAvailable && <p className="signin-note"><button onClick={()=>{setError('');setView('setup')}}>Set up the first System Admin</button></p>}
       {view==='login' && !adminExists && !bootstrapConfigured && <p className="signin-note">First-time setup needs <code>BEMS_BOOTSTRAP_SECRET</code> in <code>.env.local</code>.</p>}
-    </section>
-  </main>;
-}
-
-function Onboarding({ onComplete, onCancel }: { onComplete:(data:OnboardingData)=>void; onCancel?:()=>void }) {
-  const [step, setStep] = useState(1);
-  const [data, setData] = useState<OnboardingData>(emptyOnboarding);
-  const total = 4;
-  const goals = goalPresets[data.industry] || defaultGoals;
-  const set = (field:keyof OnboardingData, value:string|string[]) => setData(old => ({...old,[field]:value}));
-  const toggleGoal = (goal:string) => set('goals', data.goals.includes(goal) ? data.goals.filter(x=>x!==goal) : [...data.goals,goal]);
-  const forward = (e?:FormEvent) => { e?.preventDefault(); if(step < total) setStep(step+1); else onComplete(data); };
-
-  return <main className="onboarding-shell">
-    <section className="onboarding-brand-panel">
-      <div className="circuit-art" aria-hidden="true"><i/><i/><i/><i/><i/></div>
-      <div className="onboarding-brand"><img src="/bems-group-logo.png?v=20261024" alt=""/><div><strong>BEMS</strong><span>GROUP</span></div></div>
-      <div className="onboarding-promise"><span>BEMS GROUP EXPENDITURE & ACCOUNTABILITY</span><h1>{onCancel ? 'Create another business workspace.' : 'Set up your first business.'}</h1><p>Staff requests and company spending stay organized across subsidiaries, with approvals and accountability in one place.</p></div>
-      <div className="trust-list"><span>✓ Staff signup with admin approval</span><span>✓ Secure role-based access</span><span>✓ Auditable request and payment history</span></div>
-      <small>© 2026 BEMS Group Holdings</small>
-    </section>
-    <section className="onboarding-main">
-      <header className="onboarding-top">
-        {onCancel ? <button className="text-button" onClick={onCancel}>← Back to workspace</button> : <span/>}
-        <span>{`Business setup ${step} of ${total}`}</span>
-      </header>
-      <div className="onboarding-progress"><i style={{width:`${(step/total)*100}%`}}/></div>
-      <form className="journey-card" onSubmit={forward}>
-        {step===1 && <><p className="kicker">{onCancel?'ADD A BUSINESS':'YOUR FIRST BUSINESS'}</p><h2>Tell us about this business</h2><p className="lead">We use this to recommend the right services, safeguards and onboarding steps. Each business remains separate.</p><div className="form-grid"><label className="full">Business or product name<input required value={data.businessName} onChange={e=>set('businessName',e.target.value)} placeholder="e.g. Acme Finance"/></label><label>Industry<select value={data.industry} onChange={e=>{set('industry',e.target.value);set('goals',[])}}>{industryOptions.map(x=><option key={x}>{x}</option>)}</select></label><label>Team size<select value={data.size} onChange={e=>set('size',e.target.value)}>{['1–10 employees','11–50 employees','51–200 employees','201–1,000 employees','1,000+ employees'].map(x=><option key={x}>{x}</option>)}</select></label><label>Country<select value={data.country} onChange={e=>set('country',e.target.value)}><option>Nigeria</option><option>Ghana</option><option>Kenya</option><option>South Africa</option><option>Other</option></select></label><label>Business registration number <span>(optional)</span><input placeholder="RC / CAC number"/></label></div></>}
-        {step===2 && <><p className="kicker">SECTOR-SPECIFIC ONBOARDING</p><h2>What should customers be able to do?</h2><p className="lead">Select all relevant outcomes. These recommendations are tailored to {data.industry.toLowerCase()}.</p><div className="goal-grid">{goals.map(goal=><button type="button" onClick={()=>toggleGoal(goal)} className={data.goals.includes(goal)?'goal selected':'goal'} key={goal}><i>{data.goals.includes(goal)?'✓':'+'}</i><span>{goal}</span></button>)}</div><div className="sector-note"><span>✦</span><div><strong>Recommended controls included</strong><p>{data.industry.includes('Financial')||data.industry==='Banking'||data.industry.includes('Investment')?'Identity verification, consent, transaction audit and human approval will be added to sensitive journeys.':'We will add the relevant identity, consent, accessibility and operational controls for this sector.'}</p></div></div></>}
-        {step===3 && <><p className="kicker">RECOMMENDED SETUP</p><h2>Your launch configuration</h2><p className="lead">You can change every recommendation before paying or publishing.</p><div className="recommend-grid"><div><span>01</span><strong>Web chat + WhatsApp</strong><small>Start where customers already are</small></div><div><span>02</span><strong>{data.goals.length || 4} service workflows</strong><small>Based on the outcomes you selected</small></div><div><span>03</span><strong>Identity & policy controls</strong><small>Tailored to {data.industry}</small></div><div><span>04</span><strong>Optional controlled AI</strong><small>Off until you explicitly enable it</small></div></div><div className="test-banner"><b>TEST</b><div><strong>Nothing goes live automatically</strong><p>Your business starts in a protected Test environment with launch checks.</p></div></div></>}
-        {step===4 && <><p className="kicker">PLAN & PAYMENT</p><h2>Choose how this business starts</h2><p className="lead">Every business has independent pricing, usage and invoices. Provider charges remain transparent.</p><div className="plan-grid">{[['Starter','₦25,000','Build and test core journeys'],['Growth','₦48,500','Launch multiple channels and services'],['Scale','Custom','Advanced security, BI and support']].map(p=><button type="button" className={data.plan===p[0]?'plan-option selected':'plan-option'} onClick={()=>set('plan',p[0])} key={p[0]}><span>{p[0]==='Growth'?'RECOMMENDED':'PLAN'}</span><h3>{p[0]}</h3><strong>{p[1]}<small>{p[1]!=='Custom'?'/month estimate':''}</small></strong><p>{p[2]}</p></button>)}</div><div className="payment-row"><span>Payment method</span><b>Secure card or bank transfer will connect to the backend</b></div></>}
-        <footer className="journey-actions">{step>1 ? <button type="button" className="back-button" onClick={()=>setStep(step-1)}>Back</button>:<span/>}<button className="continue-button">{step===total?'Create business workspace':'Continue'} <span>→</span></button></footer>
-      </form>
     </section>
   </main>;
 }
@@ -3574,37 +3541,23 @@ export default function Home() {
     window.location.replace('/');
   };
 
-  const complete=(data:OnboardingData)=>{
-    if(data.businessName){
-      const words=data.businessName.trim().split(/\s+/);
-      const initials=words.slice(0,2).map(x=>x[0]).join('').toUpperCase();
-      fetch('/api/organizations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: data.businessName,
-          industry: data.industry || 'Software & Cloud Services',
-          initialBudget: 10000000,
-        })
-      })
-      .then(r => r.json())
-      .then(res => {
-        if (res && res.organization) {
-          const next: Business = {
-            id: res.organization.id,
-            name: res.organization.name || res.organization.legalName,
-            industry: data.industry || 'General',
-            initials: initials || 'NB',
-            status: 'Live',
-            readiness: 100,
-            color: '#ea580c',
-            aiEnabled: true,
-          };
-          setBusinesses(old => [...old, next]);
-          setCurrentId(next.id);
-        }
-      })
-      .catch(err => console.error(err));
+  const handleSubsidiaryCreated = (newOrg: any) => {
+    if (newOrg && (newOrg.id || newOrg.name)) {
+      const next: Business = {
+        id: newOrg.id,
+        name: newOrg.name || newOrg.legalName,
+        industry: newOrg.industry || 'Subsidiary Entity',
+        initials: newOrg.initials || (newOrg.code ? newOrg.code.replace(/^BEMS-?/, '').slice(0, 2) : 'BS'),
+        status: 'Live',
+        readiness: 100,
+        color: newOrg.color || '#ea580c',
+        aiEnabled: true,
+      };
+      setBusinesses(old => {
+        const exists = old.some(b => b.id === next.id);
+        return exists ? old : [...old, next];
+      });
+      setCurrentId(next.id);
     }
     setAddingBusiness(false);
   };
@@ -3638,7 +3591,7 @@ export default function Home() {
   }
 
   if (status === 'error') return <main className="app-loading error"><p>Could not reach the BEMS Group API. Confirm the backend is running on port 4001.</p><button onClick={retryLoad}>Retry →</button></main>;
-  if (addingBusiness) return <Onboarding onCancel={businesses.length?()=>setAddingBusiness(false):undefined} onComplete={complete}/>;
-  if (businesses.length === 0 && authStatus === 'signed-in') return <Onboarding onComplete={complete}/>;
+  if (addingBusiness) return <CorporateSubsidiaryModal onCancel={businesses.length ? () => setAddingBusiness(false) : undefined} onComplete={handleSubsidiaryCreated} />;
+  if (businesses.length === 0 && authStatus === 'signed-in') return <CorporateSubsidiaryModal onComplete={handleSubsidiaryCreated} />;
   return <AppWorkspace user={user} onSignOut={signOut} onAddBusiness={()=>setAddingBusiness(true)} businesses={businesses} currentId={currentId||businesses[0].id} setCurrentId={setCurrentId} onUpdateBusiness={updateBusiness}/>;
 }
