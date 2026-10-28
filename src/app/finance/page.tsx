@@ -213,7 +213,6 @@ const staffNavGroups = [
   {
     label: 'SUPPORT & ACCESS',
     items: [
-      ['Request channels', '◎'],
       ['Settings & Profile', '⚙'],
     ]
   },
@@ -238,7 +237,6 @@ const gmdNavGroups = [
       ['Recurring commitments', '◌'],
       ['Hybrid payroll', '⌁'],
       ['Intercompany notes', '▥'],
-      ['Request channels', '◎'],
       ['Receipt archive', '▣'],
     ]
   },
@@ -259,7 +257,6 @@ const aiAnalystNavGroups = [
     items: [
       ['AI Copilot & Chat', '✦'],
       ['Executive briefing', '◈'],
-      ['Request channels', '◎'],
     ]
   },
 ];
