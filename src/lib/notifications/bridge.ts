@@ -287,7 +287,11 @@ export async function notifyApprovalRequired(params: {
   const emailPromise = (async () => {
     try {
       const execs = await getExecutiveRecipients();
-      for (const exec of execs) {
+      for (let i = 0; i < execs.length; i++) {
+        const exec = execs[i];
+        if (i > 0) {
+          await new Promise((r) => setTimeout(r, 600));
+        }
         await sendGmdRequisitionAlert({
           gmdEmail: exec.email,
           gmdName: exec.name,
@@ -298,7 +302,7 @@ export async function notifyApprovalRequired(params: {
           amountMinor: params.amountMinor,
           justification: params.justification || "Official expenditure request awaiting review.",
           approverRole: params.approverRole,
-        });
+        }).catch((err) => console.error(`Failed to dispatch alert to ${exec.email}:`, err));
       }
     } catch (err) {
       console.error("Failed to dispatch GMD requisition email:", err);

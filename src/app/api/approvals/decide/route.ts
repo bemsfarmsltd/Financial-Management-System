@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { requestIdentifierWhere, toSystemRequestId } from '@/lib/request-id';
+import { sendApprovalDecisionEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     for (const id of ids) {
       const expReq = await prisma.expenditureRequest.findUnique({
         where: requestIdentifierWhere(id),
-        include: { approvalSteps: { orderBy: { stageIndex: 'asc' } }, channel: true },
+        include: { approvalSteps: { orderBy: { stageIndex: 'asc' } }, channel: true, requester: true },
       });
       if (!expReq) continue;
       const approvalSettings = await prisma.workspaceSetting.findUnique({ where: { organizationId_key: { organizationId: expReq.subsidiaryId, key: 'approval.controls' } }, select: { value: true } });
@@ -113,6 +114,22 @@ export async function POST(request: Request) {
           },
         });
       });
+
+      // Dispatch decision email to the staff requester
+      if (expReq.requester?.workEmail) {
+        sendApprovalDecisionEmail({
+          to: expReq.requester.workEmail,
+          recipientName: expReq.requester.legalName,
+          decision: decision as 'APPROVED' | 'REJECTED' | 'CLARIFICATION_REQUESTED',
+          decidedBy: actor.legalName,
+          decidedByRole: actor.role,
+          requestNumber: expReq.requestNumber,
+          title: expReq.title,
+          amountMinor: Number(expReq.amountMinor),
+          reason: typeof note === 'string' && note.trim() ? note.trim() : null,
+        }).catch((err) => console.error(`Failed to send decision email to ${expReq.requester.workEmail}:`, err));
+      }
+
       results.push({ id: expReq.id, systemId: toSystemRequestId(expReq.id), requestNumber: expReq.requestNumber, status: nextStatus });
     }
     return NextResponse.json({ success: true, decision, processedCount: results.length, results });

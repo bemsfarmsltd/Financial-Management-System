@@ -3,7 +3,7 @@ import { getAuthenticatedEmployee } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { requestIdentifierWhere, toSystemRequestId } from '@/lib/request-id';
 import { enforceMobileVersionGate } from '@/lib/mobile-gate';
-import { sendChatMessageEmail } from '@/lib/email';
+import { sendChatMessageEmail, sendApprovalDecisionEmail } from '@/lib/email';
 
 const messageSelect = {
   id: true,
@@ -39,12 +39,18 @@ export async function GET(
     where: { role: { in: request.approvalSteps.map((step) => step.assignedRole) }, status: 'ACTIVE', approvalStatus: 'APPROVED' },
     select: { id: true, legalName: true, role: true },
   });
+  const activeExecutives = await prisma.employee.findMany({
+    where: { role: { in: ['GMD', 'SYSTEM_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' },
+    select: { id: true, legalName: true, role: true },
+  });
   const participantMap = new Map<string, { id: string; name: string; role: string }>();
   participantMap.set(request.requester.id, { id: request.requester.id, name: request.requester.legalName, role: request.requester.role });
   for (const step of request.approvalSteps) {
     if (step.approver) participantMap.set(step.approver.id, { id: step.approver.id, name: step.approver.legalName, role: step.approver.role });
   }
   for (const employee of roleApprovers) participantMap.set(employee.id, { id: employee.id, name: employee.legalName, role: employee.role });
+  for (const exec of activeExecutives) participantMap.set(exec.id, { id: exec.id, name: exec.legalName, role: exec.role });
+
   const participants = [...participantMap.values()];
   const isPrivileged = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN';
   if (!isPrivileged && !participantMap.has(actor.id)) return NextResponse.json({ error: 'You are not part of this request.' }, { status: 403 });
@@ -94,12 +100,18 @@ export async function POST(
       where: { role: { in: req.approvalSteps.map((step) => step.assignedRole) }, status: 'ACTIVE', approvalStatus: 'APPROVED' },
       select: { id: true, legalName: true, role: true },
     });
+    const activeExecutives = await prisma.employee.findMany({
+      where: { role: { in: ['GMD', 'SYSTEM_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' },
+      select: { id: true, legalName: true, role: true },
+    });
     const participantMap = new Map<string, { id: string; name: string; role: string }>();
     participantMap.set(req.requester.id, { id: req.requester.id, name: req.requester.legalName, role: req.requester.role });
     for (const step of req.approvalSteps) {
       if (step.approver) participantMap.set(step.approver.id, { id: step.approver.id, name: step.approver.legalName, role: step.approver.role });
     }
     for (const employee of assignedEmployees) participantMap.set(employee.id, { id: employee.id, name: employee.legalName, role: employee.role });
+    for (const exec of activeExecutives) participantMap.set(exec.id, { id: exec.id, name: exec.legalName, role: exec.role });
+
     const privileged = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN';
     if (!privileged && !participantMap.has(actor.id)) return NextResponse.json({ error: 'You are not part of this request.' }, { status: 403 });
 
@@ -166,8 +178,12 @@ export async function POST(
               select: { id: true, legalName: true, workEmail: true },
             });
 
-            for (const emp of targetEmployees) {
+            for (let i = 0; i < targetEmployees.length; i++) {
+              const emp = targetEmployees[i];
               if (emp.workEmail) {
+                if (i > 0) {
+                  await new Promise((r) => setTimeout(r, 600));
+                }
                 await sendChatMessageEmail({
                   to: emp.workEmail,
                   recipientName: emp.legalName,
@@ -246,6 +262,22 @@ export async function POST(
           },
         });
       });
+
+      // Dispatch decision email to the staff requester
+      if (req.requester?.workEmail) {
+        sendApprovalDecisionEmail({
+          to: req.requester.workEmail,
+          recipientName: req.requester.legalName,
+          decision: action === 'APPROVE' ? 'APPROVED' : action === 'REJECT' ? 'REJECTED' : 'CLARIFICATION_REQUESTED',
+          decidedBy: actor.legalName,
+          decidedByRole: actor.role,
+          requestNumber: req.requestNumber,
+          title: req.title,
+          amountMinor: Number(req.amountMinor),
+          reason: decisionReason || text || null,
+        }).catch((err) => console.error('Failed to send decision email to requester:', err));
+      }
+
       return NextResponse.json({ success: true, approvalStatus });
     }
     return NextResponse.json({ error: 'Invalid action.' }, { status: 400 });

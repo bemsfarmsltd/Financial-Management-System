@@ -17,7 +17,7 @@ const SMTP_FROM = process.env.SMTP_FROM || 'BEMS Group Notifications <notificati
 const RESEND_FROM = process.env.RESEND_FROM || 'BEMS Group Notifications <notifications@bemserp.work>';
 
 function getResendClient() {
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey = (process.env.RESEND_API_KEY || '').trim();
   if (!apiKey || !apiKey.startsWith('re_')) {
     return null;
   }
@@ -54,41 +54,54 @@ export async function sendEmail({ to, subject, html, text, eventType = 'GENERAL_
   const recipients = recipientList.join(', ');
   const recipientsStr = recipients;
 
-  // 1. Prioritize Resend if configured
+  // 1. Prioritize Resend with retry capability
   const resend = getResendClient();
   if (resend) {
-    try {
-      const response = await resend.emails.send({
-        from: RESEND_FROM,
-        to: recipientList,
-        subject,
-        html,
-        text: text || subject,
-      });
+    let attempt = 0;
+    while (attempt < 2) {
+      attempt++;
+      try {
+        const response = await resend.emails.send({
+          from: RESEND_FROM,
+          to: recipientList,
+          subject,
+          html,
+          text: text || subject,
+        });
 
-      if (response.error) {
-        console.error('Resend API returned error:', response.error);
-      } else {
-        const messageId = response.data?.id;
-        try {
-          await prisma.outboundNotification.create({
-            data: {
-              channel: 'EMAIL',
-              recipient: recipientsStr,
-              eventType,
-              payload: JSON.stringify({ subject, to: recipientList, provider: 'resend' }),
-              status: 'SENT',
-              externalId: messageId || `resend-${Date.now()}`,
-            },
-          });
-        } catch (dbErr) {
-          console.error('Failed to log outbound email notification:', dbErr);
+        if (response.error) {
+          console.error(`[Resend Error (attempt ${attempt})] to ${recipients}:`, JSON.stringify(response.error));
+          // If rate limited, sleep 1000ms and retry
+          if (attempt === 1 && (response.error.name === 'rate_limit_exceeded' || (response.error as any).statusCode === 429)) {
+            await new Promise((r) => setTimeout(r, 1000));
+            continue;
+          }
+        } else {
+          const messageId = response.data?.id;
+          try {
+            await prisma.outboundNotification.create({
+              data: {
+                channel: 'EMAIL',
+                recipient: recipientsStr,
+                eventType,
+                payload: JSON.stringify({ subject, to: recipientList, provider: 'resend' }),
+                status: 'SENT',
+                externalId: messageId || `resend-${Date.now()}`,
+              },
+            });
+          } catch (dbErr) {
+            console.error('Failed to log outbound email notification:', dbErr);
+          }
+
+          return { success: true, messageId };
         }
-
-        return { success: true, messageId };
+      } catch (err: any) {
+        console.error(`[Resend Exception (attempt ${attempt})] to ${recipients}:`, err);
+        if (attempt === 1) {
+          await new Promise((r) => setTimeout(r, 1000));
+          continue;
+        }
       }
-    } catch (err: any) {
-      console.error('Resend dispatch exception, attempting fallback:', err);
     }
   }
 
@@ -792,6 +805,105 @@ export async function sendChatMessageEmail(params: {
       content,
       callToAction: {
         label: 'View Conversation & Reply',
+        url,
+      },
+    }),
+  });
+}
+
+/**
+ * Dispatches real-time email notification when an approval decision is made
+ */
+export async function sendApprovalDecisionEmail(params: {
+  to: string | string[];
+  recipientName: string;
+  decision: 'APPROVED' | 'REJECTED' | 'CLARIFICATION_REQUESTED';
+  decidedBy: string;
+  decidedByRole: string;
+  requestNumber: string;
+  title: string;
+  amountMinor: number;
+  reason?: string | null;
+}) {
+  const url = `${APP_URL}/requests/${params.requestNumber}`;
+  const amountFormatted = `₦${(params.amountMinor / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+
+  const isApproved = params.decision === 'APPROVED';
+  const isRejected = params.decision === 'REJECTED';
+
+  const badgeColor = isApproved ? '#16a34a' : isRejected ? '#dc2626' : '#ea580c';
+  const badgeBg = isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : '#fff7ed';
+  const badgeBorder = isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : '#fed7aa';
+  const badgeText = isApproved ? 'Approved' : isRejected ? 'Declined' : 'Clarification Requested';
+
+  const statusTitle = isApproved
+    ? 'Requisition Approved'
+    : isRejected
+      ? 'Requisition Declined'
+      : 'Clarification Requested';
+
+  const subject = isApproved
+    ? `✅ [Approved] Fund Request ${params.requestNumber} (${amountFormatted})`
+    : isRejected
+      ? `❌ [Declined] Fund Request ${params.requestNumber} (${amountFormatted})`
+      : `⚠️ [Clarification Needed] Fund Request ${params.requestNumber} (${amountFormatted})`;
+
+  const content = `
+    <h2 style="margin: 0 0 12px; font-size: 19px; font-weight: 800; color: #0f172a;">
+      ${statusTitle}
+    </h2>
+    <p style="margin: 0 0 16px; color: #475569; font-size: 14px; line-height: 1.5;">
+      Hello <strong>${params.recipientName}</strong>, your expenditure requisition has received a formal decision from executive review.
+    </p>
+
+    <div style="background: ${badgeBg}; border: 1px solid ${badgeBorder}; border-left: 4px solid ${badgeColor}; border-radius: 8px; padding: 18px; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+        <tr>
+          <td style="padding: 6px 0; color: #64748b; width: 140px;">Requisition:</td>
+          <td style="padding: 6px 0; color: #0f172a; font-weight: 700;">${params.title} (<code>${params.requestNumber}</code>)</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Amount:</td>
+          <td style="padding: 6px 0; color: #0f172a; font-weight: 800; font-size: 15px;">${amountFormatted}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Reviewer:</td>
+          <td style="padding: 6px 0; color: #0f172a; font-weight: 700;">${params.decidedBy} (${params.decidedByRole.replace(/_/g, ' ')})</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Decision:</td>
+          <td style="padding: 6px 0; color: ${badgeColor}; font-weight: 800; text-transform: uppercase;">${badgeText}</td>
+        </tr>
+        ${params.reason ? `
+        <tr>
+          <td style="padding: 6px 0; color: #64748b; vertical-align: top;">Decision Notes:</td>
+          <td style="padding: 6px 0; color: #1e293b; font-style: italic;">"${params.reason}"</td>
+        </tr>
+        ` : ''}
+      </table>
+    </div>
+
+    <p style="margin: 16px 0 0; color: #475569; font-size: 13px; line-height: 1.5;">
+      ${isApproved
+        ? 'Your request is cleared for finance disbursement processing. You will receive an update once the disbursement is logged.'
+        : isRejected
+          ? 'If you have further questions regarding this decision, you can reply directly in the requisition communication channel.'
+          : 'Please open the requisition channel to provide the requested clarifications so review can resume.'}
+    </p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject,
+    eventType: `APPROVAL_${params.decision}`,
+    text: `${statusTitle}: ${params.requestNumber} (${amountFormatted}) by ${params.decidedBy}.\n\nNotes: "${params.reason || 'None'}"\n\nLink: ${url}`,
+    html: wrapEmailTemplate({
+      title: statusTitle,
+      preheader: `${statusTitle}: ${params.requestNumber} - ${amountFormatted}`,
+      badge: badgeText,
+      content,
+      callToAction: {
+        label: `Open Requisition ${params.requestNumber} →`,
         url,
       },
     }),

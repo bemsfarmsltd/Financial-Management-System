@@ -202,9 +202,13 @@ export async function POST(req: Request) {
           })),
         });
 
-        for (const adm of admins) {
+        for (let i = 0; i < admins.length; i++) {
+          const adm = admins[i];
           if (adm.workEmail) {
-            sendChatMessageEmail({
+            if (i > 0) {
+              await new Promise((r) => setTimeout(r, 600));
+            }
+            await sendChatMessageEmail({
               to: adm.workEmail,
               recipientName: adm.legalName,
               senderName: actor.legalName,
