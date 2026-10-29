@@ -14,7 +14,8 @@ export async function POST(request: Request) {
     const { requestId, requestIds, decision, note, disbursementAssigneeId } = body;
     const ids: string[] = Array.isArray(requestIds) && requestIds.length > 0 ? requestIds : requestId ? [requestId] : [];
     if (!ids.length) return NextResponse.json({ error: 'Choose at least one request.' }, { status: 400 });
-    if (!['APPROVED', 'REJECTED', 'CLARIFICATION_REQUESTED'].includes(decision)) {
+    const normalizedDecision = decision === 'APPROVE' ? 'APPROVED' : decision === 'REJECT' ? 'REJECTED' : decision;
+    if (!['APPROVED', 'REJECTED', 'CLARIFICATION_REQUESTED'].includes(normalizedDecision)) {
       return NextResponse.json({ error: 'Invalid decision type.' }, { status: 400 });
     }
 
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
       let policy: { requireDecisionReason?: boolean; requireAssignedDisbursementOwner?: boolean } = {};
       try { if (approvalSettings?.value) policy = JSON.parse(approvalSettings.value); } catch { policy = {}; }
       const requiresReason = policy.requireDecisionReason !== false;
-      if (['REJECTED', 'CLARIFICATION_REQUESTED'].includes(decision) && requiresReason && (typeof note !== 'string' || !note.trim())) {
+      if (['REJECTED', 'CLARIFICATION_REQUESTED'].includes(normalizedDecision) && requiresReason && (typeof note !== 'string' || !note.trim())) {
         return NextResponse.json({ error: 'Add a reason before rejecting or requesting clarification.' }, { status: 400 });
       }
       const pendingStep = expReq.approvalSteps.find((step) => step.status === 'PENDING');
@@ -39,18 +40,18 @@ export async function POST(request: Request) {
       }
 
       const timestamp = new Date();
-      const nextStatus = decision === 'REJECTED'
+      const nextStatus = normalizedDecision === 'REJECTED'
         ? 'REJECTED'
-        : decision === 'CLARIFICATION_REQUESTED'
+        : normalizedDecision === 'CLARIFICATION_REQUESTED'
           ? 'CLARIFICATION_REQUESTED'
           : expReq.approvalSteps.some((step) => step.stageIndex > pendingStep.stageIndex && step.status === 'PENDING')
             ? 'IN_REVIEW'
             : 'APPROVED';
-      if (decision === 'APPROVED' && nextStatus === 'APPROVED' && policy.requireAssignedDisbursementOwner && !disbursementAssigneeId) {
+      if (normalizedDecision === 'APPROVED' && nextStatus === 'APPROVED' && policy.requireAssignedDisbursementOwner && !disbursementAssigneeId) {
         return NextResponse.json({ error: 'Assign an executive to record the payment before final approval.' }, { status: 400 });
       }
       let disbursementAssignee: { id: string; legalName: string } | null = null;
-      if (decision === 'APPROVED' && disbursementAssigneeId) {
+      if (normalizedDecision === 'APPROVED' && disbursementAssigneeId) {
         if (ids.length !== 1 || nextStatus !== 'APPROVED') {
           return NextResponse.json({ error: 'A disbursement owner can only be assigned on the final approval of one request.' }, { status: 400 });
         }
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
         await tx.approvalStep.update({
           where: { id: pendingStep.id },
           data: {
-            status: decision === 'APPROVED' ? 'APPROVED' : decision === 'REJECTED' ? 'REJECTED' : 'PENDING',
+            status: normalizedDecision === 'APPROVED' ? 'APPROVED' : normalizedDecision === 'REJECTED' ? 'REJECTED' : 'PENDING',
             approverId: actor.id,
             approverName: actor.legalName,
             decidedAt: timestamp,
@@ -94,13 +95,13 @@ export async function POST(request: Request) {
           } });
         }
         if (expReq.channel) {
-          const actionText = decision === 'APPROVED'
+          const actionText = normalizedDecision === 'APPROVED'
             ? `Approved by ${actor.legalName}.${nextStatus === 'IN_REVIEW' ? ' Routed to the next approval stage.' : disbursementAssignee ? ` Disbursement recording and receipt upload assigned to ${disbursementAssignee.legalName}.` : ' Ready for Finance disbursement recording.'}`
-            : decision === 'REJECTED'
+            : normalizedDecision === 'REJECTED'
               ? `Declined by ${actor.legalName}: ${note.trim()}`
               : `Clarification requested by ${actor.legalName}: ${note.trim()}`;
           await tx.channelMessage.create({
-            data: { channelId: expReq.channel.id, authorId: actor.id, authorName: actor.legalName, authorRole: actor.role, body: actionText, messageType: decision === 'CLARIFICATION_REQUESTED' ? 'CLARIFICATION' : 'AUDIT_EVENT' },
+            data: { channelId: expReq.channel.id, authorId: actor.id, authorName: actor.legalName, authorRole: actor.role, body: actionText, messageType: normalizedDecision === 'CLARIFICATION_REQUESTED' ? 'CLARIFICATION' : 'AUDIT_EVENT' },
           });
         }
         await tx.auditEvent.create({
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
             actorId: actor.id, actorName: actor.legalName, actorRole: actor.role,
             groupId: expReq.groupId, subsidiaryId: expReq.subsidiaryId,
             targetType: 'REQUEST', targetId: expReq.id,
-            action: decision === 'APPROVED' ? 'APPROVED' : decision === 'REJECTED' ? 'REJECTED' : 'CLARIFICATION_REQUESTED',
+            action: normalizedDecision === 'APPROVED' ? 'APPROVED' : normalizedDecision === 'REJECTED' ? 'REJECTED' : 'CLARIFICATION_REQUESTED',
             correlationId: `CORR-${Date.now()}`,
             metadata: JSON.stringify({ requestNumber: expReq.requestNumber, note: typeof note === 'string' ? note.trim() : null }),
           },
@@ -120,7 +121,7 @@ export async function POST(request: Request) {
         sendApprovalDecisionEmail({
           to: expReq.requester.workEmail,
           recipientName: expReq.requester.legalName,
-          decision: decision as 'APPROVED' | 'REJECTED' | 'CLARIFICATION_REQUESTED',
+          decision: normalizedDecision as 'APPROVED' | 'REJECTED' | 'CLARIFICATION_REQUESTED',
           decidedBy: actor.legalName,
           decidedByRole: actor.role,
           requestNumber: expReq.requestNumber,
@@ -130,9 +131,33 @@ export async function POST(request: Request) {
         }).catch((err) => console.error(`Failed to send decision email to ${expReq.requester.workEmail}:`, err));
       }
 
-      results.push({ id: expReq.id, systemId: toSystemRequestId(expReq.id), requestNumber: expReq.requestNumber, status: nextStatus });
+      const requesterDisbursementAccount = {
+        bankName: expReq.requester?.bankName || expReq.requester?.salaryBankName || null,
+        accountNumber: expReq.requester?.accountNumber || expReq.requester?.salaryAccountNumber || null,
+        accountName: expReq.requester?.accountName || expReq.requester?.salaryAccountName || expReq.requester?.legalName || '',
+        requesterName: expReq.requester?.legalName || 'Requester',
+        amountNaira: Number(expReq.amountMinor) / 100,
+        amountMinor: expReq.amountMinor.toString(),
+        currency: expReq.currency || 'NGN',
+        title: expReq.title,
+        requestNumber: expReq.requestNumber,
+      };
+
+      results.push({
+        id: expReq.id,
+        systemId: toSystemRequestId(expReq.id),
+        requestNumber: expReq.requestNumber,
+        status: nextStatus,
+        requesterDisbursementAccount,
+      });
     }
-    return NextResponse.json({ success: true, decision, processedCount: results.length, results });
+    return NextResponse.json({
+      success: true,
+      decision: normalizedDecision,
+      processedCount: results.length,
+      results,
+      requesterDisbursementAccount: results[0]?.requesterDisbursementAccount || null,
+    });
   } catch (error) {
     console.error('Error recording approval decision:', error);
     return NextResponse.json({ error: 'Failed to process decision.' }, { status: 500 });

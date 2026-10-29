@@ -278,7 +278,19 @@ export async function POST(
         }).catch((err) => console.error('Failed to send decision email to requester:', err));
       }
 
-      return NextResponse.json({ success: true, approvalStatus });
+      const requesterDisbursementAccount = action === 'APPROVE' ? {
+        bankName: req.requester?.bankName || req.requester?.salaryBankName || null,
+        accountNumber: req.requester?.accountNumber || req.requester?.salaryAccountNumber || null,
+        accountName: req.requester?.accountName || req.requester?.salaryAccountName || req.requester?.legalName || '',
+        requesterName: req.requester?.legalName || 'Requester',
+        amountNaira: Number(req.amountMinor) / 100,
+        amountMinor: req.amountMinor.toString(),
+        currency: req.currency || 'NGN',
+        title: req.title,
+        requestNumber: req.requestNumber,
+      } : null;
+
+      return NextResponse.json({ success: true, approvalStatus, requesterDisbursementAccount });
     }
     return NextResponse.json({ error: 'Invalid action.' }, { status: 400 });
   } catch (error) {

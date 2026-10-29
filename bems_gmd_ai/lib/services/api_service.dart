@@ -285,7 +285,7 @@ class ApiService {
     }
   }
 
-  static Future<bool> decideApproval({
+  static Future<Map<String, dynamic>> decideApprovalWithDetails({
     required String requestId,
     required String decision, // 'APPROVE' or 'REJECT'
     String? note,
@@ -303,7 +303,35 @@ class ApiService {
       timeout: const Duration(seconds: 12),
     );
 
-    return response.statusCode == 200;
+    if (response.statusCode == 200) {
+      try {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'data': data,
+          'disbursementAccount': data['requesterDisbursementAccount'] ??
+              (data['results'] is List && (data['results'] as List).isNotEmpty
+                  ? (data['results'] as List)[0]['requesterDisbursementAccount']
+                  : null),
+        };
+      } catch (_) {
+        return {'success': true, 'data': null, 'disbursementAccount': null};
+      }
+    }
+    return {'success': false, 'error': 'Server returned ${response.statusCode}'};
+  }
+
+  static Future<bool> decideApproval({
+    required String requestId,
+    required String decision, // 'APPROVE' or 'REJECT'
+    String? note,
+  }) async {
+    final res = await decideApprovalWithDetails(
+      requestId: requestId,
+      decision: decision,
+      note: note,
+    );
+    return res['success'] == true;
   }
 
   static Future<Map<String, dynamic>> fetchTelemetry() async {

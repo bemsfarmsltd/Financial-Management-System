@@ -137,6 +137,9 @@ export async function GET(request: Request) {
           role: req.requester?.role || 'STAFF',
           employeeNumber: req.requester?.employeeNumber || '',
           department: departmentName,
+          bankName: req.requester?.bankName || req.requester?.salaryBankName || null,
+          accountNumber: req.requester?.accountNumber || req.requester?.salaryAccountNumber || null,
+          accountName: req.requester?.accountName || req.requester?.salaryAccountName || req.requester?.legalName || '',
         },
         vendor: req.vendor
           ? {

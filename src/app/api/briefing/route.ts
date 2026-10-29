@@ -120,6 +120,9 @@ export async function GET(request: Request) {
         legalName: r.requester.legalName,
         role: r.requester.role,
         workEmail: r.requester.workEmail,
+        bankName: r.requester.bankName || r.requester.salaryBankName || null,
+        accountNumber: r.requester.accountNumber || r.requester.salaryAccountNumber || null,
+        accountName: r.requester.accountName || r.requester.salaryAccountName || r.requester.legalName,
       },
       approvalSteps: r.approvalSteps.map(s => ({
         id: s.id,

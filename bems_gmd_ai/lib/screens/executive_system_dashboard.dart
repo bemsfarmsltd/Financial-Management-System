@@ -8,6 +8,7 @@ import '../widgets/charts/expenditure_histogram.dart';
 import '../widgets/charts/subsidiary_burn_bars.dart';
 import '../widgets/charts/accountability_sla_gauge.dart';
 import '../models/workstation_scope.dart';
+import '../widgets/disbursement_transfer_modal.dart';
 
 class ExecutiveSystemDashboard extends StatefulWidget {
   final VoidCallback onOpenDrawer;
@@ -50,24 +51,54 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
 
   Future<void> _handleDecision(String id, String decision) async {
     setState(() => _loadingActionIds.add(id));
-    await ApiService.decideApproval(requestId: id, decision: decision);
+
+    final rawRequests = (_dashboardData?['pendingRequests'] as List<dynamic>?) ?? [];
+    final matchingReq = rawRequests.firstWhere(
+      (r) => r is Map && (r['id'] == id || r['requestNumber'] == id),
+      orElse: () => null,
+    );
+
+    final res = await ApiService.decideApprovalWithDetails(
+      requestId: id,
+      decision: decision,
+    );
 
     if (mounted) {
       setState(() {
         _loadingActionIds.remove(id);
-        _processedIds.add(id);
+        if (res['success'] == true) {
+          _processedIds.add(id);
+        }
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            decision == 'APPROVE'
-                ? '✓ Request approved & queued for bank payment.'
-                : 'Request declined.',
+
+      if (res['success'] == true && decision == 'APPROVE') {
+        final requester = matchingReq is Map ? matchingReq['requester'] : null;
+        final disbursementAccount = (res['disbursementAccount'] as Map<String, dynamic>?) ?? {
+          'bankName': requester is Map ? requester['bankName'] : null,
+          'accountNumber': requester is Map ? requester['accountNumber'] : null,
+          'accountName': requester is Map ? (requester['accountName'] ?? requester['legalName']) : null,
+          'requesterName': requester is Map ? requester['legalName'] : null,
+          'amountNaira': matchingReq is Map ? matchingReq['amountNaira'] : null,
+          'amountMinor': matchingReq is Map ? matchingReq['amountMinor'] : null,
+          'currency': matchingReq is Map ? matchingReq['currency'] : 'NGN',
+          'title': matchingReq is Map ? matchingReq['title'] : '',
+          'requestNumber': matchingReq is Map ? matchingReq['requestNumber'] : '',
+        };
+
+        DisbursementTransferModal.show(context, disbursementAccount);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              decision == 'APPROVE'
+                  ? '✓ Request approved & queued for bank payment.'
+                  : 'Request declined.',
+            ),
+            backgroundColor: decision == 'APPROVE' ? const Color(0xFF059669) : const Color(0xFFDC2626),
+            duration: const Duration(seconds: 2),
           ),
-          backgroundColor: decision == 'APPROVE' ? const Color(0xFF059669) : const Color(0xFFDC2626),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+        );
+      }
     }
   }
 

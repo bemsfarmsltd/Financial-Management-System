@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'disbursement_transfer_modal.dart';
 
 class InteractiveActionCard extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -21,17 +22,18 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
   final Set<String> _remindedCaseIds = {};
   final Set<String> _processingIds = {};
 
-  Future<void> _handleApproval(String requestId, bool approve) async {
+  Future<void> _handleApproval(String requestId, bool approve, [Map<String, dynamic>? itemData]) async {
     if (_processingIds.contains(requestId)) return;
     setState(() {
       _processingIds.add(requestId);
     });
 
-    final success = await ApiService.decideApproval(
+    final res = await ApiService.decideApprovalWithDetails(
       requestId: requestId,
       decision: approve ? 'APPROVE' : 'REJECT',
       note: approve ? 'Authorized by GMD via Executive AI Mobile' : 'Declined by GMD via Executive AI Mobile',
     );
+    final success = res['success'] == true;
 
     if (mounted) {
       setState(() {
@@ -44,18 +46,36 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
           }
         }
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: approve ? const Color(0xFF059669) : const Color(0xFFDC2626),
-          content: Text(
-            approve
-                ? 'Request successfully authorized by GMD.'
-                : 'Request declined.',
-            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+
+      if (success && approve) {
+        final requester = itemData != null && itemData['requester'] is Map ? itemData['requester'] : null;
+        final disbursementAccount = (res['disbursementAccount'] as Map<String, dynamic>?) ?? {
+          'bankName': requester != null ? requester['bankName'] : null,
+          'accountNumber': requester != null ? requester['accountNumber'] : null,
+          'accountName': requester != null ? (requester['accountName'] ?? requester['legalName']) : null,
+          'requesterName': requester != null ? requester['legalName'] : null,
+          'amountNaira': itemData != null ? itemData['amountNaira'] : null,
+          'amountMinor': itemData != null ? itemData['amountMinor'] : null,
+          'currency': itemData != null ? itemData['currency'] : 'NGN',
+          'title': itemData != null ? itemData['title'] : '',
+          'requestNumber': itemData != null ? (itemData['requestNumber'] ?? itemData['number']) : '',
+        };
+
+        DisbursementTransferModal.show(context, disbursementAccount);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: approve ? const Color(0xFF059669) : const Color(0xFFDC2626),
+            content: Text(
+              approve
+                  ? 'Request successfully authorized by GMD.'
+                  : 'Request declined.',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            duration: const Duration(seconds: 2),
           ),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+        );
+      }
     }
   }
 
@@ -360,7 +380,7 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
                               visualDensity: VisualDensity.compact,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
-                            onPressed: isProcessing ? null : () => _handleApproval(reqId, true),
+                            onPressed: isProcessing ? null : () => _handleApproval(reqId, true, r),
                             child: isProcessing
                                 ? const SizedBox(
                                     width: 12,

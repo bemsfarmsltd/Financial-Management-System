@@ -23,6 +23,7 @@ import {
   ChevronLeft,
   ArrowRight,
 } from "lucide-react";
+import { InstantTransferModal, RequesterDisbursementAccount } from "@/components/dashboard/gmd/InstantTransferModal";
 
 interface RequestChannelClientProps {
   request: any;
@@ -38,6 +39,7 @@ export function RequestChannelClient({ request }: RequestChannelClientProps) {
   const [clarificationText, setClarificationText] = useState("");
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approvalReason, setApprovalReason] = useState("Approved within standard operating budget.");
+  const [transferAccountModal, setTransferAccountModal] = useState<RequesterDisbursementAccount | null>(null);
   const [confirmingReceipt, setConfirmingReceipt] = useState(false);
   const [receiptIssue, setReceiptIssue] = useState("");
   const [showReceiptIssue, setShowReceiptIssue] = useState(false);
@@ -137,8 +139,19 @@ export function RequestChannelClient({ request }: RequestChannelClientProps) {
       });
 
       if (res.ok) {
+        const resData = await res.json().catch(() => ({}));
         setShowApproveModal(false);
-        router.refresh();
+        const transferDetails: RequesterDisbursementAccount = resData.requesterDisbursementAccount || {
+          bankName: request.requester?.bankName || null,
+          accountNumber: request.requester?.accountNumber || null,
+          accountName: request.requester?.accountName || request.requester?.legalName || '',
+          requesterName: request.requester?.legalName,
+          amountMinor: request.amountMinor?.toString(),
+          currency: request.currency || 'NGN',
+          title: request.title,
+          requestNumber: request.requestNumber,
+        };
+        setTransferAccountModal(transferDetails);
       }
     } catch (err) {
       console.error(err);
@@ -760,6 +773,16 @@ export function RequestChannelClient({ request }: RequestChannelClientProps) {
             </div>
           </div>
         </div>
+      )}
+      {transferAccountModal && (
+        <InstantTransferModal
+          isOpen={Boolean(transferAccountModal)}
+          onClose={() => {
+            setTransferAccountModal(null);
+            router.refresh();
+          }}
+          account={transferAccountModal}
+        />
       )}
     </div>
   );

@@ -33,6 +33,7 @@ import {
   Eye,
   Image as ImageIcon,
 } from 'lucide-react';
+import { InstantTransferModal, RequesterDisbursementAccount } from './InstantTransferModal';
 
 interface ApprovalStepItem {
   id: string;
@@ -89,6 +90,9 @@ interface RequestItem {
     role: string;
     employeeNumber: string;
     department: string;
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountName?: string | null;
   };
   vendor: VendorItem | null;
   threeWayMatch: {
@@ -195,6 +199,7 @@ export function ApprovalsDeskView({
     request: RequestItem | null;
     isBatch?: boolean;
   } | null>(null);
+  const [transferModalAccount, setTransferModalAccount] = useState<RequesterDisbursementAccount | null>(null);
   const [decisionNote, setDecisionNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -366,6 +371,21 @@ export function ApprovalsDeskView({
       setDecisionNote('');
       setSelectedIds(new Set());
       setDossierRequest(null);
+
+      if (decisionModal.type === 'APPROVED') {
+        const transferDetails: RequesterDisbursementAccount = resData.requesterDisbursementAccount || {
+          bankName: decisionModal.request?.requester?.bankName || null,
+          accountNumber: decisionModal.request?.requester?.accountNumber || null,
+          accountName: decisionModal.request?.requester?.accountName || decisionModal.request?.requester?.name || '',
+          requesterName: decisionModal.request?.requester?.name,
+          amountNaira: decisionModal.request?.amount,
+          currency: decisionModal.request?.currency || 'NGN',
+          title: decisionModal.request?.title,
+          requestNumber: decisionModal.request?.requestNumber,
+        };
+        setTransferModalAccount(transferDetails);
+      }
+
       await fetchApprovals();
       if (approvedRequestId) onApprovedRequest?.(approvedRequestId);
     } catch (err: any) {
@@ -2423,6 +2443,13 @@ export function ApprovalsDeskView({
         initialMessages={chatRequest.recentMessages}
         onClose={() => setChatRequest(null)}
       />}
+      {transferModalAccount && (
+        <InstantTransferModal
+          isOpen={Boolean(transferModalAccount)}
+          onClose={() => setTransferModalAccount(null)}
+          account={transferModalAccount}
+        />
+      )}
     </div>
   );
 }
