@@ -33,7 +33,18 @@ interface RequestItem {
   deliverable: string;
   createdAt: string;
   subsidiary: { id: string; legalName: string; code: string };
-  requester: { id: string; legalName: string; workEmail: string; role: string };
+  requester: {
+    id: string;
+    legalName: string;
+    workEmail: string;
+    role: string;
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountName?: string | null;
+    salaryBankName?: string | null;
+    salaryAccountNumber?: string | null;
+    salaryAccountName?: string | null;
+  };
   disbursementAssignee?: { id: string; legalName: string; role: string } | null;
   canRecord?: boolean;
   vendor?: {
@@ -183,9 +194,13 @@ export function DisbursementsDeskView({
 
   const openMakerModal = (req: RequestItem) => {
     setSelectedRequest(req);
-    setBeneficiaryName(req.vendor?.accountName || req.vendor?.name || req.requester.legalName);
-    setBeneficiaryBank(req.vendor?.bankName || '');
-    setBeneficiaryAccount(req.vendor?.accountNumber || '');
+    const targetBank = req.requester?.bankName || req.requester?.salaryBankName || req.vendor?.bankName || '';
+    const targetAccount = req.requester?.accountNumber || req.requester?.salaryAccountNumber || req.vendor?.accountNumber || '';
+    const targetName = req.requester?.accountName || req.requester?.salaryAccountName || req.requester?.legalName || req.vendor?.accountName || req.vendor?.name || '';
+
+    setBeneficiaryName(targetName);
+    setBeneficiaryBank(targetBank);
+    setBeneficiaryAccount(targetAccount);
     setExternalRef(`TRF-2026-${Math.floor(1000 + Math.random() * 9000)}`);
     setReceiptFile(null);
     setReceiptFileName('');

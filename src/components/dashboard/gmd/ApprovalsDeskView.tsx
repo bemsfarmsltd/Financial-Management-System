@@ -200,6 +200,7 @@ export function ApprovalsDeskView({
     isBatch?: boolean;
   } | null>(null);
   const [transferModalAccount, setTransferModalAccount] = useState<RequesterDisbursementAccount | null>(null);
+  const [pendingTransferRequestId, setPendingTransferRequestId] = useState<string | null>(null);
   const [decisionNote, setDecisionNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -384,10 +385,12 @@ export function ApprovalsDeskView({
           requestNumber: decisionModal.request?.requestNumber,
         };
         setTransferModalAccount(transferDetails);
+        setPendingTransferRequestId(approvedRequestId || null);
+      } else {
+        if (approvedRequestId) onApprovedRequest?.(approvedRequestId);
       }
 
       await fetchApprovals();
-      if (approvedRequestId) onApprovedRequest?.(approvedRequestId);
     } catch (err: any) {
       alert('Error recording decision: ' + err.message);
     } finally {
@@ -2446,7 +2449,18 @@ export function ApprovalsDeskView({
       {transferModalAccount && (
         <InstantTransferModal
           isOpen={Boolean(transferModalAccount)}
-          onClose={() => setTransferModalAccount(null)}
+          onClose={() => {
+            const nextId = pendingTransferRequestId;
+            setTransferModalAccount(null);
+            setPendingTransferRequestId(null);
+            if (nextId) onApprovedRequest?.(nextId);
+          }}
+          onProceedToDisbursement={() => {
+            const nextId = pendingTransferRequestId;
+            setTransferModalAccount(null);
+            setPendingTransferRequestId(null);
+            if (nextId) onApprovedRequest?.(nextId);
+          }}
           account={transferModalAccount}
         />
       )}
