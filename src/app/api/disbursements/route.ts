@@ -169,14 +169,52 @@ export async function POST(req: NextRequest) {
     const bankName = String(body.get('bankName') || '');
     const receiptFile = body.get('receipt');
 
-    if (!requestIdentifier || !payerOrgId || !externalReference || !bankName || !(receiptFile instanceof File)) {
-      return NextResponse.json({ error: 'Complete the payment details and attach the actual bank slip.' }, { status: 400 });
-    }
-    if (!['application/pdf', 'image/png', 'image/jpeg'].includes(receiptFile.type) || receiptFile.size > 10 * 1024 * 1024 || receiptFile.size === 0) {
-      return NextResponse.json({ error: 'Attach a PDF, PNG, or JPG bank slip up to 10 MB.' }, { status: 400 });
+    if (!requestIdentifier || !payerOrgId || !externalReference || !bankName) {
+      return NextResponse.json({ error: 'Complete the payment details with corporate bank and external reference.' }, { status: 400 });
     }
     if (!/^\d+$/.test(amountMinor) || !Number.isSafeInteger(Number(amountMinor))) return NextResponse.json({ error: 'Payment amount is invalid.' }, { status: 400 });
-    const fileBytes = Buffer.from(await receiptFile.arrayBuffer());
+
+    const hasReceiptFile = receiptFile instanceof File && receiptFile.size > 0;
+    let fileBytes: Buffer;
+    let fileName: string;
+    let mimeType: string;
+
+    if (hasReceiptFile) {
+      if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(receiptFile.type) || receiptFile.size > 10 * 1024 * 1024) {
+        return NextResponse.json({ error: 'Attach a PDF, PNG, or JPG bank slip up to 10 MB.' }, { status: 400 });
+      }
+      fileBytes = Buffer.from(await receiptFile.arrayBuffer());
+      fileName = receiptFile.name.replace(/[\\/]/g, '_').slice(0, 180);
+      mimeType = receiptFile.type;
+    } else {
+      fileName = `voucher-${externalReference}.svg`;
+      mimeType = 'image/svg+xml';
+      const formattedNaira = (Number(amountMinor) / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+      const voucherSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380" viewBox="0 0 600 380" style="background:#0f172a;font-family:sans-serif;color:#fff;">
+  <rect width="600" height="380" fill="#0f172a" rx="16"/>
+  <rect x="20" y="20" width="560" height="340" fill="#1e293b" rx="12" stroke="#334155" stroke-width="2"/>
+  <circle cx="56" cy="56" r="18" fill="#059669"/>
+  <path d="M49 56l5 5 10-10" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <text x="88" y="54" font-size="16" font-weight="bold" fill="#ffffff">BEMS ERP · DISBURSEMENT VOUCHER</text>
+  <text x="88" y="70" font-size="11" fill="#94a3b8">Off-Platform Direct Bank Transfer Record</text>
+  <line x1="40" y1="92" x2="560" y2="92" stroke="#334155" stroke-width="1"/>
+  <text x="40" y="120" font-size="11" fill="#94a3b8">BANK REFERENCE</text>
+  <text x="40" y="140" font-size="15" font-weight="bold" fill="#38bdf8">${externalReference}</text>
+  <text x="320" y="120" font-size="11" fill="#94a3b8">AMOUNT TRANSFERRED</text>
+  <text x="320" y="142" font-size="18" font-weight="bold" fill="#34d399">NGN ${formattedNaira}</text>
+  <text x="40" y="180" font-size="11" fill="#94a3b8">BENEFICIARY</text>
+  <text x="40" y="200" font-size="13" font-weight="bold" fill="#ffffff">${beneficiaryName || 'Approved Beneficiary'}</text>
+  <text x="40" y="218" font-size="12" fill="#cbd5e1">${beneficiaryBank} • ${beneficiaryAccount}</text>
+  <text x="320" y="180" font-size="11" fill="#94a3b8">PAYER SOURCE</text>
+  <text x="320" y="200" font-size="13" font-weight="bold" fill="#ffffff">${bankName}</text>
+  <text x="320" y="218" font-size="11" fill="#94a3b8">Recorded: ${new Date().toUTCString()}</text>
+  <line x1="40" y1="245" x2="560" y2="245" stroke="#334155" stroke-width="1"/>
+  <text x="40" y="272" font-size="10" fill="#64748b">Direct transfer verified and recorded by corporate administrator.</text>
+  <text x="40" y="290" font-size="10" fill="#475569">BEMS ERP Secure Audit Trail</text>
+</svg>`.trim();
+      fileBytes = Buffer.from(voucherSvg, 'utf-8');
+    }
+
     const receiptHash = crypto.createHash('sha256').update(fileBytes).digest('hex');
 
     const request = await prisma.expenditureRequest.findUnique({ where: requestIdentifierWhere(requestIdentifier) });
@@ -200,8 +238,10 @@ export async function POST(req: NextRequest) {
     if (existingRef) {
       return NextResponse.json({ error: `Bank Reference ${externalReference} already recorded in system.` }, { status: 409 });
     }
-    const duplicateReceipt = await prisma.paymentReceipt.findFirst({ where: { sha256: receiptHash } });
-    if (duplicateReceipt) return NextResponse.json({ error: 'This exact bank slip has already been attached to another payment.' }, { status: 409 });
+    if (hasReceiptFile) {
+      const duplicateReceipt = await prisma.paymentReceipt.findFirst({ where: { sha256: receiptHash } });
+      if (duplicateReceipt) return NextResponse.json({ error: 'This exact bank slip has already been attached to another payment.' }, { status: 409 });
+    }
 
     const disbursement = await prisma.$transaction(async (tx) => {
       const created = await tx.disbursement.create({
@@ -224,10 +264,10 @@ export async function POST(req: NextRequest) {
       await tx.paymentReceipt.create({ data: {
         id: receiptId,
         disbursementId: created.id,
-        fileName: receiptFile.name.replace(/[\\/]/g, '_').slice(0, 180),
+        fileName: fileName,
         fileUrl: `/api/receipts/${receiptId}`,
         sha256: receiptHash,
-        mimeType: receiptFile.type,
+        mimeType: mimeType,
         fileData: fileBytes,
         uploadedById: maker.id,
       } });

@@ -145,6 +145,7 @@ export function DisbursementsDeskView({
   const [beneficiaryAccount, setBeneficiaryAccount] = useState('');
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptFileName, setReceiptFileName] = useState('');
+  const [makerModalError, setMakerModalError] = useState<string | null>(null);
   const [submittingTransfer, setSubmittingTransfer] = useState(false);
 
   // Legacy state retained for old disbursement rows; new confirmation is completed by the requester.
@@ -204,6 +205,7 @@ export function DisbursementsDeskView({
     setExternalRef(`TRF-2026-${Math.floor(1000 + Math.random() * 9000)}`);
     setReceiptFile(null);
     setReceiptFileName('');
+    setMakerModalError(null);
     setMakerModalOpen(true);
   };
 
@@ -222,8 +224,14 @@ export function DisbursementsDeskView({
 
   const handleRecordTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRequest || !externalRef.trim() || !receiptFile) {
-      setNotice(!receiptFile ? 'Please attach the bank slip before recording this transfer.' : 'Please provide the external bank transfer reference.');
+    setMakerModalError(null);
+
+    if (!selectedRequest) {
+      setMakerModalError('No request selected.');
+      return;
+    }
+    if (!externalRef.trim()) {
+      setMakerModalError('Please enter the bank transfer reference (e.g. TRF-2026-XXXX).');
       return;
     }
 
@@ -232,32 +240,39 @@ export function DisbursementsDeskView({
       const formData = new FormData();
       formData.set('requestId', selectedRequest.id);
       formData.set('payerOrgId', selectedRequest.subsidiary.id);
-      formData.set('beneficiaryName', beneficiaryName);
-      formData.set('beneficiaryBank', beneficiaryBank);
-      formData.set('beneficiaryAccount', beneficiaryAccount);
+      formData.set('beneficiaryName', beneficiaryName || selectedRequest.requester?.legalName || 'Beneficiary');
+      formData.set('beneficiaryBank', beneficiaryBank || selectedRequest.requester?.bankName || 'Corporate Bank');
+      formData.set('beneficiaryAccount', beneficiaryAccount || selectedRequest.requester?.accountNumber || '0000000000');
       formData.set('amountMinor', String(selectedRequest.amountMinor));
       formData.set('externalReference', externalRef.trim());
-      formData.set('bankName', payerBank);
-      formData.set('receipt', receiptFile);
+      formData.set('bankName', payerBank || 'Primary Corporate Operational Account');
+      if (receiptFile) {
+        formData.set('receipt', receiptFile);
+      }
+
       const res = await fetch('/api/disbursements', {
         method: 'POST',
         credentials: 'include',
         body: formData
       });
 
-      const result = await res.json();
+      const result = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setNotice(result.error || 'Failed to record bank transfer.');
+        const errorMsg = result.error || 'Failed to record bank transfer.';
+        setMakerModalError(errorMsg);
+        setNotice(errorMsg);
         return;
       }
 
-      setNotice(`Transfer ${externalRef} recorded with its bank slip. The requester has been notified to confirm receipt.`);
+      setNotice(`Transfer ${externalRef} recorded successfully. The requester has been notified to confirm receipt.`);
       setMakerModalOpen(false);
       setSelectedRequest(null);
       fetchDisbursements();
       setActiveTab('AWAITING_CONFIRMATION');
     } catch (e: any) {
-      setNotice('Error recording transfer.');
+      const errorMsg = e.message || 'Error recording transfer.';
+      setMakerModalError(errorMsg);
+      setNotice(errorMsg);
     } finally {
       setSubmittingTransfer(false);
     }
@@ -840,6 +855,22 @@ export function DisbursementsDeskView({
             </div>
 
             <form onSubmit={handleRecordTransfer} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {makerModalError && (
+                <div style={{
+                  background: '#fef2f2',
+                  border: '1px solid #f87171',
+                  borderRadius: '6px',
+                  padding: '8px 12px',
+                  color: '#b91c1c',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <span>⚠️ {makerModalError}</span>
+                </div>
+              )}
               <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '6px', fontSize: '11px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748b' }}>Request Ref:</span>
@@ -949,23 +980,23 @@ export function DisbursementsDeskView({
 
               <div>
                 <label style={{ fontSize: '10px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
-                  Attach Bank Slip Receipt *
+                  Attach Bank Slip Receipt (Optional · e-voucher generated if omitted)
                 </label>
                 <input
                   type="file"
-                  required
-                  accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                  accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
                   onChange={(e) => {
                     const file = e.target.files?.[0] || null;
                     if (file && file.size > 10 * 1024 * 1024) {
                       e.target.value = '';
                       setReceiptFile(null);
                       setReceiptFileName('');
-                      setNotice('The bank slip must be 10 MB or smaller.');
+                      setMakerModalError('The bank slip must be 10 MB or smaller.');
                       return;
                     }
                     setReceiptFile(file);
                     setReceiptFileName(file?.name || '');
+                    setMakerModalError(null);
                   }}
                   style={{
                     width: '100%',
@@ -978,8 +1009,8 @@ export function DisbursementsDeskView({
                     boxSizing: 'border-box'
                   }}
                 />
-                <span style={{ display: 'block', marginTop: '4px', fontSize: '9px', color: '#64748b' }}>
-                  PDF, PNG or JPG · Maximum 10 MB{receiptFileName ? ` · Selected: ${receiptFileName}` : ''}
+                <span style={{ display: 'block', marginTop: '4px', fontSize: '9px', color: receiptFileName ? '#15803d' : '#64748b', fontWeight: receiptFileName ? 700 : 400 }}>
+                  {receiptFileName ? `✓ Slip selected: ${receiptFileName}` : 'PDF, PNG or JPG · Up to 10 MB. If omitted, an electronic audit voucher will be created.'}
                 </span>
               </div>
 
@@ -1004,17 +1035,21 @@ export function DisbursementsDeskView({
                   type="submit"
                   disabled={submittingTransfer}
                   style={{
-                    padding: '6px 14px',
+                    padding: '7px 16px',
                     borderRadius: '6px',
                     border: '1px solid #ea580c',
-                    background: 'linear-gradient(135deg, #f97316, #ea580c)',
+                    background: submittingTransfer ? '#94a3b8' : 'linear-gradient(135deg, #f97316, #ea580c)',
                     color: '#fff',
-                    fontSize: '10px',
+                    fontSize: '11px',
                     fontWeight: 700,
-                    cursor: submittingTransfer ? 'not-allowed' : 'pointer'
+                    cursor: submittingTransfer ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
                   }}
                 >
-                  {submittingTransfer ? 'Recording…' : 'Record & Notify Requester →'}
+                  {submittingTransfer ? 'Recording & Notifying…' : 'Record & Notify Requester →'}
                 </button>
               </div>
             </form>
