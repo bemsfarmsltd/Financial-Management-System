@@ -28,6 +28,10 @@ import {
   BadgeCheck,
   ExternalLink,
   Info,
+  Paperclip,
+  Download,
+  Eye,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 interface ApprovalStepItem {
@@ -108,6 +112,14 @@ interface RequestItem {
     body: string;
     createdAt: string;
   }[];
+  attachments?: Array<{
+    id: string;
+    fileName: string;
+    fileUrl: string;
+    contentType: string;
+    notes?: string | null;
+    uploadedAt?: string | null;
+  }>;
 }
 
 interface SummaryData {
@@ -176,6 +188,7 @@ export function ApprovalsDeskView({
 
   // Modals
   const [dossierRequest, setDossierRequest] = useState<RequestItem | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
   const [chatRequest, setChatRequest] = useState<RequestItem | null>(null);
   const [decisionModal, setDecisionModal] = useState<{
     type: 'APPROVED' | 'REJECTED' | 'CLARIFICATION_REQUESTED';
@@ -1169,6 +1182,27 @@ export function ApprovalsDeskView({
                         >
                           {req.approvalStatus.replace(/_/g, ' ')}
                         </span>
+
+                        {req.attachments && req.attachments.length > 0 && (
+                          <span
+                            style={{
+                              fontSize: '9px',
+                              fontWeight: 700,
+                              padding: '1px 5px',
+                              borderRadius: '3px',
+                              background: '#eff6ff',
+                              color: '#1d4ed8',
+                              border: '1px solid #bfdbfe',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                            }}
+                            title={`${req.attachments.length} supporting attachments uploaded`}
+                          >
+                            <Paperclip size={10} />
+                            {req.attachments.length} {req.attachments.length === 1 ? 'file' : 'files'}
+                          </span>
+                        )}
                       </div>
 
                       {/* Title */}
@@ -1523,6 +1557,168 @@ export function ApprovalsDeskView({
                   </div>
                 </div>
 
+                {/* Uploaded Picture Evidence & Supporting Documents Gallery */}
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 14px', background: '#ffffff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Paperclip size={13} color="#ea580c" />
+                      <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.8px', color: '#0f172a', textTransform: 'uppercase' }}>
+                        UPLOADED EVIDENCE &amp; PROFORMA RECEIPTS ({dossierRequest.attachments?.length || 0})
+                      </span>
+                    </div>
+                    {dossierRequest.attachments && dossierRequest.attachments.length > 0 ? (
+                      <span
+                        style={{
+                          fontSize: '8px',
+                          fontWeight: 700,
+                          color: '#047857',
+                          background: '#ecfdf5',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          border: '1px solid #a7f3d0',
+                        }}
+                      >
+                        ✓ Verified on File
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: '8px',
+                          fontWeight: 600,
+                          color: '#94a3b8',
+                          background: '#f8fafc',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          border: '1px solid #e2e8f0',
+                        }}
+                      >
+                        No Attachments
+                      </span>
+                    )}
+                  </div>
+
+                  {dossierRequest.attachments && dossierRequest.attachments.length > 0 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))', gap: '8px', marginTop: '10px' }}>
+                      {dossierRequest.attachments.map((att) => {
+                        const isImage = att.contentType.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(att.fileUrl || att.fileName);
+                        return (
+                          <div
+                            key={att.id}
+                            style={{
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '8px',
+                              overflow: 'hidden',
+                              background: '#f8fafc',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {isImage ? (
+                              <div
+                                onClick={() => setLightboxImage({ url: att.fileUrl, name: att.fileName })}
+                                style={{
+                                  width: '100%',
+                                  height: '84px',
+                                  position: 'relative',
+                                  cursor: 'pointer',
+                                  background: '#e2e8f0',
+                                  overflow: 'hidden',
+                                }}
+                              >
+                                <img
+                                  src={att.fileUrl}
+                                  alt={att.fileName}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    bottom: 4,
+                                    right: 4,
+                                    background: 'rgba(15, 23, 42, 0.75)',
+                                    color: '#fff',
+                                    borderRadius: '4px',
+                                    padding: '2px 5px',
+                                    fontSize: '8px',
+                                    fontWeight: 700,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                  }}
+                                >
+                                  <Eye size={10} /> View Photo
+                                </div>
+                              </div>
+                            ) : (
+                              <div
+                                onClick={() => window.open(att.fileUrl, '_blank')}
+                                style={{
+                                  width: '100%',
+                                  height: '84px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  background: '#f1f5f9',
+                                  color: '#475569',
+                                  gap: '4px',
+                                }}
+                              >
+                                <FileText size={24} color="#64748b" />
+                                <span style={{ fontSize: '9px', fontWeight: 700, color: '#334155' }}>PDF Document</span>
+                              </div>
+                            )}
+
+                            <div style={{ padding: '6px 8px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                              <div
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  color: '#0f172a',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title={att.fileName}
+                              >
+                                {att.fileName}
+                              </div>
+                              <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: '8px', color: '#64748b' }}>
+                                  {isImage ? 'Picture Proof' : 'Official Doc'}
+                                </span>
+                                <a
+                                  href={att.fileUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  download
+                                  style={{
+                                    color: '#ea580c',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '2px',
+                                    fontSize: '8px',
+                                    fontWeight: 700,
+                                    textDecoration: 'none',
+                                  }}
+                                >
+                                  <Download size={10} /> Open
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '6px', fontSize: '10px', color: '#64748b', marginTop: '6px', fontStyle: 'italic' }}>
+                      No supporting pictures, proforma invoices, or quote files uploaded by requester for this expenditure.
+                    </div>
+                  )}
+                </div>
+
                 {/* Vendor Registry & 3-Way Matching Checklist */}
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -1767,6 +1963,142 @@ export function ApprovalsDeskView({
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULL-RESOLUTION IMAGE LIGHTBOX MODAL */}
+      {lightboxImage && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLightboxImage(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 99999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: '92vw',
+              maxHeight: '88vh',
+              background: '#0f172a',
+              borderRadius: '14px',
+              border: '1px solid #334155',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/* Lightbox Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 18px',
+                background: '#1e293b',
+                color: '#fff',
+                borderBottom: '1px solid #334155',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ImageIcon size={16} color="#ea580c" />
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
+                  {lightboxImage.name}
+                </span>
+              </div>
+              <button
+                onClick={() => setLightboxImage(null)}
+                style={{
+                  background: '#334155',
+                  border: 0,
+                  color: '#fff',
+                  cursor: 'pointer',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontWeight: 800,
+                  fontSize: '13px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Lightbox Image Preview */}
+            <div
+              style={{
+                padding: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#020617',
+                maxHeight: '74vh',
+                overflow: 'auto',
+              }}
+            >
+              <img
+                src={lightboxImage.url}
+                alt={lightboxImage.name}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '70vh',
+                  objectFit: 'contain',
+                  borderRadius: '8px',
+                }}
+              />
+            </div>
+
+            {/* Lightbox Footer Actions */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 18px',
+                background: '#1e293b',
+                borderTop: '1px solid #334155',
+              }}
+            >
+              <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                Press ESC or click outside to dismiss
+              </span>
+              <a
+                href={lightboxImage.url}
+                target="_blank"
+                rel="noreferrer"
+                download
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: '#ea580c',
+                  color: '#fff',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                }}
+              >
+                <Download size={13} />
+                Download Original Image
+              </a>
             </div>
           </div>
         </div>

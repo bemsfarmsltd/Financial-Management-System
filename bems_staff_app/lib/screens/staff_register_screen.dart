@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
-import '../models/staff_models.dart';
-import 'staff_main_screen.dart';
+import 'staff_login_screen.dart';
 
 class StaffRegisterScreen extends StatefulWidget {
   const StaffRegisterScreen({super.key});
@@ -400,40 +399,8 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
 
       final generatedEmpNo = res['employeeNumber'] as String;
 
-      // Construct provisional user for immediate workspace entry if desired
-      final newUser = StaffUser(
-        id: 'emp-${DateTime.now().millisecondsSinceEpoch}',
-        fullName: _fullNameController.text.trim(),
-        email: _emailController.text.trim(),
-        role: _jobTitleController.text.trim(),
-        subsidiary: _subsidiary,
-        department: _department,
-        employeeNumber: generatedEmpNo,
-        bankName: _bankName,
-        accountNumber: _accountNumberController.text.trim(),
-        phone: _phoneController.text.trim(),
-        avatarUrl: _avatarUrl!,
-        gender: _gender,
-        dateOfBirth: _dobController.text.trim(),
-        residentialAddress: _residentialAddressController.text.trim(),
-        maritalStatus: 'Married',
-        stateOfOrigin: _stateOfOriginController.text.trim(),
-        lga: _lgaController.text.trim(),
-        ninMask: _ninController.text.trim().length >= 4 ? '*** *** ${_ninController.text.trim().substring(_ninController.text.trim().length - 4)}' : '*** *** 8217',
-        bvnMask: _bvnController.text.trim().length >= 4 ? '*** *** ${_bvnController.text.trim().substring(_bvnController.text.trim().length - 4)}' : '*** *** 8291',
-        staffGrade: _staffGrade,
-        workLocation: _workLocation,
-        resumptionDate: _resumptionDateController.text.trim(),
-        salaryBankName: _useSameAccountForSalary ? _bankName : _salaryBankName,
-        salaryAccountNumber: _useSameAccountForSalary ? _accountNumberController.text.trim() : _salaryAccountNumberController.text.trim(),
-        salaryAccountName: _useSameAccountForSalary ? _accountNameController.text.trim() : _salaryAccountNameController.text.trim(),
-        nextOfKinName: _nokNameController.text.trim(),
-        nextOfKinRelationship: _nokRelationshipController.text.trim(),
-        nextOfKinPhone: _nokPhoneController.text.trim(),
-        nextOfKinAddress: _nokAddressController.text.trim(),
-      );
-
-      await StaffStorageService.saveUser(newUser);
+      // Clear any stored provisional sessions - employee must wait for System Admin approval
+      await StaffStorageService.clearUser();
 
       if (!mounted) return;
 
@@ -449,38 +416,81 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                 width: 68,
                 height: 68,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFDCFCE7),
+                  color: Color(0xFFFEF3C7),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 40),
+                child: const Icon(Icons.hourglass_top_rounded, color: Color(0xFFD97706), size: 36),
               ),
               const SizedBox(height: 16),
               const Text(
-                'Registration Completed!',
+                'Registration Submitted!',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 6),
               const Text(
-                'Your employee profile has been created and verified on BEMS ERP.',
+                'Your staff profile has been submitted to the System Administrator / GMD for verification and approval.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4),
               ),
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF7ED),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: const Color(0xFFFED7AA)),
                 ),
                 child: Column(
                   children: [
-                    const Text('OFFICIAL EMPLOYEE NUMBER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+                    const Text('OFFICIAL EMPLOYEE NUMBER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFFEA580C), letterSpacing: 0.5)),
                     const SizedBox(height: 4),
                     Text(
                       generatedEmpNo,
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF9A3412), letterSpacing: 1.1),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFFDE68A)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.shield_outlined, size: 12, color: Color(0xFFB45309)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Status: Pending Admin Approval',
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFFB45309)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF64748B)),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'In accordance with BEMS security governance, you will be able to sign in once your account has been reviewed and activated.',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF475569), height: 1.35),
+                      ),
                     ),
                   ],
                 ),
@@ -491,9 +501,10 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context); // close dialog
-                    Navigator.pushReplacement(
+                    Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(builder: (_) => StaffMainScreen(user: newUser)),
+                      MaterialPageRoute(builder: (_) => const StaffLoginScreen()),
+                      (route) => false,
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -502,7 +513,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  child: const Text('Enter Workspace Now', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                  child: const Text('Return to Sign In', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                 ),
               ),
             ],
@@ -823,7 +834,15 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildTextField(label: 'DATE OF BIRTH', controller: _dobController, hint: 'YYYY-MM-DD', icon: Icons.calendar_today_outlined),
+                child: _buildDateField(
+                  label: 'DATE OF BIRTH',
+                  controller: _dobController,
+                  hint: 'Select Date of Birth',
+                  icon: Icons.cake_outlined,
+                  initialDate: DateTime(1995, 1, 1),
+                  firstDate: DateTime(1940, 1, 1),
+                  lastDate: DateTime.now().subtract(const Duration(days: 365 * 16)),
+                ),
               ),
             ],
           ),
@@ -953,7 +972,15 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
           ),
           const SizedBox(height: 14),
 
-          _buildTextField(label: 'OFFICIAL RESUMPTION DATE', controller: _resumptionDateController, hint: 'YYYY-MM-DD', icon: Icons.event_available_outlined),
+          _buildDateField(
+            label: 'OFFICIAL RESUMPTION DATE',
+            controller: _resumptionDateController,
+            hint: 'Select Resumption Date',
+            icon: Icons.event_available_outlined,
+            initialDate: DateTime.now(),
+            firstDate: DateTime(2010, 1, 1),
+            lastDate: DateTime.now().add(const Duration(days: 365)),
+          ),
         ]),
       ],
     );
@@ -1197,6 +1224,118 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
               hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _selectDate({
+    required TextEditingController controller,
+    required DateTime initialDate,
+    required DateTime firstDate,
+    required DateTime lastDate,
+  }) async {
+    FocusScope.of(context).unfocus();
+
+    DateTime pickerInitial = initialDate;
+    if (controller.text.trim().isNotEmpty) {
+      try {
+        final parsed = DateTime.parse(controller.text.trim());
+        if (parsed.isAfter(firstDate.subtract(const Duration(days: 1))) &&
+            parsed.isBefore(lastDate.add(const Duration(days: 1)))) {
+          pickerInitial = parsed;
+        }
+      } catch (_) {}
+    }
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: pickerInitial,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      helpText: 'SELECT DATE',
+      cancelText: 'CANCEL',
+      confirmText: 'SELECT',
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFFEA580C),
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Color(0xFF0F172A),
+            ),
+            dialogBackgroundColor: Colors.white,
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFEA580C),
+                textStyle: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final y = picked.year.toString().padLeft(4, '0');
+      final m = picked.month.toString().padLeft(2, '0');
+      final d = picked.day.toString().padLeft(2, '0');
+      setState(() {
+        controller.text = '$y-$m-$d';
+      });
+    }
+  }
+
+  Widget _buildDateField({
+    required String label,
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    required DateTime initialDate,
+    required DateTime firstDate,
+    required DateTime lastDate,
+  }) {
+    final hasValue = controller.text.trim().isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: () => _selectDate(
+            controller: controller,
+            initialDate: initialDate,
+            firstDate: firstDate,
+            lastDate: lastDate,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: Row(
+              children: [
+                Icon(icon, color: const Color(0xFFEA580C), size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    hasValue ? controller.text : hint,
+                    style: TextStyle(
+                      color: hasValue ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                      fontSize: 13,
+                      fontWeight: hasValue ? FontWeight.w700 : FontWeight.normal,
+                    ),
+                  ),
+                ),
+                const Icon(Icons.calendar_month_rounded, color: Color(0xFFEA580C), size: 18),
+              ],
             ),
           ),
         ),

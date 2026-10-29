@@ -134,6 +134,14 @@ export async function GET(
           status: d.status,
         })),
         evidenceCount: expenditure.attachments.length,
+        attachments: (expenditure.attachments || []).map((att) => ({
+          id: att.id,
+          fileName: att.fileName,
+          fileUrl: att.fileUrl,
+          contentType: att.contentType,
+          notes: att.notes || null,
+          uploadedAt: att.uploadedAt,
+        })),
         accountability: expenditure.accountabilityCase ? {
           id: expenditure.accountabilityCase.id,
           status: expenditure.accountabilityCase.status,

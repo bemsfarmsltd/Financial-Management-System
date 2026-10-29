@@ -736,3 +736,64 @@ export async function sendAdminVerificationOtpEmail(params: {
     }),
   });
 }
+
+/**
+ * Dispatches real-time email notification when a chat message is sent
+ */
+export async function sendChatMessageEmail(params: {
+  to: string | string[];
+  recipientName: string;
+  senderName: string;
+  senderRole: string;
+  messageText: string;
+  attachmentName?: string | null;
+  requestNumber?: string;
+  contextTitle: string;
+  actionUrl?: string;
+}) {
+  const url = params.actionUrl || `${APP_URL}/requests/${params.requestNumber || ''}`;
+  const subject = params.requestNumber
+    ? `💬 [${params.requestNumber}] Message from ${params.senderName}`
+    : `💬 Message from ${params.senderName} (${params.senderRole.replace(/_/g, ' ')})`;
+
+  const content = `
+    <h2 style="margin: 0 0 12px; font-size: 19px; font-weight: 800; color: #0f172a;">
+      New Communication Message
+    </h2>
+    <p style="margin: 0 0 16px; color: #475569; font-size: 14px; line-height: 1.5;">
+      Hello <strong>${params.recipientName}</strong>, you have received a new message regarding <strong>${params.contextTitle}</strong>.
+    </p>
+
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #ea580c; border-radius: 8px; padding: 16px; margin: 20px 0;">
+      <div style="display: flex; align-items: center; margin-bottom: 8px;">
+        <strong style="font-size: 13px; color: #0f172a;">${params.senderName}</strong>
+        <span style="font-size: 11px; color: #64748b; margin-left: 8px;">(${params.senderRole.replace(/_/g, ' ')})</span>
+      </div>
+      <p style="margin: 0; font-size: 14px; color: #1e293b; line-height: 1.6; white-space: pre-wrap;">
+        ${params.messageText}
+      </p>
+      ${params.attachmentName ? `
+        <div style="margin-top: 10px; padding: 8px 12px; background: #eff6ff; border-radius: 6px; font-size: 12px; font-weight: 700; color: #1d4ed8;">
+          📎 Attachment: ${params.attachmentName}
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject,
+    eventType: 'CHAT_MESSAGE',
+    text: `New Message from ${params.senderName} (${params.senderRole}):\n\n"${params.messageText}"\n\nOpen link to view: ${url}`,
+    html: wrapEmailTemplate({
+      title: 'New Conversation Message',
+      preheader: `${params.senderName}: "${params.messageText.slice(0, 100)}"`,
+      badge: params.requestNumber ? `Requisition Chat · ${params.requestNumber}` : 'Helpdesk Chat',
+      content,
+      callToAction: {
+        label: 'View Conversation & Reply',
+        url,
+      },
+    }),
+  });
+}

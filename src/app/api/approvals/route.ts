@@ -52,6 +52,9 @@ export async function GET(request: Request) {
           approvalSteps: {
             orderBy: { stageIndex: 'asc' },
           },
+          attachments: {
+            orderBy: { uploadedAt: 'desc' },
+          },
           channel: {
             include: {
               messages: {
@@ -176,6 +179,14 @@ export async function GET(request: Request) {
           authorRole: m.authorRole,
           body: m.body,
           createdAt: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString(),
+        })),
+        attachments: (req.attachments || []).map((att) => ({
+          id: att.id,
+          fileName: att.fileName,
+          fileUrl: att.fileUrl,
+          contentType: att.contentType,
+          notes: att.notes || null,
+          uploadedAt: att.uploadedAt ? new Date(att.uploadedAt).toISOString() : null,
         })),
       };
     });

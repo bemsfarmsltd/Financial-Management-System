@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { sendChatMessageEmail } from '@/lib/email';
 
 export async function GET(req: Request) {
   try {
@@ -155,7 +156,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // Notify the other party via SystemNotification
+    // Notify the other party via SystemNotification and direct email
     if (isAdmin) {
       await prisma.systemNotification.create({
         data: {
@@ -166,6 +167,19 @@ export async function POST(req: Request) {
           linkUrl: '/helpdesk',
         },
       });
+
+      if (employee.workEmail) {
+        sendChatMessageEmail({
+          to: employee.workEmail,
+          recipientName: employee.legalName,
+          senderName: actor.legalName,
+          senderRole: actor.role,
+          messageText,
+          attachmentName: body.attachmentName || null,
+          contextTitle: 'Corporate Helpdesk & Inquiries',
+          actionUrl: 'https://bemserp.work/helpdesk',
+        }).catch((err) => console.error('Failed to email staff on admin message:', err));
+      }
     } else {
       // Find active admins to notify
       const admins = await prisma.employee.findMany({
@@ -174,7 +188,7 @@ export async function POST(req: Request) {
           status: 'ACTIVE',
           approvalStatus: 'APPROVED',
         },
-        select: { id: true },
+        select: { id: true, legalName: true, workEmail: true },
       });
 
       if (admins.length > 0) {
@@ -187,6 +201,21 @@ export async function POST(req: Request) {
             linkUrl: `/helpdesk?employeeId=${targetEmployeeId}`,
           })),
         });
+
+        for (const adm of admins) {
+          if (adm.workEmail) {
+            sendChatMessageEmail({
+              to: adm.workEmail,
+              recipientName: adm.legalName,
+              senderName: actor.legalName,
+              senderRole: 'STAFF',
+              messageText,
+              attachmentName: body.attachmentName || null,
+              contextTitle: `Staff Helpdesk Inquiry: ${actor.legalName}`,
+              actionUrl: `https://bemserp.work/helpdesk?employeeId=${targetEmployeeId}`,
+            }).catch((err) => console.error(`Failed to email admin ${adm.workEmail}:`, err));
+          }
+        }
       }
     }
 
