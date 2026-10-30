@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Clock,
   Users,
@@ -79,6 +80,7 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const ALLOWED_ADMIN_ROLES = ['GMD', 'SYSTEM_ADMIN', 'HR', 'COO', 'FINANCE_CONTROLLER', 'SUPER_ADMIN'];
 
 export default function AttendanceDeskPage() {
+  const router = useRouter();
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
   const [authenticatedUser, setAuthenticatedUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'live' | 'roster' | 'policy' | 'payroll'>('live');
@@ -290,14 +292,21 @@ export default function AttendanceDeskPage() {
           loadPolicy();
           loadStation();
         } else {
-          setAuthStatus('unauthorized');
-          setIsLoading(false);
+          // Direct landing on Kiosk page for staff and unauthenticated visitors
+          if (typeof window !== 'undefined') {
+            window.location.replace('/attendance/kiosk');
+          } else {
+            router.replace('/attendance/kiosk');
+          }
         }
       })
       .catch(() => {
         if (active) {
-          setAuthStatus('unauthorized');
-          setIsLoading(false);
+          if (typeof window !== 'undefined') {
+            window.location.replace('/attendance/kiosk');
+          } else {
+            router.replace('/attendance/kiosk');
+          }
         }
       });
 
@@ -410,7 +419,7 @@ export default function AttendanceDeskPage() {
     return matchesSearch && matchesStatus;
   });
 
-  if (authStatus === 'checking') {
+  if (authStatus !== 'authorized') {
     return (
       <div
         style={{
@@ -426,150 +435,18 @@ export default function AttendanceDeskPage() {
       >
         <div
           style={{
-            width: 44,
-            height: 44,
+            width: 42,
+            height: 42,
             border: '3px solid #e2e8f0',
-            borderTopColor: '#ea580c',
+            borderTopColor: '#10b981',
             borderRadius: '50%',
             animation: 'spin 1s linear infinite',
           }}
         />
-        <p style={{ marginTop: 18, fontSize: '12px', fontWeight: 800, color: '#64748b', letterSpacing: '0.08em' }}>
-          VERIFYING EXECUTIVE ACCESS CREDENTIALS...
+        <p style={{ marginTop: 16, fontSize: '13px', fontWeight: 700, color: '#64748b' }}>
+          Opening BEMS Reception Kiosk...
         </p>
         <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
-
-  if (authStatus === 'unauthorized') {
-    return (
-      <div
-        style={{
-          minHeight: '100vh',
-          background: '#f8fafc',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '24px',
-          color: '#0f172a',
-          fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: '520px',
-            width: '100%',
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '24px',
-            padding: '40px 32px',
-            boxShadow: '0 20px 45px rgba(15, 23, 42, 0.08)',
-            textAlign: 'center',
-          }}
-        >
-          <div
-            style={{
-              width: '68px',
-              height: '68px',
-              margin: '0 auto 20px',
-              borderRadius: '20px',
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#ef4444',
-            }}
-          >
-            <ShieldCheck size={36} />
-          </div>
-
-          <span
-            style={{
-              display: 'inline-block',
-              fontSize: '11px',
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: '0.12em',
-              padding: '4px 12px',
-              borderRadius: '999px',
-              background: '#fef2f2',
-              color: '#b91c1c',
-              border: '1px solid #fecaca',
-              marginBottom: '14px',
-            }}
-          >
-            Executive Security Barrier
-          </span>
-
-          <h1 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 10px', color: '#0f172a' }}>
-            Executive Authentication Required
-          </h1>
-
-          <p style={{ fontSize: '14px', color: '#64748b', lineHeight: 1.6, margin: '0 0 28px' }}>
-            The <strong>Attendance & Timekeeping Management Desk</strong> contains sensitive personnel presence, biometric coordinates, lateness deduction policies, and payroll penalty controls. Access is strictly restricted to GMD, COO, HR, and System Administrators.
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <Link
-              href="/finance"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '10px',
-                padding: '14px 24px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-                color: '#ffffff',
-                fontWeight: 700,
-                fontSize: '14px',
-                textDecoration: 'none',
-                boxShadow: '0 8px 20px rgba(234, 88, 12, 0.3)',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <span>Sign In to BEMS ERP Portal</span>
-              <ArrowRight size={16} />
-            </Link>
-
-            <Link
-              href="/attendance/kiosk"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '10px',
-                padding: '13px 24px',
-                borderRadius: '12px',
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                color: '#334155',
-                fontWeight: 700,
-                fontSize: '13px',
-                textDecoration: 'none',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <QrCode size={16} />
-              <span>Launch Reception Kiosk Screen (For Clock-In)</span>
-            </Link>
-          </div>
-
-          <div
-            style={{
-              marginTop: '28px',
-              paddingTop: '20px',
-              borderTop: '1px solid #f1f5f9',
-              fontSize: '12px',
-              color: '#94a3b8',
-            }}
-          >
-            BEMS Group Enterprise Infrastructure · All unauthorized access attempts are logged and monitored.
-          </div>
-        </div>
       </div>
     );
   }
