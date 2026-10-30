@@ -98,7 +98,7 @@ export default function AttendanceKioskPage() {
 
   useEffect(() => {
     fetchToken();
-  }, [stationCode]);
+  }, []);
 
   // Countdown timer & auto-refresh
   useEffect(() => {
@@ -112,7 +112,7 @@ export default function AttendanceKioskPage() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [stationCode]);
+  }, []);
 
   // Poll recent check-ins for the ticker
   useEffect(() => {
@@ -616,8 +616,9 @@ export default function AttendanceKioskPage() {
         }}
       >
         <span>
-          BEMS Enterprise Attendance Network · Station Coordinate: {stationData?.latitude.toFixed(4)},{' '}
-          {stationData?.longitude.toFixed(4)}
+          BEMS Enterprise Attendance Network · Station Coordinate:{' '}
+          {stationData?.latitude != null ? Number(stationData.latitude).toFixed(4) : '--'},{' '}
+          {stationData?.longitude != null ? Number(stationData.longitude).toFixed(4) : '--'}
         </span>
         <span>
           Full Executive Coverage · GMD, COO, Directors & Staff · © 2026 BEMS Group Holdings Ltd
