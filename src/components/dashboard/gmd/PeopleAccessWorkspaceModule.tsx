@@ -1,7 +1,22 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { Check, RefreshCw, ShieldCheck, UserPlus, UserRound, X, Mail, Clock, Send, Trash2, Building2, Copy, CheckCheck } from 'lucide-react';
+import { Check, RefreshCw, ShieldCheck, UserPlus, UserRound, X, Mail, Clock, Send, Trash2, Building2, Copy, CheckCheck, UserX, Play, Pause, AlertCircle } from 'lucide-react';
+
+type LeaderAccount = {
+  id: string;
+  legalName: string;
+  employeeNumber: string;
+  workEmail: string;
+  phone: string | null;
+  role: string;
+  status: string;
+  subsidiaryName: string;
+  departmentName: string;
+  positionName: string;
+  isCurrentUser: boolean;
+  createdAt: string;
+};
 
 type PendingSignup = {
   id: string;
@@ -73,7 +88,8 @@ export function PeopleAccessWorkspaceModule({
   const [error, setError] = useState('');
   const [copiedId, setCopiedId] = useState('');
   const [resendingId, setResendingId] = useState('');
-  const [showCompleted, setShowCompleted] = useState(false);
+  const [leadershipAccounts, setLeadershipAccounts] = useState<LeaderAccount[]>([]);
+  const [showCompleted, setShowCompleted] = useState(true);
 
   // Row approval configuration state
   const [approvalRoles, setApprovalRoles] = useState<Record<string, string>>({});
@@ -96,10 +112,11 @@ export function PeopleAccessWorkspaceModule({
     setLoading(true);
     setError('');
     try {
-      const [approvalRes, inviteRes, orgsRes] = await Promise.all([
+      const [approvalRes, inviteRes, orgsRes, leaderRes] = await Promise.all([
         fetch('/api/auth/approvals', { credentials: 'include' }).catch(() => null),
         fetch('/api/staff/invite', { credentials: 'include' }).catch(() => null),
         fetch('/api/organizations', { credentials: 'include' }).catch(() => null),
+        fetch('/api/admin/leadership', { credentials: 'include' }).catch(() => null),
       ]);
 
       let orgList: Org[] = [];
@@ -135,6 +152,11 @@ export function PeopleAccessWorkspaceModule({
       if (inviteRes && inviteRes.ok) {
         const inviteData = await inviteRes.json();
         setInvitations(inviteData.invitations || []);
+      }
+
+      if (leaderRes && leaderRes.ok) {
+        const leaderData = await leaderRes.json();
+        setLeadershipAccounts(leaderData.leaders || []);
       }
 
       if (orgList.length > 0) {
@@ -254,6 +276,52 @@ export function PeopleAccessWorkspaceModule({
       setError(err.message || 'Could not resend email.');
     } finally {
       setResendingId('');
+    }
+  };
+
+  const handleToggleLeadershipStatus = async (leaderId: string, currentStatus: string, name: string) => {
+    const nextStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    const msg = nextStatus === 'SUSPENDED'
+      ? `Are you sure you want to SUSPEND ${name}? Their active sessions will be terminated immediately.`
+      : `Reactivate administrative account for ${name}?`;
+    if (!window.confirm(msg)) return;
+    setBusyId(leaderId);
+    try {
+      const res = await fetch(`/api/admin/employees/${encodeURIComponent(leaderId)}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update account status.');
+      setNotice(data.message);
+      await load();
+    } catch (err: any) {
+      setError(err.message || 'Status update failed.');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const handleDeleteLeadershipAccount = async (leaderId: string, name: string, role: string) => {
+    if (!window.confirm(`⚠️ PERMANENT ACCOUNT DELETION:\nAre you sure you want to permanently delete the ${role} account for "${name}"?\n\nThis cannot be undone.`)) {
+      return;
+    }
+    setBusyId(leaderId);
+    try {
+      const res = await fetch(`/api/admin/employees/${encodeURIComponent(leaderId)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete account.');
+      setNotice(data.message);
+      await load();
+    } catch (err: any) {
+      setError(err.message || 'Deletion failed.');
+    } finally {
+      setBusyId('');
     }
   };
 
@@ -468,8 +536,9 @@ export function PeopleAccessWorkspaceModule({
           </div>
         )}
 
-        {completedInvitations.length > 0 && (
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed #fed7aa' }}>
+        {/* Completed Onboardings & Active Leadership Accounts */}
+        {(leadershipAccounts.length > 0 || completedInvitations.length > 0) && (
+          <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px dashed #fed7aa' }}>
             <button
               type="button"
               onClick={() => setShowCompleted((prev) => !prev)}
@@ -477,54 +546,197 @@ export function PeopleAccessWorkspaceModule({
                 background: 'none',
                 border: 'none',
                 padding: 0,
-                color: '#64748b',
-                fontSize: 12.5,
-                fontWeight: 600,
+                color: '#475569',
+                fontSize: 13,
+                fontWeight: 700,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
+                gap: 8,
               }}
             >
               <span>{showCompleted ? '▼' : '►'}</span>
-              <span>Completed Onboardings &amp; Active Leadership Accounts ({completedInvitations.length})</span>
+              <span>Active Leadership Accounts &amp; Completed Onboardings ({leadershipAccounts.length || completedInvitations.length})</span>
             </button>
 
             {showCompleted && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-                {completedInvitations.map((inv) => (
-                  <div
-                    key={inv.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 14px',
-                      borderRadius: 8,
-                      border: '1px solid #bbf7d0',
-                      background: '#f0fdf4',
-                      fontSize: 12.5,
-                      flexWrap: 'wrap',
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#166534', fontWeight: 800, fontSize: 12 }}>
-                        ✓
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 700, color: '#166534' }}>{inv.workEmail}</div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>
-                          {inv.role} · 🏢 {inv.subsidiary?.legalName || 'Subsidiary'}
-                          {inv.positionName && ` (${inv.positionName})`}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+                {leadershipAccounts.length > 0 ? (
+                  leadershipAccounts.map((leader) => (
+                    <div
+                      key={leader.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 16px',
+                        borderRadius: 10,
+                        border: leader.status === 'ACTIVE' ? '1px solid #bbf7d0' : '1px solid #fecaca',
+                        background: leader.status === 'ACTIVE' ? '#f0fdf4' : '#fef2f2',
+                        fontSize: 13,
+                        flexWrap: 'wrap',
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div
+                          style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: '50%',
+                            background: leader.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: leader.status === 'ACTIVE' ? '#166534' : '#dc2626',
+                            fontWeight: 800,
+                            fontSize: 13,
+                          }}
+                        >
+                          {leader.role.slice(0, 2)}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 800, color: leader.status === 'ACTIVE' ? '#0f172a' : '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span>{leader.legalName}</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#e2e8f0', color: '#334155' }}>
+                              {leader.role}
+                            </span>
+                            {leader.isCurrentUser && (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#dbeafe', color: '#1d4ed8' }}>
+                                Current User
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                            {leader.workEmail} · 🏢 {leader.subsidiaryName} ({leader.positionName})
+                          </div>
                         </div>
                       </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span
+                          style={{
+                            background: leader.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2',
+                            color: leader.status === 'ACTIVE' ? '#15803d' : '#dc2626',
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            fontWeight: 800,
+                            fontSize: 11,
+                          }}
+                        >
+                          {leader.status === 'ACTIVE' ? 'Active & Verified' : 'Suspended'}
+                        </span>
+
+                        {leader.isCurrentUser ? (
+                          <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', padding: '0 4px' }}>
+                            Protected Session
+                          </span>
+                        ) : (
+                          <>
+                            {leader.status === 'ACTIVE' ? (
+                              <button
+                                type="button"
+                                disabled={busyId === leader.id}
+                                onClick={() => handleToggleLeadershipStatus(leader.id, 'ACTIVE', leader.legalName)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 5,
+                                  background: '#fff7ed',
+                                  border: '1px solid #fed7aa',
+                                  color: '#ea580c',
+                                  padding: '5px 10px',
+                                  borderRadius: 6,
+                                  fontWeight: 700,
+                                  fontSize: 11,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <Pause size={12} /> Suspend
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={busyId === leader.id}
+                                onClick={() => handleToggleLeadershipStatus(leader.id, 'SUSPENDED', leader.legalName)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 5,
+                                  background: '#ecfdf5',
+                                  border: '1px solid #86efac',
+                                  color: '#16a34a',
+                                  padding: '5px 10px',
+                                  borderRadius: 6,
+                                  fontWeight: 700,
+                                  fontSize: 11,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <Play size={12} /> Reactivate
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              disabled={busyId === leader.id}
+                              onClick={() => handleDeleteLeadershipAccount(leader.id, leader.legalName, leader.role)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                background: '#fef2f2',
+                                border: '1px solid #fecaca',
+                                color: '#dc2626',
+                                padding: '5px 10px',
+                                borderRadius: 6,
+                                fontWeight: 700,
+                                fontSize: 11,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <Trash2 size={12} /> Delete
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 9px', borderRadius: 6, fontWeight: 700, fontSize: 11 }}>
-                      Account Active &amp; Verified
-                    </span>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  completedInvitations.map((inv) => (
+                    <div
+                      key={inv.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        borderRadius: 8,
+                        border: '1px solid #bbf7d0',
+                        background: '#f0fdf4',
+                        fontSize: 12.5,
+                        flexWrap: 'wrap',
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#166534', fontWeight: 800, fontSize: 12 }}>
+                          ✓
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#166534' }}>{inv.workEmail}</div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>
+                            {inv.role} · 🏢 {inv.subsidiary?.legalName || 'Subsidiary'}
+                            {inv.positionName && ` (${inv.positionName})`}
+                          </div>
+                        </div>
+                      </div>
+                      <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 9px', borderRadius: 6, fontWeight: 700, fontSize: 11 }}>
+                        Account Active &amp; Verified
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>

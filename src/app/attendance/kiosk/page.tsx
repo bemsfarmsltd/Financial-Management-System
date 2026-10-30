@@ -166,7 +166,7 @@ export default function AttendanceKioskPage() {
         const res = await fetch('/api/attendance/timesheet?kiosk=true');
         if (res.ok) {
           const data = await res.json();
-          const activeToday = (data.employees || []).filter((e: any) => e.checkInTime);
+          const activeToday = (data.employees || []).filter((e: any) => e.checkInTime && e.role === 'STAFF');
           setRecentPunches(activeToday);
           setTotalPresentCount(activeToday.length);
         }

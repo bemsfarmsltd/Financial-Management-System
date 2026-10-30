@@ -48,8 +48,12 @@ export async function POST(request: Request) {
       },
     });
 
-    if (!employee || employee.status === 'TERMINATED') {
-      return NextResponse.json({ error: 'Employee not found or inactive' }, { status: 404 });
+    if (!employee || employee.status !== 'ACTIVE') {
+      return NextResponse.json({ error: 'Account is inactive or has been suspended. Please contact HR.' }, { status: 403 });
+    }
+
+    if (employee.role !== 'STAFF') {
+      return NextResponse.json({ error: 'Attendance timekeeping is exclusively for general staff personnel.' }, { status: 403 });
     }
 
     // 2. Parse and Validate Station & Dynamic QR Token

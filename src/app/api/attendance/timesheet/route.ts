@@ -24,21 +24,25 @@ export async function GET(request: Request) {
     const { workDate: todayStr } = getLagosTime(now);
     const targetDate = dateParam || todayStr;
 
+    const effectiveEmployeeId = (user?.role === 'STAFF') ? user.id : (employeeId || null);
+    const effectiveMonth = monthParam ? parseInt(monthParam, 10) : (now.getMonth() + 1);
+    const effectiveYear = yearParam ? parseInt(yearParam, 10) : now.getFullYear();
+
     // Mode 1: Individual Employee Timesheet (Month-wise Calendar View)
-    if (employeeId && monthParam && yearParam) {
-      const monthNum = parseInt(monthParam, 10);
-      const yearNum = parseInt(yearParam, 10);
+    if (effectiveEmployeeId && (monthParam || user?.role === 'STAFF')) {
+      const monthNum = effectiveMonth;
+      const yearNum = effectiveYear;
 
       const monthPrefix = `${yearNum}-${String(monthNum).padStart(2, '0')}`;
 
       const [employee, records] = await Promise.all([
         prisma.employee.findUnique({
-          where: { id: employeeId },
+          where: { id: effectiveEmployeeId },
           include: { workSchedule: true },
         }),
         prisma.attendanceRecord.findMany({
           where: {
-            employeeId,
+            employeeId: effectiveEmployeeId,
             workDate: { startsWith: monthPrefix },
           },
           orderBy: { workDate: 'asc' },
@@ -191,7 +195,10 @@ export async function GET(request: Request) {
     // Mode 2: Admin Live Daily Dashboard
     const [employees, todayRecords, policy] = await Promise.all([
       prisma.employee.findMany({
-        where: { status: 'ACTIVE' },
+        where: {
+          status: 'ACTIVE',
+          role: 'STAFF',
+        },
         select: {
           id: true,
           legalName: true,

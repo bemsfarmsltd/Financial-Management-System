@@ -31,6 +31,7 @@ export async function GET(request: Request) {
       prisma.employee.findMany({
         where: {
           status: 'ACTIVE',
+          role: 'STAFF',
           ...(subsidiaryId && subsidiaryId !== 'ALL'
             ? { assignments: { some: { subsidiaryId } } }
             : {}),

@@ -23,6 +23,10 @@ import {
   XCircle,
   ExternalLink,
   ChevronRight,
+  ChevronLeft,
+  Calendar,
+  MapPin,
+  QrCode,
   Send,
   Zap,
 } from 'lucide-react';
@@ -128,6 +132,44 @@ export function StaffDashboardClient({
   const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'PAID' | 'CLOSED'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+
+  // View Mode: 'OVERVIEW' | 'ATTENDANCE'
+  const [viewMode, setViewMode] = useState<'OVERVIEW' | 'ATTENDANCE'>('OVERVIEW');
+
+  // Attendance state
+  const [attendanceMonth, setAttendanceMonth] = useState<number>(new Date().getMonth() + 1);
+  const [attendanceYear, setAttendanceYear] = useState<number>(new Date().getFullYear());
+  const [attendanceData, setAttendanceData] = useState<any>(null);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
+  const [selectedDayDetail, setSelectedDayDetail] = useState<any>(null);
+
+  const loadAttendance = async (m: number, y: number) => {
+    try {
+      setLoadingAttendance(true);
+      const res = await fetch(`/api/attendance/timesheet?employeeId=${user.id}&month=${m}&year=${y}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAttendanceData(data?.calendar || null);
+      }
+    } catch (err) {
+      console.error('Error fetching attendance:', err);
+    } finally {
+      setLoadingAttendance(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAttendance(attendanceMonth, attendanceYear);
+  }, [attendanceMonth, attendanceYear]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('tab') === 'attendance') {
+        setViewMode('ATTENDANCE');
+      }
+    }
+  }, []);
 
   // Maker-Checker confirmation state
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -309,6 +351,39 @@ export function StaffDashboardClient({
     });
   }, [requests, activeTab, searchTerm]);
 
+  // Today's attendance record
+  const todayAttendance = useMemo(() => {
+    if (!attendanceData?.days) return null;
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return attendanceData.days.find((d: any) => d.date === todayStr) || null;
+  }, [attendanceData]);
+
+  // Calendar blank offset days (0=Sunday, 1=Monday, etc.)
+  const calendarBlankOffset = useMemo(() => {
+    return new Date(attendanceYear, attendanceMonth - 1, 1).getDay();
+  }, [attendanceYear, attendanceMonth]);
+
+  const handlePrevMonth = () => {
+    if (attendanceMonth === 1) {
+      setAttendanceMonth(12);
+      setAttendanceYear((y) => y - 1);
+    } else {
+      setAttendanceMonth((m) => m - 1);
+    }
+    setSelectedDayDetail(null);
+  };
+
+  const handleNextMonth = () => {
+    if (attendanceMonth === 12) {
+      setAttendanceMonth(1);
+      setAttendanceYear((y) => y + 1);
+    } else {
+      setAttendanceMonth((m) => m + 1);
+    }
+    setSelectedDayDetail(null);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1440px', margin: '0 auto' }}>
       {/* Toast Notification */}
@@ -406,7 +481,28 @@ export function StaffDashboardClient({
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <Link
+            href="/attendance/scan"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '11px 18px',
+              fontSize: '13.5px',
+              fontWeight: '700',
+              textDecoration: 'none',
+              boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <QrCode size={16} /> Scan Kiosk QR
+          </Link>
+
           <Link
             href="/accountability"
             style={{
@@ -447,6 +543,67 @@ export function StaffDashboardClient({
             }}
           >
             <Plus size={16} /> New Fund Request
+          </button>
+        </div>
+
+        {/* View Switcher Tabs: Requisitions vs Attendance */}
+        <div style={{ display: 'flex', gap: '8px', marginTop: '20px', width: '100%', borderTop: '1px solid rgba(255, 255, 255, 0.12)', paddingTop: '16px', overflowX: 'auto' }}>
+          <button
+            type="button"
+            onClick={() => setViewMode('OVERVIEW')}
+            style={{
+              padding: '9px 18px',
+              borderRadius: '10px',
+              border: viewMode === 'OVERVIEW' ? '1.5px solid #ea580c' : '1px solid rgba(255, 255, 255, 0.15)',
+              background: viewMode === 'OVERVIEW' ? '#ea580c' : 'rgba(255, 255, 255, 0.06)',
+              color: '#ffffff',
+              fontSize: '13px',
+              fontWeight: '750',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <FileText size={15} />
+            <span>Requisitions & 72h Advances</span>
+            <span style={{ background: 'rgba(0,0,0,0.2)', padding: '2px 7px', borderRadius: '12px', fontSize: '11px' }}>
+              {requests.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setViewMode('ATTENDANCE')}
+            style={{
+              padding: '9px 18px',
+              borderRadius: '10px',
+              border: viewMode === 'ATTENDANCE' ? '1.5px solid #ea580c' : '1px solid rgba(255, 255, 255, 0.15)',
+              background: viewMode === 'ATTENDANCE' ? '#ea580c' : 'rgba(255, 255, 255, 0.06)',
+              color: '#ffffff',
+              fontSize: '13px',
+              fontWeight: '750',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Clock size={15} />
+            <span>My Attendance & Calendar</span>
+            {todayAttendance?.checkInTime ? (
+              <span style={{ background: '#22c55e', color: '#ffffff', padding: '2px 7px', borderRadius: '12px', fontSize: '10px', fontWeight: '800' }}>
+                Clocked In ({todayAttendance.checkInTime})
+              </span>
+            ) : (
+              <span style={{ background: 'rgba(255,255,255,0.2)', color: '#fed7aa', padding: '2px 7px', borderRadius: '12px', fontSize: '10px', fontWeight: '800' }}>
+                Not Punched
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -828,9 +985,57 @@ export function StaffDashboardClient({
             </div>
           </div>
         </div>
+
+        {/* Card 5: Today's Attendance & Timekeeping */}
+        <div
+          onClick={() => setViewMode('ATTENDANCE')}
+          style={{
+            background: todayAttendance?.checkInTime ? '#f0fdf4' : '#ffffff',
+            borderRadius: '18px',
+            padding: '22px',
+            border: todayAttendance?.checkInTime ? '1.5px solid #86efac' : '1px solid #e2e8f0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '11px', fontWeight: '800', color: todayAttendance?.checkInTime ? '#15803d' : '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Today's Attendance
+            </span>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: todayAttendance?.checkInTime ? '#dcfce7' : '#f1f5f9',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: todayAttendance?.checkInTime ? '#15803d' : '#64748b',
+              }}
+            >
+              <Clock size={16} />
+            </div>
+          </div>
+          <div style={{ marginTop: '16px' }}>
+            <div style={{ fontSize: todayAttendance?.checkInTime ? '24px' : '26px', fontWeight: '900', color: todayAttendance?.checkInTime ? '#15803d' : '#0f172a', lineHeight: 1.1 }}>
+              {todayAttendance?.checkInTime ? todayAttendance.checkInTime : 'Not Clocked In'}
+            </div>
+            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
+              {todayAttendance?.checkInTime
+                ? (todayAttendance.checkOutTime ? `Day Complete (Out: ${todayAttendance.checkOutTime})` : 'Active Shift · View Calendar →')
+                : 'Click to open calendar & clock in →'}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Main Grid: Requisitions Table (Left) & Support / Channels (Right) */}
+      {viewMode === 'OVERVIEW' ? (
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) minmax(320px, 1fr)', gap: '20px' }}>
         {/* Left Column: Requisitions Explorer */}
         <div
@@ -1173,6 +1378,487 @@ export function StaffDashboardClient({
           </div>
         </div>
       </div>
+      ) : (
+        /* Attendance & Monthly Calendar Portal */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Today's Shift & Clock-In Status Bar */}
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              padding: '24px',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#ea580c', background: '#fff7ed', padding: '3px 8px', borderRadius: '6px', border: '1px solid #fed7aa' }}>
+                    TODAY'S SHIFT
+                  </span>
+                  <span style={{ fontSize: '12.5px', color: '#64748b' }}>
+                    {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  </span>
+                </div>
+                <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#0f172a', margin: '6px 0 0 0' }}>
+                  {todayAttendance?.checkInTime ? `Clocked In at ${todayAttendance.checkInTime}` : 'Not Yet Punched Today'}
+                </h2>
+                <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0 0' }}>
+                  Scheduled Shift: <strong>08:00 AM – 05:00 PM</strong> · Location: <strong>{todayAttendance?.stationName || 'BEMS Office Station'}</strong>
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <Link
+                  href="/attendance/scan"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '12px',
+                    padding: '11px 20px',
+                    fontSize: '13.5px',
+                    fontWeight: '700',
+                    textDecoration: 'none',
+                    boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <QrCode size={18} />
+                  <span>Scan Office Kiosk QR Code</span>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => loadAttendance(attendanceMonth, attendanceYear)}
+                  style={{
+                    background: '#f8fafc',
+                    color: '#475569',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '12px',
+                    padding: '11px 16px',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ↻ Refresh Attendance
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Shift Details Strip */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', background: '#f8fafc', padding: '16px', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
+              <div>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Check-In Time</span>
+                <strong style={{ display: 'block', fontSize: '16px', color: '#0f172a', marginTop: '2px' }}>
+                  {todayAttendance?.checkInTime || '—'}
+                </strong>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Check-Out Time</span>
+                <strong style={{ display: 'block', fontSize: '16px', color: '#0f172a', marginTop: '2px' }}>
+                  {todayAttendance?.checkOutTime || (todayAttendance?.checkInTime ? 'Active Shift (Pending Out)' : '—')}
+                </strong>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Hours Logged</span>
+                <strong style={{ display: 'block', fontSize: '16px', color: '#0f172a', marginTop: '2px' }}>
+                  {todayAttendance?.hoursWorkedText || '0h 0m'}
+                </strong>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Today's Status</span>
+                <div style={{ marginTop: '3px' }}>
+                  {todayAttendance?.status === 'PRESENT' && (
+                    <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: '8px', fontSize: '11.5px', fontWeight: '800' }}>
+                      ✓ Present & On-Time
+                    </span>
+                  )}
+                  {todayAttendance?.status === 'LATE' && (
+                    <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: '8px', fontSize: '11.5px', fontWeight: '800' }}>
+                      ⚠ Late Arrival
+                    </span>
+                  )}
+                  {!todayAttendance?.status && (
+                    <span style={{ background: '#f1f5f9', color: '#64748b', padding: '3px 8px', borderRadius: '8px', fontSize: '11.5px', fontWeight: '800' }}>
+                      Clock-In Pending
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Monthly KPI Metrics */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
+            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '18px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+              <span style={{ fontSize: '11px', color: '#15803d', fontWeight: '800', textTransform: 'uppercase' }}>Days Present</span>
+              <div style={{ fontSize: '28px', fontWeight: '900', color: '#15803d', marginTop: '4px' }}>
+                {attendanceData?.presentCount ?? 0}
+              </div>
+              <span style={{ fontSize: '11.5px', color: '#64748b' }}>Verified on-time attendance</span>
+            </div>
+
+            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '18px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+              <span style={{ fontSize: '11px', color: '#b45309', fontWeight: '800', textTransform: 'uppercase' }}>Late Arrivals</span>
+              <div style={{ fontSize: '28px', fontWeight: '900', color: '#b45309', marginTop: '4px' }}>
+                {attendanceData?.lateCount ?? 0}
+              </div>
+              <span style={{ fontSize: '11.5px', color: '#64748b' }}>Arrival after grace window</span>
+            </div>
+
+            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '18px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+              <span style={{ fontSize: '11px', color: '#b91c1c', fontWeight: '800', textTransform: 'uppercase' }}>Absences</span>
+              <div style={{ fontSize: '28px', fontWeight: '900', color: '#b91c1c', marginTop: '4px' }}>
+                {attendanceData?.absentCount ?? 0}
+              </div>
+              <span style={{ fontSize: '11.5px', color: '#64748b' }}>Workdays without check-in</span>
+            </div>
+
+            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '18px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+              <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: '800', textTransform: 'uppercase' }}>Punctuality Score</span>
+              <div style={{ fontSize: '28px', fontWeight: '900', color: '#0284c7', marginTop: '4px' }}>
+                {attendanceData?.punctualityScore ?? 100}%
+              </div>
+              <span style={{ fontSize: '11.5px', color: '#64748b' }}>Compliance rating</span>
+            </div>
+
+            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '18px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+              <span style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase' }}>Off Days / Weekends</span>
+              <div style={{ fontSize: '28px', fontWeight: '900', color: '#475569', marginTop: '4px' }}>
+                {attendanceData?.offDayCount ?? 0}
+              </div>
+              <span style={{ fontSize: '11.5px', color: '#64748b' }}>Scheduled weekly rest</span>
+            </div>
+          </div>
+
+          {/* Monthly Attendance Calendar */}
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              padding: '24px',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+            }}
+          >
+            {/* Calendar Controls */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '20px' }}>
+              <div>
+                <h3 style={{ fontSize: '17px', fontWeight: '850', color: '#0f172a', margin: 0 }}>
+                  Monthly Attendance Calendar
+                </h3>
+                <p style={{ fontSize: '12.5px', color: '#64748b', margin: '2px 0 0 0' }}>
+                  Tap any day to inspect check-in timestamps, office stations, and hours worked.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  style={{
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    padding: '7px 12px',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    color: '#334155',
+                  }}
+                >
+                  ‹ Prev
+                </button>
+                <strong style={{ fontSize: '15px', color: '#0f172a', minWidth: '140px', textAlign: 'center' }}>
+                  {attendanceData?.monthName || `${attendanceMonth}/${attendanceYear}`}
+                </strong>
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  style={{
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    padding: '7px 12px',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    color: '#334155',
+                  }}
+                >
+                  Next ›
+                </button>
+              </div>
+            </div>
+
+            {/* Calendar Legend */}
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '16px', fontSize: '11.5px', color: '#64748b' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#22c55e' }} />
+                <span>Present</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#f59e0b' }} />
+                <span>Late</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#ef4444' }} />
+                <span>Absent</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#e2e8f0' }} />
+                <span>Off Day</span>
+              </div>
+            </div>
+
+            {/* 7-Column Calendar Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
+              {/* Day Headers */}
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                <div key={d} style={{ textAlign: 'center', fontSize: '11px', fontWeight: '800', color: '#94a3b8', padding: '6px 0' }}>
+                  {d}
+                </div>
+              ))}
+
+              {/* Offset Blank Days */}
+              {Array.from({ length: calendarBlankOffset }).map((_, i) => (
+                <div key={`blank-${i}`} style={{ minHeight: '68px', background: '#f8fafc', borderRadius: '10px', opacity: 0.3 }} />
+              ))}
+
+              {/* Day Tiles */}
+              {attendanceData?.days?.map((day: any) => {
+                const isSelected = selectedDayDetail?.date === day.date;
+                const isToday = day.date === todayAttendance?.date;
+
+                let tileBg = '#ffffff';
+                let borderColor = '#e2e8f0';
+                let textColor = '#0f172a';
+                let badgeText = '';
+                let badgeBg = '#f1f5f9';
+                let badgeColor = '#64748b';
+
+                if (day.status === 'PRESENT') {
+                  tileBg = '#f0fdf4';
+                  borderColor = '#86efac';
+                  badgeText = day.checkInTime || 'Present';
+                  badgeBg = '#dcfce7';
+                  badgeColor = '#15803d';
+                } else if (day.status === 'LATE') {
+                  tileBg = '#fffbeb';
+                  borderColor = '#fcd34d';
+                  badgeText = `Late (${day.checkInTime})`;
+                  badgeBg = '#fef3c7';
+                  badgeColor = '#b45309';
+                } else if (day.status === 'ABSENT') {
+                  tileBg = '#fef2f2';
+                  borderColor = '#fca5a5';
+                  badgeText = 'Absent';
+                  badgeBg = '#fee2e2';
+                  badgeColor = '#b91c1c';
+                } else if (day.status === 'OFF_DAY') {
+                  tileBg = '#f8fafc';
+                  borderColor = '#e2e8f0';
+                  badgeText = 'Off';
+                  badgeBg = '#e2e8f0';
+                  badgeColor = '#64748b';
+                } else if (day.status === 'FUTURE') {
+                  tileBg = '#ffffff';
+                  borderColor = '#f1f5f9';
+                  textColor = '#cbd5e1';
+                }
+
+                return (
+                  <button
+                    key={day.date}
+                    type="button"
+                    onClick={() => setSelectedDayDetail(day)}
+                    style={{
+                      minHeight: '68px',
+                      background: tileBg,
+                      border: isSelected ? '2px solid #ea580c' : isToday ? '2px solid #3b82f6' : `1px solid ${borderColor}`,
+                      borderRadius: '12px',
+                      padding: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      boxShadow: isSelected ? '0 0 0 2px rgba(234, 88, 12, 0.2)' : 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '13px', fontWeight: isToday ? '900' : '750', color: isToday ? '#2563eb' : textColor }}>
+                        {day.day}
+                      </span>
+                      {isToday && (
+                        <span style={{ fontSize: '9px', fontWeight: '800', background: '#dbeafe', color: '#1d4ed8', padding: '1px 5px', borderRadius: '6px' }}>
+                          TODAY
+                        </span>
+                      )}
+                    </div>
+
+                    {badgeText && (
+                      <span
+                        style={{
+                          fontSize: '9.5px',
+                          fontWeight: '800',
+                          background: badgeBg,
+                          color: badgeColor,
+                          padding: '2px 4px',
+                          borderRadius: '6px',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: 'block',
+                          marginTop: '4px',
+                        }}
+                      >
+                        {badgeText}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selected Day Inspector Detail Box */}
+            {selectedDayDetail && (
+              <div
+                style={{
+                  marginTop: '20px',
+                  background: '#f8fafc',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: '16px',
+                  padding: '18px 20px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '14px',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#ea580c', background: '#fff7ed', padding: '2px 8px', borderRadius: '6px' }}>
+                      DAY DOSSIER
+                    </span>
+                    <strong style={{ fontSize: '14px', color: '#0f172a' }}>
+                      {selectedDayDetail.dayName}, {selectedDayDetail.date}
+                    </strong>
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '6px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                    <span>In: <strong>{selectedDayDetail.checkInTime || '—'}</strong></span>
+                    <span>Out: <strong>{selectedDayDetail.checkOutTime || '—'}</strong></span>
+                    <span>Hours: <strong>{selectedDayDetail.hoursWorkedText || '—'}</strong></span>
+                    <span>Station: <strong>{selectedDayDetail.stationName || 'BEMS Office'}</strong></span>
+                    <span>Status: <strong>{selectedDayDetail.status}</strong></span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedDayDetail(null)}
+                  style={{
+                    background: '#e2e8f0',
+                    color: '#334155',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Close Inspector ✕
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Full Monthly Timesheet History Log Table */}
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              padding: '24px',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+              overflowX: 'auto',
+            }}
+          >
+            <h3 style={{ fontSize: '16px', fontWeight: '850', color: '#0f172a', margin: '0 0 14px 0' }}>
+              Daily Timesheet Punch Log
+            </h3>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #e2e8f0', fontSize: '11px', color: '#64748b', textTransform: 'uppercase' }}>
+                  <th style={{ padding: '10px 12px' }}>Date</th>
+                  <th style={{ padding: '10px 12px' }}>Check-In</th>
+                  <th style={{ padding: '10px 12px' }}>Check-Out</th>
+                  <th style={{ padding: '10px 12px' }}>Hours</th>
+                  <th style={{ padding: '10px 12px' }}>Station</th>
+                  <th style={{ padding: '10px 12px' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attendanceData?.days
+                  ?.filter((d: any) => d.status !== 'FUTURE')
+                  ?.map((d: any) => (
+                    <tr key={d.date} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
+                      <td style={{ padding: '12px' }}>
+                        <strong>{d.date}</strong> <span style={{ color: '#94a3b8', fontSize: '11px' }}>({d.dayName})</span>
+                      </td>
+                      <td style={{ padding: '12px', color: d.checkInTime ? '#0f172a' : '#94a3b8' }}>
+                        {d.checkInTime || '—'}
+                      </td>
+                      <td style={{ padding: '12px', color: d.checkOutTime ? '#0f172a' : '#94a3b8' }}>
+                        {d.checkOutTime || '—'}
+                      </td>
+                      <td style={{ padding: '12px', color: '#64748b' }}>
+                        {d.hoursWorkedText || '—'}
+                      </td>
+                      <td style={{ padding: '12px', color: '#64748b' }}>
+                        {d.stationName || 'Office Kiosk'}
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        {d.status === 'PRESENT' && (
+                          <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
+                            PRESENT
+                          </span>
+                        )}
+                        {d.status === 'LATE' && (
+                          <span style={{ background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
+                            LATE
+                          </span>
+                        )}
+                        {d.status === 'ABSENT' && (
+                          <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
+                            ABSENT
+                          </span>
+                        )}
+                        {d.status === 'OFF_DAY' && (
+                          <span style={{ background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
+                            OFF DAY
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Report Issue with Disbursement */}
       {issueModalDisbursement && (

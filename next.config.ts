@@ -35,6 +35,8 @@ const nextConfig: NextConfig = {
           { key: 'Access-Control-Allow-Origin', value: '*' },
           { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, PATCH, OPTIONS' },
           { key: 'Access-Control-Allow-Headers', value: 'X-Requested-With, Content-Type, Authorization, x-employee-id' },
+        ],
+      },
       {
         source: '/staff-app/:path*',
         headers: [

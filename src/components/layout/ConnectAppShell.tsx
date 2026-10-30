@@ -225,23 +225,18 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
 
   const staffNav = [
     {
-      label: 'STAFF DESK',
+      label: 'MY WORKSPACE',
       items: [
         ['Staff Dashboard', '/staff', '⌂'],
+        ['My Attendance', '/staff?tab=attendance', '⏱'],
         ['My Fund Requests', '/requests', '▱'],
         ['Submit New Request', '/requests/new', '＋'],
         ['72h Evidence Vault', '/accountability', '◈'],
       ],
     },
-    {
-      label: 'PORTAL & VENDORS',
-      items: [
-        ['Vendor Registry', '/vendors', '▦'],
-        ['Intercompany Notes', '/intercompany', '▥'],
-      ],
-    },
   ];
 
+  const isExecutiveAdmin = currentRole === 'GMD' || currentRole === 'SystemAdmin';
   const navGroups = currentRole === 'GMD' ? gmdNav : currentRole === 'HR' ? hrNav : currentRole === 'SystemAdmin' ? sysAdminNav : staffNav;
 
   return (
@@ -349,12 +344,14 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
                     {s.id === currentSub.id && <b>✓</b>}
                   </button>
                 ))}
-                <button
-                  className="switch-add"
-                  onClick={() => { setSubSwitcherOpen(false); setAddModalOpen(true); }}
-                >
-                  ＋ Create New Subsidiary
-                </button>
+                {isExecutiveAdmin && (
+                  <button
+                    className="switch-add"
+                    onClick={() => { setSubSwitcherOpen(false); setAddModalOpen(true); }}
+                  >
+                    ＋ Create New Subsidiary
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -521,6 +518,47 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
             </form>
           </div>
         </div>
+      )}
+
+      {/* MOBILE STAFF BOTTOM NAVIGATION */}
+      {currentRole === 'Staff' && (
+        <nav className="mobile-staff-bottom-bar" aria-label="Staff Mobile Navigation">
+          <Link
+            href="/staff"
+            className={`bottom-nav-link ${pathname === '/staff' && typeof window !== 'undefined' && !window.location.search.includes('tab=attendance') ? 'active' : ''}`}
+          >
+            <span className="bottom-nav-icon">⌂</span>
+            <span className="bottom-nav-label">Home</span>
+          </Link>
+          <Link
+            href="/staff?tab=attendance"
+            className={`bottom-nav-link ${pathname === '/staff' && typeof window !== 'undefined' && window.location.search.includes('tab=attendance') ? 'active' : ''}`}
+          >
+            <span className="bottom-nav-icon">⏱</span>
+            <span className="bottom-nav-label">Attendance</span>
+          </Link>
+          <Link
+            href="/requests/new"
+            className="bottom-nav-link bottom-nav-action-highlight"
+          >
+            <span className="bottom-nav-action-circle">＋</span>
+            <span className="bottom-nav-label">New Req</span>
+          </Link>
+          <Link
+            href="/requests"
+            className={`bottom-nav-link ${pathname.startsWith('/requests') && pathname !== '/requests/new' ? 'active' : ''}`}
+          >
+            <span className="bottom-nav-icon">▱</span>
+            <span className="bottom-nav-label">Requests</span>
+          </Link>
+          <Link
+            href="/accountability"
+            className={`bottom-nav-link ${pathname.startsWith('/accountability') ? 'active' : ''}`}
+          >
+            <span className="bottom-nav-icon">◈</span>
+            <span className="bottom-nav-label">72h Vault</span>
+          </Link>
+        </nav>
       )}
     </main>
   );

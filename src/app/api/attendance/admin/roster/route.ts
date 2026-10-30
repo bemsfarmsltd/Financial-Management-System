@@ -12,7 +12,10 @@ export async function GET(request: Request) {
     }
 
     const employees = await prisma.employee.findMany({
-      where: { status: 'ACTIVE' },
+      where: {
+        status: 'ACTIVE',
+        role: 'STAFF',
+      },
       select: {
         id: true,
         legalName: true,
