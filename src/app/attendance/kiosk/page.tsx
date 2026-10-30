@@ -18,6 +18,9 @@ import {
   X,
   UserCheck,
   Users,
+  Download,
+  Laptop,
+  Check,
 } from 'lucide-react';
 
 interface StationData {
@@ -51,6 +54,11 @@ export default function AttendanceKioskPage() {
   const [totalPresentCount, setTotalPresentCount] = useState<number>(0);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
+  // PWA Desktop App Installation
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState<boolean>(false);
+  const [showInstallModal, setShowInstallModal] = useState<boolean>(false);
+
   // Live West Africa Time Clock
   useEffect(() => {
     function tick() {
@@ -77,6 +85,43 @@ export default function AttendanceKioskPage() {
     tick();
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Register Service Worker & capture PWA install prompt
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.log('SW registration note:', err);
+      });
+    }
+
+    // Check if already installed
+    if (typeof window !== 'undefined') {
+      const isStandalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true;
+      if (isStandalone) {
+        setIsInstalled(true);
+      }
+    }
+
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
   }, []);
 
   // Fetch token and pre-rendered QR
@@ -134,24 +179,76 @@ export default function AttendanceKioskPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Synchronize System Fullscreen state on fullscreenchange (Esc or browser button)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const activeFs = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement
+      );
+      setIsFullscreen(activeFs);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
   // Handle ESC key to exit QR-only fullscreen
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isQrOnlyFullscreen) {
-        setIsQrOnlyFullscreen(false);
+      if (e.key === 'Escape') {
+        if (isQrOnlyFullscreen) {
+          setIsQrOnlyFullscreen(false);
+        }
+        if (showInstallModal) {
+          setShowInstallModal(false);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isQrOnlyFullscreen]);
+  }, [isQrOnlyFullscreen, showInstallModal]);
 
+  // Toggle System Fullscreen
   const togglePageFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+    if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else if ((document.documentElement as any).webkitRequestFullscreen) {
+        (document.documentElement as any).webkitRequestFullscreen();
+      }
       setIsFullscreen(true);
     } else {
-      document.exitFullscreen().catch(() => {});
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      } else if ((document as any).webkitExitFullscreen) {
+        (document as any).webkitExitFullscreen();
+      }
       setIsFullscreen(false);
+    }
+  };
+
+  // Trigger PWA Installation on PC
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      try {
+        deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        if (choice.outcome === 'accepted') {
+          setIsInstalled(true);
+        }
+        setDeferredPrompt(null);
+      } catch (err) {
+        setShowInstallModal(true);
+      }
+    } else {
+      // Guide user to the browser's native install option in address bar
+      setShowInstallModal(true);
     }
   };
 
@@ -176,131 +273,216 @@ export default function AttendanceKioskPage() {
         flexDirection: 'column',
       }}
     >
-      {/* Top Header (Clean Light Design, No Attendance Desk Button) */}
-      <header
-        style={{
-          padding: '16px 36px',
-          background: '#ffffff',
-          borderBottom: '1px solid #e2e8f0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '12px',
-              background: '#ecfdf5',
-              border: '1px solid #a7f3d0',
-              display: 'grid',
-              placeItems: 'center',
-            }}
-          >
-            <img
-              src="/bems-mark.png?v=20261024"
-              alt="BEMS"
-              style={{ width: 26, height: 26, objectFit: 'contain' }}
-            />
+      {/* 
+        TOP HEADER:
+        "this should close on full screen" -> When isFullscreen is active, this header automatically closes/hides.
+      */}
+      {!isFullscreen && (
+        <header
+          style={{
+            padding: '16px 36px',
+            background: '#ffffff',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '12px',
+                background: '#ecfdf5',
+                border: '1px solid #a7f3d0',
+                display: 'grid',
+                placeItems: 'center',
+              }}
+            >
+              <img
+                src="/bems-mark.png?v=20261024"
+                alt="BEMS"
+                style={{ width: 26, height: 26, objectFit: 'contain' }}
+              />
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h1 style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', margin: 0, letterSpacing: '-0.4px' }}>
+                  BEMS Attendance Kiosk
+                </h1>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    padding: '2px 9px',
+                    borderRadius: '20px',
+                    background: '#ecfdf5',
+                    color: '#059669',
+                    border: '1px solid #a7f3d0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                  }}
+                >
+                  <Radio size={11} className="animate-pulse" />
+                  LIVE
+                </span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '1px' }}>
+                {stationData?.stationName || 'BEMS Group Corporate Headquarters'} · Victoria Island HQ
+              </div>
+            </div>
           </div>
 
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h1 style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', margin: 0, letterSpacing: '-0.4px' }}>
-                BEMS Attendance Kiosk
-              </h1>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  padding: '2px 9px',
-                  borderRadius: '20px',
-                  background: '#ecfdf5',
-                  color: '#059669',
-                  border: '1px solid #a7f3d0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                }}
-              >
-                <Radio size={11} className="animate-pulse" />
-                LIVE
-              </span>
-            </div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '1px' }}>
-              {stationData?.stationName || 'BEMS Group Corporate Headquarters'} · Victoria Island HQ
-            </div>
-          </div>
-        </div>
+          {/* Top Right Action Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Download/Install on PC Button */}
+            <button
+              onClick={handleInstallClick}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '10px',
+                background: isInstalled ? '#f8fafc' : '#eff6ff',
+                border: isInstalled ? '1px solid #e2e8f0' : '1px solid #bfdbfe',
+                color: isInstalled ? '#475569' : '#1d4ed8',
+                fontWeight: 700,
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '7px',
+                transition: 'all 0.15s ease',
+              }}
+              title="Download & install BEMS Kiosk as standalone software on your PC"
+            >
+              {isInstalled ? <Check size={14} color="#059669" /> : <Laptop size={14} />}
+              <span>{isInstalled ? 'App Installed' : 'Download PC App'}</span>
+            </button>
 
-        {/* Top Right Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button
-            onClick={fetchToken}
+            {/* Refresh Token */}
+            <button
+              onClick={fetchToken}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '10px',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                color: '#334155',
+                fontWeight: 700,
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+              title="Refresh QR token"
+            >
+              <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+              <span>Refresh</span>
+            </button>
+
+            {/* Fullscreen 1: QR Code Only Fullscreen */}
+            <button
+              onClick={() => setIsQrOnlyFullscreen(true)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '10px',
+                background: '#ecfdf5',
+                border: '1px solid #a7f3d0',
+                color: '#059669',
+                fontWeight: 800,
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+              title="Expand only QR code to full screen"
+            >
+              <Maximize2 size={14} />
+              <span>Fullscreen QR</span>
+            </button>
+
+            {/* Fullscreen 2: System Fullscreen (Hides header, fills entire monitor) */}
+            <button
+              onClick={togglePageFullscreen}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '10px',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                color: '#334155',
+                fontWeight: 700,
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+              title="Put entire kiosk in full screen"
+            >
+              <Maximize2 size={14} />
+              <span>Kiosk Screen</span>
+            </button>
+          </div>
+        </header>
+      )}
+
+      {/* Floating Exit Button for System Fullscreen Mode (Allows clean exit and restores header) */}
+      {isFullscreen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '16px',
+            right: '24px',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}
+        >
+          <span
             style={{
-              padding: '8px 16px',
-              borderRadius: '10px',
-              background: '#ffffff',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              background: 'rgba(255, 255, 255, 0.9)',
+              backdropFilter: 'blur(8px)',
               border: '1px solid #e2e8f0',
-              color: '#334155',
-              fontWeight: 700,
-              fontSize: '13px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-            title="Refresh QR token"
-          >
-            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-            <span>Refresh</span>
-          </button>
-
-          <button
-            onClick={() => setIsQrOnlyFullscreen(true)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '10px',
-              background: '#ecfdf5',
-              border: '1px solid #a7f3d0',
-              color: '#059669',
+              fontSize: '12px',
               fontWeight: 800,
-              fontSize: '13px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
+              color: '#059669',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
             }}
-            title="Expand only QR code to full screen"
           >
-            <Maximize2 size={14} />
-            <span>Fullscreen QR</span>
-          </button>
+            ● LIVE KIOSK FULLSCREEN
+          </span>
 
           <button
             onClick={togglePageFullscreen}
             style={{
-              padding: '8px 16px',
-              borderRadius: '10px',
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
-              color: '#334155',
-              fontWeight: 700,
+              padding: '9px 18px',
+              borderRadius: '12px',
+              background: '#0f172a',
+              color: '#ffffff',
+              fontWeight: 800,
               fontSize: '13px',
+              border: 'none',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
+              boxShadow: '0 8px 25px rgba(15, 23, 42, 0.25)',
+              transition: 'all 0.15s ease',
             }}
-            title="Toggle kiosk screen mode"
           >
-            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-            <span>{isFullscreen ? 'Exit Screen' : 'Kiosk Screen'}</span>
+            <Minimize2 size={15} />
+            <span>Exit Fullscreen (Esc)</span>
           </button>
         </div>
-      </header>
+      )}
 
       {/* Main Content Area */}
       <main
@@ -309,7 +491,7 @@ export default function AttendanceKioskPage() {
           maxWidth: '1340px',
           width: '100%',
           margin: '0 auto',
-          padding: '24px 28px',
+          padding: isFullscreen ? '20px 28px' : '24px 28px',
           display: 'flex',
           flexDirection: 'column',
           gap: '24px',
@@ -646,7 +828,7 @@ export default function AttendanceKioskPage() {
               </div>
             </div>
 
-            {/* Fullscreen QR Action Button */}
+            {/* Fullscreen 1: QR Only Button */}
             <button
               onClick={() => setIsQrOnlyFullscreen(true)}
               style={{
@@ -797,7 +979,7 @@ export default function AttendanceKioskPage() {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '10px',
-                maxHeight: '420px',
+                maxHeight: isFullscreen ? '580px' : '420px',
                 paddingRight: '4px',
               }}
             >
@@ -939,7 +1121,7 @@ export default function AttendanceKioskPage() {
         </div>
       </main>
 
-      {/* DEDICATED FULLSCREEN QR ONLY OVERLAY */}
+      {/* FULLSCREEN 1: DEDICATED QR ONLY FULLSCREEN OVERLAY */}
       {isQrOnlyFullscreen && (
         <div
           style={{
@@ -1032,6 +1214,7 @@ export default function AttendanceKioskPage() {
                   gap: '6px',
                   boxShadow: '0 4px 14px rgba(15, 23, 42, 0.15)',
                 }}
+                title="Close QR Fullscreen"
               >
                 <X size={16} />
                 <span>Exit Fullscreen (Esc)</span>
@@ -1236,6 +1419,203 @@ export default function AttendanceKioskPage() {
                 />
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* PWA PC SOFTWARE DOWNLOAD & INSTALLATION GUIDE MODAL */}
+      {showInstallModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100000,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+          }}
+          onClick={() => setShowInstallModal(false)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '24px',
+              padding: '36px 32px',
+              maxWidth: '520px',
+              width: '100%',
+              boxShadow: '0 25px 60px rgba(15, 23, 42, 0.25)',
+              position: 'relative',
+              textAlign: 'left',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowInstallModal(false)}
+              style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                background: '#f8fafc',
+                cursor: 'pointer',
+                display: 'grid',
+                placeItems: 'center',
+                color: '#64748b',
+              }}
+            >
+              <X size={16} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '14px',
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  display: 'grid',
+                  placeItems: 'center',
+                  color: '#1d4ed8',
+                }}
+              >
+                <Laptop size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#0f172a' }}>
+                  Install BEMS Kiosk as PC Software
+                </h3>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                  Run as a standalone desktop app on Windows or Mac
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: '14px', color: '#334155', lineHeight: 1.6, marginBottom: '20px' }}>
+              To install this kiosk as dedicated software on your computer from Google Chrome or Microsoft Edge:
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+              <div
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    background: '#10b981',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '12px',
+                    display: 'grid',
+                    placeItems: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  1
+                </div>
+                <div style={{ fontSize: '13px', color: '#0f172a' }}>
+                  Look at the right side of your browser&apos;s address/URL bar at the top of your screen.
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    background: '#10b981',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '12px',
+                    display: 'grid',
+                    placeItems: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  2
+                </div>
+                <div style={{ fontSize: '13px', color: '#0f172a' }}>
+                  Click the <strong>Install Icon (⊕ or 💻)</strong> in the address bar, or click Browser Menu (⋮) &rarr; <strong>&quot;Save and share&quot; &rarr; &quot;Install BEMS Attendance Kiosk&quot;</strong>.
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    background: '#10b981',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '12px',
+                    display: 'grid',
+                    placeItems: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  3
+                </div>
+                <div style={{ fontSize: '13px', color: '#0f172a' }}>
+                  Click <strong>Install</strong>. A desktop shortcut will be created and BEMS Kiosk will open in its own clean window without any browser tabs!
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowInstallModal(false)}
+              style={{
+                width: '100%',
+                padding: '12px 20px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#ffffff',
+                fontWeight: 800,
+                fontSize: '14px',
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)',
+              }}
+            >
+              Got It, Thanks
+            </button>
           </div>
         </div>
       )}

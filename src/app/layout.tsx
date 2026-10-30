@@ -9,6 +9,7 @@ export const revalidate = 0;
 export const metadata: Metadata = {
   title: "BEMS ERP | Financial Operations",
   description: "BEMS Group multi-subsidiary financial operations, request channels, disbursements and accountability system",
+  manifest: "/manifest.json",
   icons: {
     icon: [
       { url: "/bems-group-logo.png?v=20261024", type: "image/png" },
