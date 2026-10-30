@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateStationQrToken } from '@/lib/attendance/token';
+import QRCode from 'qrcode';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,21 @@ export async function GET(request: Request) {
       where: { organizationId: station.organizationId },
     }) || await prisma.attendancePolicy.findFirst();
 
+    // Pre-generate both DataURL and vector SVG on the server
+    const [qrDataUrl, qrSvg] = await Promise.all([
+      QRCode.toDataURL(token, {
+        width: 360,
+        margin: 1,
+        color: { dark: '#0f172a', light: '#ffffff' },
+      }),
+      QRCode.toString(token, {
+        type: 'svg',
+        width: 360,
+        margin: 1,
+        color: { dark: '#0f172a', light: '#ffffff' },
+      }),
+    ]);
+
     return NextResponse.json({
       stationCode: station.code,
       stationName: station.name,
@@ -42,6 +58,8 @@ export async function GET(request: Request) {
       longitude: station.longitude,
       radiusMeters: station.radiusMeters,
       qrToken: token,
+      qrDataUrl,
+      qrSvg,
       expiresInSeconds,
       powerOutageMode: policy?.starlinkPowerOutageMode ?? false,
       requireStarlinkIp: policy?.requireStarlinkIp ?? true,

@@ -42,6 +42,7 @@ import { StaffWorkspaceModule } from "@/components/dashboard/staff/StaffWorkspac
 import { NIGERIAN_STATES, NIGERIAN_STATE_LGAS, RESIDENTIAL_CITIES_AND_STATES } from "@/lib/nigeriaGeoData";
 import { CorporateSubsidiaryModal } from "@/components/dashboard/CorporateSubsidiaryModal";
 import { EditSubsidiaryModal } from "@/components/dashboard/EditSubsidiaryModal";
+import AttendanceDeskPage from "../attendance/page";
 
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -214,6 +215,7 @@ const staffNavGroups = [
   {
     label: 'SUPPORT & ACCESS',
     items: [
+      ['Attendance & Timekeeping', '⏱'],
       ['Settings & Profile', '⚙'],
     ]
   },
@@ -244,6 +246,7 @@ const gmdNavGroups = [
   {
     label: 'ADMINISTRATION & GOVERNANCE',
     items: [
+      ['Attendance & Timekeeping', '⏱'],
       ['Staff profiles', '♙'],
       ['Staff onboarding', '👤'],
       ['Audit logs', '≡'],
@@ -3050,6 +3053,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
       // Evidence is submitted by the requester. GMDs only review staff uploads and close-out status.
       if (target === 'Accountability closure' || target === 'Proof & deliverables' || target === 'Follow-up tasks') return <LiveAccountabilityModule setNotice={setNotice}/>;
       if (target === 'Receipt archive') return <LiveReceiptArchiveModule scope={activeScope} setNotice={setNotice}/>;
+      if (target === 'Attendance & Timekeeping' || target === 'Attendance') return <AttendanceDeskPage />;
       if (target === 'Staff profiles') return <LiveStaffProfilesModule scope={activeScope} setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
       if (target === 'Analytics & BI') return <LiveAnalyticsBIPage/>;
       if (target === 'Audit logs') return <LiveAuditLogsModule scope={activeScope} setNotice={setNotice}/>;
@@ -3306,6 +3310,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
     if(target==='Recurring commitments') return <RecurringCommitmentsModule business={current} setNotice={setNotice}/>;
     if(target==='Notification bridge') return <NotificationBridgeModule business={current} setNotice={setNotice}/>;
     if(target==='Audit logs') return <LiveAuditLogsModule scope={activeScope} setNotice={setNotice}/>;
+    if(target==='Attendance & Timekeeping' || target==='Attendance') return <AttendanceDeskPage />;
     if(target==='Staff profiles') return <LiveStaffProfilesModule scope={activeScope} setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
     if(target==='Staff onboarding') return <PeopleAccessWorkspaceModule setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
     if(target==='Team & access') return <TeamAccessPage business={current} setNotice={setNotice}/>;
