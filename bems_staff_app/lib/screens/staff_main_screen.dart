@@ -9,6 +9,7 @@ import 'new_fund_request_screen.dart';
 import 'staff_login_screen.dart';
 import 'request_chat_screen.dart';
 import 'staff_admin_chat_screen.dart';
+import 'attendance_scan_screen.dart';
 import '../widgets/bems_pie_chart.dart';
 
 class StaffMainScreen extends StatefulWidget {
@@ -859,95 +860,42 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           'STEP 2: SCAN OFFICE RECEPTION QR CODE',
                           style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.5),
                         ),
-                        const SizedBox(height: 6),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFCBD5E1)),
-                          ),
-                          child: TextField(
-                            controller: tokenController,
-                            enabled: geofenceVerified,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                            decoration: const InputDecoration(
-                              hintText: 'Paste or scan token from kiosk screen...',
-                              hintStyle: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                              prefixIcon: Icon(Icons.qr_code_scanner_rounded, color: Color(0xFFEA580C), size: 20),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: ElevatedButton.icon(
+                            onPressed: !geofenceVerified
+                                ? null
+                                : () async {
+                                    if (modalCtx.mounted) Navigator.pop(modalCtx);
+                                    final res = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => AttendanceScanScreen(
+                                          currentUser: _currentUser,
+                                          isCheckIn: isCheckIn,
+                                        ),
+                                      ),
+                                    );
+                                    if (res == true) {
+                                      _loadData();
+                                    }
+                                  },
+                            icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                            label: const Text(
+                              'OPEN LIVE CAMERA SCANNER',
+                              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.2),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFEA580C),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              elevation: 2,
                             ),
                           ),
                         ),
                       ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // SUBMIT BUTTON
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: (!geofenceVerified || _isPunching)
-                          ? null
-                          : () async {
-                              final token = tokenController.text.trim();
-                              if (token.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Please scan or enter the dynamic QR code displayed on the kiosk.'),
-                                    backgroundColor: Color(0xFFDC2626),
-                                  ),
-                                );
-                                return;
-                              }
-
-                              setModalState(() => _isPunching = true);
-                              try {
-                                final res = await StaffApiService.punchAttendance(
-                                  employeeId: _currentUser.id,
-                                  qrToken: token,
-                                  latitude: detectedLat ?? 6.4281,
-                                  longitude: detectedLng ?? 3.4219,
-                                  type: isCheckIn ? 'CHECK_IN' : 'CHECK_OUT',
-                                  token: _currentUser.token,
-                                );
-
-                                if (modalCtx.mounted) Navigator.pop(modalCtx);
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('✓ ${res['message']}'),
-                                    backgroundColor: res['status'] == 'LATE' ? const Color(0xFFEA580C) : const Color(0xFF059669),
-                                    duration: const Duration(seconds: 4),
-                                  ),
-                                );
-                                _loadData();
-                              } catch (e) {
-                                setModalState(() => _isPunching = false);
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(e.toString().replaceAll('Exception: ', '')),
-                                    backgroundColor: const Color(0xFFDC2626),
-                                  ),
-                                );
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isCheckIn ? const Color(0xFF059669) : const Color(0xFFEA580C),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        elevation: 0,
-                      ),
-                      child: _isPunching
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : Text(
-                              isCheckIn ? 'CONFIRM CLOCK IN' : 'CONFIRM CLOCK OUT',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 0.5),
-                            ),
                     ),
                   ),
                 ],
@@ -2196,7 +2144,20 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       child: ElevatedButton.icon(
                         onPressed: _todayAttendance != null && _todayAttendance!['checkOutTime'] != null
                             ? null
-                            : () => _showAttendancePunchDialog(isCheckIn: _todayAttendance == null),
+                            : () async {
+                                final res = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => AttendanceScanScreen(
+                                      currentUser: _currentUser,
+                                      isCheckIn: _todayAttendance == null,
+                                    ),
+                                  ),
+                                );
+                                if (res == true) {
+                                  _loadData();
+                                }
+                              },
                         icon: Icon(
                           _todayAttendance == null ? Icons.qr_code_scanner_rounded : Icons.logout_rounded,
                           size: 16,
