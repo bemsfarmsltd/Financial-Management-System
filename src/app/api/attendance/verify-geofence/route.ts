@@ -71,12 +71,13 @@ export async function POST(request: Request) {
       station.longitude
     );
 
-    const isInsideGeofence = distanceMeters <= station.radiusMeters;
-
     // Check Starlink IP & Policy Gates
     const policy = await prisma.attendancePolicy.findFirst({
       where: { organizationId: station.organizationId },
     }) || await prisma.attendancePolicy.findFirst();
+
+    const requireGeofence = policy?.requireGeofence ?? true;
+    const isInsideGeofence = !requireGeofence || distanceMeters <= station.radiusMeters;
 
     const clientIp = extractClientIp(request);
     const requireStarlink = policy?.requireStarlinkIp ?? true;
