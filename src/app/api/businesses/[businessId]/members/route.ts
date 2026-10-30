@@ -40,7 +40,7 @@ export async function GET(
       },
       {
         id: 'emp-fc',
-        email: 'finance@bemsfarms.com',
+        email: 'finance@bemsgroup.com',
         fullName: 'Group Finance Controller',
         role: 'FINANCE_CONTROLLER',
         status: 'Active',

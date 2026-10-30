@@ -50,6 +50,23 @@ export async function GET(req: NextRequest) {
 
     const batch = period.batches[0];
 
+    // Fetch monthly attendance records to compute lateness and absence deductions
+    const monthPrefix = `${period.year}-${String(period.month).padStart(2, '0')}`;
+    const monthlyAttendance = await prisma.attendanceRecord.findMany({
+      where: { workDate: { startsWith: monthPrefix } },
+    });
+
+    const attendanceDeductionByEmployee = new Map<string, { countLate: number; countAbsent: number; totalPercent: number }>();
+    for (const rec of monthlyAttendance) {
+      if (rec.deductionPercent > 0) {
+        const cur = attendanceDeductionByEmployee.get(rec.employeeId) || { countLate: 0, countAbsent: 0, totalPercent: 0 };
+        if (rec.status === 'LATE') cur.countLate += 1;
+        if (rec.status === 'ABSENT') cur.countAbsent += 1;
+        cur.totalPercent += rec.deductionPercent;
+        attendanceDeductionByEmployee.set(rec.employeeId, cur);
+      }
+    }
+
     const totalGross = batch.items.reduce((sum, item) => sum + Number(item.grossMinor), 0);
     const totalNet = batch.items.reduce((sum, item) => sum + Number(item.netMinor), 0);
     const totalDeductions = batch.items.reduce((sum, item) => sum + Number(item.employeeDeductionsMinor), 0);
@@ -58,41 +75,52 @@ export async function GET(req: NextRequest) {
     const subsidiaries = subsidiaryIds.length ? await prisma.organization.findMany({ where: { id: { in: subsidiaryIds } }, select: { id: true, legalName: true } }) : [];
     const subsidiaryNames = new Map(subsidiaries.map(subsidiary => [subsidiary.id, subsidiary.legalName]));
 
-    const safeItems = batch.items.map(item => ({
-      id: item.id,
-      employeeId: item.employee.id,
-      employeeName: item.employee.legalName,
-      role: item.employee.role,
-      email: item.employee.workEmail,
-      grossMinor: Number(item.grossMinor),
-      grossFormatted: formatNaira(item.grossMinor),
-      deductionsMinor: Number(item.employeeDeductionsMinor),
-      deductionsFormatted: formatNaira(item.employeeDeductionsMinor),
-      employerPensionFormatted: formatNaira(item.employerCostMinor),
-      netMinor: Number(item.netMinor),
-      netFormatted: formatNaira(item.netMinor),
-      status: item.status,
-      paymentStatus: item.disbursement?.status || 'UNPAID',
-      paymentId: item.disbursement?.id || null,
-      paymentReceiptName: item.disbursement?.receipt?.fileName || null,
-      paymentReceiptUrl: item.disbursement?.receipt?.fileUrl || null,
-      recipientDecision: item.disbursement?.recipientConfirmation?.decision || null,
-      allocations: item.allocations.map(a => {
-        const amount = Number(a.allocableCostMinor);
-        const subsidiaryName = subsidiaryNames.get(a.subsidiaryId) || 'Unknown subsidiary';
-        const existing = allocationTotals.get(a.subsidiaryId) || { name: subsidiaryName, amount: 0, percentage: 0 };
-        existing.amount += amount;
-        existing.percentage += a.percentage;
-        allocationTotals.set(a.subsidiaryId, existing);
-        return {
-          subsidiaryId: a.subsidiaryId,
-          subsidiaryName,
-          percentage: a.percentage,
-          allocableCostMinor: amount,
-          allocableCostFormatted: formatNaira(amount)
-        };
-      })
-    }));
+    const safeItems = batch.items.map(item => {
+      const attStats = attendanceDeductionByEmployee.get(item.employee.id) || { countLate: 0, countAbsent: 0, totalPercent: 0 };
+      // Pro-rated daily rate (grossMinor / 22 work days in average month)
+      const dailyRate = Number(item.grossMinor) / 22;
+      const attendancePenaltyMinor = Math.round((dailyRate * attStats.totalPercent) / 100);
+
+      return {
+        id: item.id,
+        employeeId: item.employee.id,
+        employeeName: item.employee.legalName,
+        role: item.employee.role,
+        email: item.employee.workEmail,
+        grossMinor: Number(item.grossMinor),
+        grossFormatted: formatNaira(item.grossMinor),
+        deductionsMinor: Number(item.employeeDeductionsMinor) + attendancePenaltyMinor,
+        deductionsFormatted: formatNaira(Number(item.employeeDeductionsMinor) + attendancePenaltyMinor),
+        employerPensionFormatted: formatNaira(item.employerCostMinor),
+        netMinor: Math.max(0, Number(item.netMinor) - attendancePenaltyMinor),
+        netFormatted: formatNaira(Math.max(0, Number(item.netMinor) - attendancePenaltyMinor)),
+        attendancePenaltyMinor,
+        attendancePenaltyFormatted: formatNaira(attendancePenaltyMinor),
+        lateArrivalsCount: attStats.countLate,
+        unexcusedAbsenceCount: attStats.countAbsent,
+        status: item.status,
+        paymentStatus: item.disbursement?.status || 'UNPAID',
+        paymentId: item.disbursement?.id || null,
+        paymentReceiptName: item.disbursement?.receipt?.fileName || null,
+        paymentReceiptUrl: item.disbursement?.receipt?.fileUrl || null,
+        recipientDecision: item.disbursement?.recipientConfirmation?.decision || null,
+        allocations: item.allocations.map(a => {
+          const amount = Number(a.allocableCostMinor);
+          const subsidiaryName = subsidiaryNames.get(a.subsidiaryId) || 'Unknown subsidiary';
+          const existing = allocationTotals.get(a.subsidiaryId) || { name: subsidiaryName, amount: 0, percentage: 0 };
+          existing.amount += amount;
+          existing.percentage += a.percentage;
+          allocationTotals.set(a.subsidiaryId, existing);
+          return {
+            subsidiaryId: a.subsidiaryId,
+            subsidiaryName,
+            percentage: a.percentage,
+            allocableCostMinor: amount,
+            allocableCostFormatted: formatNaira(amount)
+          };
+        })
+      };
+    });
 
     return NextResponse.json({
       period: {

@@ -67,10 +67,10 @@ export interface NewRequestFormProps {
 }
 
 const CATEGORIES = [
-  'Feed Ingredients & Raw Grain',
-  'Machinery & Spares Repair',
+  'Operational Materials & Consumables',
+  'Equipment & Spares Repair',
   'Fuel & Logistics Haulage',
-  'Farm Inputs & Agro-Chemicals',
+  'General Procurement & Supplies',
   'Staff Welfare & Per-Diem',
   'Utility & Operations',
   'IT & Cloud Software (VPS, SaaS)',

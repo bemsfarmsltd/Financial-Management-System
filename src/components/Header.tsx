@@ -33,6 +33,7 @@ export function Header() {
     { name: "Approvals", href: "/approvals", badge: "1" },
     { name: "Accountability", href: "/accountability" },
     { name: "Hybrid Payroll", href: "/payroll" },
+    { name: "Attendance", href: "/attendance" },
     { name: "Vendors", href: "/vendors" },
     { name: "Intercompany", href: "/intercompany" },
   ];

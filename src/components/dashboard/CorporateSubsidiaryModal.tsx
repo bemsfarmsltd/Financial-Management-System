@@ -11,7 +11,7 @@ export const CONGLOMERATE_SECTORS = [
   { id: 'TECHNOLOGY', label: 'Technology & Digital Platforms', defaultPrefix: 'BTECH' },
   { id: 'REAL_ESTATE', label: 'Real Estate, Construction & Infrastructure', defaultPrefix: 'BPROP' },
   { id: 'OIL_AND_GAS', label: 'Oil, Gas & Energy Operations', defaultPrefix: 'BENRG' },
-  { id: 'AGRO_ALLIED', label: 'Agro-Allied, Food Processing & Commodities', defaultPrefix: 'BFARM' },
+  { id: 'AGRO_ALLIED', label: 'Agro-Allied, Food Processing & Commodities', defaultPrefix: 'BAGRO' },
   { id: 'LOGISTICS', label: 'Logistics, Haulage & Supply Chain', defaultPrefix: 'BLOGS' },
   { id: 'FINANCIAL_SERVICES', label: 'Financial Services & Investment Holdings', defaultPrefix: 'BCAP' },
   { id: 'HEALTHCARE', label: 'Healthcare & Life Sciences', defaultPrefix: 'BHLTH' },
@@ -45,11 +45,11 @@ export const DEPARTMENTS_BY_SECTOR: Record<string, string[]> = {
     'Finance & Treasury',
   ],
   AGRO_ALLIED: [
-    'Agronomy & Field Cultivation',
+    'Commodity Sourcing & Operations',
     'Processing Plant & Milling',
     'Quality Control & Silo Storage',
-    'Farm Supply & Procurement',
-    'Regional Commodity Distribution',
+    'Procurement & Supply Chain',
+    'Regional Distribution',
     'Finance & Administration',
   ],
   LOGISTICS: [
@@ -160,7 +160,7 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
       } else if (lower.includes('prop') || lower.includes('estate') || lower.includes('realt') || lower.includes('build') || lower.includes('land')) {
         gen = 'BPROP';
       } else if (lower.includes('farm') || lower.includes('agro') || lower.includes('grain') || lower.includes('feed')) {
-        gen = 'BFARM';
+        gen = 'BAGRO';
       } else if (lower.includes('logist') || lower.includes('haul') || lower.includes('freight') || lower.includes('cargo')) {
         gen = 'BLOGS';
       } else if (lower.includes('cap') || lower.includes('invest') || lower.includes('fund') || lower.includes('asset') || lower.includes('fin')) {
@@ -444,7 +444,7 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
                   setCodeManuallyEdited(true);
                   setCode(e.target.value.toUpperCase());
                 }}
-                placeholder="e.g. BTECH, BENRG, BPROP, BFARM, BLOGS"
+                placeholder="e.g. BTECH, BENRG, BPROP, BLOGS, BCORP"
                 style={{
                   width: '100%',
                   padding: '11px 14px',

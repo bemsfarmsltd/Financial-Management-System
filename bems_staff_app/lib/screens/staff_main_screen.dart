@@ -29,6 +29,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   List<FundRequestItem> _requests = [];
   List<DisbursementItem> _disbursementsAwaiting = [];
   List<AccountabilityCaseItem> _cases = [];
+  Map<String, dynamic>? _todayAttendance;
+  bool _isPunching = false;
 
   // Search & Filter state for Requisitions
   String _searchQuery = '';
@@ -43,16 +45,26 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   }
 
   Future<void> _loadData() async {
-    final data = await StaffApiService.fetchStaffDashboard(
-      userEmail: _currentUser.email,
-      employeeId: _currentUser.id,
-      token: _currentUser.token,
-    );
+    final results = await Future.wait([
+      StaffApiService.fetchStaffDashboard(
+        userEmail: _currentUser.email,
+        employeeId: _currentUser.id,
+        token: _currentUser.token,
+      ),
+      StaffApiService.fetchTodayAttendance(
+        employeeId: _currentUser.id,
+        token: _currentUser.token,
+      ),
+    ]);
+    final data = results[0] as Map<String, dynamic>;
+    final attendance = results[1];
+
     if (mounted) {
       setState(() {
         _requests = data['requests'] as List<FundRequestItem>;
         _disbursementsAwaiting = data['disbursementsAwaiting'] as List<DisbursementItem>;
         _cases = data['accountabilityCases'] as List<AccountabilityCaseItem>;
+        _todayAttendance = attendance;
         _isLoading = false;
       });
     }
@@ -656,6 +668,294 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // ATTENDANCE PUNCH MODAL SHEET (GPS + DYNAMIC QR)
+  void _showAttendancePunchDialog({required bool isCheckIn}) {
+    final tokenController = TextEditingController();
+    bool isCheckingGeofence = false;
+    bool geofenceVerified = false;
+    String? geofenceMessage;
+    double? detectedLat;
+    double? detectedLng;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 16,
+                bottom: MediaQuery.of(modalCtx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isCheckIn ? const Color(0xFFECFDF5) : const Color(0xFFFFF7ED),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              isCheckIn ? Icons.login_rounded : Icons.logout_rounded,
+                              color: isCheckIn ? const Color(0xFF059669) : const Color(0xFFEA580C),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isCheckIn ? 'Clock In (Morning Resumption)' : 'Clock Out (Workday Close)',
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                              ),
+                              const Text(
+                                'Resumption: 08:00 AM · Grace: 08:15 AM · Closing: 05:00 PM',
+                                style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8)),
+                        onPressed: () => Navigator.pop(modalCtx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+
+                  // STEP 1: GEOFENCE PRE-CHECK
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: geofenceVerified ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: geofenceVerified ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: geofenceVerified ? const Color(0xFF16A34A) : const Color(0xFF3B82F6),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            geofenceVerified ? Icons.check_rounded : Icons.location_on_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'STEP 1: STARLINK WI-FI & LOCATION CHECK',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: geofenceVerified ? const Color(0xFF16A34A) : const Color(0xFF1E40AF),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                geofenceMessage ?? 'Verify you are within the 100m perimeter of your office station.',
+                                style: const TextStyle(fontSize: 12, color: Color(0xFF334155), fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (!geofenceVerified)
+                          ElevatedButton(
+                            onPressed: isCheckingGeofence
+                                ? null
+                                : () async {
+                                    setModalState(() {
+                                      isCheckingGeofence = true;
+                                      geofenceMessage = 'Acquiring GPS coordinates...';
+                                    });
+                                    try {
+                                      detectedLat = 6.4281;
+                                      detectedLng = 3.4219;
+                                      final check = await StaffApiService.verifyGeofence(
+                                        employeeId: _currentUser.id,
+                                        latitude: detectedLat!,
+                                        longitude: detectedLng!,
+                                        token: _currentUser.token,
+                                      );
+                                      setModalState(() {
+                                        isCheckingGeofence = false;
+                                        geofenceVerified = check['isFullyUnlocked'] == true;
+                                        geofenceMessage = check['message'] ?? (geofenceVerified
+                                            ? 'Security gates verified. Camera scanner unlocked.'
+                                            : 'Security verification failed.');
+                                      });
+                                    } catch (e) {
+                                      setModalState(() {
+                                        isCheckingGeofence = false;
+                                        geofenceVerified = false;
+                                        geofenceMessage = e.toString().replaceAll('Exception: ', '');
+                                      });
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F172A),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            child: isCheckingGeofence
+                                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : const Text('Verify GPS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // STEP 2: DYNAMIC QR CODE SCAN OR CODE ENTRY
+                  Opacity(
+                    opacity: geofenceVerified ? 1.0 : 0.45,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'STEP 2: SCAN OFFICE RECEPTION QR CODE',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.5),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFCBD5E1)),
+                          ),
+                          child: TextField(
+                            controller: tokenController,
+                            enabled: geofenceVerified,
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                            decoration: const InputDecoration(
+                              hintText: 'Paste or scan token from kiosk screen...',
+                              hintStyle: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                              prefixIcon: Icon(Icons.qr_code_scanner_rounded, color: Color(0xFFEA580C), size: 20),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // SUBMIT BUTTON
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: (!geofenceVerified || _isPunching)
+                          ? null
+                          : () async {
+                              final token = tokenController.text.trim();
+                              if (token.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Please scan or enter the dynamic QR code displayed on the kiosk.'),
+                                    backgroundColor: Color(0xFFDC2626),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              setModalState(() => _isPunching = true);
+                              try {
+                                final res = await StaffApiService.punchAttendance(
+                                  employeeId: _currentUser.id,
+                                  qrToken: token,
+                                  latitude: detectedLat ?? 6.4281,
+                                  longitude: detectedLng ?? 3.4219,
+                                  type: isCheckIn ? 'CHECK_IN' : 'CHECK_OUT',
+                                  token: _currentUser.token,
+                                );
+
+                                if (modalCtx.mounted) Navigator.pop(modalCtx);
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('✓ ${res['message']}'),
+                                    backgroundColor: res['status'] == 'LATE' ? const Color(0xFFEA580C) : const Color(0xFF059669),
+                                    duration: const Duration(seconds: 4),
+                                  ),
+                                );
+                                _loadData();
+                              } catch (e) {
+                                setModalState(() => _isPunching = false);
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(e.toString().replaceAll('Exception: ', '')),
+                                    backgroundColor: const Color(0xFFDC2626),
+                                  ),
+                                );
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isCheckIn ? const Color(0xFF059669) : const Color(0xFFEA580C),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                      child: _isPunching
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : Text(
+                              isCheckIn ? 'CONFIRM CLOCK IN' : 'CONFIRM CLOCK OUT',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1802,7 +2102,125 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
+
+          // Daily Attendance & Presence Punch Card
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _todayAttendance != null ? const Color(0xFFECFDF5) : const Color(0xFFFFF7ED),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.access_time_filled_rounded,
+                            color: _todayAttendance != null ? const Color(0xFF059669) : const Color(0xFFEA580C),
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'DAILY ATTENDANCE & PRESENCE',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF64748B),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            Text(
+                              _todayAttendance == null
+                                  ? 'Not Checked In Today'
+                                  : (_todayAttendance!['checkOutTime'] != null
+                                      ? 'Workday Completed'
+                                      : 'Clocked In (${_todayAttendance!['status']})'),
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color: _todayAttendance != null ? const Color(0xFF059669) : const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    if (_todayAttendance != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _todayAttendance!['status'] == 'LATE' ? const Color(0xFFFFF7ED) : const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: _todayAttendance!['status'] == 'LATE' ? const Color(0xFFFED7AA) : const Color(0xFFA7F3D0),
+                          ),
+                        ),
+                        child: Text(
+                          _todayAttendance!['status'] == 'LATE' ? 'LATE (-5%)' : 'ON TIME',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: _todayAttendance!['status'] == 'LATE' ? const Color(0xFFEA580C) : const Color(0xFF059669),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _todayAttendance != null && _todayAttendance!['checkOutTime'] != null
+                            ? null
+                            : () => _showAttendancePunchDialog(isCheckIn: _todayAttendance == null),
+                        icon: Icon(
+                          _todayAttendance == null ? Icons.qr_code_scanner_rounded : Icons.logout_rounded,
+                          size: 16,
+                        ),
+                        label: Text(
+                          _todayAttendance == null ? 'CLOCK IN (GPS + QR)' : 'CLOCK OUT',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _todayAttendance == null ? const Color(0xFF059669) : const Color(0xFFEA580C),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
 
           // Hero Advance Card - Aligned with BEMS Corporate Brand
           Container(

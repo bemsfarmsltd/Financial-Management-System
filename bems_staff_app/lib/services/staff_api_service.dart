@@ -879,4 +879,93 @@ class StaffApiService {
     }
     throw Exception(data['error']?.toString() ?? 'Failed to delete fund request.');
   }
+
+  /// Verify device geofence perimeter before unlocking QR scanner
+  static Future<Map<String, dynamic>> verifyGeofence({
+    required String employeeId,
+    required double latitude,
+    required double longitude,
+    String? stationCode,
+    String? token,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/attendance/verify-geofence'),
+        headers: _headers(token: token, employeeId: employeeId),
+        body: jsonEncode({
+          'employeeId': employeeId,
+          'latitude': latitude,
+          'longitude': longitude,
+          if (stationCode != null) 'stationCode': stationCode,
+        }),
+      ),
+    );
+
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return data as Map<String, dynamic>;
+    }
+    throw Exception(data['error']?.toString() ?? 'Geofence check failed.');
+  }
+
+  /// Punch attendance (CHECK_IN or CHECK_OUT) using dual geofence + scanned dynamic QR token
+  static Future<Map<String, dynamic>> punchAttendance({
+    required String employeeId,
+    required String qrToken,
+    required double latitude,
+    required double longitude,
+    required String type, // 'CHECK_IN' | 'CHECK_OUT'
+    String? token,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/attendance/punch'),
+        headers: _headers(token: token, employeeId: employeeId),
+        body: jsonEncode({
+          'employeeId': employeeId,
+          'qrToken': qrToken,
+          'latitude': latitude,
+          'longitude': longitude,
+          'type': type,
+        }),
+      ),
+    );
+
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return data as Map<String, dynamic>;
+    }
+    throw Exception(data['error']?.toString() ?? 'Attendance punch failed.');
+  }
+
+  /// Fetch today's personal attendance punch record
+  static Future<Map<String, dynamic>?> fetchTodayAttendance({
+    required String employeeId,
+    String? token,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final res = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/attendance/timesheet?employeeId=${Uri.encodeComponent(employeeId)}&month=${now.month}&year=${now.year}'),
+          headers: _headers(token: token, employeeId: employeeId),
+        ),
+      );
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final data = jsonDecode(res.body);
+        final records = data['records'] as List<dynamic>? ?? [];
+        if (records.isNotEmpty) {
+          final todayPrefix = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+          final match = records.firstWhere(
+            (r) => r['workDate'] == todayPrefix,
+            orElse: () => null,
+          );
+          return match as Map<String, dynamic>?;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
 }

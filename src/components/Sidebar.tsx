@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Smartphone,
   Settings,
+  Clock,
 } from "lucide-react";
 
 export function Sidebar() {
@@ -72,6 +73,14 @@ export function Sidebar() {
       href: "/payroll",
       icon: Users2,
       roles: ["GMD", "HR", "SYSTEM_ADMIN"],
+    },
+    {
+      name: "Attendance & Timekeeping",
+      href: "/attendance",
+      icon: Clock,
+      roles: ["GMD", "HR", "SYSTEM_ADMIN", "STAFF"],
+      badge: "Kiosk",
+      badgeColor: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
     },
     {
       name: "Vendors & Benchmark Rates",

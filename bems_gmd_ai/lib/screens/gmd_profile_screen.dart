@@ -897,7 +897,7 @@ class _GmdProfileScreenState extends State<GmdProfileScreen> with SingleTickerPr
                 icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B)),
                 items: const [
                   DropdownMenuItem(value: 'all', child: Text('All Subsidiaries (Consolidated)')),
-                  DropdownMenuItem(value: 'head_office', child: Text('Bems Farms Head Office')),
+                  DropdownMenuItem(value: 'head_office', child: Text('BEMS Group Head Office')),
                   DropdownMenuItem(value: 'logistics', child: Text('Logistics & Haulage Division')),
                   DropdownMenuItem(value: 'feeds_processing', child: Text('Feeds & Milling Subsidiary')),
                   DropdownMenuItem(value: 'distribution', child: Text('Processing & Distribution')),

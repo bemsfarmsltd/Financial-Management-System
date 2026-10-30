@@ -125,7 +125,7 @@ async function main() {
 
   // 5. Fetch Key Employees for realistic ownership
   const amina = await prisma.employee.findFirst({ where: { workEmail: 'amina.yusuf@bemslogistics.com' } });
-  const henryStaff = await prisma.employee.findFirst({ where: { workEmail: 'staff@bemsfarms.com' } });
+  const henryStaff = await prisma.employee.findFirst({ where: { workEmail: 'staff@bemsgroup.com' } });
   const chinedu = await prisma.employee.findFirst({ where: { workEmail: 'chinedu.eze@bemssoftware.com' } });
   const gmd = await prisma.employee.findFirst({ where: { role: 'GMD' } });
   const admin = await prisma.employee.findFirst({ where: { role: 'SYSTEM_ADMIN' } });
@@ -191,7 +191,7 @@ async function main() {
       amountMinor: 1120000000n, // ₦11,200,000
       currency: 'NGN',
       justification: 'Depot fueling for 8 long-haul refrigerated trucks transporting produce across regional distributors.',
-      deliverable: '10,000L Automotive Gas Oil (AGO) delivered directly into farm central holding tanks.',
+      deliverable: '10,000L Automotive Gas Oil (AGO) delivered directly into logistics central holding tanks.',
       neededBy: new Date(now.getTime() + 3 * 86400000),
       approvalStatus: 'APPROVED',
       paymentStatus: 'PAID',
@@ -292,7 +292,7 @@ async function main() {
       subsidiaryId: logOrg.id,
       requestedById: requesterHenryId,
       requestNumber: 'REQ-2026-1005',
-      title: '72-Hour Inter-Farm Haulage Cash Advance (Emergency Fuel & Weighbridge Fees)',
+      title: '72-Hour Inter-Depot Haulage Cash Advance (Emergency Fuel & Weighbridge Fees)',
       category: 'ADVANCE',
       requestType: 'ADVANCE',
       amountMinor: 65000000n, // ₦650,000
@@ -330,8 +330,8 @@ async function main() {
       requestType: 'ORDINARY',
       amountMinor: 420000000n, // ₦4,200,000
       currency: 'NGN',
-      justification: 'Deployment of IoT soil moisture telemetry probes and solenoid automated valves across greenhouse farm clusters.',
-      deliverable: '24 IoT sensor nodes calibrated and reporting real-time telemetry into the BEMi farm intelligence platform.',
+      justification: 'Deployment of IoT facility monitoring probes and automated controls across regional facility clusters.',
+      deliverable: '24 IoT sensor nodes calibrated and reporting real-time telemetry into the BEMi operations telemetry platform.',
       neededBy: new Date(now.getTime() + 7 * 86400000),
       approvalStatus: 'APPROVED',
       paymentStatus: 'PAID',

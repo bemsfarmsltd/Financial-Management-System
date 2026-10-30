@@ -966,7 +966,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                     required
                     value={signupForm.jobTitle}
                     onChange={e => setSignupForm(old => ({ ...old, jobTitle: e.target.value }))}
-                    placeholder="e.g. Farm Operations Lead, Software Developer, Agronomist, Sales Executive"
+                    placeholder="e.g. Operations Lead, Software Developer, Accountant, Sales Executive"
                   />
                 </label>
                 <label>
@@ -995,7 +995,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                   >
                     {(options.workLocations.length > 0 ? options.workLocations : [
                       { value: 'LAGOS_HQ', label: 'Lagos Corporate HQ (Victoria Island / Lekki)' },
-                      { value: 'BENIN_FARM_HUB', label: 'Benin City Agricultural Hub & Mill' },
+                      { value: 'BENIN_OPS_HUB', label: 'Benin Regional Operations & Logistics Hub' },
                       { value: 'ABUJA_OFFICE', label: 'Abuja Regional Liaison Hub' },
                       { value: 'PORT_HARCOURT', label: 'Port Harcourt Operations Office' },
                       { value: 'FIELD_REMOTE', label: 'Field Operations / Remote Station' },
@@ -1911,7 +1911,7 @@ function TeamAccessPage({business,setNotice}:{business:Business;setNotice:(x:str
         // Graceful fallback to avoid leaving the screen broken
         setRows([
           { email: 'bemssoftbusiness@gmail.com', fullName: 'Dr Pastra (GMD)', role: 'GMD', status: 'Active', isOwner: true, employeeNumber: 'BEMS-HQ-2026-0001', jobTitle: 'Group Managing Director / CEO', department: 'Executive Board' },
-          { email: 'finance@bemsfarms.com', fullName: 'Group Finance Controller', role: 'FINANCE_CONTROLLER', status: 'Active', isOwner: false, employeeNumber: 'BEMS-HQ-2026-0002', jobTitle: 'Financial Controller', department: 'Treasury & Finance' }
+          { email: 'finance@bemsgroup.com', fullName: 'Group Finance Controller', role: 'FINANCE_CONTROLLER', status: 'Active', isOwner: false, employeeNumber: 'BEMS-HQ-2026-0002', jobTitle: 'Financial Controller', department: 'Treasury & Finance' }
         ]);
         setMembersStatus('ready');
       });
@@ -2365,9 +2365,9 @@ function CostAllocationModule({business,setNotice}:{business:Business;setNotice:
     <section className="card data-register">
       <div className="register-head"><span>Cost Center / Function</span><span>Primary Entity</span><span>Sharing Entity</span><span>Split Percentage</span><span/></div>
       {[
-        ['Engineering & DevOps', 'BemsSoft Hub Ltd (70%)', 'Bems Logistics & Farms (30%)', '70 / 30 Split', 'Active'],
+        ['Engineering & DevOps', 'BemsSoft Hub Ltd (70%)', 'Bems Logistics & Distribution (30%)', '70 / 30 Split', 'Active'],
         ['Executive & Legal Group HQ', 'BEMS Group Holdings (50%)', 'BemsSoft Hub Ltd (50%)', '50 / 50 Split', 'Active'],
-        ['Facility Power & High-Speed Internet', 'BemsSoft Hub Ltd (60%)', 'Bems Logistics & Farms (40%)', '60 / 40 Split', 'Active']
+        ['Facility Power & High-Speed Internet', 'BemsSoft Hub Ltd (60%)', 'Bems Logistics & Distribution (40%)', '60 / 40 Split', 'Active']
       ].map(r => (
         <div className="register-row" key={r[0]}>
           <span><i>▥</i><strong>{r[0]}</strong></span>
@@ -2385,7 +2385,7 @@ function SettlementReconciliationModule({business,setNotice}:{business:Business;
   return <>
     <SectionHeader eyebrow="MONTHLY CLEARING" title="Monthly Inter-Subsidiary Settlement Clearing" text="Net clearing of debit/credit note balances between group subsidiaries for tax compliance and audit."/>
     <div className="customer-summary">
-      <article><small>NET RECEIVABLE</small><strong>₦1,420,000</strong><span>Due from Bems Farms</span></article>
+      <article><small>NET RECEIVABLE</small><strong>₦1,420,000</strong><span>Due from Bems Logistics</span></article>
       <article><small>NET PAYABLE</small><strong>₦0</strong><span>All settled</span></article>
       <article><small>SETTLEMENT CYCLE</small><strong>Monthly (30th)</strong><span>Bank wire clearing</span></article>
       <article><small>STATUS</small><strong>Reconciled</strong><span>Matching statements</span></article>

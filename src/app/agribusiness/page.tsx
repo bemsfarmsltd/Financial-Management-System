@@ -83,7 +83,7 @@ export default function AgribusinessPortalPage() {
           <Sprout size={32} />
         </div>
         <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '0 0 8px' }}>
-          Agribusiness & Farm Management
+          Operations & Supply Chain Management
         </h1>
         <p style={{ fontSize: '15px', color: '#64748b', margin: '0 0 28px' }}>
           This module is currently in development (Phase 2).

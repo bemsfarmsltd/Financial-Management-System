@@ -42,10 +42,10 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
   String? _selectedVendor;
 
   final List<String> _categories = [
-    'Feed Ingredients & Raw Grain',
-    'Machinery & Spares Repair',
+    'Operational Materials & Consumables',
+    'Equipment & Spares Repair',
     'Fuel & Logistics Haulage',
-    'Farm Inputs & Agro-Chemicals',
+    'General Procurement & Supplies',
     'Staff Welfare & Per-Diem',
     'Utility & Operations',
   ];
@@ -142,7 +142,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedSubsidiary = widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Bems Logistics & Farms Ltd';
+    _selectedSubsidiary = widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Bems Logistics & Distribution Ltd';
     _loadInitialData();
   }
 
@@ -669,7 +669,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                                   .toList()
                               : {
                                   if (widget.user.subsidiary.isNotEmpty) widget.user.subsidiary,
-                                  'Bems Logistics & Farms Ltd',
+                                  'Bems Logistics & Distribution Ltd',
                                   'BemsSoft Hub Ltd',
                                   'BEMS Group Holdings Ltd (HQ)',
                                 }.toList();

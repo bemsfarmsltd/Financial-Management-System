@@ -213,7 +213,7 @@ export function IntercompanyAuditHubView({
             <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
               <div style={{ fontSize: '9px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Engineering Allocation</div>
               <div style={{ fontSize: '18px', fontWeight: 800, color: '#ea580c', marginTop: '4px' }}>70 / 30 Split</div>
-              <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>BemsSoft 70% · Bems Farms 30%</div>
+              <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>BemsSoft 70% · Bems Logistics 30%</div>
             </div>
             <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
               <div style={{ fontSize: '9px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Group HQ & Legal</div>
@@ -239,9 +239,9 @@ export function IntercompanyAuditHubView({
             </thead>
             <tbody>
               {[
-                ['Engineering & DevOps', 'BemsSoft Hub Ltd (70%)', 'Bems Logistics & Farms (30%)', '70 / 30 Split', 'Active'],
+                ['Engineering & DevOps', 'BemsSoft Hub Ltd (70%)', 'Bems Logistics & Distribution (30%)', '70 / 30 Split', 'Active'],
                 ['Executive & Legal Group HQ', 'BEMS Group Holdings (50%)', 'BemsSoft Hub Ltd (50%)', '50 / 50 Split', 'Active'],
-                ['Facility Power & High-Speed Internet', 'BemsSoft Hub Ltd (60%)', 'Bems Logistics & Farms (40%)', '60 / 40 Split', 'Active'],
+                ['Facility Power & High-Speed Internet', 'BemsSoft Hub Ltd (60%)', 'Bems Logistics & Distribution (40%)', '60 / 40 Split', 'Active'],
                 ['Security & Guard Retainers', 'BEMS Group Holdings (100%)', 'Recharged across Group', 'Direct Recharge', 'Active'],
               ].map(r => (
                 <tr key={r[0]} style={{ borderBottom: '1px solid #f1f5f9' }}>

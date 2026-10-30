@@ -50,7 +50,7 @@ export function IntercompanyClient({ initialNotes, scope }: { initialNotes?: any
         <article>
           <small>NET RECEIVABLE (BemsSoft)</small>
           <strong style={{ color: '#059669' }}>₦1,425,000</strong>
-          <span>Due from Bems Farms Ltd</span>
+          <span>Due from Bems Logistics Ltd</span>
         </article>
         <article>
           <small>NET PAYABLE</small>

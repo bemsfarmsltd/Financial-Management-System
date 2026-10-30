@@ -44,7 +44,7 @@ const STAFF_GRADES = [
 
 const WORK_LOCATIONS = [
   { value: 'LAGOS_HQ', label: 'Lagos Corporate HQ (Victoria Island / Lekki)' },
-  { value: 'BENIN_FARM_HUB', label: 'Benin City Agricultural Hub & Mill' },
+  { value: 'BENIN_OPS_HUB', label: 'Benin Regional Operations & Logistics Hub' },
   { value: 'ABUJA_OFFICE', label: 'Abuja Regional Liaison Hub' },
   { value: 'PORT_HARCOURT', label: 'Port Harcourt Operations Office' },
   { value: 'FIELD_REMOTE', label: 'Field Operations / Remote Station' },
@@ -82,7 +82,7 @@ export async function GET() {
 
     const safeOrgs = organizations.length > 0 ? organizations : [
       { id: 'bems-group-hq', legalName: 'BEMS Group Holdings Ltd (HQ)', code: 'BEMS-HQ' },
-      { id: 'bems-farms', legalName: 'BEMS Farms Limited', code: 'BEMS-BF' },
+      { id: 'bems-operations', legalName: 'BEMS Operations Limited', code: 'BEMS-BO' },
       { id: 'bems-softhub', legalName: 'BEMS SoftHub Limited', code: 'BEMS-BS' },
       { id: 'bems-logistics', legalName: 'BEMS Logistics Limited', code: 'BEMS-BL' },
     ];
@@ -99,11 +99,11 @@ export async function GET() {
           { id: `${org.id}-proc`, name: 'Procurement & Vendor Relations', code: 'PROC', organizationId: org.id },
           { id: `${org.id}-it`, name: 'Information Technology & Systems', code: 'IT', organizationId: org.id },
         ];
-        if (org.code.includes('FARM') || org.code.includes('BF')) {
+        if (org.code.includes('OPS') || org.code.includes('BO')) {
           baseDepts.push(
-            { id: `${org.id}-farm-ops`, name: 'Crop Cultivation & Field Operations', code: 'FARM-OPS', organizationId: org.id },
-            { id: `${org.id}-feedmill`, name: 'Feed Mill & Grain Processing Unit', code: 'MILL', organizationId: org.id },
-            { id: `${org.id}-agronomy`, name: 'Agronomy, Soil Science & Quality Control', code: 'AGRO', organizationId: org.id }
+            { id: `${org.id}-ops`, name: 'Supply Chain & Field Operations', code: 'OPS-FIELD', organizationId: org.id },
+            { id: `${org.id}-facilities`, name: 'Facilities & Asset Maintenance', code: 'FACIL', organizationId: org.id },
+            { id: `${org.id}-quality`, name: 'Quality Assurance & Standards Unit', code: 'QA-STD', organizationId: org.id }
           );
         }
         if (org.code.includes('SOFT') || org.code.includes('BS')) {
@@ -136,7 +136,7 @@ export async function GET() {
     return NextResponse.json({
       organizations: [
         { id: 'bems-group-hq', legalName: 'BEMS Group Holdings HQ', code: 'BEMS-HQ' },
-        { id: 'bems-farms', legalName: 'BEMS Farms Limited', code: 'BEMS-BF' },
+        { id: 'bems-operations', legalName: 'BEMS Operations Limited', code: 'BEMS-BO' },
         { id: 'bems-softhub', legalName: 'BEMS SoftHub Limited', code: 'BEMS-BS' },
       ],
       departments: [],

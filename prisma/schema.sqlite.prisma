@@ -96,7 +96,7 @@ model Employee {
   lga                   String?
   nin                   String?   // National Identification Number (11 digits)
   bvn                   String?   // Bank Verification Number (11 digits)
-  workLocation          String?   // LAGOS_HQ | BENIN_FARM_HUB | ABUJA_OFFICE | FIELD_REMOTE
+  workLocation          String?   // LAGOS_HQ | BENIN_OPS_HUB | ABUJA_OFFICE | FIELD_REMOTE
   staffGrade            String?   // JUNIOR_OFFICER | OFFICER | SENIOR_OFFICER | TEAM_LEAD | MANAGER
   highestEducation      String?   // SSCE | OND | HND | BSC | MSC | PHD
 

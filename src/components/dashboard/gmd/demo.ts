@@ -9,10 +9,10 @@ export type Obligation = {
   history: { text: string; at: string }[];
 };
 export const AS_OF = '2026-10-15';
-export const COMPANIES = ['BemsSoft Hub Ltd', 'Bems Farms & Logistics Ltd', 'BEMS Group Holdings Ltd'];
+export const COMPANIES = ['BemsSoft Hub Ltd', 'Bems Logistics & Distribution Ltd', 'BEMS Group Holdings Ltd'];
 export const BUDGETS: Record<string, number> = {
   'BemsSoft Hub Ltd': 1200000000,
-  'Bems Farms & Logistics Ltd': 1800000000,
+  'Bems Logistics & Distribution Ltd': 1800000000,
   'BEMS Group Holdings Ltd': 1000000000,
 };
 const rows: [string, string, number, string, number, string, string, Approval, Obligation['payment'], boolean, Obligation['kind'], boolean, string, string][] = [

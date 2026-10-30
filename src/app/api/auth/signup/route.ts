@@ -14,7 +14,7 @@ async function generateUniqueEmployeeNumber(subsidiaryId?: string | null): Promi
       select: { code: true, legalName: true }
     });
     if (org?.code) {
-      // E.g. BEMS-FARMS -> BF, BEMS-LOG -> BL, BEMS-SOFT -> BS, BEMS-HQ -> HQ
+      // E.g. BEMS-OPS -> BO, BEMS-LOG -> BL, BEMS-SOFT -> BS, BEMS-HQ -> HQ
       const cleaned = org.code.replace(/BEMS-?/i, '').trim();
       prefix = cleaned.length >= 2 ? cleaned.slice(0, 3).toUpperCase() : org.code.slice(0, 3).toUpperCase();
     }

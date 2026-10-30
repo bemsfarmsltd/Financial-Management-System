@@ -227,7 +227,7 @@ class _BiometricAuthScreenState extends State<BiometricAuthScreen>
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Group Managing Director · Bems Farms Ltd',
+                    'Group Managing Director · BEMS Group Holdings Ltd',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,

@@ -91,10 +91,10 @@ export const RESIDENTIAL_CITIES_AND_STATES = [
   { value: 'Lagos State — Yaba / Surulere / Ebute Metta', label: 'Lagos State — Yaba / Surulere / Ebute Metta' },
   { value: 'Lagos State — Ikorodu / Epe / Badagry', label: 'Lagos State — Ikorodu / Epe / Badagry' },
 
-  // Edo State & Farm Hubs
+  // Edo State & Regional Hubs
   { value: 'Edo State — Benin City (Metropolis / Hub)', label: 'Edo State — Benin City (Metropolis / Hub)' },
   { value: 'Edo State — Egor / Uselu / Ikpoba Okha', label: 'Edo State — Egor / Uselu / Ikpoba Okha' },
-  { value: 'Edo State — Ovia / Farm Hub Operations', label: 'Edo State — Ovia / Farm Hub Operations' },
+  { value: 'Edo State — Ovia / Regional Hub Operations', label: 'Edo State — Ovia / Regional Hub Operations' },
   { value: 'Edo State — Esan Central / Irrua / Ekpoma', label: 'Edo State — Esan Central / Irrua / Ekpoma' },
 
   // FCT Abuja Regional Hub

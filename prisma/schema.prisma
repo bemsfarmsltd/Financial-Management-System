@@ -31,6 +31,8 @@ model Organization {
   settings             WorkspaceSetting[]
   adminInvitations     AdminInvitation[]
   bankAccounts         CompanyBankAccount[]
+  attendanceStations   AttendanceStation[]
+  attendancePolicy     AttendancePolicy?
 }
 
 model CompanyBankAccount {
@@ -118,7 +120,7 @@ model Employee {
   lga                   String?
   nin                   String?   // National Identification Number (11 digits)
   bvn                   String?   // Bank Verification Number (11 digits)
-  workLocation          String?   // LAGOS_HQ | BENIN_FARM_HUB | ABUJA_OFFICE | FIELD_REMOTE
+  workLocation          String?   // LAGOS_HQ | BENIN_OPS_HUB | ABUJA_OFFICE | FIELD_REMOTE
   staffGrade            String?   // JUNIOR_OFFICER | OFFICER | SENIOR_OFFICER | TEAM_LEAD | MANAGER
   highestEducation      String?   // SSCE | OND | HND | BSC | MSC | PHD
 
@@ -143,6 +145,8 @@ model Employee {
   payrollPaymentsReceived Disbursement[] @relation("PayrollBeneficiary")
   goodsReceiptsReceived GoodsReceiptNote[]
   adminMessages         StaffAdminMessage[]
+  attendanceRecords     AttendanceRecord[]
+  workSchedule          StaffWorkSchedule?
 }
 
 model AuthSession {
@@ -753,4 +757,91 @@ model MobileAppRelease {
   createdAt   DateTime       @default(now())
 
   @@index([appId, status])
+}
+
+model AttendanceStation {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String       // E.g. "Lagos Corporate HQ - Reception Kiosk"
+  code           String       @unique // E.g. "LAGOS-HQ-K1"
+  latitude       Float
+  longitude      Float
+  radiusMeters   Int          @default(100)
+  activeSecret   String       // Salt for rotating QR generation
+  status         String       @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  records        AttendanceRecord[]
+
+  @@index([organizationId, status])
+}
+
+model AttendancePolicy {
+  id                       String       @id @default(uuid())
+  organizationId           String       @unique
+  organization             Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  earliestCheckInTime      String       @default("07:00") // No check-in allowed before 07:00 AM
+  resumptionTime           String       @default("08:00") // HH:mm
+  closingTime              String       @default("17:00") // HH:mm
+  gracePeriodMinutes       Int          @default(15)      // Up to 08:15 AM
+  latenessDeductionPercent Float        @default(5.0)     // Deduct 5% of daily rate
+  absenceDeductionPercent  Float        @default(100.0)   // Deduct 100% of daily rate
+  requireGeofence          Boolean      @default(true)
+  requireQrScan            Boolean      @default(true)
+  requireStarlinkIp        Boolean      @default(true)    // Starlink Wi-Fi connection required
+  starlinkIpAddresses      String       @default("")      // Comma-separated Starlink IPs / subnets
+  starlinkPowerOutageMode  Boolean      @default(false)   // Quick toggle for power outage emergency fallback
+  updatedById              String?
+  updatedAt                DateTime     @updatedAt
+}
+
+model StaffWorkSchedule {
+  id             String    @id @default(uuid())
+  employeeId     String    @unique
+  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  weeklyOffDays  String    @default("0,6") // Comma-separated: 0=Sun, 6=Sat
+  customShiftIn  String?   // E.g. "08:00"
+  customShiftOut String?   // E.g. "17:00"
+  isExempt       Boolean   @default(false)
+  notes          String?
+  updatedAt      DateTime  @updatedAt
+}
+
+model AttendanceRecord {
+  id                 String             @id @default(uuid())
+  employeeId         String
+  employee           Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  stationId          String?
+  station            AttendanceStation? @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  workDate           String             // YYYY-MM-DD
+  
+  checkInTime        DateTime?
+  checkInLat         Float?
+  checkInLng         Float?
+  checkInDistanceM   Float?
+  clientIp           String?            // Recorded IP at punch
+  
+  checkOutTime       DateTime?
+  checkOutLat        Float?
+  checkOutLng        Float?
+  checkOutDistanceM  Float?
+
+  status             String             @default("PRESENT") // PRESENT | LATE | HALF_DAY | ABSENT | EXCUSED | OFF_DAY
+  isManualOverride   Boolean            @default(false)
+  overrideReason     String?
+  overrideById       String?
+  
+  isDeductionApplied Boolean            @default(false)
+  deductionPercent   Float              @default(0.0)
+  deductionMinor     BigInt             @default(0)
+  payrollItemId      String?
+
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([employeeId, workDate])
+  @@index([workDate, status])
+  @@index([employeeId, workDate])
 }

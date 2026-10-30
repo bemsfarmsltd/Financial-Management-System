@@ -24,6 +24,7 @@
     "nodemailer": "^10.1.7",
     "postcss": "^8.5.30",
     "prisma": "^6.4.1",
+    "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "resend": "^6.34.1",
@@ -38,6 +39,7 @@
     "braces": "^3.0.3"
   },
   "devDependencies": {
-    "@types/nodemailer": "^8.0.2"
+    "@types/nodemailer": "^8.0.2",
+    "@types/qrcode": "^1.5.6"
   }
 }

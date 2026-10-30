@@ -154,11 +154,11 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   bool _obscureConfirmPassword = true;
 
   // Step 2: Corporate Placement
-  String _subsidiary = 'Bems Logistics & Farms Ltd';
-  String _department = 'Logistics, Supply Chain & Agritech';
+  String _subsidiary = 'Bems Logistics & Distribution Ltd';
+  String _department = 'Logistics & Supply Chain Operations';
   final _jobTitleController = TextEditingController();
   String _staffGrade = 'Level 06 - Operational Specialist';
-  String _workLocation = 'Oyo Logistics & Farm Hub';
+  String _workLocation = 'Oyo Logistics & Operations Hub';
   final _resumptionDateController = TextEditingController();
 
   // Step 3: Dual Banking Accounts
@@ -183,13 +183,13 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
 
   List<Map<String, dynamic>> _organizations = [];
   List<String> _subsidiaries = [
-    'Bems Logistics & Farms Ltd',
+    'Bems Logistics & Distribution Ltd',
     'BemsSoft Hub Ltd',
     'BEMS Group Holdings Ltd (HQ)',
   ];
 
   List<String> _departments = [
-    'Logistics, Supply Chain & Agritech',
+    'Logistics & Supply Chain Operations',
     'Engineering & Cloud Infrastructure',
     'Corporate Services & Administration',
   ];
@@ -203,7 +203,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   ];
 
   final List<String> _workLocations = [
-    'Oyo Logistics & Farm Hub',
+    'Oyo Logistics & Operations Hub',
     'Lagos Corporate Headquarters',
     'Lagos Technology Center',
     'Ilorin Storage & Distribution Depot',
@@ -798,7 +798,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         _buildInputCard([
           _buildTextField(label: 'LEGAL FULL NAME', controller: _fullNameController, hint: 'Surname Firstname Othername', icon: Icons.person_outline_rounded),
           const SizedBox(height: 14),
-          _buildTextField(label: 'OFFICIAL CORPORATE EMAIL', controller: _emailController, hint: 'name@bemsfarms.com', icon: Icons.mail_outline_rounded, keyboardType: TextInputType.emailAddress),
+          _buildTextField(label: 'OFFICIAL CORPORATE EMAIL', controller: _emailController, hint: 'name@bemsgroup.com', icon: Icons.mail_outline_rounded, keyboardType: TextInputType.emailAddress),
           const SizedBox(height: 14),
           _buildTextField(label: 'MOBILE TELEPHONE', controller: _phoneController, hint: '+234 800 000 0000', icon: Icons.phone_outlined, keyboardType: TextInputType.phone),
           const SizedBox(height: 14),

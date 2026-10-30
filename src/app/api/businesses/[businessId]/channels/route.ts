@@ -29,7 +29,7 @@ export async function GET(
       icon: '✉',
       description: 'Formal audit trails, debit/credit notes, and settlement notices',
       status: 'Live',
-      address: 'finance@bemsfarms.com',
+      address: 'finance@bemsgroup.com',
       workflow: 'Official PDF vouchers & statements',
       color: '#EA4335'
     }

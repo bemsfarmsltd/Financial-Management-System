@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 const roleOptions = [
   { role: 'GMD', label: 'GMD (Executive Command)', employeeNumber: 'LOCAL-DEMO-GMD', legalName: 'GMD Executive', workEmail: 'gmd@bemsgroup.com' },
   { role: 'SYSTEM_ADMIN', label: 'System Admin (Shared Command)', employeeNumber: 'LOCAL-DEMO-SYSTEM-ADMIN', legalName: 'Bems system Admin', workEmail: 'bemssofthubltd@gmail.com' },
-  { role: 'STAFF', label: 'Staff Member (Self-Registered)', employeeNumber: 'LOCAL-DEMO-STAFF', legalName: 'Chioma Adebayo', workEmail: 'chioma.staff@bemsfarms.com' },
+  { role: 'STAFF', label: 'Staff Member (Self-Registered)', employeeNumber: 'LOCAL-DEMO-STAFF', legalName: 'Chioma Adebayo', workEmail: 'chioma.staff@bemsgroup.com' },
 ];
 
 export async function GET() {

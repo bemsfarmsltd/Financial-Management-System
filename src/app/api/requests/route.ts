@@ -268,7 +268,7 @@ export async function POST(request: Request) {
         requestType = "ADVANCE";
       } else if (lower.includes("travel") || lower.includes("haulage") || lower.includes("logistics")) {
         category = "TRAVEL";
-      } else if (lower.includes("feed") || lower.includes("raw grain") || lower.includes("agro") || lower.includes("farm")) {
+      } else if (lower.includes("procurement") || lower.includes("materials") || lower.includes("supplies") || lower.includes("consumables")) {
         category = "OFFICE_EXPENSE";
       } else if (lower.includes("machinery") || lower.includes("repair") || lower.includes("spares")) {
         category = "ASSET";

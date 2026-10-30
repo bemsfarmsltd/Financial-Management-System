@@ -294,7 +294,7 @@ class _StaffForgotPasswordScreenState extends State<StaffForgotPasswordScreen> {
                         style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600),
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.mail_outline_rounded, color: Color(0xFF94A3B8), size: 18),
-                          hintText: 'name@bemsfarms.com',
+                          hintText: 'name@bemsgroup.com',
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                         ),
