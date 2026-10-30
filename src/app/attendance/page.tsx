@@ -487,85 +487,7 @@ export default function AttendanceDeskPage() {
         </div>
       )}
 
-      {/* Header */}
-      <header
-        style={{
-          background: '#ffffff',
-          borderBottom: '1px solid #e2e8f0',
-          padding: '16px 32px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <img
-            src="/bems-group-logo.png?v=20261024"
-            alt="BEMS logo"
-            style={{ width: 34, height: 34, objectFit: 'contain' }}
-          />
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <strong style={{ fontSize: '18px', fontWeight: 800 }}>Attendance & Timekeeping Desk</strong>
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  padding: '2px 8px',
-                  borderRadius: '20px',
-                  background: '#ecfdf5',
-                  color: '#059669',
-                  border: '1px solid #a7f3d0',
-                }}
-              >
-                LIVE TELEMETRY
-              </span>
-            </div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '1px' }}>
-              Biometric Presence · Geofenced Mobile Punch · Payroll Penalty Sync · Executive Coverage
-            </div>
-          </div>
-        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Link
-            href="/attendance/kiosk"
-            target="_blank"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '9px 16px',
-              borderRadius: '8px',
-              background: '#ea580c',
-              color: '#ffffff',
-              fontSize: '12px',
-              fontWeight: 800,
-              textDecoration: 'none',
-              boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
-            }}
-          >
-            <QrCode size={14} />
-            <span>Open Reception Kiosk Screen</span>
-            <ExternalLink size={12} />
-          </Link>
-          <Link
-            href="/"
-            style={{
-              padding: '8px 14px',
-              borderRadius: '8px',
-              background: '#f1f5f9',
-              color: '#475569',
-              fontSize: '12px',
-              fontWeight: 700,
-              textDecoration: 'none',
-            }}
-          >
-            All Modules
-          </Link>
-        </div>
-      </header>
 
       {/* Main Content Container */}
       <main style={{ maxWidth: '1280px', width: '100%', margin: '0 auto', padding: '24px 32px', flex: 1 }}>
@@ -643,40 +565,66 @@ export default function AttendanceDeskPage() {
             </div>
           </div>
 
-          <button
-            onClick={handleTogglePowerOutage}
-            disabled={isTogglingPower}
-            style={{
-              padding: '10px 18px',
-              borderRadius: '8px',
-              background: policy.starlinkPowerOutageMode ? '#059669' : '#ea580c',
-              color: '#ffffff',
-              fontSize: '12px',
-              fontWeight: 800,
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              whiteSpace: 'nowrap',
-              boxShadow: policy.starlinkPowerOutageMode
-                ? '0 2px 8px rgba(5, 150, 105, 0.3)'
-                : '0 2px 8px rgba(234, 88, 12, 0.3)',
-            }}
-          >
-            {isTogglingPower ? (
-              <RefreshCw size={14} className="animate-spin" />
-            ) : policy.starlinkPowerOutageMode ? (
-              <Wifi size={14} />
-            ) : (
-              <Zap size={14} />
-            )}
-            <span>
-              {policy.starlinkPowerOutageMode
-                ? 'Restore Starlink Wi-Fi Mode'
-                : 'Activate Power Outage Mode (Starlink Off)'}
-            </span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Link
+              href="/attendance/kiosk"
+              target="_blank"
+              style={{
+                padding: '10px 16px',
+                borderRadius: '8px',
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                color: '#0f172a',
+                fontSize: '12px',
+                fontWeight: 800,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <QrCode size={14} color="#059669" />
+              <span>Launch Reception Kiosk</span>
+              <ExternalLink size={12} color="#64748b" />
+            </Link>
+
+            <button
+              onClick={handleTogglePowerOutage}
+              disabled={isTogglingPower}
+              style={{
+                padding: '10px 18px',
+                borderRadius: '8px',
+                background: policy.starlinkPowerOutageMode ? '#059669' : '#ea580c',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: 800,
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                whiteSpace: 'nowrap',
+                boxShadow: policy.starlinkPowerOutageMode
+                  ? '0 2px 8px rgba(5, 150, 105, 0.3)'
+                  : '0 2px 8px rgba(234, 88, 12, 0.3)',
+              }}
+            >
+              {isTogglingPower ? (
+                <RefreshCw size={14} className="animate-spin" />
+              ) : policy.starlinkPowerOutageMode ? (
+                <Wifi size={14} />
+              ) : (
+                <Zap size={14} />
+              )}
+              <span>
+                {policy.starlinkPowerOutageMode
+                  ? 'Restore Starlink Wi-Fi Mode'
+                  : 'Activate Power Outage Mode (Starlink Off)'}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* KPI Stats Strip */}
