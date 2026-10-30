@@ -5,6 +5,7 @@ import '../widgets/hero_accountability_card.dart';
 import '../widgets/stacked_advance_card.dart';
 import '../widgets/stats_grid_2x2.dart';
 import 'request_detail_screen.dart';
+import 'attendance_scan_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final List<FundRequestItem> requests;
@@ -98,6 +99,26 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
+          // Attendance Scanner Button (Airplane Window Viewfinder)
+          GestureDetector(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AttendanceScanScreen()),
+              );
+            },
+            child: Container(
+              height: 38,
+              width: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFFED7AA)),
+              ),
+              child: const Icon(Icons.qr_code_scanner_rounded, size: 18, color: BemsTheme.brandOrange),
+            ),
+          ),
+          const SizedBox(width: 8),
+
           // Circular (+) New Request Button from Image 1 & 2
           GestureDetector(
             onTap: widget.onRequestNew,

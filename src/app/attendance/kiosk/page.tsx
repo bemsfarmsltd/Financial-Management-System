@@ -144,8 +144,8 @@ export default function AttendanceKioskPage() {
     <div
       style={{
         minHeight: '100vh',
-        background: '#040711',
-        color: '#f8fafc',
+        background: '#f8fafc',
+        color: '#0f172a',
         fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
         display: 'flex',
         flexDirection: 'column',
@@ -153,16 +153,16 @@ export default function AttendanceKioskPage() {
         overflow: 'hidden',
       }}
     >
-      {/* Dynamic Ambient Aurora Glows */}
+      {/* Subtle Warm Amber & Emerald Glow Accents */}
       <div
         style={{
           position: 'absolute',
-          top: '-15%',
-          left: '25%',
+          top: '-10%',
+          left: '30%',
           width: '700px',
           height: '700px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(234, 88, 12, 0.15) 0%, transparent 65%)',
+          background: 'radial-gradient(circle, rgba(249, 115, 22, 0.05) 0%, transparent 65%)',
           pointerEvents: 'none',
           filter: 'blur(40px)',
         }}
@@ -170,12 +170,12 @@ export default function AttendanceKioskPage() {
       <div
         style={{
           position: 'absolute',
-          bottom: '-15%',
+          bottom: '-10%',
           right: '15%',
           width: '600px',
           height: '600px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, transparent 65%)',
+          background: 'radial-gradient(circle, rgba(16, 185, 129, 0.05) 0%, transparent 65%)',
           pointerEvents: 'none',
           filter: 'blur(50px)',
         }}
@@ -184,13 +184,13 @@ export default function AttendanceKioskPage() {
       {/* Top Header */}
       <header
         style={{
-          padding: '18px 40px',
+          padding: '16px 40px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          background: 'rgba(9, 13, 24, 0.75)',
-          backdropFilter: 'blur(16px)',
+          borderBottom: '1px solid #e2e8f0',
+          background: '#ffffff',
+          boxShadow: '0 2px 10px rgba(15, 23, 42, 0.03)',
           zIndex: 10,
         }}
       >
@@ -207,9 +207,7 @@ export default function AttendanceKioskPage() {
                   fontSize: '18px',
                   fontWeight: 900,
                   letterSpacing: '-0.4px',
-                  background: 'linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
+                  color: '#0f172a',
                 }}
               >
                 BEMS GROUP
@@ -221,16 +219,16 @@ export default function AttendanceKioskPage() {
                   textTransform: 'uppercase',
                   padding: '3px 10px',
                   borderRadius: '20px',
-                  background: 'rgba(234, 88, 12, 0.2)',
-                  color: '#fb923c',
-                  border: '1px solid rgba(234, 88, 12, 0.45)',
+                  background: '#ffedd5',
+                  color: '#ea580c',
+                  border: '1px solid #fed7aa',
                   letterSpacing: '0.5px',
                 }}
               >
                 RECEPTION KIOSK
               </span>
             </div>
-            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', fontWeight: 500 }}>
+            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', fontWeight: 500 }}>
               Official Corporate Attendance Terminal · Victoria Island HQ
             </div>
           </div>
@@ -242,15 +240,14 @@ export default function AttendanceKioskPage() {
             style={{
               padding: '8px 16px',
               borderRadius: '10px',
-              background: 'rgba(30, 41, 59, 0.7)',
-              color: '#f8fafc',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: '#f1f5f9',
+              color: '#334155',
+              border: '1px solid #e2e8f0',
               fontSize: '12px',
               fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              backdropFilter: 'blur(8px)',
             }}
           >
             <Building2 size={15} color="#ea580c" />
@@ -262,9 +259,9 @@ export default function AttendanceKioskPage() {
             style={{
               padding: '8px 14px',
               borderRadius: '10px',
-              background: 'rgba(30, 41, 59, 0.7)',
-              color: '#94a3b8',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: '#f1f5f9',
+              color: '#475569',
+              border: '1px solid #e2e8f0',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -292,7 +289,7 @@ export default function AttendanceKioskPage() {
               fontSize: '12px',
               fontWeight: 800,
               textDecoration: 'none',
-              boxShadow: '0 4px 14px rgba(234, 88, 12, 0.35)',
+              boxShadow: '0 4px 14px rgba(234, 88, 12, 0.25)',
             }}
           >
             <ArrowLeft size={14} />
@@ -323,10 +320,9 @@ export default function AttendanceKioskPage() {
             style={{
               padding: '28px 30px',
               borderRadius: '24px',
-              background: 'rgba(15, 23, 42, 0.65)',
-              border: '1px solid rgba(255, 255, 255, 0.09)',
-              backdropFilter: 'blur(16px)',
-              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 10px 30px rgba(15, 23, 42, 0.04)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -352,11 +348,11 @@ export default function AttendanceKioskPage() {
                   gap: '5px',
                   fontSize: '11px',
                   fontWeight: 800,
-                  color: '#10b981',
-                  background: 'rgba(16, 185, 129, 0.15)',
+                  color: '#059669',
+                  background: '#ecfdf5',
                   padding: '2px 8px',
                   borderRadius: '12px',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  border: '1px solid #a7f3d0',
                 }}
               >
                 <Radio size={12} className="animate-pulse" />
@@ -369,15 +365,14 @@ export default function AttendanceKioskPage() {
                 fontSize: '60px',
                 fontWeight: 900,
                 letterSpacing: '-1.5px',
-                color: '#ffffff',
+                color: '#0f172a',
                 lineHeight: 1.05,
                 fontVariantNumeric: 'tabular-nums',
-                textShadow: '0 0 30px rgba(255, 255, 255, 0.2)',
               }}
             >
               {currentTime || '--:--:--'}
             </div>
-            <div style={{ fontSize: '16px', color: '#94a3b8', marginTop: '10px', fontWeight: 600 }}>
+            <div style={{ fontSize: '15px', color: '#64748b', marginTop: '10px', fontWeight: 600 }}>
               {currentDate || 'Loading date...'}
             </div>
           </div>
@@ -387,14 +382,13 @@ export default function AttendanceKioskPage() {
             style={{
               padding: '24px 28px',
               borderRadius: '24px',
-              background: 'rgba(15, 23, 42, 0.65)',
-              border: '1px solid rgba(255, 255, 255, 0.09)',
-              backdropFilter: 'blur(16px)',
-              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 10px 30px rgba(15, 23, 42, 0.04)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: '#f8fafc', letterSpacing: '0.3px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', letterSpacing: '0.3px' }}>
                 CORPORATE WORKDAY HOURS
               </span>
               <span
@@ -403,9 +397,9 @@ export default function AttendanceKioskPage() {
                   fontWeight: 800,
                   padding: '3px 10px',
                   borderRadius: '20px',
-                  background: stationData?.powerOutageMode ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                  color: stationData?.powerOutageMode ? '#fbbf24' : '#34d399',
-                  border: stationData?.powerOutageMode ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(16, 185, 129, 0.4)',
+                  background: stationData?.powerOutageMode ? '#fffbeb' : '#ecfdf5',
+                  color: stationData?.powerOutageMode ? '#b45309' : '#059669',
+                  border: stationData?.powerOutageMode ? '1px solid #fde68a' : '1px solid #a7f3d0',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '5px',
@@ -419,61 +413,61 @@ export default function AttendanceKioskPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
               <div
                 style={{
-                  background: 'rgba(30, 41, 59, 0.6)',
+                  background: '#f8fafc',
                   padding: '14px 16px',
                   borderRadius: '14px',
-                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  border: '1px solid #f1f5f9',
                 }}
               >
-                <span style={{ color: '#94a3b8', display: 'block', fontSize: '11px', fontWeight: 700 }}>
+                <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: 700 }}>
                   Arrival Window
                 </span>
-                <strong style={{ fontSize: '17px', color: '#38bdf8', fontWeight: 900, marginTop: '2px', display: 'block' }}>
+                <strong style={{ fontSize: '17px', color: '#0284c7', fontWeight: 900, marginTop: '2px', display: 'block' }}>
                   {stationData?.earliestCheckInTime || '07:00'} – {stationData?.resumptionTime || '08:00'} AM
                 </strong>
               </div>
               <div
                 style={{
-                  background: 'rgba(30, 41, 59, 0.6)',
+                  background: '#f8fafc',
                   padding: '14px 16px',
                   borderRadius: '14px',
-                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  border: '1px solid #f1f5f9',
                 }}
               >
-                <span style={{ color: '#94a3b8', display: 'block', fontSize: '11px', fontWeight: 700 }}>
+                <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: 700 }}>
                   Grace Period Limit
                 </span>
-                <strong style={{ fontSize: '17px', color: '#fbbf24', fontWeight: 900, marginTop: '2px', display: 'block' }}>
+                <strong style={{ fontSize: '17px', color: '#d97706', fontWeight: 900, marginTop: '2px', display: 'block' }}>
                   08:15 AM
                 </strong>
               </div>
               <div
                 style={{
-                  background: 'rgba(30, 41, 59, 0.6)',
+                  background: '#f8fafc',
                   padding: '14px 16px',
                   borderRadius: '14px',
-                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  border: '1px solid #f1f5f9',
                 }}
               >
-                <span style={{ color: '#94a3b8', display: 'block', fontSize: '11px', fontWeight: 700 }}>
+                <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: 700 }}>
                   Official Close
                 </span>
-                <strong style={{ fontSize: '17px', color: '#cbd5e1', fontWeight: 900, marginTop: '2px', display: 'block' }}>
+                <strong style={{ fontSize: '17px', color: '#334155', fontWeight: 900, marginTop: '2px', display: 'block' }}>
                   05:00 PM
                 </strong>
               </div>
               <div
                 style={{
-                  background: 'rgba(30, 41, 59, 0.6)',
+                  background: '#f8fafc',
                   padding: '14px 16px',
                   borderRadius: '14px',
-                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  border: '1px solid #f1f5f9',
                 }}
               >
-                <span style={{ color: '#94a3b8', display: 'block', fontSize: '11px', fontWeight: 700 }}>
+                <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: 700 }}>
                   Arrival Lock
                 </span>
-                <strong style={{ fontSize: '13px', color: '#34d399', fontWeight: 800, marginTop: '4px', display: 'block' }}>
+                <strong style={{ fontSize: '13px', color: '#059669', fontWeight: 800, marginTop: '4px', display: 'block' }}>
                   Prior to 7:00 AM Locked
                 </strong>
               </div>
@@ -485,8 +479,8 @@ export default function AttendanceKioskPage() {
             style={{
               padding: '16px 22px',
               borderRadius: '18px',
-              background: 'rgba(16, 185, 129, 0.08)',
-              border: '1px solid rgba(16, 185, 129, 0.25)',
+              background: '#ecfdf5',
+              border: '1px solid #a7f3d0',
               display: 'flex',
               alignItems: 'center',
               gap: '14px',
@@ -497,20 +491,20 @@ export default function AttendanceKioskPage() {
                 width: '42px',
                 height: '42px',
                 borderRadius: '12px',
-                background: 'rgba(16, 185, 129, 0.18)',
+                background: '#d1fae5',
                 display: 'grid',
                 placeItems: 'center',
-                color: '#34d399',
+                color: '#059669',
                 flexShrink: 0,
               }}
             >
               <MapPin size={22} />
             </div>
             <div>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#34d399' }}>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#065f46' }}>
                 Office Perimeter Active ({stationData?.radiusMeters || 100}m radius)
               </div>
-              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
+              <div style={{ fontSize: '12px', color: '#047857', marginTop: '2px' }}>
                 Device hardware GPS must be within office boundary to unlock QR check-in.
               </div>
             </div>
@@ -532,8 +526,8 @@ export default function AttendanceKioskPage() {
               background: '#ffffff',
               borderRadius: '32px',
               padding: '36px 30px',
-              boxShadow: '0 25px 70px rgba(0, 0, 0, 0.8), 0 0 50px rgba(234, 88, 12, 0.25)',
-              border: '5px solid rgba(255, 255, 255, 0.15)',
+              boxShadow: '0 20px 50px rgba(15, 23, 42, 0.08), 0 0 40px rgba(234, 88, 12, 0.06)',
+              border: '2px solid #e2e8f0',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -569,12 +563,12 @@ export default function AttendanceKioskPage() {
                 height: '340px',
                 borderRadius: '22px',
                 background: '#ffffff',
-                border: '2px solid #f1f5f9',
+                border: '2px solid #e2e8f0',
                 display: 'grid',
                 placeItems: 'center',
                 position: 'relative',
                 overflow: 'hidden',
-                boxShadow: 'inset 0 0 15px rgba(0,0,0,0.03)',
+                boxShadow: '0 8px 24px rgba(15, 23, 42, 0.05)',
               }}
             >
               {isLoading ? (
@@ -640,7 +634,7 @@ export default function AttendanceKioskPage() {
                     height: '58px',
                     borderRadius: '15px',
                     background: '#ffffff',
-                    boxShadow: '0 4px 18px rgba(0,0,0,0.22)',
+                    boxShadow: '0 4px 18px rgba(0,0,0,0.12)',
                     display: 'grid',
                     placeItems: 'center',
                     border: '3px solid #ea580c',
@@ -694,7 +688,7 @@ export default function AttendanceKioskPage() {
                 padding: '12px 18px',
                 borderRadius: '14px',
                 background: '#f8fafc',
-                border: '1px solid #f1f5f9',
+                border: '1px solid #e2e8f0',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '12px',
@@ -715,16 +709,15 @@ export default function AttendanceKioskPage() {
             style={{
               padding: '26px 26px',
               borderRadius: '24px',
-              background: 'rgba(15, 23, 42, 0.65)',
-              border: '1px solid rgba(255, 255, 255, 0.09)',
-              backdropFilter: 'blur(16px)',
-              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 10px 30px rgba(15, 23, 42, 0.04)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <CheckCircle2 size={18} color="#10b981" />
-                <span style={{ fontSize: '14px', fontWeight: 900, color: '#f8fafc', letterSpacing: '-0.2px' }}>
+                <span style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.2px' }}>
                   TODAY'S ARRIVALS STREAM
                 </span>
               </div>
@@ -734,7 +727,7 @@ export default function AttendanceKioskPage() {
                   height: '9px',
                   borderRadius: '50%',
                   background: '#10b981',
-                  boxShadow: '0 0 10px #10b981',
+                  boxShadow: '0 0 10px rgba(16, 185, 129, 0.5)',
                   display: 'inline-block',
                 }}
               />
@@ -746,16 +739,16 @@ export default function AttendanceKioskPage() {
                   style={{
                     padding: '36px 16px',
                     borderRadius: '14px',
-                    background: 'rgba(30, 41, 59, 0.4)',
-                    border: '1px dashed rgba(255, 255, 255, 0.1)',
+                    background: '#f8fafc',
+                    border: '1px dashed #cbd5e1',
                     textAlign: 'center',
                     fontSize: '12px',
-                    color: '#94a3b8',
+                    color: '#64748b',
                   }}
                 >
-                  <Clock size={30} style={{ margin: '0 auto 8px', color: '#64748b' }} />
+                  <Clock size={30} style={{ margin: '0 auto 8px', color: '#94a3b8' }} />
                   <div>No clock-ins recorded yet today.</div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px' }}>
                     Staff arrivals will appear here in real-time as they scan.
                   </div>
                 </div>
@@ -777,23 +770,23 @@ export default function AttendanceKioskPage() {
                       style={{
                         padding: '14px 16px',
                         borderRadius: '14px',
-                        background: 'rgba(30, 41, 59, 0.7)',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
                       }}
                     >
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
                           {p.legalName}
                         </div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
                           {p.role} · {p.workLocation}
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 900, color: isLate ? '#f87171' : '#34d399' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 900, color: isLate ? '#dc2626' : '#059669' }}>
                           {checkInFormatted}
                         </div>
                         <span
@@ -802,9 +795,9 @@ export default function AttendanceKioskPage() {
                             fontWeight: 800,
                             padding: '2px 7px',
                             borderRadius: '4px',
-                            background: isLate ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                            color: isLate ? '#f87171' : '#34d399',
-                            border: isLate ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+                            background: isLate ? '#fef2f2' : '#ecfdf5',
+                            color: isLate ? '#dc2626' : '#059669',
+                            border: isLate ? '1px solid #fecaca' : '1px solid #a7f3d0',
                           }}
                         >
                           {p.status}
@@ -823,8 +816,8 @@ export default function AttendanceKioskPage() {
       <footer
         style={{
           padding: '14px 40px',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-          background: 'rgba(9, 13, 24, 0.8)',
+          borderTop: '1px solid #e2e8f0',
+          background: '#ffffff',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',

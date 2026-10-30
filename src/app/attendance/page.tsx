@@ -415,12 +415,12 @@ export default function AttendanceDeskPage() {
       <div
         style={{
           minHeight: '100vh',
-          background: '#040711',
+          background: '#f8fafc',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#f8fafc',
+          color: '#0f172a',
           fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
         }}
       >
@@ -428,13 +428,13 @@ export default function AttendanceDeskPage() {
           style={{
             width: 44,
             height: 44,
-            border: '3px solid rgba(255,255,255,0.1)',
-            borderTopColor: '#f97316',
+            border: '3px solid #e2e8f0',
+            borderTopColor: '#ea580c',
             borderRadius: '50%',
             animation: 'spin 1s linear infinite',
           }}
         />
-        <p style={{ marginTop: 18, fontSize: '12px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.08em' }}>
+        <p style={{ marginTop: 18, fontSize: '12px', fontWeight: 800, color: '#64748b', letterSpacing: '0.08em' }}>
           VERIFYING EXECUTIVE ACCESS CREDENTIALS...
         </p>
         <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
@@ -447,13 +447,13 @@ export default function AttendanceDeskPage() {
       <div
         style={{
           minHeight: '100vh',
-          background: 'linear-gradient(180deg, #070b19 0%, #030712 100%)',
+          background: '#f8fafc',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           padding: '24px',
-          color: '#f8fafc',
+          color: '#0f172a',
           fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
         }}
       >
@@ -461,12 +461,11 @@ export default function AttendanceDeskPage() {
           style={{
             maxWidth: '520px',
             width: '100%',
-            background: 'rgba(15, 23, 42, 0.75)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
             borderRadius: '24px',
             padding: '40px 32px',
-            boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.7)',
-            backdropFilter: 'blur(20px)',
+            boxShadow: '0 20px 45px rgba(15, 23, 42, 0.08)',
             textAlign: 'center',
           }}
         >
@@ -476,8 +475,8 @@ export default function AttendanceDeskPage() {
               height: '68px',
               margin: '0 auto 20px',
               borderRadius: '20px',
-              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.05))',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -496,20 +495,20 @@ export default function AttendanceDeskPage() {
               letterSpacing: '0.12em',
               padding: '4px 12px',
               borderRadius: '999px',
-              background: 'rgba(239, 68, 68, 0.15)',
-              color: '#f87171',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
+              background: '#fef2f2',
+              color: '#b91c1c',
+              border: '1px solid #fecaca',
               marginBottom: '14px',
             }}
           >
             Executive Security Barrier
           </span>
 
-          <h1 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 10px', color: '#ffffff' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 10px', color: '#0f172a' }}>
             Executive Authentication Required
           </h1>
 
-          <p style={{ fontSize: '14px', color: '#94a3b8', lineHeight: 1.6, margin: '0 0 28px' }}>
+          <p style={{ fontSize: '14px', color: '#64748b', lineHeight: 1.6, margin: '0 0 28px' }}>
             The <strong>Attendance & Timekeeping Management Desk</strong> contains sensitive personnel presence, biometric coordinates, lateness deduction policies, and payroll penalty controls. Access is strictly restricted to GMD, COO, HR, and System Administrators.
           </p>
 
@@ -528,7 +527,7 @@ export default function AttendanceDeskPage() {
                 fontWeight: 700,
                 fontSize: '14px',
                 textDecoration: 'none',
-                boxShadow: '0 10px 20px -5px rgba(249, 115, 22, 0.4)',
+                boxShadow: '0 8px 20px rgba(234, 88, 12, 0.3)',
                 transition: 'all 0.2s ease',
               }}
             >
@@ -545,10 +544,10 @@ export default function AttendanceDeskPage() {
                 gap: '10px',
                 padding: '13px 24px',
                 borderRadius: '12px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: '#cbd5e1',
-                fontWeight: 600,
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                color: '#334155',
+                fontWeight: 700,
                 fontSize: '13px',
                 textDecoration: 'none',
                 transition: 'all 0.2s ease',
@@ -563,9 +562,9 @@ export default function AttendanceDeskPage() {
             style={{
               marginTop: '28px',
               paddingTop: '20px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              borderTop: '1px solid #f1f5f9',
               fontSize: '12px',
-              color: '#64748b',
+              color: '#94a3b8',
             }}
           >
             BEMS Group Enterprise Infrastructure · All unauthorized access attempts are logged and monitored.
