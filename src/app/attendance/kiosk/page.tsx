@@ -18,6 +18,8 @@ import {
   Smartphone,
   Sparkles,
   Radio,
+  Calendar,
+  Users,
 } from 'lucide-react';
 
 interface StationData {
@@ -47,8 +49,9 @@ export default function AttendanceKioskPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [recentPunches, setRecentPunches] = useState<any[]>([]);
+  const [totalPresentCount, setTotalPresentCount] = useState<number>(0);
 
-  // Live West Africa Time Clock with ticking seconds
+  // Live West Africa Time Clock
   useEffect(() => {
     function tick() {
       const now = new Date();
@@ -64,10 +67,10 @@ export default function AttendanceKioskPage() {
       setCurrentDate(
         now.toLocaleDateString('en-GB', {
           timeZone: 'Africa/Lagos',
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
+          weekday: 'short',
           day: 'numeric',
+          month: 'short',
+          year: 'numeric',
         })
       );
     }
@@ -76,7 +79,7 @@ export default function AttendanceKioskPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Fetch token and pre-rendered QR from server
+  // Fetch token and pre-rendered QR
   const fetchToken = async () => {
     try {
       setLoadError(null);
@@ -111,7 +114,7 @@ export default function AttendanceKioskPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Poll recent arrivals for the live stream ticker
+  // Poll recent arrivals
   useEffect(() => {
     const fetchRecent = async () => {
       try {
@@ -120,6 +123,7 @@ export default function AttendanceKioskPage() {
           const data = await res.json();
           const activeToday = (data.employees || []).filter((e: any) => e.checkInTime);
           setRecentPunches(activeToday.slice(0, 6));
+          setTotalPresentCount(activeToday.length);
         }
       } catch (e) {
         // quiet ignore
@@ -149,521 +153,457 @@ export default function AttendanceKioskPage() {
         fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
         display: 'flex',
         flexDirection: 'column',
-        position: 'relative',
-        overflow: 'hidden',
       }}
     >
-      {/* Subtle Warm Amber & Emerald Glow Accents */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '-10%',
-          left: '30%',
-          width: '700px',
-          height: '700px',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(249, 115, 22, 0.05) 0%, transparent 65%)',
-          pointerEvents: 'none',
-          filter: 'blur(40px)',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '-10%',
-          right: '15%',
-          width: '600px',
-          height: '600px',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(16, 185, 129, 0.05) 0%, transparent 65%)',
-          pointerEvents: 'none',
-          filter: 'blur(50px)',
-        }}
-      />
-
-      {/* Top Header */}
+      {/* Top Header (Simple & Clean from Reference) */}
       <header
         style={{
-          padding: '16px 40px',
+          padding: '16px 36px',
+          background: '#ffffff',
+          borderBottom: '1px solid #e2e8f0',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          borderBottom: '1px solid #e2e8f0',
-          background: '#ffffff',
-          boxShadow: '0 2px 10px rgba(15, 23, 42, 0.03)',
-          zIndex: 10,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <img
-            src="/bems-group-logo.png?v=20261024"
-            alt="BEMS logo"
-            style={{ width: 38, height: 38, objectFit: 'contain' }}
-          />
+          <Link
+            href="/attendance"
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              background: '#f1f5f9',
+              border: '1px solid #e2e8f0',
+              display: 'grid',
+              placeItems: 'center',
+              color: '#334155',
+              textDecoration: 'none',
+              transition: 'all 0.15s ease',
+            }}
+            title="Return to Attendance Desk"
+          >
+            <ArrowLeft size={18} />
+          </Link>
+
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span
-                style={{
-                  fontSize: '18px',
-                  fontWeight: 900,
-                  letterSpacing: '-0.4px',
-                  color: '#0f172a',
-                }}
-              >
-                BEMS GROUP
-              </span>
+              <h1 style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', margin: 0, letterSpacing: '-0.4px' }}>
+                BEMS Attendance Kiosk
+              </h1>
               <span
                 style={{
                   fontSize: '11px',
                   fontWeight: 800,
-                  textTransform: 'uppercase',
-                  padding: '3px 10px',
+                  padding: '2px 9px',
                   borderRadius: '20px',
-                  background: '#ffedd5',
-                  color: '#ea580c',
-                  border: '1px solid #fed7aa',
-                  letterSpacing: '0.5px',
+                  background: '#ecfdf5',
+                  color: '#059669',
+                  border: '1px solid #a7f3d0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
                 }}
               >
-                RECEPTION KIOSK
+                <Radio size={11} className="animate-pulse" />
+                LIVE
               </span>
             </div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', fontWeight: 500 }}>
-              Official Corporate Attendance Terminal · Victoria Island HQ
+            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '1px' }}>
+              {stationData?.stationName || 'BEMS Group Corporate Headquarters'} · Victoria Island HQ
             </div>
           </div>
         </div>
 
-        {/* Station Location & Quick Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div
+        {/* Top Right Action Buttons (Matching Reference Design) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            onClick={fetchToken}
             style={{
               padding: '8px 16px',
               borderRadius: '10px',
-              background: '#f1f5f9',
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
               color: '#334155',
-              border: '1px solid #e2e8f0',
-              fontSize: '12px',
               fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <Building2 size={15} color="#ea580c" />
-            <span>{stationData?.stationName || 'BEMS Group Corporate Headquarters'}</span>
-          </div>
-
-          <button
-            onClick={toggleFullscreen}
-            style={{
-              padding: '8px 14px',
-              borderRadius: '10px',
-              background: '#f1f5f9',
-              color: '#475569',
-              border: '1px solid #e2e8f0',
+              fontSize: '13px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              fontSize: '12px',
-              fontWeight: 700,
-              transition: 'all 0.2s ease',
             }}
-            title="Toggle Fullscreen"
           >
-            {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            onClick={toggleFullscreen}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '10px',
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              color: '#334155',
+              fontWeight: 700,
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
             <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
           </button>
 
           <Link
             href="/attendance"
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 16px',
+              padding: '8px 18px',
               borderRadius: '10px',
-              background: '#ea580c',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
               color: '#ffffff',
-              fontSize: '12px',
               fontWeight: 800,
+              fontSize: '13px',
               textDecoration: 'none',
-              boxShadow: '0 4px 14px rgba(234, 88, 12, 0.25)',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
             }}
           >
-            <ArrowLeft size={14} />
-            <span>Attendance Desk</span>
+            Attendance Desk
           </Link>
         </div>
       </header>
 
-      {/* Main Kiosk Display */}
+      {/* Main Content Area */}
       <main
         style={{
           flex: 1,
-          display: 'grid',
-          gridTemplateColumns: '1fr 500px 1fr',
-          alignItems: 'center',
-          padding: '28px 40px',
-          gap: '36px',
-          maxWidth: '1650px',
-          margin: '0 auto',
+          maxWidth: '1200px',
           width: '100%',
-          zIndex: 5,
+          margin: '0 auto',
+          padding: '24px 28px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '24px',
         }}
       >
-        {/* Left Column: Dynamic Clock & Shift Schedule */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
-          {/* Live WAT Clock Card */}
+        {/* Top Info & Summary Card (Directly from Reference Image) */}
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: '20px',
+            border: '1px solid #e2e8f0',
+            padding: '22px 28px',
+            boxShadow: '0 4px 20px rgba(15, 23, 42, 0.03)',
+            display: 'grid',
+            gridTemplateColumns: 'auto 1fr',
+            gap: '32px',
+            alignItems: 'center',
+          }}
+        >
+          {/* Big "Total Clock-Ins" Box (like "Total Scans 50" in reference) */}
           <div
             style={{
-              padding: '28px 30px',
-              borderRadius: '24px',
-              background: '#ffffff',
+              padding: '16px 24px',
+              borderRadius: '16px',
+              background: '#f8fafc',
               border: '1px solid #e2e8f0',
-              boxShadow: '0 10px 30px rgba(15, 23, 42, 0.04)',
+              textAlign: 'center',
+              minWidth: '130px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <div
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 800,
-                  color: '#ea580c',
-                  textTransform: 'uppercase',
-                  letterSpacing: '1.2px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                <Clock size={14} />
-                WEST AFRICA TIME (WAT · GMT+1)
-              </div>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  color: '#059669',
-                  background: '#ecfdf5',
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                  border: '1px solid #a7f3d0',
-                }}
-              >
-                <Radio size={12} className="animate-pulse" />
-                OFFICIAL TIME
-              </span>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Total Clock-Ins
             </div>
-
-            <div
-              style={{
-                fontSize: '60px',
-                fontWeight: 900,
-                letterSpacing: '-1.5px',
-                color: '#0f172a',
-                lineHeight: 1.05,
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {currentTime || '--:--:--'}
+            <div style={{ fontSize: '36px', fontWeight: 900, color: '#0f172a', lineHeight: 1.1, marginTop: '4px' }}>
+              {totalPresentCount}
             </div>
-            <div style={{ fontSize: '15px', color: '#64748b', marginTop: '10px', fontWeight: 600 }}>
-              {currentDate || 'Loading date...'}
+            <div style={{ fontSize: '11px', color: '#059669', fontWeight: 700, marginTop: '4px' }}>
+              ● Today's Present
             </div>
           </div>
 
-          {/* Corporate Workday Hours Card */}
+          {/* Grid of Key Info Parameters */}
           <div
             style={{
-              padding: '24px 28px',
-              borderRadius: '24px',
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 10px 30px rgba(15, 23, 42, 0.04)',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: '18px 24px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', letterSpacing: '0.3px' }}>
-                CORPORATE WORKDAY HOURS
-              </span>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  padding: '3px 10px',
-                  borderRadius: '20px',
-                  background: stationData?.powerOutageMode ? '#fffbeb' : '#ecfdf5',
-                  color: stationData?.powerOutageMode ? '#b45309' : '#059669',
-                  border: stationData?.powerOutageMode ? '1px solid #fde68a' : '1px solid #a7f3d0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                }}
-              >
-                {stationData?.powerOutageMode ? <Zap size={12} /> : <Wifi size={12} />}
-                <span>{stationData?.powerOutageMode ? 'Power Outage Mode' : 'Starlink Wi-Fi Enforced'}</span>
-              </span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              <div
-                style={{
-                  background: '#f8fafc',
-                  padding: '14px 16px',
-                  borderRadius: '14px',
-                  border: '1px solid #f1f5f9',
-                }}
-              >
-                <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: 700 }}>
-                  Arrival Window
-                </span>
-                <strong style={{ fontSize: '17px', color: '#0284c7', fontWeight: 900, marginTop: '2px', display: 'block' }}>
-                  {stationData?.earliestCheckInTime || '07:00'} – {stationData?.resumptionTime || '08:00'} AM
-                </strong>
-              </div>
-              <div
-                style={{
-                  background: '#f8fafc',
-                  padding: '14px 16px',
-                  borderRadius: '14px',
-                  border: '1px solid #f1f5f9',
-                }}
-              >
-                <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: 700 }}>
-                  Grace Period Limit
-                </span>
-                <strong style={{ fontSize: '17px', color: '#d97706', fontWeight: 900, marginTop: '2px', display: 'block' }}>
-                  08:15 AM
-                </strong>
-              </div>
-              <div
-                style={{
-                  background: '#f8fafc',
-                  padding: '14px 16px',
-                  borderRadius: '14px',
-                  border: '1px solid #f1f5f9',
-                }}
-              >
-                <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: 700 }}>
-                  Official Close
-                </span>
-                <strong style={{ fontSize: '17px', color: '#334155', fontWeight: 900, marginTop: '2px', display: 'block' }}>
-                  05:00 PM
-                </strong>
-              </div>
-              <div
-                style={{
-                  background: '#f8fafc',
-                  padding: '14px 16px',
-                  borderRadius: '14px',
-                  border: '1px solid #f1f5f9',
-                }}
-              >
-                <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: 700 }}>
-                  Arrival Lock
-                </span>
-                <strong style={{ fontSize: '13px', color: '#059669', fontWeight: 800, marginTop: '4px', display: 'block' }}>
-                  Prior to 7:00 AM Locked
-                </strong>
-              </div>
-            </div>
-          </div>
-
-          {/* Location Perimeter Card */}
-          <div
-            style={{
-              padding: '16px 22px',
-              borderRadius: '18px',
-              background: '#ecfdf5',
-              border: '1px solid #a7f3d0',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '14px',
-            }}
-          >
-            <div
-              style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '12px',
-                background: '#d1fae5',
-                display: 'grid',
-                placeItems: 'center',
-                color: '#059669',
-                flexShrink: 0,
-              }}
-            >
-              <MapPin size={22} />
-            </div>
             <div>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#065f46' }}>
-                Office Perimeter Active ({stationData?.radiusMeters || 100}m radius)
+              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Official WAT Time</div>
+              <strong style={{ fontSize: '15px', color: '#0f172a', fontWeight: 800, display: 'block', marginTop: '2px' }}>
+                {currentTime || '--:--'}
+              </strong>
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>{currentDate}</span>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Arrival Window</div>
+              <strong style={{ fontSize: '15px', color: '#0284c7', fontWeight: 800, display: 'block', marginTop: '2px' }}>
+                {stationData?.earliestCheckInTime || '07:00'} – {stationData?.resumptionTime || '08:00'} AM
+              </strong>
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>Prior to 7 AM locked</span>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Grace Period Limit</div>
+              <strong style={{ fontSize: '15px', color: '#d97706', fontWeight: 800, display: 'block', marginTop: '2px' }}>
+                08:15 AM
+              </strong>
+              <span style={{ fontSize: '11px', color: '#dc2626' }}>5% salary deduction after</span>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Network Security</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '3px' }}>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    background: stationData?.powerOutageMode ? '#fffbeb' : '#ecfdf5',
+                    color: stationData?.powerOutageMode ? '#b45309' : '#059669',
+                    border: stationData?.powerOutageMode ? '1px solid #fde68a' : '1px solid #a7f3d0',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  {stationData?.powerOutageMode ? <Zap size={10} /> : <Wifi size={10} />}
+                  {stationData?.powerOutageMode ? 'Outage Mode' : 'Starlink Wi-Fi'}
+                </span>
               </div>
-              <div style={{ fontSize: '12px', color: '#047857', marginTop: '2px' }}>
-                Device hardware GPS must be within office boundary to unlock QR check-in.
-              </div>
+              <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginTop: '2px' }}>
+                {stationData?.radiusMeters || 100}m Geofence
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Center Column: Illuminated High-Contrast QR Code Pedestal */}
+        {/* Center Stage: The Simple Clean QR Card with Bracket Reticles and Scanning Laser Line */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
+            padding: '20px 0',
           }}
         >
           <div
             style={{
-              width: '100%',
               background: '#ffffff',
-              borderRadius: '32px',
-              padding: '36px 30px',
-              boxShadow: '0 20px 50px rgba(15, 23, 42, 0.08), 0 0 40px rgba(234, 88, 12, 0.06)',
-              border: '2px solid #e2e8f0',
+              borderRadius: '28px',
+              border: '1px solid #e2e8f0',
+              padding: '36px 48px',
+              boxShadow: '0 15px 40px rgba(15, 23, 42, 0.05)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
+              maxWidth: '480px',
+              width: '100%',
               position: 'relative',
             }}
           >
-            <div style={{ textAlign: 'center', marginBottom: '22px' }}>
+            {/* Top Prompt */}
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
               <span
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
-                  fontSize: '11px',
-                  fontWeight: 900,
+                  fontSize: '12px',
+                  fontWeight: 800,
                   textTransform: 'uppercase',
-                  color: '#c2410c',
-                  background: '#ffedd5',
+                  color: '#059669',
+                  background: '#ecfdf5',
                   padding: '5px 14px',
                   borderRadius: '20px',
-                  border: '1px solid #fed7aa',
+                  border: '1px solid #a7f3d0',
                   letterSpacing: '0.5px',
                 }}
               >
                 <Sparkles size={13} />
-                POINT PHONE CAMERA TO CLOCK IN
+                POINT MOBILE APP CAMERA HERE
               </span>
             </div>
 
-            {/* QR Container */}
+            {/* QR Viewfinder with Corner Bracket Reticles (Matching Reference Image) */}
             <div
               style={{
-                width: '340px',
-                height: '340px',
-                borderRadius: '22px',
-                background: '#ffffff',
-                border: '2px solid #e2e8f0',
+                width: '320px',
+                height: '320px',
+                position: 'relative',
                 display: 'grid',
                 placeItems: 'center',
-                position: 'relative',
-                overflow: 'hidden',
-                boxShadow: '0 8px 24px rgba(15, 23, 42, 0.05)',
+                padding: '16px',
               }}
             >
-              {isLoading ? (
-                <div style={{ textAlign: 'center', color: '#64748b' }}>
-                  <RefreshCw size={44} className="animate-spin" color="#ea580c" />
-                  <div style={{ fontSize: '13px', marginTop: '14px', fontWeight: 700, color: '#334155' }}>
-                    Generating secure QR code...
+              {/* Top-Left Bracket Reticle */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '36px',
+                  height: '36px',
+                  borderTop: '4px solid #10b981',
+                  borderLeft: '4px solid #10b981',
+                  borderRadius: '12px 0 0 0',
+                }}
+              />
+
+              {/* Top-Right Bracket Reticle */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  width: '36px',
+                  height: '36px',
+                  borderTop: '4px solid #10b981',
+                  borderRight: '4px solid #10b981',
+                  borderRadius: '0 12px 0 0',
+                }}
+              />
+
+              {/* Bottom-Left Bracket Reticle */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  width: '36px',
+                  height: '36px',
+                  borderBottom: '4px solid #10b981',
+                  borderLeft: '4px solid #10b981',
+                  borderRadius: '0 0 0 12px',
+                }}
+              />
+
+              {/* Bottom-Right Bracket Reticle */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  right: 0,
+                  width: '36px',
+                  height: '36px',
+                  borderBottom: '4px solid #10b981',
+                  borderRight: '4px solid #10b981',
+                  borderRadius: '0 0 12px 0',
+                }}
+              />
+
+              {/* Dynamic QR Display */}
+              <div
+                style={{
+                  width: '280px',
+                  height: '280px',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  borderRadius: '16px',
+                  display: 'grid',
+                  placeItems: 'center',
+                  background: '#ffffff',
+                }}
+              >
+                {isLoading ? (
+                  <div style={{ textAlign: 'center', color: '#64748b' }}>
+                    <RefreshCw size={36} className="animate-spin" color="#10b981" />
+                    <div style={{ fontSize: '12px', marginTop: '10px', fontWeight: 700, color: '#334155' }}>
+                      Generating secure QR...
+                    </div>
                   </div>
-                </div>
-              ) : loadError ? (
-                <div style={{ textAlign: 'center', padding: '24px', color: '#b91c1c' }}>
-                  <AlertCircle size={38} style={{ margin: '0 auto 10px' }} />
-                  <div style={{ fontSize: '13px', fontWeight: 800 }}>{loadError}</div>
-                  <button
-                    onClick={fetchToken}
+                ) : loadError ? (
+                  <div style={{ textAlign: 'center', padding: '16px', color: '#b91c1c' }}>
+                    <AlertCircle size={32} style={{ margin: '0 auto 8px' }} />
+                    <div style={{ fontSize: '12px', fontWeight: 800 }}>{loadError}</div>
+                  </div>
+                ) : stationData?.qrSvg ? (
+                  <div
+                    dangerouslySetInnerHTML={{ __html: stationData.qrSvg }}
+                    style={{ width: '270px', height: '270px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  />
+                ) : stationData?.qrDataUrl ? (
+                  <img
+                    src={stationData.qrDataUrl}
+                    alt="Attendance QR Code"
+                    style={{ width: '270px', height: '270px', display: 'block' }}
+                  />
+                ) : (
+                  <div style={{ color: '#64748b', fontSize: '12px' }}>Loading QR...</div>
+                )}
+
+                {/* Animated Horizontal Laser Scanning Line (from Reference Image) */}
+                {!isLoading && !loadError && (
+                  <div
                     style={{
-                      marginTop: '14px',
-                      padding: '8px 18px',
-                      borderRadius: '8px',
-                      background: '#ea580c',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontSize: '12px',
-                      fontWeight: 800,
-                      cursor: 'pointer',
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      height: '4px',
+                      background: 'linear-gradient(90deg, transparent, #10b981, #34d399, transparent)',
+                      boxShadow: '0 0 16px 4px rgba(16, 185, 129, 0.65)',
+                      animation: 'scanLaser 2.4s ease-in-out infinite alternate',
+                      zIndex: 3,
+                    }}
+                  />
+                )}
+
+                {/* Center Brand Emblem Watermark */}
+                {!isLoading && !loadError && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      width: '52px',
+                      height: '52px',
+                      borderRadius: '14px',
+                      background: '#ffffff',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+                      display: 'grid',
+                      placeItems: 'center',
+                      border: '3px solid #10b981',
+                      zIndex: 4,
                     }}
                   >
-                    Tap to Reload
-                  </button>
-                </div>
-              ) : stationData?.qrSvg ? (
-                <div
-                  dangerouslySetInnerHTML={{ __html: stationData.qrSvg }}
-                  style={{
-                    width: '320px',
-                    height: '320px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                />
-              ) : stationData?.qrDataUrl ? (
-                <img
-                  src={stationData.qrDataUrl}
-                  alt="Attendance QR Code"
-                  style={{ width: '320px', height: '320px', display: 'block' }}
-                />
-              ) : (
-                <div style={{ textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
-                  Loading QR Code...
-                </div>
-              )}
-
-              {/* Center Brand Emblem Watermark */}
-              {!isLoading && !loadError && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: '58px',
-                    height: '58px',
-                    borderRadius: '15px',
-                    background: '#ffffff',
-                    boxShadow: '0 4px 18px rgba(0,0,0,0.12)',
-                    display: 'grid',
-                    placeItems: 'center',
-                    border: '3px solid #ea580c',
-                  }}
-                >
-                  <img
-                    src="/bems-mark.png?v=20261024"
-                    alt="BEMS"
-                    style={{ width: 36, height: 36, objectFit: 'contain' }}
-                  />
-                </div>
-              )}
+                    <img
+                      src="/bems-mark.png?v=20261024"
+                      alt="BEMS"
+                      style={{ width: 32, height: 32, objectFit: 'contain' }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Dynamic Countdown & Rotating Progress Bar */}
-            <div style={{ width: '340px', marginTop: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '8px' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0284c7', fontWeight: 800 }}>
-                  <ShieldCheck size={16} />
-                  HMAC-SHA256 ENCRYPTED
+            {/* Subtitle Under QR (from reference: "Scan your code...") */}
+            <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, marginTop: '20px', textAlign: 'center' }}>
+              Scan dynamic QR code with BEMS Staff App to record presence
+            </div>
+
+            {/* Countdown & Security Status */}
+            <div style={{ width: '100%', maxWidth: '300px', marginTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', marginBottom: '6px' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669', fontWeight: 800 }}>
+                  <ShieldCheck size={14} />
+                  HMAC-SHA256 ACTIVE
                 </span>
-                <span style={{ color: '#475569', fontWeight: 700 }}>
-                  Refreshes in <strong style={{ color: '#ea580c', fontSize: '15px', fontWeight: 900 }}>{secondsRemaining}s</strong>
+                <span style={{ color: '#64748b', fontWeight: 700 }}>
+                  Refreshes in <strong style={{ color: '#059669', fontSize: '13px' }}>{secondsRemaining}s</strong>
                 </span>
               </div>
               <div
                 style={{
                   width: '100%',
-                  height: '8px',
+                  height: '6px',
                   borderRadius: '10px',
                   background: '#f1f5f9',
                   overflow: 'hidden',
@@ -673,168 +613,87 @@ export default function AttendanceKioskPage() {
                   style={{
                     width: `${(secondsRemaining / 45) * 100}%`,
                     height: '100%',
-                    background: 'linear-gradient(90deg, #ea580c, #f97316, #fbbf24)',
+                    background: 'linear-gradient(90deg, #10b981, #059669)',
                     borderRadius: '10px',
                     transition: 'width 1s linear',
                   }}
                 />
               </div>
             </div>
-
-            {/* Smartphone Instruction Box */}
-            <div
-              style={{
-                marginTop: '22px',
-                padding: '12px 18px',
-                borderRadius: '14px',
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                width: '100%',
-              }}
-            >
-              <Smartphone size={22} color="#ea580c" />
-              <div style={{ fontSize: '12px', color: '#334155', lineHeight: 1.4, fontWeight: 500 }}>
-                Open the <strong>BEMS Staff App</strong> on your smartphone, tap <strong>Clock In</strong>, and point camera here.
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* Right Column: Dynamic Live Arrivals Stream */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        {/* Recent Arrivals Strip */}
+        {recentPunches.length > 0 && (
           <div
             style={{
-              padding: '26px 26px',
-              borderRadius: '24px',
               background: '#ffffff',
+              borderRadius: '20px',
               border: '1px solid #e2e8f0',
-              boxShadow: '0 10px 30px rgba(15, 23, 42, 0.04)',
+              padding: '18px 24px',
+              boxShadow: '0 4px 15px rgba(15, 23, 42, 0.02)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <CheckCircle2 size={18} color="#10b981" />
-                <span style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.2px' }}>
-                  TODAY'S ARRIVALS STREAM
-                </span>
-              </div>
-              <span
-                style={{
-                  width: '9px',
-                  height: '9px',
-                  borderRadius: '50%',
-                  background: '#10b981',
-                  boxShadow: '0 0 10px rgba(16, 185, 129, 0.5)',
-                  display: 'inline-block',
-                }}
-              />
+            <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '12px' }}>
+              Recent Check-Ins Today
             </div>
+            <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
+              {recentPunches.map(p => {
+                const checkInFormatted = p.checkInTime
+                  ? new Date(p.checkInTime).toLocaleTimeString('en-US', {
+                      timeZone: 'Africa/Lagos',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                    })
+                  : '--:--';
+                const isLate = p.status === 'LATE';
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {recentPunches.length === 0 ? (
-                <div
-                  style={{
-                    padding: '36px 16px',
-                    borderRadius: '14px',
-                    background: '#f8fafc',
-                    border: '1px dashed #cbd5e1',
-                    textAlign: 'center',
-                    fontSize: '12px',
-                    color: '#64748b',
-                  }}
-                >
-                  <Clock size={30} style={{ margin: '0 auto 8px', color: '#94a3b8' }} />
-                  <div>No clock-ins recorded yet today.</div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px' }}>
-                    Staff arrivals will appear here in real-time as they scan.
-                  </div>
-                </div>
-              ) : (
-                recentPunches.map(p => {
-                  const checkInFormatted = p.checkInTime
-                    ? new Date(p.checkInTime).toLocaleTimeString('en-US', {
-                        timeZone: 'Africa/Lagos',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true,
-                      })
-                    : '--:--';
-                  const isLate = p.status === 'LATE';
-
-                  return (
-                    <div
-                      key={p.employeeId}
+                return (
+                  <div
+                    key={p.employeeId}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>{p.legalName}</div>
+                      <div style={{ fontSize: '11px', color: '#64748b' }}>{p.role}</div>
+                    </div>
+                    <span
                       style={{
-                        padding: '14px 16px',
-                        borderRadius: '14px',
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        padding: '2px 7px',
+                        borderRadius: '6px',
+                        background: isLate ? '#fef2f2' : '#ecfdf5',
+                        color: isLate ? '#dc2626' : '#059669',
                       }}
                     >
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
-                          {p.legalName}
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                          {p.role} · {p.workLocation}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 900, color: isLate ? '#dc2626' : '#059669' }}>
-                          {checkInFormatted}
-                        </div>
-                        <span
-                          style={{
-                            fontSize: '10px',
-                            fontWeight: 800,
-                            padding: '2px 7px',
-                            borderRadius: '4px',
-                            background: isLate ? '#fef2f2' : '#ecfdf5',
-                            color: isLate ? '#dc2626' : '#059669',
-                            border: isLate ? '1px solid #fecaca' : '1px solid #a7f3d0',
-                          }}
-                        >
-                          {p.status}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
+                      {checkInFormatted}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        </div>
+        )}
       </main>
 
-      {/* Footer Status Bar */}
-      <footer
-        style={{
-          padding: '14px 40px',
-          borderTop: '1px solid #e2e8f0',
-          background: '#ffffff',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          fontSize: '12px',
-          color: '#64748b',
-          zIndex: 10,
-        }}
-      >
-        <span>
-          BEMS Enterprise Attendance Network · Station Coordinates:{' '}
-          {stationData?.latitude != null ? Number(stationData.latitude).toFixed(4) : '6.4285'}° N,{' '}
-          {stationData?.longitude != null ? Number(stationData.longitude).toFixed(4) : '3.4221'}° E
-        </span>
-        <span>
-          Full Executive Coverage · GMD, COO, Directors & Staff · © 2026 BEMS Group Holdings Ltd
-        </span>
-      </footer>
+      {/* Animation Styles */}
+      <style>{`
+        @keyframes scanLaser {
+          0% { top: 8%; }
+          100% { top: 92%; }
+        }
+      `}</style>
     </div>
   );
 }
