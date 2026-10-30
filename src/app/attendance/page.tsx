@@ -27,6 +27,14 @@ import {
   Wifi,
   Zap,
   Globe,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Sun,
+  Moon,
+  CalendarDays,
+  FileSpreadsheet,
+  Eye,
 } from 'lucide-react';
 
 interface AttendanceRow {
@@ -83,12 +91,36 @@ export default function AttendanceDeskPage() {
   const router = useRouter();
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
   const [authenticatedUser, setAuthenticatedUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'live' | 'roster' | 'policy' | 'payroll'>('live');
+  const [activeTab, setActiveTab] = useState<'daily' | 'calendar' | 'live' | 'roster' | 'policy' | 'payroll'>('daily');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isTogglingPower, setIsTogglingPower] = useState<boolean>(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [callerIp, setCallerIp] = useState<string>('');
+
+  // Tab: Daily Attendance Master (AM/PM) State
+  const [dailyDate, setDailyDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [dailyRoster, setDailyRoster] = useState<any[]>([]);
+  const [dailyCounts, setDailyCounts] = useState<{
+    total: number;
+    onTime: number;
+    late: number;
+    absent: number;
+    checkedOut: number;
+    offDay: number;
+  }>({ total: 0, onTime: 0, late: 0, absent: 0, checkedOut: 0, offDay: 0 });
+  const [dailySubsidiaries, setDailySubsidiaries] = useState<Array<{ id: string; legalName: string; shortCode?: string }>>([]);
+  const [dailySubsidiaryFilter, setDailySubsidiaryFilter] = useState<string>('ALL');
+  const [dailySearch, setDailySearch] = useState<string>('');
+  const [isDailyLoading, setIsDailyLoading] = useState<boolean>(false);
+
+  // Tab: Staff Monthly Calendar Inspector State
+  const [calendarEmployeeId, setCalendarEmployeeId] = useState<string>('');
+  const [calendarMonth, setCalendarMonth] = useState<number>(() => new Date().getMonth() + 1);
+  const [calendarYear, setCalendarYear] = useState<number>(() => new Date().getFullYear());
+  const [calendarData, setCalendarData] = useState<any>(null);
+  const [isCalendarLoading, setIsCalendarLoading] = useState<boolean>(false);
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState<any>(null);
 
   // Live board data
   const [selectedDate, setSelectedDate] = useState<string>('');
@@ -145,6 +177,141 @@ export default function AttendanceDeskPage() {
     status: 'PRESENT',
     reason: '',
   });
+
+  // Load Daily Attendance Master with morning/evening data
+  const loadDailyRoster = async (dateStr?: string, subId?: string, searchStr?: string) => {
+    try {
+      setIsDailyLoading(true);
+      const d = dateStr !== undefined ? dateStr : dailyDate;
+      const s = subId !== undefined ? subId : dailySubsidiaryFilter;
+      const q = searchStr !== undefined ? searchStr : dailySearch;
+
+      const params = new URLSearchParams();
+      if (d) params.append('date', d);
+      if (s && s !== 'ALL') params.append('subsidiaryId', s);
+      if (q.trim()) params.append('search', q.trim());
+
+      const res = await fetch(`/api/attendance/admin/daily-roster?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDailyRoster(data.roster || []);
+        if (data.counts) setDailyCounts(data.counts);
+        if (data.subsidiaries) setDailySubsidiaries(data.subsidiaries);
+      }
+      setIsDailyLoading(false);
+    } catch (e) {
+      console.error('Error loading daily roster:', e);
+      setIsDailyLoading(false);
+    }
+  };
+
+  // Export Daily Roster CSV
+  const exportDailyRosterCsv = () => {
+    if (!dailyRoster || dailyRoster.length === 0) return;
+    const headers = [
+      'Employee Name',
+      'Employee Number',
+      'Subsidiary',
+      'Department',
+      'Morning Resumption',
+      'Morning Status',
+      'Evening Closing',
+      'Evening Status',
+      'Hours Worked',
+      'Station',
+      'Starlink IP',
+      'Lateness Deduction %',
+      'Notes'
+    ];
+    const rows = dailyRoster.map(r => [
+      `"${r.legalName || ''}"`,
+      `"${r.employeeNumber || ''}"`,
+      `"${r.subsidiary?.legalName || ''}"`,
+      `"${r.department?.name || ''}"`,
+      `"${r.checkInTimeStr || '—'}"`,
+      `"${r.morningStatus || ''}"`,
+      `"${r.checkOutTimeStr || '—'}"`,
+      `"${r.eveningStatus || ''}"`,
+      `"${r.hoursWorkedText || '—'}"`,
+      `"${r.stationName || ''}"`,
+      `"${r.starlinkIp || ''}"`,
+      `"${r.deductionPercent || 0}%"`,
+      `"${(r.notes || '').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e: string[]) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `bems_daily_attendance_${dailyDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Load Staff Monthly Calendar
+  const loadStaffMonthlyCalendar = async (empId: string, month: number, year: number) => {
+    if (!empId) return;
+    try {
+      setIsCalendarLoading(true);
+      const res = await fetch(`/api/attendance/timesheet?employeeId=${empId}&month=${month}&year=${year}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCalendarData(data);
+        if (data.days && data.days.length > 0) {
+          const todayWorkDate = new Date().toISOString().split('T')[0];
+          const todayObj = data.days.find((d: any) => d.workDate === todayWorkDate);
+          setSelectedCalendarDay(todayObj || data.days[0]);
+        } else {
+          setSelectedCalendarDay(null);
+        }
+      }
+      setIsCalendarLoading(false);
+    } catch (e) {
+      console.error('Error loading staff monthly calendar:', e);
+      setIsCalendarLoading(false);
+    }
+  };
+
+  // Export Staff Monthly CSV
+  const exportStaffMonthlyCsv = () => {
+    if (!calendarData || !calendarData.days) return;
+    const headers = [
+      'Day',
+      'Date',
+      'Day Name',
+      'Shift',
+      'Morning Check-In',
+      'Morning Status',
+      'Evening Check-Out',
+      'Evening Status',
+      'Hours Worked',
+      'Deduction %',
+      'Station',
+      'Notes'
+    ];
+    const rows = calendarData.days.map((d: any) => [
+      d.day,
+      `"${d.workDate}"`,
+      `"${d.dayName}"`,
+      `"${d.scheduledShift || '08:00 - 17:00'}"`,
+      `"${d.checkInTime || '—'}"`,
+      `"${d.status || ''}"`,
+      `"${d.checkOutTime || '—'}"`,
+      `"${d.checkOutStatus || '—'}"`,
+      `"${d.hoursWorkedText || '—'}"`,
+      `"${d.deductionPercent || 0}%"`,
+      `"${d.stationName || ''}"`,
+      `"${(d.notes || '').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e: any[]) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `attendance_${calendarData.employee?.legalName?.replace(/\s+/g, '_') || 'staff'}_${calendarYear}_${calendarMonth}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Load timesheet & live attendance
   const loadTimesheet = async (dateStr?: string) => {
@@ -287,6 +454,7 @@ export default function AttendanceDeskPage() {
         if (user && ALLOWED_ADMIN_ROLES.includes(user.role)) {
           setAuthenticatedUser(user);
           setAuthStatus('authorized');
+          loadDailyRoster();
           loadTimesheet();
           loadRoster();
           loadPolicy();
@@ -314,6 +482,15 @@ export default function AttendanceDeskPage() {
       active = false;
     };
   }, []);
+
+  // Sync calendar when roster loads if not already selected
+  useEffect(() => {
+    if (roster.length > 0 && !calendarEmployeeId) {
+      const firstId = roster[0].employeeId;
+      setCalendarEmployeeId(firstId);
+      loadStaffMonthlyCalendar(firstId, calendarMonth, calendarYear);
+    }
+  }, [roster]);
 
   // Save Policy
   const handleSavePolicy = async () => {
@@ -708,6 +885,8 @@ export default function AttendanceDeskPage() {
         >
           <div style={{ display: 'flex', gap: '6px' }}>
             {[
+              { id: 'daily', label: 'Daily Attendance Master (AM/PM)', icon: Users },
+              { id: 'calendar', label: 'Staff Monthly Calendar', icon: CalendarDays },
               { id: 'live', label: "Today's Live Presence Board", icon: Clock },
               { id: 'roster', label: 'Staff Weekly Off-Day Roster', icon: Calendar },
               { id: 'policy', label: 'Shift Hours & Lateness Deductions', icon: Settings },
@@ -778,6 +957,1044 @@ export default function AttendanceDeskPage() {
             </div>
           )}
         </div>
+
+        {/* Tab: Daily Attendance Master (AM/PM) */}
+        {activeTab === 'daily' && (
+          <div>
+            {/* Filter & Controls Bar */}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                padding: '14px 18px',
+                background: '#ffffff',
+                borderRadius: '14px',
+                border: '1px solid #e2e8f0',
+                marginBottom: '16px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+              }}
+            >
+              {/* Left: Date controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={() => {
+                    const cur = new Date(dailyDate);
+                    cur.setDate(cur.getDate() - 1);
+                    const newDate = cur.toISOString().split('T')[0];
+                    setDailyDate(newDate);
+                    loadDailyRoster(newDate, dailySubsidiaryFilter, dailySearch);
+                  }}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  title="Previous Day"
+                >
+                  <ChevronLeft size={15} color="#475569" />
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Calendar size={15} color="#ea580c" />
+                  <input
+                    type="date"
+                    value={dailyDate}
+                    onChange={e => {
+                      setDailyDate(e.target.value);
+                      loadDailyRoster(e.target.value, dailySubsidiaryFilter, dailySearch);
+                    }}
+                    style={{
+                      padding: '7px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: '#0f172a',
+                      background: '#ffffff',
+                    }}
+                  />
+                </div>
+
+                <button
+                  onClick={() => {
+                    const cur = new Date(dailyDate);
+                    cur.setDate(cur.getDate() + 1);
+                    const newDate = cur.toISOString().split('T')[0];
+                    setDailyDate(newDate);
+                    loadDailyRoster(newDate, dailySubsidiaryFilter, dailySearch);
+                  }}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  title="Next Day"
+                >
+                  <ChevronRight size={15} color="#475569" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    setDailyDate(today);
+                    loadDailyRoster(today, dailySubsidiaryFilter, dailySearch);
+                  }}
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
+                    background: '#f8fafc',
+                    color: '#475569',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Today
+                </button>
+              </div>
+
+              {/* Middle: Subsidiary Filter */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Filter size={14} color="#64748b" />
+                <select
+                  value={dailySubsidiaryFilter}
+                  onChange={e => {
+                    setDailySubsidiaryFilter(e.target.value);
+                    loadDailyRoster(dailyDate, e.target.value, dailySearch);
+                  }}
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#0f172a',
+                    background: '#ffffff',
+                    minWidth: '180px',
+                  }}
+                >
+                  <option value="ALL">All Subsidiaries (BEMS Group)</option>
+                  {dailySubsidiaries.map(sub => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.legalName} ({sub.shortCode || 'SUB'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Right: Search, Export & Refresh */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ position: 'relative', width: '220px' }}>
+                  <Search
+                    size={14}
+                    color="#94a3b8"
+                    style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Search staff or role..."
+                    value={dailySearch}
+                    onChange={e => {
+                      setDailySearch(e.target.value);
+                      loadDailyRoster(dailyDate, dailySubsidiaryFilter, e.target.value);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px 7px 32px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '12px',
+                      background: '#ffffff',
+                    }}
+                  />
+                </div>
+
+                <button
+                  onClick={exportDailyRosterCsv}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '7px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                  title="Export CSV"
+                >
+                  <Download size={14} color="#059669" />
+                  <span>Export CSV</span>
+                </button>
+
+                <button
+                  onClick={() => loadDailyRoster()}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    cursor: 'pointer',
+                    display: 'grid',
+                    placeItems: 'center',
+                  }}
+                  title="Refresh Daily Roster"
+                >
+                  <RefreshCw size={14} color="#64748b" className={isDailyLoading ? 'animate-spin' : ''} />
+                </button>
+              </div>
+            </div>
+
+            {/* Daily KPI Badges Ribbon */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '12px',
+                marginBottom: '16px',
+              }}
+            >
+              <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Users size={14} color="#64748b" /> TOTAL STAFF
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>
+                  {dailyCounts.total}
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Enrolled active personnel</div>
+              </div>
+
+              <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sun size={14} color="#059669" /> MORNING: ON-TIME
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: 900, color: '#059669', marginTop: '4px' }}>
+                  {dailyCounts.onTime}
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Punched before 08:15 AM</div>
+              </div>
+
+              <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#ea580c', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertTriangle size={14} color="#ea580c" /> MORNING: LATE
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: 900, color: '#ea580c', marginTop: '4px' }}>
+                  {dailyCounts.late}
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>-5.0% salary deduction applied</div>
+              </div>
+
+              <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#2563eb', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Moon size={14} color="#2563eb" /> EVENING: CHECKED OUT
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: 900, color: '#2563eb', marginTop: '4px' }}>
+                  {dailyCounts.checkedOut}
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Completed shift sign-out</div>
+              </div>
+
+              <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Calendar size={14} color="#64748b" /> SCHEDULED OFF-DAY
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: 900, color: '#64748b', marginTop: '4px' }}>
+                  {dailyCounts.offDay}
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Weekly rest shift</div>
+              </div>
+
+              <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <UserX size={14} color="#dc2626" /> UNEXCUSED ABSENT
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: 900, color: '#dc2626', marginTop: '4px' }}>
+                  {dailyCounts.absent}
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>No resumption recorded</div>
+              </div>
+            </div>
+
+            {/* Master Attendance Table */}
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '14px',
+                border: '1px solid #e2e8f0',
+                overflow: 'hidden',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              }}
+            >
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
+                      <th style={{ padding: '12px 16px' }}>Employee</th>
+                      <th style={{ padding: '12px 16px' }}>Subsidiary / Dept</th>
+                      <th style={{ padding: '12px 16px' }}>Scheduled Shift</th>
+                      <th style={{ padding: '12px 16px' }}>Morning Resumption (AM)</th>
+                      <th style={{ padding: '12px 16px' }}>Evening Closing (PM)</th>
+                      <th style={{ padding: '12px 16px' }}>Hours Worked</th>
+                      <th style={{ padding: '12px 16px' }}>Network / Station</th>
+                      <th style={{ padding: '12px 16px' }}>Deduction</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isDailyLoading ? (
+                      <tr>
+                        <td colSpan={9} style={{ padding: '36px', textAlign: 'center', color: '#94a3b8' }}>
+                          Loading daily attendance records...
+                        </td>
+                      </tr>
+                    ) : dailyRoster.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} style={{ padding: '36px', textAlign: 'center', color: '#94a3b8' }}>
+                          No personnel attendance records found for this date.
+                        </td>
+                      </tr>
+                    ) : (
+                      dailyRoster.map(r => {
+                        const isOff = r.isOffDay;
+                        const isAbs = r.morningStatus === 'ABSENT';
+                        const isLate = r.morningStatus === 'LATE';
+                        const isOnTime = r.morningStatus === 'ON_TIME';
+
+                        return (
+                          <tr
+                            key={r.employeeId}
+                            style={{
+                              borderBottom: '1px solid #f1f5f9',
+                              background: isAbs ? '#fffafa' : isOff ? '#fafafa' : '#ffffff',
+                              transition: 'background 0.15s ease',
+                            }}
+                          >
+                            {/* Employee */}
+                            <td style={{ padding: '12px 16px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div
+                                  style={{
+                                    width: '34px',
+                                    height: '34px',
+                                    borderRadius: '10px',
+                                    background: '#fff7ed',
+                                    color: '#ea580c',
+                                    fontWeight: 800,
+                                    display: 'grid',
+                                    placeItems: 'center',
+                                    fontSize: '12px',
+                                  }}
+                                >
+                                  {r.legalName.substring(0, 2).toUpperCase()}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: 800, color: '#0f172a' }}>{r.legalName}</div>
+                                  <div style={{ fontSize: '11px', color: '#64748b' }}>{r.employeeNumber} · {r.role}</div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Subsidiary / Dept */}
+                            <td style={{ padding: '12px 16px' }}>
+                              <div style={{ fontWeight: 700, color: '#0f172a' }}>{r.subsidiary?.legalName || 'BEMS Group'}</div>
+                              <div style={{ fontSize: '11px', color: '#64748b' }}>{r.department?.name || 'General Operations'}</div>
+                            </td>
+
+                            {/* Shift */}
+                            <td style={{ padding: '12px 16px' }}>
+                              <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>
+                                {r.scheduledShift || '08:00 - 17:00'}
+                              </span>
+                            </td>
+
+                            {/* Morning Resumption */}
+                            <td style={{ padding: '12px 16px' }}>
+                              {isOnTime ? (
+                                <div>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', background: '#ecfdf5', color: '#059669', fontWeight: 800, fontSize: '11px' }}>
+                                    <Sun size={12} /> {r.checkInTimeStr} · ON-TIME
+                                  </div>
+                                </div>
+                              ) : isLate ? (
+                                <div>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', background: '#fff7ed', color: '#ea580c', fontWeight: 800, fontSize: '11px' }}>
+                                    <AlertTriangle size={12} /> {r.checkInTimeStr} · LATE
+                                  </div>
+                                </div>
+                              ) : isOff ? (
+                                <span style={{ display: 'inline-flex', padding: '3px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#64748b', fontWeight: 700, fontSize: '11px' }}>
+                                  OFF-DUTY
+                                </span>
+                              ) : isAbs ? (
+                                <span style={{ display: 'inline-flex', padding: '3px 8px', borderRadius: '6px', background: '#fef2f2', color: '#dc2626', fontWeight: 800, fontSize: '11px' }}>
+                                  UNEXCUSED ABSENT
+                                </span>
+                              ) : (
+                                <span style={{ color: '#94a3b8', fontSize: '11px' }}>Pending Arrival</span>
+                              )}
+                            </td>
+
+                            {/* Evening Closing */}
+                            <td style={{ padding: '12px 16px' }}>
+                              {r.checkOutTimeStr ? (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', background: '#eff6ff', color: '#2563eb', fontWeight: 800, fontSize: '11px' }}>
+                                  <Moon size={12} /> {r.checkOutTimeStr} · {r.eveningStatus === 'EARLY_DEPARTURE' ? 'EARLY EXIT' : 'CLOSED'}
+                                </div>
+                              ) : isOnTime || isLate ? (
+                                <span style={{ display: 'inline-flex', padding: '3px 8px', borderRadius: '6px', background: '#f0fdf4', color: '#16a34a', fontWeight: 700, fontSize: '11px' }}>
+                                  ● Shift In Progress
+                                </span>
+                              ) : (
+                                <span style={{ color: '#94a3b8', fontSize: '11px' }}>—</span>
+                              )}
+                            </td>
+
+                            {/* Hours Worked */}
+                            <td style={{ padding: '12px 16px' }}>
+                              <span style={{ fontWeight: 700, color: r.hoursWorkedText !== '—' ? '#0f172a' : '#94a3b8' }}>
+                                {r.hoursWorkedText}
+                              </span>
+                            </td>
+
+                            {/* Network / Station */}
+                            <td style={{ padding: '12px 16px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Wifi size={13} color={r.starlinkIp ? '#059669' : '#94a3b8'} />
+                                <span style={{ fontSize: '11px', color: '#475569' }}>
+                                  {r.stationName || 'HQ Kiosk'}{r.starlinkIp ? ` (${r.starlinkIp})` : ''}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Deduction */}
+                            <td style={{ padding: '12px 16px' }}>
+                              {r.deductionPercent > 0 ? (
+                                <span style={{ fontWeight: 800, color: '#dc2626' }}>
+                                  -{r.deductionPercent.toFixed(1)}%
+                                </span>
+                              ) : (
+                                <span style={{ color: '#059669', fontWeight: 700 }}>0.0%</span>
+                              )}
+                            </td>
+
+                            {/* Action */}
+                            <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                              <button
+                                onClick={() => {
+                                  setCalendarEmployeeId(r.employeeId);
+                                  loadStaffMonthlyCalendar(r.employeeId, calendarMonth, calendarYear);
+                                  setActiveTab('calendar');
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '5px 10px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #cbd5e1',
+                                  background: '#ffffff',
+                                  color: '#0f172a',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                                title="View Full Month Calendar for Staff"
+                              >
+                                <CalendarDays size={13} color="#ea580c" />
+                                <span>Calendar</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Staff Monthly Calendar */}
+        {activeTab === 'calendar' && (
+          <div>
+            {/* Staff Selector & Month Navigation Header */}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                padding: '14px 18px',
+                background: '#ffffff',
+                borderRadius: '14px',
+                border: '1px solid #e2e8f0',
+                marginBottom: '16px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+              }}
+            >
+              {/* Left: Staff Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Users size={16} color="#ea580c" />
+                <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Select Staff:</span>
+                <select
+                  value={calendarEmployeeId}
+                  onChange={e => {
+                    setCalendarEmployeeId(e.target.value);
+                    loadStaffMonthlyCalendar(e.target.value, calendarMonth, calendarYear);
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    background: '#ffffff',
+                    minWidth: '280px',
+                  }}
+                >
+                  {roster.map(emp => (
+                    <option key={emp.employeeId} value={emp.employeeId}>
+                      {emp.legalName} ({emp.employeeNumber}) · {emp.organizationName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Middle: Month Navigator */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={() => {
+                    let m = calendarMonth - 1;
+                    let y = calendarYear;
+                    if (m < 1) {
+                      m = 12;
+                      y -= 1;
+                    }
+                    setCalendarMonth(m);
+                    setCalendarYear(y);
+                    loadStaffMonthlyCalendar(calendarEmployeeId, m, y);
+                  }}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  title="Previous Month"
+                >
+                  <ChevronLeft size={15} color="#475569" />
+                </button>
+
+                <div
+                  style={{
+                    padding: '6px 14px',
+                    background: '#fff7ed',
+                    borderRadius: '8px',
+                    border: '1px solid #fed7aa',
+                    fontSize: '13px',
+                    fontWeight: 900,
+                    color: '#ea580c',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <CalendarDays size={14} color="#ea580c" />
+                  <span>
+                    {new Date(calendarYear, calendarMonth - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => {
+                    let m = calendarMonth + 1;
+                    let y = calendarYear;
+                    if (m > 12) {
+                      m = 1;
+                      y += 1;
+                    }
+                    setCalendarMonth(m);
+                    setCalendarYear(y);
+                    loadStaffMonthlyCalendar(calendarEmployeeId, m, y);
+                  }}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  title="Next Month"
+                >
+                  <ChevronRight size={15} color="#475569" />
+                </button>
+              </div>
+
+              {/* Right: Export & Refresh */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={exportStaffMonthlyCsv}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '7px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                  title="Export Staff Timesheet CSV"
+                >
+                  <Download size={14} color="#059669" />
+                  <span>Export Timesheet CSV</span>
+                </button>
+
+                <button
+                  onClick={() => loadStaffMonthlyCalendar(calendarEmployeeId, calendarMonth, calendarYear)}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    cursor: 'pointer',
+                    display: 'grid',
+                    placeItems: 'center',
+                  }}
+                  title="Refresh Calendar"
+                >
+                  <RefreshCw size={14} color="#64748b" className={isCalendarLoading ? 'animate-spin' : ''} />
+                </button>
+              </div>
+            </div>
+
+            {/* Staff Monthly KPI Cards */}
+            {calendarData?.summary && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: '12px',
+                  marginBottom: '16px',
+                }}
+              >
+                <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <CheckCircle2 size={14} color="#059669" /> PRESENT ON-TIME
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#059669', marginTop: '4px' }}>
+                    {calendarData.summary.presentDays} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>days</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Resumed before 08:15 AM</div>
+                </div>
+
+                <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#ea580c', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <AlertTriangle size={14} color="#ea580c" /> LATE ARRIVALS
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#ea580c', marginTop: '4px' }}>
+                    {calendarData.summary.lateDays} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>days</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    Cumulative lateness penalty
+                  </div>
+                </div>
+
+                <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <UserX size={14} color="#dc2626" /> UNEXCUSED ABSENCES
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#dc2626', marginTop: '4px' }}>
+                    {calendarData.summary.absentDays} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>days</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>100% daily deduction</div>
+                </div>
+
+                <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#2563eb', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sparkles size={14} color="#2563eb" /> PUNCTUALITY SCORE
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#2563eb', marginTop: '4px' }}>
+                    {calendarData.summary.punctualityScore?.toFixed(1) || '100.0'}%
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Based on arrival promptness</div>
+                </div>
+
+                <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#9333ea', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <ShieldCheck size={14} color="#9333ea" /> NET PAYROLL DEDUCTION
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: calendarData.summary.totalDeductionPercent > 0 ? '#dc2626' : '#059669', marginTop: '4px' }}>
+                    {calendarData.summary.totalDeductionPercent > 0 ? `-${calendarData.summary.totalDeductionPercent.toFixed(1)}%` : '0.0%'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Deducted from monthly pay</div>
+                </div>
+              </div>
+            )}
+
+            {/* Main Grid & Inspection Details Split Layout */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1.8fr) minmax(320px, 1fr)',
+                gap: '16px',
+                alignItems: 'start',
+              }}
+            >
+              {/* Left: 7-Column Calendar View */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  border: '1px solid #e2e8f0',
+                  padding: '20px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                }}
+              >
+                {/* Day Name Header Row (Mon - Sun) */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(7, 1fr)',
+                    gap: '8px',
+                    marginBottom: '10px',
+                    textAlign: 'center',
+                  }}
+                >
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                    <div
+                      key={day}
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        color: '#64748b',
+                        padding: '6px 0',
+                      }}
+                    >
+                      {day}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Calendar Matrix Cells */}
+                {isCalendarLoading ? (
+                  <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+                    Loading monthly attendance calendar...
+                  </div>
+                ) : !calendarData?.days ? (
+                  <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+                    Please select an employee to view monthly attendance.
+                  </div>
+                ) : (
+                  <div>
+                    {(() => {
+                      // Calculate starting day of month (Monday = 0, Sunday = 6)
+                      const firstDayOfMonth = new Date(calendarYear, calendarMonth - 1, 1).getDay();
+                      const emptySlots = (firstDayOfMonth + 6) % 7;
+
+                      return (
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(7, 1fr)',
+                            gap: '8px',
+                          }}
+                        >
+                          {/* Empty padding slots before day 1 */}
+                          {Array.from({ length: emptySlots }).map((_, idx) => (
+                            <div
+                              key={`empty-${idx}`}
+                              style={{
+                                minHeight: '74px',
+                                background: '#f8fafc',
+                                borderRadius: '10px',
+                                opacity: 0.5,
+                              }}
+                            />
+                          ))}
+
+                          {/* Day cells */}
+                          {calendarData.days.map((dayObj: any) => {
+                            const isSelected = selectedCalendarDay?.day === dayObj.day;
+                            const st = dayObj.status;
+
+                            let bg = '#ffffff';
+                            let border = '#e2e8f0';
+                            let textCol = '#0f172a';
+                            let badgeBg = '#f1f5f9';
+                            let badgeCol = '#475569';
+                            let label = 'FUTURE';
+
+                            if (st === 'PRESENT') {
+                              bg = '#f0fdf4';
+                              border = '#bbf7d0';
+                              badgeBg = '#dcfce7';
+                              badgeCol = '#15803d';
+                              label = 'PRESENT';
+                            } else if (st === 'LATE') {
+                              bg = '#fff7ed';
+                              border = '#fed7aa';
+                              badgeBg = '#ffedd5';
+                              badgeCol = '#c2410c';
+                              label = 'LATE';
+                            } else if (st === 'ABSENT') {
+                              bg = '#fef2f2';
+                              border = '#fecaca';
+                              badgeBg = '#fee2e2';
+                              badgeCol = '#b91c1c';
+                              label = 'ABSENT';
+                            } else if (st === 'OFF_DAY') {
+                              bg = '#f8fafc';
+                              border = '#e2e8f0';
+                              badgeBg = '#f1f5f9';
+                              badgeCol = '#64748b';
+                              label = 'OFF-DAY';
+                            } else if (st === 'EXCUSED') {
+                              bg = '#eef2ff';
+                              border = '#c7d2fe';
+                              badgeBg = '#e0e7ff';
+                              badgeCol = '#4338ca';
+                              label = 'EXCUSED';
+                            }
+
+                            return (
+                              <div
+                                key={dayObj.day}
+                                onClick={() => setSelectedCalendarDay(dayObj)}
+                                style={{
+                                  minHeight: '74px',
+                                  padding: '8px',
+                                  borderRadius: '10px',
+                                  border: isSelected ? '2px solid #ea580c' : `1px solid ${border}`,
+                                  background: bg,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  justifyContent: 'space-between',
+                                  transition: 'all 0.15s ease',
+                                  boxShadow: isSelected ? '0 0 0 3px rgba(234, 88, 12, 0.15)' : 'none',
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontSize: '13px', fontWeight: 800, color: textCol }}>{dayObj.day}</span>
+                                  {dayObj.deductionPercent > 0 && (
+                                    <span style={{ fontSize: '9px', fontWeight: 800, color: '#dc2626' }}>
+                                      -{dayObj.deductionPercent}%
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: '9px',
+                                      fontWeight: 800,
+                                      padding: '2px 4px',
+                                      borderRadius: '4px',
+                                      background: badgeBg,
+                                      color: badgeCol,
+                                      textAlign: 'center',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    }}
+                                  >
+                                    {label}
+                                  </div>
+                                  {dayObj.checkInTime && (
+                                    <div style={{ fontSize: '10px', color: '#475569', fontWeight: 700, marginTop: '2px', textAlign: 'center' }}>
+                                      {dayObj.checkInTime}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Legend */}
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginTop: '20px',
+                    paddingTop: '16px',
+                    borderTop: '1px solid #f1f5f9',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#dcfce7', border: '1px solid #86efac' }} />
+                    <span style={{ color: '#166534' }}>Present On-Time</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#ffedd5', border: '1px solid #fdba74' }} />
+                    <span style={{ color: '#9a3412' }}>Late Arrival (-5%)</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#fee2e2', border: '1px solid #fca5a5' }} />
+                    <span style={{ color: '#991b1b' }}>Unexcused Absent (-100%)</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#f1f5f9', border: '1px solid #cbd5e1' }} />
+                    <span style={{ color: '#475569' }}>Weekly Off-Day</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#e0e7ff', border: '1px solid #a5b4fc' }} />
+                    <span style={{ color: '#3730a3' }}>HR Excused Leave</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: Selected Day Audit Inspector */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  border: '1px solid #e2e8f0',
+                  padding: '20px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
+                    <Eye size={15} color="#ea580c" />
+                    <span>Day Audit Inspector</span>
+                  </div>
+                  {selectedCalendarDay && (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        background: selectedCalendarDay.status === 'PRESENT' ? '#ecfdf5' : selectedCalendarDay.status === 'LATE' ? '#fff7ed' : selectedCalendarDay.status === 'ABSENT' ? '#fef2f2' : '#f1f5f9',
+                        color: selectedCalendarDay.status === 'PRESENT' ? '#059669' : selectedCalendarDay.status === 'LATE' ? '#ea580c' : selectedCalendarDay.status === 'ABSENT' ? '#dc2626' : '#64748b',
+                      }}
+                    >
+                      {selectedCalendarDay.status}
+                    </span>
+                  )}
+                </div>
+
+                {selectedCalendarDay ? (
+                  <div>
+                    {/* Header info */}
+                    <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '10px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a' }}>
+                        {selectedCalendarDay.dayName}, {selectedCalendarDay.workDate}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                        Scheduled Shift: <strong>{selectedCalendarDay.scheduledShift || '08:00 AM – 05:00 PM'}</strong>
+                      </div>
+                    </div>
+
+                    {/* Morning Resumption */}
+                    <div style={{ marginBottom: '14px', padding: '12px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: '#059669', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                        <Sun size={13} /> MORNING RESUMPTION
+                      </div>
+                      <div style={{ fontSize: '18px', fontWeight: 900, color: selectedCalendarDay.checkInTime ? '#0f172a' : '#94a3b8' }}>
+                        {selectedCalendarDay.checkInTime || 'No Arrival Recorded'}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                        Status: <strong>{selectedCalendarDay.status === 'PRESENT' ? 'On-Time (Punched before 08:15 AM)' : selectedCalendarDay.status === 'LATE' ? 'Late Arrival (Flagged -5%)' : selectedCalendarDay.status === 'OFF_DAY' ? 'Weekly Off-Day' : selectedCalendarDay.status === 'ABSENT' ? 'Unexcused Absent' : 'Pending'}</strong>
+                      </div>
+                    </div>
+
+                    {/* Evening Closing */}
+                    <div style={{ marginBottom: '14px', padding: '12px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: '#2563eb', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                        <Moon size={13} /> EVENING CLOSING
+                      </div>
+                      <div style={{ fontSize: '18px', fontWeight: 900, color: selectedCalendarDay.checkOutTime ? '#0f172a' : '#94a3b8' }}>
+                        {selectedCalendarDay.checkOutTime || 'No Check-Out Recorded'}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                        Status: <strong>{selectedCalendarDay.checkOutStatus || 'Pending Closing'}</strong>
+                      </div>
+                    </div>
+
+                    {/* Total Duration & Deduction */}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: '10px',
+                        marginBottom: '14px',
+                      }}
+                    >
+                      <div style={{ padding: '10px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b' }}>HOURS WORKED</div>
+                        <div style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', marginTop: '2px' }}>
+                          {selectedCalendarDay.hoursWorkedText || '—'}
+                        </div>
+                      </div>
+
+                      <div style={{ padding: '10px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b' }}>DEDUCTION</div>
+                        <div style={{ fontSize: '14px', fontWeight: 900, color: selectedCalendarDay.deductionPercent > 0 ? '#dc2626' : '#059669', marginTop: '2px' }}>
+                          {selectedCalendarDay.deductionPercent > 0 ? `-${selectedCalendarDay.deductionPercent}%` : '0.0%'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Network & Station Details */}
+                    <div style={{ padding: '10px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '11px', color: '#475569' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                        <MapPin size={13} color="#ea580c" />
+                        <span>Station: <strong>{selectedCalendarDay.stationName || 'HQ Reception Main Kiosk'}</strong></span>
+                      </div>
+                      {selectedCalendarDay.notes && (
+                        <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e2e8f0', color: '#0f172a' }}>
+                          Audit Note: <em>{selectedCalendarDay.notes}</em>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: '40px 10px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+                    Click on any day in the calendar to view morning resumption and evening closing audit details.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tab 1: Live Presence Board */}
         {activeTab === 'live' && (

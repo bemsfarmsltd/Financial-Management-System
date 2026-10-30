@@ -968,4 +968,24 @@ class StaffApiService {
       return null;
     }
   }
+
+  /// Fetch full monthly timesheet with calendar days and summary metrics
+  static Future<Map<String, dynamic>> fetchMonthlyTimesheet({
+    required String employeeId,
+    required int month,
+    required int year,
+    String? token,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.get(
+        Uri.parse('$host/api/attendance/timesheet?employeeId=${Uri.encodeComponent(employeeId)}&month=$month&year=$year'),
+        headers: _headers(token: token, employeeId: employeeId),
+      ),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return data as Map<String, dynamic>;
+    }
+    throw Exception(data['error']?.toString() ?? 'Failed to load timesheet.');
+  }
 }

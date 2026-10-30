@@ -10,6 +10,7 @@ import 'staff_login_screen.dart';
 import 'request_chat_screen.dart';
 import 'staff_admin_chat_screen.dart';
 import 'attendance_scan_screen.dart';
+import 'attendance_monthly_screen.dart';
 import '../widgets/bems_pie_chart.dart';
 
 class StaffMainScreen extends StatefulWidget {
@@ -2176,6 +2177,35 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AttendanceMonthlyScreen(currentUser: _currentUser),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.calendar_month_rounded, size: 16, color: Color(0xFF0F172A)),
+                    label: const Text(
+                      'View Monthly Attendance Calendar',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: const Color(0xFFF8FAFC),
+                      side: const BorderSide(color: Color(0xFFE2E8F0)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
                 ),
               ],
             ),
