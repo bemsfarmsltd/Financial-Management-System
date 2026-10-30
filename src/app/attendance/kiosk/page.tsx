@@ -5,20 +5,18 @@ import Link from 'next/link';
 import {
   Clock,
   ShieldCheck,
-  MapPin,
   RefreshCw,
   Maximize2,
   Minimize2,
-  ArrowLeft,
-  Building2,
   Wifi,
   Zap,
   CheckCircle2,
   AlertCircle,
-  Smartphone,
   Sparkles,
   Radio,
-  Calendar,
+  Search,
+  X,
+  UserCheck,
   Users,
 } from 'lucide-react';
 
@@ -48,8 +46,10 @@ export default function AttendanceKioskPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isQrOnlyFullscreen, setIsQrOnlyFullscreen] = useState<boolean>(false);
   const [recentPunches, setRecentPunches] = useState<any[]>([]);
   const [totalPresentCount, setTotalPresentCount] = useState<number>(0);
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   // Live West Africa Time Clock
   useEffect(() => {
@@ -114,7 +114,7 @@ export default function AttendanceKioskPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Poll recent arrivals
+  // Poll recent arrivals & all staff who marked attendance today
   useEffect(() => {
     const fetchRecent = async () => {
       try {
@@ -122,7 +122,7 @@ export default function AttendanceKioskPage() {
         if (res.ok) {
           const data = await res.json();
           const activeToday = (data.employees || []).filter((e: any) => e.checkInTime);
-          setRecentPunches(activeToday.slice(0, 6));
+          setRecentPunches(activeToday);
           setTotalPresentCount(activeToday.length);
         }
       } catch (e) {
@@ -130,11 +130,22 @@ export default function AttendanceKioskPage() {
       }
     };
     fetchRecent();
-    const interval = setInterval(fetchRecent, 15000);
+    const interval = setInterval(fetchRecent, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  const toggleFullscreen = () => {
+  // Handle ESC key to exit QR-only fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isQrOnlyFullscreen) {
+        setIsQrOnlyFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isQrOnlyFullscreen]);
+
+  const togglePageFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
       setIsFullscreen(true);
@@ -143,6 +154,16 @@ export default function AttendanceKioskPage() {
       setIsFullscreen(false);
     }
   };
+
+  // Filtered staff list for search
+  const filteredStaff = recentPunches.filter((p: any) => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    const nameMatch = (p.legalName || '').toLowerCase().includes(term);
+    const roleMatch = (p.role || '').toLowerCase().includes(term);
+    const deptMatch = (p.department || '').toLowerCase().includes(term);
+    return nameMatch || roleMatch || deptMatch;
+  });
 
   return (
     <div
@@ -155,7 +176,7 @@ export default function AttendanceKioskPage() {
         flexDirection: 'column',
       }}
     >
-      {/* Top Header (Simple & Clean from Reference) */}
+      {/* Top Header (Clean Light Design, No Attendance Desk Button) */}
       <header
         style={{
           padding: '16px 36px',
@@ -167,24 +188,23 @@ export default function AttendanceKioskPage() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <Link
-            href="/attendance"
+          <div
             style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '10px',
-              background: '#f1f5f9',
-              border: '1px solid #e2e8f0',
+              width: '40px',
+              height: '40px',
+              borderRadius: '12px',
+              background: '#ecfdf5',
+              border: '1px solid #a7f3d0',
               display: 'grid',
               placeItems: 'center',
-              color: '#334155',
-              textDecoration: 'none',
-              transition: 'all 0.15s ease',
             }}
-            title="Return to Attendance Desk"
           >
-            <ArrowLeft size={18} />
-          </Link>
+            <img
+              src="/bems-mark.png?v=20261024"
+              alt="BEMS"
+              style={{ width: 26, height: 26, objectFit: 'contain' }}
+            />
+          </div>
 
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -215,7 +235,7 @@ export default function AttendanceKioskPage() {
           </div>
         </div>
 
-        {/* Top Right Action Buttons (Matching Reference Design) */}
+        {/* Top Right Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
             onClick={fetchToken}
@@ -232,13 +252,35 @@ export default function AttendanceKioskPage() {
               alignItems: 'center',
               gap: '6px',
             }}
+            title="Refresh QR token"
           >
             <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
             <span>Refresh</span>
           </button>
 
           <button
-            onClick={toggleFullscreen}
+            onClick={() => setIsQrOnlyFullscreen(true)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '10px',
+              background: '#ecfdf5',
+              border: '1px solid #a7f3d0',
+              color: '#059669',
+              fontWeight: 800,
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+            title="Expand only QR code to full screen"
+          >
+            <Maximize2 size={14} />
+            <span>Fullscreen QR</span>
+          </button>
+
+          <button
+            onClick={togglePageFullscreen}
             style={{
               padding: '8px 16px',
               borderRadius: '10px',
@@ -252,26 +294,11 @@ export default function AttendanceKioskPage() {
               alignItems: 'center',
               gap: '6px',
             }}
+            title="Toggle kiosk screen mode"
           >
             {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-            <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+            <span>{isFullscreen ? 'Exit Screen' : 'Kiosk Screen'}</span>
           </button>
-
-          <Link
-            href="/attendance"
-            style={{
-              padding: '8px 18px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              color: '#ffffff',
-              fontWeight: 800,
-              fontSize: '13px',
-              textDecoration: 'none',
-              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
-            }}
-          >
-            Attendance Desk
-          </Link>
         </div>
       </header>
 
@@ -279,7 +306,7 @@ export default function AttendanceKioskPage() {
       <main
         style={{
           flex: 1,
-          maxWidth: '1200px',
+          maxWidth: '1340px',
           width: '100%',
           margin: '0 auto',
           padding: '24px 28px',
@@ -288,7 +315,7 @@ export default function AttendanceKioskPage() {
           gap: '24px',
         }}
       >
-        {/* Top Info & Summary Card (Directly from Reference Image) */}
+        {/* Top Info & Summary Card (Full Width at Top) */}
         <div
           style={{
             background: '#ffffff',
@@ -302,7 +329,7 @@ export default function AttendanceKioskPage() {
             alignItems: 'center',
           }}
         >
-          {/* Big "Total Clock-Ins" Box (like "Total Scans 50" in reference) */}
+          {/* Big "Total Clock-Ins" Box */}
           <div
             style={{
               padding: '16px 24px',
@@ -384,39 +411,37 @@ export default function AttendanceKioskPage() {
           </div>
         </div>
 
-        {/* Center Stage: The Simple Clean QR Card with Bracket Reticles and Scanning Laser Line */}
+        {/* 2-Column Main Section: QR Code on the Left, List of Staff on the Right */}
         <div
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px 0',
+            display: 'grid',
+            gridTemplateColumns: 'minmax(380px, 460px) 1fr',
+            gap: '24px',
+            alignItems: 'stretch',
           }}
         >
+          {/* LEFT COLUMN: Dynamic QR Showcase Card */}
           <div
             style={{
               background: '#ffffff',
-              borderRadius: '28px',
+              borderRadius: '24px',
               border: '1px solid #e2e8f0',
-              padding: '36px 48px',
-              boxShadow: '0 15px 40px rgba(15, 23, 42, 0.05)',
+              padding: '32px 28px',
+              boxShadow: '0 8px 30px rgba(15, 23, 42, 0.04)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              maxWidth: '480px',
-              width: '100%',
-              position: 'relative',
+              justifyContent: 'space-between',
             }}
           >
-            {/* Top Prompt */}
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            {/* Top Prompt Badge */}
+            <div style={{ textAlign: 'center', marginBottom: '18px' }}>
               <span
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
-                  fontSize: '12px',
+                  fontSize: '11px',
                   fontWeight: 800,
                   textTransform: 'uppercase',
                   color: '#059669',
@@ -427,20 +452,20 @@ export default function AttendanceKioskPage() {
                   letterSpacing: '0.5px',
                 }}
               >
-                <Sparkles size={13} />
+                <Sparkles size={12} />
                 POINT MOBILE APP CAMERA HERE
               </span>
             </div>
 
-            {/* QR Viewfinder with Corner Bracket Reticles (Matching Reference Image) */}
+            {/* QR Viewfinder with Corner Bracket Reticles */}
             <div
               style={{
-                width: '320px',
-                height: '320px',
+                width: '300px',
+                height: '300px',
                 position: 'relative',
                 display: 'grid',
                 placeItems: 'center',
-                padding: '16px',
+                padding: '12px',
               }}
             >
               {/* Top-Left Bracket Reticle */}
@@ -449,11 +474,11 @@ export default function AttendanceKioskPage() {
                   position: 'absolute',
                   top: 0,
                   left: 0,
-                  width: '36px',
-                  height: '36px',
+                  width: '32px',
+                  height: '32px',
                   borderTop: '4px solid #10b981',
                   borderLeft: '4px solid #10b981',
-                  borderRadius: '12px 0 0 0',
+                  borderRadius: '10px 0 0 0',
                 }}
               />
 
@@ -463,11 +488,11 @@ export default function AttendanceKioskPage() {
                   position: 'absolute',
                   top: 0,
                   right: 0,
-                  width: '36px',
-                  height: '36px',
+                  width: '32px',
+                  height: '32px',
                   borderTop: '4px solid #10b981',
                   borderRight: '4px solid #10b981',
-                  borderRadius: '0 12px 0 0',
+                  borderRadius: '0 10px 0 0',
                 }}
               />
 
@@ -477,11 +502,11 @@ export default function AttendanceKioskPage() {
                   position: 'absolute',
                   bottom: 0,
                   left: 0,
-                  width: '36px',
-                  height: '36px',
+                  width: '32px',
+                  height: '32px',
                   borderBottom: '4px solid #10b981',
                   borderLeft: '4px solid #10b981',
-                  borderRadius: '0 0 0 12px',
+                  borderRadius: '0 0 0 10px',
                 }}
               />
 
@@ -491,22 +516,22 @@ export default function AttendanceKioskPage() {
                   position: 'absolute',
                   bottom: 0,
                   right: 0,
-                  width: '36px',
-                  height: '36px',
+                  width: '32px',
+                  height: '32px',
                   borderBottom: '4px solid #10b981',
                   borderRight: '4px solid #10b981',
-                  borderRadius: '0 0 12px 0',
+                  borderRadius: '0 0 10px 0',
                 }}
               />
 
               {/* Dynamic QR Display */}
               <div
                 style={{
-                  width: '280px',
-                  height: '280px',
+                  width: '264px',
+                  height: '264px',
                   position: 'relative',
                   overflow: 'hidden',
-                  borderRadius: '16px',
+                  borderRadius: '14px',
                   display: 'grid',
                   placeItems: 'center',
                   background: '#ffffff',
@@ -527,19 +552,19 @@ export default function AttendanceKioskPage() {
                 ) : stationData?.qrSvg ? (
                   <div
                     dangerouslySetInnerHTML={{ __html: stationData.qrSvg }}
-                    style={{ width: '270px', height: '270px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    style={{ width: '256px', height: '256px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   />
                 ) : stationData?.qrDataUrl ? (
                   <img
                     src={stationData.qrDataUrl}
                     alt="Attendance QR Code"
-                    style={{ width: '270px', height: '270px', display: 'block' }}
+                    style={{ width: '256px', height: '256px', display: 'block' }}
                   />
                 ) : (
                   <div style={{ color: '#64748b', fontSize: '12px' }}>Loading QR...</div>
                 )}
 
-                {/* Animated Horizontal Laser Scanning Line (from Reference Image) */}
+                {/* Animated Horizontal Laser Scanning Line */}
                 {!isLoading && !loadError && (
                   <div
                     style={{
@@ -563,9 +588,9 @@ export default function AttendanceKioskPage() {
                       top: '50%',
                       left: '50%',
                       transform: 'translate(-50%, -50%)',
-                      width: '52px',
-                      height: '52px',
-                      borderRadius: '14px',
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
                       background: '#ffffff',
                       boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
                       display: 'grid',
@@ -577,20 +602,20 @@ export default function AttendanceKioskPage() {
                     <img
                       src="/bems-mark.png?v=20261024"
                       alt="BEMS"
-                      style={{ width: 32, height: 32, objectFit: 'contain' }}
+                      style={{ width: 28, height: 28, objectFit: 'contain' }}
                     />
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Subtitle Under QR (from reference: "Scan your code...") */}
-            <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, marginTop: '20px', textAlign: 'center' }}>
+            {/* Subtitle Under QR */}
+            <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginTop: '16px', textAlign: 'center' }}>
               Scan dynamic QR code with BEMS Staff App to record presence
             </div>
 
             {/* Countdown & Security Status */}
-            <div style={{ width: '100%', maxWidth: '300px', marginTop: '16px' }}>
+            <div style={{ width: '100%', maxWidth: '300px', marginTop: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', marginBottom: '6px' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669', fontWeight: 800 }}>
                   <ShieldCheck size={14} />
@@ -620,72 +645,600 @@ export default function AttendanceKioskPage() {
                 />
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Recent Arrivals Strip */}
-        {recentPunches.length > 0 && (
+            {/* Fullscreen QR Action Button */}
+            <button
+              onClick={() => setIsQrOnlyFullscreen(true)}
+              style={{
+                marginTop: '18px',
+                width: '100%',
+                maxWidth: '300px',
+                padding: '11px 16px',
+                borderRadius: '12px',
+                background: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                color: '#0f172a',
+                fontWeight: 700,
+                fontSize: '13px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#ecfdf5';
+                e.currentTarget.style.borderColor = '#10b981';
+                e.currentTarget.style.color = '#059669';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#f8fafc';
+                e.currentTarget.style.borderColor = '#cbd5e1';
+                e.currentTarget.style.color = '#0f172a';
+              }}
+            >
+              <Maximize2 size={15} />
+              <span>Fullscreen QR Code</span>
+            </button>
+          </div>
+
+          {/* RIGHT COLUMN: List of Staff That Have Marked Attendance */}
           <div
             style={{
               background: '#ffffff',
-              borderRadius: '20px',
+              borderRadius: '24px',
               border: '1px solid #e2e8f0',
-              padding: '18px 24px',
-              boxShadow: '0 4px 15px rgba(15, 23, 42, 0.02)',
+              padding: '24px 28px',
+              boxShadow: '0 8px 30px rgba(15, 23, 42, 0.04)',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: '480px',
             }}
           >
-            <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '12px' }}>
-              Recent Check-Ins Today
-            </div>
-            <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
-              {recentPunches.map(p => {
-                const checkInFormatted = p.checkInTime
-                  ? new Date(p.checkInTime).toLocaleTimeString('en-US', {
-                      timeZone: 'Africa/Lagos',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: true,
-                    })
-                  : '--:--';
-                const isLate = p.status === 'LATE';
+            {/* Header: Title, Count, & Search */}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                paddingBottom: '16px',
+                borderBottom: '1px solid #f1f5f9',
+                marginBottom: '16px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    display: 'grid',
+                    placeItems: 'center',
+                    color: '#16a34a',
+                  }}
+                >
+                  <UserCheck size={18} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                    Marked Attendance Today
+                  </h2>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '1px' }}>
+                    Real-time confirmed presence via Starlink Wi-Fi
+                  </div>
+                </div>
+              </div>
 
-                return (
-                  <div
-                    key={p.employeeId}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {/* Search Filter */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    background: '#f8fafc',
+                    borderRadius: '10px',
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
+                  <Search size={14} color="#94a3b8" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search staff..."
                     style={{
-                      padding: '10px 14px',
-                      borderRadius: '12px',
+                      border: 'none',
+                      background: 'transparent',
+                      fontSize: '12px',
+                      color: '#0f172a',
+                      outline: 'none',
+                      width: '120px',
+                    }}
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
+                    >
+                      <X size={12} color="#94a3b8" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Badge Count */}
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    background: '#ecfdf5',
+                    color: '#059669',
+                    border: '1px solid #a7f3d0',
+                  }}
+                >
+                  {filteredStaff.length} Present
+                </span>
+              </div>
+            </div>
+
+            {/* Staff List Body */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                maxHeight: '420px',
+                paddingRight: '4px',
+              }}
+            >
+              {filteredStaff.length === 0 ? (
+                <div
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    padding: '40px 20px',
+                    color: '#64748b',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '54px',
+                      height: '54px',
+                      borderRadius: '16px',
                       background: '#f8fafc',
                       border: '1px solid #e2e8f0',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      flexShrink: 0,
+                      display: 'grid',
+                      placeItems: 'center',
+                      color: '#94a3b8',
+                      marginBottom: '12px',
                     }}
                   >
-                    <div>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>{p.legalName}</div>
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>{p.role}</div>
-                    </div>
-                    <span
+                    <Users size={24} />
+                  </div>
+                  <strong style={{ fontSize: '14px', color: '#0f172a' }}>
+                    {searchTerm ? 'No matching staff found' : 'No attendance recorded yet today'}
+                  </strong>
+                  <p style={{ fontSize: '12px', color: '#94a3b8', maxWidth: '300px', marginTop: '4px' }}>
+                    {searchTerm
+                      ? 'Try searching with a different employee name or role.'
+                      : 'Staff clock-ins scanned on the BEMS Staff App will immediately populate here live.'}
+                  </p>
+                </div>
+              ) : (
+                filteredStaff.map((staff: any) => {
+                  const checkInFormatted = staff.checkInTime
+                    ? new Date(staff.checkInTime).toLocaleTimeString('en-US', {
+                        timeZone: 'Africa/Lagos',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true,
+                      })
+                    : '--:--';
+
+                  const isLate = staff.status === 'LATE';
+                  const initials = (staff.legalName || 'ST')
+                    .split(' ')
+                    .map((n: string) => n[0])
+                    .slice(0, 2)
+                    .join('')
+                    .toUpperCase();
+
+                  return (
+                    <div
+                      key={staff.employeeId}
                       style={{
-                        fontSize: '11px',
-                        fontWeight: 800,
-                        padding: '2px 7px',
-                        borderRadius: '6px',
-                        background: isLate ? '#fef2f2' : '#ecfdf5',
-                        color: isLate ? '#dc2626' : '#059669',
+                        padding: '12px 16px',
+                        borderRadius: '14px',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      {checkInFormatted}
-                    </span>
-                  </div>
-                );
-              })}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div
+                          style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '10px',
+                            background: isLate ? '#fef2f2' : '#ecfdf5',
+                            border: `1px solid ${isLate ? '#fecaca' : '#a7f3d0'}`,
+                            color: isLate ? '#dc2626' : '#059669',
+                            fontWeight: 800,
+                            fontSize: '13px',
+                            display: 'grid',
+                            placeItems: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {initials}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
+                            {staff.legalName}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>
+                            {staff.role} {staff.department ? `· ${staff.department}` : ''}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: 800,
+                            color: '#0f172a',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <Clock size={13} color="#64748b" />
+                          {checkInFormatted}
+                        </span>
+
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: isLate ? '#fef2f2' : '#ecfdf5',
+                            color: isLate ? '#dc2626' : '#059669',
+                            border: `1px solid ${isLate ? '#fecaca' : '#a7f3d0'}`,
+                            letterSpacing: '0.4px',
+                          }}
+                        >
+                          {isLate ? 'LATE' : 'ON TIME'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
-        )}
+        </div>
       </main>
+
+      {/* DEDICATED FULLSCREEN QR ONLY OVERLAY */}
+      {isQrOnlyFullscreen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            background: '#ffffff',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
+          }}
+        >
+          {/* Top Floating Control Bar */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '24px',
+              left: '32px',
+              right: '32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: '#ecfdf5',
+                  border: '1px solid #a7f3d0',
+                  display: 'grid',
+                  placeItems: 'center',
+                }}
+              >
+                <img
+                  src="/bems-mark.png?v=20261024"
+                  alt="BEMS"
+                  style={{ width: 24, height: 24, objectFit: 'contain' }}
+                />
+              </div>
+              <div>
+                <strong style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a' }}>
+                  BEMS Dynamic Presence Kiosk
+                </strong>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>
+                  Official WAT Time: <strong style={{ color: '#0f172a' }}>{currentTime}</strong> · Total Present Today: <strong style={{ color: '#059669' }}>{totalPresentCount}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                onClick={fetchToken}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: '10px',
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  color: '#334155',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+                <span>Refresh</span>
+              </button>
+
+              <button
+                onClick={() => setIsQrOnlyFullscreen(false)}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: '10px',
+                  background: '#0f172a',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '13px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 4px 14px rgba(15, 23, 42, 0.15)',
+                }}
+              >
+                <X size={16} />
+                <span>Exit Fullscreen (Esc)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Centered Large QR Viewfinder */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginTop: '40px',
+            }}
+          >
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                color: '#059669',
+                background: '#ecfdf5',
+                padding: '6px 18px',
+                borderRadius: '24px',
+                border: '1px solid #a7f3d0',
+                letterSpacing: '0.6px',
+                marginBottom: '24px',
+              }}
+            >
+              <Sparkles size={14} />
+              POINT MOBILE APP CAMERA HERE
+            </span>
+
+            {/* Scaled-Up QR Viewfinder with Corner Brackets */}
+            <div
+              style={{
+                width: '390px',
+                height: '390px',
+                position: 'relative',
+                display: 'grid',
+                placeItems: 'center',
+                padding: '16px',
+              }}
+            >
+              {/* Brackets */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '42px',
+                  height: '42px',
+                  borderTop: '5px solid #10b981',
+                  borderLeft: '5px solid #10b981',
+                  borderRadius: '14px 0 0 0',
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  width: '42px',
+                  height: '42px',
+                  borderTop: '5px solid #10b981',
+                  borderRight: '5px solid #10b981',
+                  borderRadius: '0 14px 0 0',
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  width: '42px',
+                  height: '42px',
+                  borderBottom: '5px solid #10b981',
+                  borderLeft: '5px solid #10b981',
+                  borderRadius: '0 0 0 14px',
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  right: 0,
+                  width: '42px',
+                  height: '42px',
+                  borderBottom: '5px solid #10b981',
+                  borderRight: '5px solid #10b981',
+                  borderRadius: '0 0 14px 0',
+                }}
+              />
+
+              {/* QR Canvas */}
+              <div
+                style={{
+                  width: '344px',
+                  height: '344px',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  borderRadius: '18px',
+                  display: 'grid',
+                  placeItems: 'center',
+                  background: '#ffffff',
+                }}
+              >
+                {isLoading ? (
+                  <RefreshCw size={48} className="animate-spin" color="#10b981" />
+                ) : stationData?.qrSvg ? (
+                  <div
+                    dangerouslySetInnerHTML={{ __html: stationData.qrSvg }}
+                    style={{ width: '336px', height: '336px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  />
+                ) : stationData?.qrDataUrl ? (
+                  <img
+                    src={stationData.qrDataUrl}
+                    alt="Attendance QR Code"
+                    style={{ width: '336px', height: '336px', display: 'block' }}
+                  />
+                ) : null}
+
+                {/* Animated Horizontal Laser Line */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    height: '5px',
+                    background: 'linear-gradient(90deg, transparent, #10b981, #34d399, transparent)',
+                    boxShadow: '0 0 20px 5px rgba(16, 185, 129, 0.7)',
+                    animation: 'scanLaser 2.4s ease-in-out infinite alternate',
+                    zIndex: 3,
+                  }}
+                />
+
+                {/* Center Brand Watermark */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '16px',
+                    background: '#ffffff',
+                    boxShadow: '0 4px 18px rgba(0,0,0,0.18)',
+                    display: 'grid',
+                    placeItems: 'center',
+                    border: '3px solid #10b981',
+                    zIndex: 4,
+                  }}
+                >
+                  <img
+                    src="/bems-mark.png?v=20261024"
+                    alt="BEMS"
+                    style={{ width: 36, height: 36, objectFit: 'contain' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Subtitle Under Scaled QR */}
+            <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 600, marginTop: '22px', textAlign: 'center' }}>
+              Scan dynamic QR code with BEMS Staff App to record presence
+            </div>
+
+            {/* Countdown & Security Status */}
+            <div style={{ width: '100%', maxWidth: '380px', marginTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '8px' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#059669', fontWeight: 800 }}>
+                  <ShieldCheck size={16} />
+                  HMAC-SHA256 SECURED
+                </span>
+                <span style={{ color: '#64748b', fontWeight: 700 }}>
+                  Refreshes in <strong style={{ color: '#059669', fontSize: '15px' }}>{secondsRemaining}s</strong>
+                </span>
+              </div>
+              <div
+                style={{
+                  width: '100%',
+                  height: '8px',
+                  borderRadius: '10px',
+                  background: '#f1f5f9',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: `${(secondsRemaining / 45) * 100}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #10b981, #059669)',
+                    borderRadius: '10px',
+                    transition: 'width 1s linear',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Animation Styles */}
       <style>{`
