@@ -233,8 +233,21 @@ export default function AttendanceKioskPage() {
     }
   };
 
-  // Trigger PWA Installation on PC
+  // Trigger PWA Installation on PC and start launcher download
   const handleInstallClick = async () => {
+    // 1. Immediately trigger the download of the PC launcher file
+    try {
+      const link = document.createElement('a');
+      link.href = '/api/download/kiosk-launcher?type=bat';
+      link.download = 'Launch-BEMS-Kiosk-PC.bat';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      // quiet fallback
+    }
+
+    // 2. Also trigger PWA prompt if available, or show install modal
     if (deferredPrompt) {
       try {
         deferredPrompt.prompt();
@@ -1599,6 +1612,56 @@ export default function AttendanceKioskPage() {
               </div>
             </div>
 
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+              <a
+                href="/api/download/kiosk-launcher?type=bat"
+                download="Launch-BEMS-Kiosk-PC.bat"
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  background: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  color: '#16a34a',
+                  fontWeight: 800,
+                  fontSize: '12px',
+                  textAlign: 'center',
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Download size={14} />
+                <span>Download Windows .bat</span>
+              </a>
+
+              <a
+                href="/api/download/kiosk-launcher?type=url"
+                download="BEMS-Attendance-Kiosk.url"
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  color: '#1d4ed8',
+                  fontWeight: 800,
+                  fontSize: '12px',
+                  textAlign: 'center',
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Download size={14} />
+                <span>Download Shortcut .url</span>
+              </a>
+            </div>
+
             <button
               onClick={() => setShowInstallModal(false)}
               style={{
@@ -1614,7 +1677,7 @@ export default function AttendanceKioskPage() {
                 boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)',
               }}
             >
-              Got It, Thanks
+              Close
             </button>
           </div>
         </div>

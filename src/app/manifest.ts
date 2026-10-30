@@ -5,19 +5,20 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'BEMS Attendance Kiosk',
     short_name: 'BEMS Kiosk',
     description: 'BEMS Group Reception & Dynamic Attendance Presence Kiosk System',
+    id: '/attendance/kiosk',
     start_url: '/attendance/kiosk',
-    scope: '/attendance/',
+    scope: '/',
     display: 'standalone',
     background_color: '#ffffff',
     theme_color: '#10b981',
     icons: [
       {
-        src: '/bems-mark.png',
+        src: '/icon-192.png',
         sizes: '192x192',
         type: 'image/png',
       },
       {
-        src: '/bems-mark.png',
+        src: '/icon-512.png',
         sizes: '512x512',
         type: 'image/png',
       },

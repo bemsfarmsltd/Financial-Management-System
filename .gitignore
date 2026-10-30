@@ -17,6 +17,8 @@ dist/
 
 # Standalone build artifacts
 .next/standalone
+public/gmd-app/
+public/staff-app/
 
 # Production environment files
 .env
