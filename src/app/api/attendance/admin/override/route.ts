@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getLagosTime, serializeAttendanceRecord } from '@/lib/attendance/token';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthenticatedEmployee(request);
+    if (!user || !hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'HR', 'COO'])) {
+      return NextResponse.json({ error: 'Unauthorized: Executive or HR access required' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { employeeId, workDate, status = 'PRESENT', reason, adminEmployeeId } = body;
 

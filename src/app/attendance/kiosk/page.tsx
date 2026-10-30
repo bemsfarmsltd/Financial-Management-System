@@ -115,7 +115,7 @@ export default function AttendanceKioskPage() {
   useEffect(() => {
     const fetchRecent = async () => {
       try {
-        const res = await fetch('/api/attendance/timesheet');
+        const res = await fetch('/api/attendance/timesheet?kiosk=true');
         if (res.ok) {
           const data = await res.json();
           const activeToday = (data.employees || []).filter((e: any) => e.checkInTime);

@@ -76,7 +76,11 @@ interface RosterMember {
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+const ALLOWED_ADMIN_ROLES = ['GMD', 'SYSTEM_ADMIN', 'HR', 'COO', 'FINANCE_CONTROLLER', 'SUPER_ADMIN'];
+
 export default function AttendanceDeskPage() {
+  const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
+  const [authenticatedUser, setAuthenticatedUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'live' | 'roster' | 'policy' | 'payroll'>('live');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -272,10 +276,34 @@ export default function AttendanceDeskPage() {
   };
 
   useEffect(() => {
-    loadTimesheet();
-    loadRoster();
-    loadPolicy();
-    loadStation();
+    let active = true;
+    fetch('/api/auth/session?_t=' + Date.now(), { credentials: 'include', cache: 'no-store' })
+      .then(res => res.json())
+      .then(data => {
+        if (!active) return;
+        const user = data?.user;
+        if (user && ALLOWED_ADMIN_ROLES.includes(user.role)) {
+          setAuthenticatedUser(user);
+          setAuthStatus('authorized');
+          loadTimesheet();
+          loadRoster();
+          loadPolicy();
+          loadStation();
+        } else {
+          setAuthStatus('unauthorized');
+          setIsLoading(false);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setAuthStatus('unauthorized');
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Save Policy
@@ -381,6 +409,171 @@ export default function AttendanceDeskPage() {
     const matchesStatus = statusFilter === 'ALL' || emp.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  if (authStatus === 'checking') {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: '#040711',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#f8fafc',
+          fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
+        }}
+      >
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            border: '3px solid rgba(255,255,255,0.1)',
+            borderTopColor: '#f97316',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+          }}
+        />
+        <p style={{ marginTop: 18, fontSize: '12px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.08em' }}>
+          VERIFYING EXECUTIVE ACCESS CREDENTIALS...
+        </p>
+        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  if (authStatus === 'unauthorized') {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'linear-gradient(180deg, #070b19 0%, #030712 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px',
+          color: '#f8fafc',
+          fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: '520px',
+            width: '100%',
+            background: 'rgba(15, 23, 42, 0.75)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '24px',
+            padding: '40px 32px',
+            boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(20px)',
+            textAlign: 'center',
+          }}
+        >
+          <div
+            style={{
+              width: '68px',
+              height: '68px',
+              margin: '0 auto 20px',
+              borderRadius: '20px',
+              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.05))',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ef4444',
+            }}
+          >
+            <ShieldCheck size={36} />
+          </div>
+
+          <span
+            style={{
+              display: 'inline-block',
+              fontSize: '11px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '0.12em',
+              padding: '4px 12px',
+              borderRadius: '999px',
+              background: 'rgba(239, 68, 68, 0.15)',
+              color: '#f87171',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              marginBottom: '14px',
+            }}
+          >
+            Executive Security Barrier
+          </span>
+
+          <h1 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 10px', color: '#ffffff' }}>
+            Executive Authentication Required
+          </h1>
+
+          <p style={{ fontSize: '14px', color: '#94a3b8', lineHeight: 1.6, margin: '0 0 28px' }}>
+            The <strong>Attendance & Timekeeping Management Desk</strong> contains sensitive personnel presence, biometric coordinates, lateness deduction policies, and payroll penalty controls. Access is strictly restricted to GMD, COO, HR, and System Administrators.
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <Link
+              href="/finance"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                padding: '14px 24px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                color: '#ffffff',
+                fontWeight: 700,
+                fontSize: '14px',
+                textDecoration: 'none',
+                boxShadow: '0 10px 20px -5px rgba(249, 115, 22, 0.4)',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span>Sign In to BEMS ERP Portal</span>
+              <ArrowRight size={16} />
+            </Link>
+
+            <Link
+              href="/attendance/kiosk"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                padding: '13px 24px',
+                borderRadius: '12px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: '#cbd5e1',
+                fontWeight: 600,
+                fontSize: '13px',
+                textDecoration: 'none',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <QrCode size={16} />
+              <span>Launch Reception Kiosk Screen (For Clock-In)</span>
+            </Link>
+          </div>
+
+          <div
+            style={{
+              marginTop: '28px',
+              paddingTop: '20px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              fontSize: '12px',
+              color: '#64748b',
+            }}
+          >
+            BEMS Group Enterprise Infrastructure · All unauthorized access attempts are logged and monitored.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

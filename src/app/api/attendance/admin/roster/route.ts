@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const user = await getAuthenticatedEmployee(request);
+    if (!user || !hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'HR', 'COO', 'FINANCE_CONTROLLER'])) {
+      return NextResponse.json({ error: 'Unauthorized: Executive or HR access required' }, { status: 401 });
+    }
+
     const employees = await prisma.employee.findMany({
       where: { status: 'ACTIVE' },
       select: {
@@ -45,6 +51,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthenticatedEmployee(request);
+    if (!user || !hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'HR', 'COO'])) {
+      return NextResponse.json({ error: 'Unauthorized: Executive or HR access required' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { employeeId, weeklyOffDays, customShiftIn, customShiftOut, isExempt, notes } = body;
 

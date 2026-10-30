@@ -1,16 +1,24 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getLagosTime, serializeAttendanceRecord } from '@/lib/attendance/token';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
+    const user = await getAuthenticatedEmployee(request);
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get('employeeId');
+    const isKioskStream = searchParams.get('kiosk') === 'true';
     const dateParam = searchParams.get('date'); // YYYY-MM-DD
     const monthParam = searchParams.get('month'); // 1-12
     const yearParam = searchParams.get('year'); // e.g. 2026
+
+    // Unauthenticated callers can ONLY access sanitized recent arrivals for the public kiosk screen
+    if (!user && !isKioskStream) {
+      return NextResponse.json({ error: 'Unauthorized: Executive or HR access required' }, { status: 401 });
+    }
 
     const now = new Date();
     const { workDate: todayStr } = getLagosTime(now);
@@ -144,6 +152,23 @@ export async function GET(request: Request) {
       absent: rows.filter(r => r.status === 'ABSENT').length,
       excused: rows.filter(r => r.status === 'EXCUSED').length,
     };
+
+    if (isKioskStream) {
+      const sanitizedRecent = todayRecords.slice(0, 8).map(r => {
+        const emp = employees.find(e => e.id === r.employeeId);
+        return {
+          employeeId: r.employeeId,
+          legalName: emp?.legalName || 'Staff Member',
+          role: emp?.role || 'STAFF',
+          workLocation: emp?.workLocation || 'HQ',
+          checkInTime: r.checkInTime,
+          status: r.status,
+        };
+      });
+      return NextResponse.json({
+        employees: sanitizedRecent,
+      });
+    }
 
     return NextResponse.json({
       date: targetDate,
