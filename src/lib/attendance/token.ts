@@ -158,8 +158,24 @@ export function extractClientIp(request: Request): string {
 }
 
 /**
+ * Known SpaceX Starlink IP ranges (IPv4 CGNAT / public pool + IPv6 allocation):
+ * - IPv4: 98.97.0.0/16, 143.244.32.0/19, 170.203.192.0/18, 206.214.224.0/19, 129.222.0.0/16
+ * - IPv6: 2605:59c0::/28 (2605:59c0: - 2605:59cf:)
+ */
+const STARLINK_IPV4_PREFIXES = ['98.97.', '143.244.', '170.203.', '206.214.', '129.222.'];
+const STARLINK_IPV6_PREFIX = '2605:59c';
+
+function isStarlinkRange(ip: string): boolean {
+  if (!ip) return false;
+  const clean = ip.toLowerCase().replace(/^::ffff:/, '').trim();
+  if (clean.startsWith(STARLINK_IPV6_PREFIX)) return true;
+  return STARLINK_IPV4_PREFIXES.some(p => clean.startsWith(p));
+}
+
+/**
  * Checks if the request originates from the company's designated Starlink IP / network.
- * Automatically bypasses when power outage mode is enabled or Starlink check is turned off.
+ * Supports dual-stack Starlink IPv4 / IPv6 matching, IPv6 /64 router prefix matching,
+ * and automatically bypasses when power outage mode is enabled or Starlink check is turned off.
  */
 export function isStarlinkIpAllowed(
   clientIp: string,
@@ -173,7 +189,7 @@ export function isStarlinkIpAllowed(
   }
 
   // 2. Allow local loopback / development environments
-  const cleanIp = clientIp ? clientIp.replace(/^::ffff:/, '').trim() : '';
+  const cleanIp = clientIp ? clientIp.replace(/^::ffff:/, '').trim().toLowerCase() : '';
   if (['127.0.0.1', '::1', 'localhost'].includes(cleanIp)) {
     return { allowed: true };
   }
@@ -183,17 +199,60 @@ export function isStarlinkIpAllowed(
     return { allowed: true };
   }
 
-  // 4. Check against configured comma-separated IP list or subnet prefixes
-  const allowedList = starlinkIps
-    .split(',')
-    .map(ip => ip.trim())
+  // 4. Parse configured entries (comma, semicolon, or newline separated)
+  const allowedEntries = starlinkIps
+    .split(/[,;\n]+/)
+    .map(ip => ip.trim().toLowerCase())
     .filter(Boolean);
 
-  const isMatched = allowedList.some(target => {
+  // Check if the configured network itself represents a Starlink network
+  const configIsStarlink = allowedEntries.some(entry => isStarlinkRange(entry) || entry.includes('starlink'));
+  const clientIsStarlink = isStarlinkRange(cleanIp);
+
+  // If company configured Starlink and the incoming client is connected via Starlink's AS14593 network
+  if (configIsStarlink && clientIsStarlink) {
+    return { allowed: true };
+  }
+
+  // Check individual entries with prefix, CIDR, and IPv6 /64 subnet matching
+  const isMatched = allowedEntries.some(target => {
     if (target === '*' || target === cleanIp) return true;
-    // Prefix / CIDR match (e.g. 102.89. or 197.210.)
-    if (target.endsWith('*') && cleanIp.startsWith(target.slice(0, -1))) return true;
+
+    // Wildcard prefix matching (e.g. "98.97.*" or "2605:59c1:1a3a:a210:*")
+    if (target.endsWith('*')) {
+      const prefix = target.slice(0, -1);
+      if (cleanIp.startsWith(prefix)) return true;
+    }
+
+    // Direct prefix match (e.g. "98.97.")
     if (cleanIp.startsWith(target)) return true;
+
+    // IPv6 /64 prefix match (Starlink assigns /64 blocks to routers; first 4 groups identify the local router)
+    if (cleanIp.includes(':') && target.includes(':')) {
+      const clientGroups = cleanIp.split(':').filter(Boolean);
+      const targetGroups = target.split(':').filter(Boolean);
+      if (clientGroups.length >= 4 && targetGroups.length >= 4) {
+        const clientPrefix = clientGroups.slice(0, 4).join(':');
+        const targetPrefix = targetGroups.slice(0, 4).join(':');
+        if (clientPrefix === targetPrefix) return true;
+      }
+    }
+
+    // IPv4 /24 subnet match (first 3 octets match, e.g. 98.97.76.x)
+    if (!cleanIp.includes(':') && !target.includes(':')) {
+      const clientOctets = cleanIp.split('.');
+      const targetOctets = target.split('.');
+      if (clientOctets.length === 4 && targetOctets.length === 4) {
+        if (
+          clientOctets[0] === targetOctets[0] &&
+          clientOctets[1] === targetOctets[1] &&
+          clientOctets[2] === targetOctets[2]
+        ) {
+          return true;
+        }
+      }
+    }
+
     return false;
   });
 

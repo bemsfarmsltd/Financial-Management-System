@@ -1449,7 +1449,23 @@ export default function AttendanceDeskPage() {
                       {callerIp && (
                         <button
                           type="button"
-                          onClick={() => setPolicy(prev => ({ ...prev, starlinkIpAddresses: callerIp }))}
+                          onClick={() => {
+                            let formatted = callerIp;
+                            if (callerIp.includes(':')) {
+                              const parts = callerIp.split(':').filter(Boolean);
+                              const prefix = parts.slice(0, 4).join(':');
+                              formatted = `${prefix}:*, 98.97.*, ${callerIp}`;
+                            } else if (callerIp.startsWith('98.97.')) {
+                              const octets = callerIp.split('.');
+                              formatted = `2605:59c1:*, 98.97.*, ${callerIp}`;
+                            } else {
+                              const octets = callerIp.split('.');
+                              if (octets.length === 4) {
+                                formatted = `${octets.slice(0, 3).join('.')}.*, ${callerIp}`;
+                              }
+                            }
+                            setPolicy(prev => ({ ...prev, starlinkIpAddresses: formatted }));
+                          }}
                           style={{
                             padding: '10px 14px',
                             borderRadius: '8px',
