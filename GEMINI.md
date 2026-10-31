@@ -11,3 +11,14 @@
 - Include WhatsApp / Slack Bot notification bridge.
 - Include Vendor & Supplier registry with 3-way matching.
 - Include Automated Intercompany Debit/Credit note generation.
+
+## Strict 3-Role Architecture & Onboarding Separation
+- **Only 3 roles exist in the entire system**:
+  1. `SUPER_ADMIN` / `SYSTEM_ADMIN`: **Super admin**
+  2. `GMD`: **The Group Managing Director**
+  3. `STAFF`: **Staff**
+- **Never reintroduce legacy roles** (COO, Head of Admin, Finance, Verifier, Dept Head, HR, Director, AI Analyst).
+- **Onboarding Channel Separation**:
+  - **Executive Email Invitations**: Strictly reserved for **Super admin** and **The Group Managing Director**.
+  - **Staff Onboarding**: Strictly **self-service registration & login** on the BEMS Staff Portal / Mobile App. Never add Staff to the executive invitation modal.
+
