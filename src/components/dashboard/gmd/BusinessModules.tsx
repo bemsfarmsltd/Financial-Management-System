@@ -218,8 +218,6 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [modalTab, setModalTab] = useState<'dossier' | 'payroll' | 'requests'>('dossier');
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -250,47 +248,6 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
       setError(errorText(e));
     } finally {
       setDetailLoading(false);
-    }
-  };
-
-  const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !selectedId) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Staff profile image must be smaller than 5MB.');
-      return;
-    }
-
-    setUploadingAvatar(true);
-    setError('');
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to upload photo.');
-
-      const patchRes = await fetch(`/api/payroll/staff/${encodeURIComponent(selectedId)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ avatarUrl: data.url }),
-      });
-      const patchData = await patchRes.json();
-      if (!patchRes.ok) throw new Error(patchData.error || 'Failed to save staff photo.');
-
-      setNotice('Staff profile image updated successfully.');
-      await Promise.all([open(selectedId), load()]);
-    } catch (err: any) {
-      setError(err.message || 'Error updating profile image.');
-    } finally {
-      setUploadingAvatar(false);
-      if (avatarInputRef.current) avatarInputRef.current.value = '';
     }
   };
 
@@ -950,15 +907,6 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
               </div>
             ) : selected && (
               <>
-                {/* Hidden file input for staff image upload */}
-                <input
-                  ref={avatarInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  style={{ display: 'none' }}
-                  onChange={handleAvatarUpload}
-                />
-
                 {/* Modal Header */}
                 <header
                   style={{
@@ -973,64 +921,34 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-                    {/* Avatar with Camera upload trigger */}
-                    <div style={{ position: 'relative' }}>
-                      <div
-                        style={{
-                          width: 72,
-                          height: 72,
-                          borderRadius: 16,
-                          background: selected.employee.role === 'GMD' ? '#fff7ed' : '#f1f5f9',
-                          border: '2px solid #e2e8f0',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: selected.employee.role === 'GMD' ? '#ea580c' : '#334155',
-                          fontWeight: 800,
-                          fontSize: 22,
-                          overflow: 'hidden',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                        }}
-                      >
-                        {selected.employee.avatarUrl ? (
-                          <img
-                            src={selected.employee.avatarUrl}
-                            alt={selected.employee.legalName}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
-                        ) : (
-                          selected.employee.legalName.slice(0, 2).toUpperCase()
-                        )}
-                      </div>
-
-                      {/* Camera icon button */}
-                      <button
-                        type="button"
-                        onClick={() => avatarInputRef.current?.click()}
-                        disabled={uploadingAvatar}
-                        title="Upload or change staff photo"
-                        style={{
-                          position: 'absolute',
-                          bottom: -4,
-                          right: -4,
-                          width: 28,
-                          height: 28,
-                          borderRadius: '50%',
-                          background: '#ea580c',
-                          color: '#ffffff',
-                          border: '2px solid #ffffff',
-                          display: 'grid',
-                          placeItems: 'center',
-                          cursor: uploadingAvatar ? 'not-allowed' : 'pointer',
-                          boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-                        }}
-                      >
-                        {uploadingAvatar ? (
-                          <RefreshCw size={12} className="animate-spin" />
-                        ) : (
-                          <Camera size={13} />
-                        )}
-                      </button>
+                    {/* Official Staff Photo (Read-only, uploaded by staff via self-service portal/mobile app) */}
+                    <div
+                      style={{
+                        width: 72,
+                        height: 72,
+                        borderRadius: 16,
+                        background: selected.employee.role === 'GMD' ? '#fff7ed' : '#f1f5f9',
+                        border: '2px solid #e2e8f0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: selected.employee.role === 'GMD' ? '#ea580c' : '#334155',
+                        fontWeight: 800,
+                        fontSize: 22,
+                        overflow: 'hidden',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {selected.employee.avatarUrl ? (
+                        <img
+                          src={selected.employee.avatarUrl}
+                          alt={selected.employee.legalName}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        selected.employee.legalName.slice(0, 2).toUpperCase()
+                      )}
                     </div>
 
                     <div>
