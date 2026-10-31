@@ -98,7 +98,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
       amountFormatted: formatNaira(req.amountMinor),
       amountMinor: Number(req.amountMinor),
       currency: req.currency,
-      status: req.status,
+      status: req.paymentStatus,
       subsidiaryName: req.subsidiary?.legalName || 'BEMS Conglomerate',
       createdAt: req.createdAt,
       isPaid,

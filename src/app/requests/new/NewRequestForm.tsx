@@ -43,7 +43,7 @@ interface StaffAssignment {
   positionName: string;
   isPrimary: boolean;
   subsidiary?: { id: string; legalName: string; code: string };
-  department?: { id: string; name: string };
+  department?: { id: string; name: string } | null;
 }
 
 interface CurrentStaff {

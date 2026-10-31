@@ -88,9 +88,13 @@ export async function DELETE(
         where: { employeeId },
         select: { id: true },
       });
-      for (const ag of agreements) {
-        await tx.employeeCompensation.deleteMany({ where: { agreementId: ag.id } });
-      }
+      const agreementIds = agreements.map((ag) => ag.id);
+      const compensations = await tx.compensationAgreement.findMany({
+        where: { employmentAgreementId: { in: agreementIds } },
+        select: { id: true },
+      });
+      await tx.costAllocation.deleteMany({ where: { compensationAgreementId: { in: compensations.map((compensation) => compensation.id) } } });
+      await tx.compensationAgreement.deleteMany({ where: { employmentAgreementId: { in: agreementIds } } });
       await tx.employmentAgreement.deleteMany({ where: { employeeId } });
 
       // Clean invitation if any

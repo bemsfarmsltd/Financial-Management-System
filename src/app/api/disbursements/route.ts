@@ -268,7 +268,7 @@ export async function POST(req: NextRequest) {
         fileUrl: `/api/receipts/${receiptId}`,
         sha256: receiptHash,
         mimeType: mimeType,
-        fileData: fileBytes,
+        fileData: new Uint8Array(fileBytes),
         uploadedById: maker.id,
       } });
       await tx.expenditureRequest.update({ where: { id: requestId }, data: { paymentStatus: 'AWAITING_RECIPIENT_CONFIRMATION' } });
@@ -317,7 +317,7 @@ export async function POST(req: NextRequest) {
         targetId: disbursement.id,
         action: 'CREATED',
         correlationId: `CORR-DISB-${disbursement.id}`,
-        metadata: JSON.stringify({ externalReference, bankName, amountMinor, receiptHash, receiptName: receiptFile.name })
+        metadata: JSON.stringify({ externalReference, bankName, amountMinor, receiptHash, receiptName: fileName })
       }
     });
 

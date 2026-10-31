@@ -10,8 +10,8 @@ export async function PATCH(
 ) {
   try {
     const actor = await getAuthenticatedEmployee(request);
-    if (!actor || !hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'HR', 'COO', 'HEAD_OF_ADMIN'])) {
-      return NextResponse.json({ error: 'Executive or HR authorization required.' }, { status: 403 });
+    if (!actor || !hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN'])) {
+      return NextResponse.json({ error: 'Executive authorization required.' }, { status: 403 });
     }
 
     const { employeeId } = await params;
@@ -48,7 +48,7 @@ export async function PATCH(
     }
 
     // Safety Safeguard: Only GMD or SYSTEM_ADMIN can suspend other executives/admins
-    const isTargetExecutive = ['GMD', 'SYSTEM_ADMIN', 'COO', 'HEAD_OF_ADMIN'].includes(targetEmployee.role);
+    const isTargetExecutive = ['GMD', 'SYSTEM_ADMIN'].includes(targetEmployee.role);
     if (isTargetExecutive && !['GMD', 'SYSTEM_ADMIN'].includes(actor.role)) {
       return NextResponse.json(
         { error: 'Only the Group Managing Director (GMD) or a System Administrator can suspend leadership accounts.' },
@@ -59,10 +59,7 @@ export async function PATCH(
     // Update the employee status
     const updated = await prisma.employee.update({
       where: { id: employeeId },
-      data: {
-        status,
-        updatedAt: new Date(),
-      },
+      data: { status },
     });
 
     // If suspended or terminated, purge all active auth sessions so they are immediately logged out
