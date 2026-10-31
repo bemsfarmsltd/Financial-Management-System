@@ -205,6 +205,7 @@ const getStaffRoleDisplay = (r: string) => {
 export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotice: (message: string) => void; onNavigate?: (tab: string) => void; scope?: string }) {
   const [rows, setRows] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
