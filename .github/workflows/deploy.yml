@@ -10,6 +10,8 @@ jobs:
   build-and-test:
     name: Build & Validate Fullstack App
     runs-on: ubuntu-latest
+    env:
+      HOSTINGER_DEPLOY_WEBHOOK: ${{ secrets.HOSTINGER_DEPLOY_WEBHOOK }}
 
     steps:
       - name: Checkout Source Code
@@ -41,7 +43,5 @@ jobs:
       # Optional: Auto-trigger Hostinger Git webhook if configured
       - name: Notify Hostinger Webhook (Optional)
         if: ${{ env.HOSTINGER_DEPLOY_WEBHOOK != '' }}
-        env:
-          HOSTINGER_DEPLOY_WEBHOOK: ${{ secrets.HOSTINGER_DEPLOY_WEBHOOK }}
         run: |
           curl -X POST "$HOSTINGER_DEPLOY_WEBHOOK"
