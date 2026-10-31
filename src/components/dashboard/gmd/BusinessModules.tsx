@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { RequestDossierModal, type RequestDossier } from '@/components/requests/RequestDossierModal';
 import {
@@ -22,6 +22,14 @@ import {
   ChevronRight,
   ShieldAlert,
   CreditCard,
+  Camera,
+  Upload,
+  FileText,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  Receipt,
+  ChevronDown,
 } from 'lucide-react';
 
 async function api<T>(path: string, init?: RequestInit, retries = 1): Promise<T> {
@@ -119,13 +127,15 @@ export function FollowUpTasksModule({ setNotice }: { setNotice: (message: string
   return <><PageHeading eyebrow="ACCOUNTABILITY WORK QUEUE" title="Follow-up tasks" description="Assign and track evidence, clarification, and payment-confirmation follow-ups." action={<button style={primary} onClick={()=>setCreating(v=>!v)}>＋ New task</button>}/><div style={{display:'flex',gap:8,marginBottom:14}}>{['OPEN','OVERDUE','COMPLETED','ALL'].map(x=><button key={x} style={filter===x?primary:secondary} onClick={()=>setFilter(x)}>{x==='OPEN'?'Open':x==='ALL'?'All tasks':x.charAt(0)+x.slice(1).toLowerCase()}</button>)}<button style={{...secondary,marginLeft:'auto'}} onClick={()=>void load()}>↻ Refresh</button></div>{creating&&<form onSubmit={save} style={{...card,marginBottom:14,display:'grid',gridTemplateColumns:'2fr 1fr 1fr auto',gap:10,alignItems:'end'}}><label style={{fontWeight:700}}>Task<input style={{...input,display:'block',marginTop:5}} required value={description} onChange={e=>setDescription(e.target.value)} placeholder="e.g. Confirm delivery note"/></label><label style={{fontWeight:700}}>Due date<input style={{...input,display:'block',marginTop:5}} required type="date" value={dueAt} onChange={e=>setDueAt(e.target.value)}/></label><label style={{fontWeight:700}}>Assign to<select style={{...input,display:'block',marginTop:5}} value={assigneeId} onChange={e=>setAssigneeId(e.target.value)}>{staff.map(s=><option key={s.id} value={s.id}>{s.legalName} · {s.role}</option>)}</select></label><button style={primary} disabled={saving}>{saving?'Saving…':'Assign'}</button></form>}{loading?<p>Loading tasks…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:<section style={card}>{visible.length===0?<p style={{color:'#7889a3'}}>No tasks in this queue.</p>:visible.map(t=>{const req=t.accountabilityCase?.request||t.channel?.request;const overdue=t.status!=='COMPLETED'&&new Date(t.dueAt)<new Date();return <div key={t.id} style={{display:'grid',gridTemplateColumns:'minmax(240px,2fr) 1fr 1fr 1fr auto',gap:12,alignItems:'center',padding:'13px 2px',borderBottom:'1px solid #e8edf4'}}><span><b>{t.description}</b><small style={{display:'block',marginTop:4,color:'#7d8ba1'}}>{req?`${req.requestNumber} · ${req.title}`:'General follow-up'}{t.responseNotes?` · ${t.responseNotes}`:''}</small></span><span>{t.assignee.legalName}<small style={{display:'block',color:'#8794a8'}}>{t.assignee.role}</small></span><span>{date(t.dueAt)}</span><b style={{color:overdue?'#b42318':t.status==='COMPLETED'?'#008567':'#9a6200'}}>{overdue?'OVERDUE':t.status}</b>{t.status!=='COMPLETED'&&<button style={secondary} onClick={()=>void complete(t)}>Mark complete</button>}</div>})}</section>}</>;
 }
 
-type Staff = { id: string; legalName: string; workEmail: string; role: string; status: string; employeeNumber: string; phone?: string | null; assignments: { subsidiary: { legalName: string }; department?: { name: string } | null; positionName: string }[]; employmentAgreements: { compensations: { grossMinor: number; currency: string; recurrence: string; version: number; changeType?: string | null; changeReason?: string | null; effectiveFrom: string }[] }[] };
+type Staff = { id: string; legalName: string; workEmail: string; role: string; status: string; employeeNumber: string; avatarUrl?: string | null; phone?: string | null; assignments: { subsidiary: { legalName: string }; department?: { name: string } | null; positionName: string }[]; employmentAgreements: { compensations: { grossMinor: number; currency: string; recurrence: string; version: number; changeType?: string | null; changeReason?: string | null; effectiveFrom: string }[] }[] };
 type StaffDetail = {
   employee: {
+    id: string;
     legalName: string;
     employeeNumber: string;
     role: string;
     status: string;
+    avatarUrl?: string | null;
     workEmail: string;
     phone: string | null;
     gender?: string | null;
@@ -170,6 +180,18 @@ type StaffDetail = {
     receipt: { fileName: string; fileUrl: string } | null;
     confirmation: { decision: string; note: string | null; confirmedAt: string } | null;
   }[];
+  requestHistory?: {
+    id: string;
+    requestNumber: string;
+    title: string;
+    amountFormatted: string;
+    amountMinor: number;
+    currency: string;
+    status: string;
+    subsidiaryName: string;
+    createdAt: string;
+    isPaid: boolean;
+  }[];
   permissions: { canEditSalary: boolean };
 };
 
@@ -195,7 +217,9 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
   const [salaryType, setSalaryType] = useState<'ADDITION' | 'DEDUCTION'>('ADDITION');
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [modalTab, setModalTab] = useState<'dossier' | 'payroll' | 'requests'>('dossier');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -219,12 +243,54 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
     setSelectedId(id);
     setDetailLoading(true);
     setSelected(null);
+    setModalTab('dossier');
     try {
       setSelected(await api<StaffDetail>(`/api/payroll/staff/${encodeURIComponent(id)}`));
     } catch (e) {
       setError(errorText(e));
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedId) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Staff profile image must be smaller than 5MB.');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to upload photo.');
+
+      const patchRes = await fetch(`/api/payroll/staff/${encodeURIComponent(selectedId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ avatarUrl: data.url }),
+      });
+      const patchData = await patchRes.json();
+      if (!patchRes.ok) throw new Error(patchData.error || 'Failed to save staff photo.');
+
+      setNotice('Staff profile image updated successfully.');
+      await Promise.all([open(selectedId), load()]);
+    } catch (err: any) {
+      setError(err.message || 'Error updating profile image.');
+    } finally {
+      setUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
     }
   };
 
@@ -721,9 +787,9 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 260, flex: '1 1 260px' }}>
                   <div
                     style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 10,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
                       background: s.role === 'GMD' ? '#fff7ed' : '#f8fafc',
                       border: s.role === 'GMD' ? '1px solid #fed7aa' : '1px solid #cbd5e1',
                       color: s.role === 'GMD' ? '#ea580c' : '#334155',
@@ -733,9 +799,14 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                       alignItems: 'center',
                       justifyContent: 'center',
                       flexShrink: 0,
+                      overflow: 'hidden',
                     }}
                   >
-                    {s.legalName.slice(0, 2).toUpperCase()}
+                    {s.avatarUrl ? (
+                      <img src={s.avatarUrl} alt={s.legalName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      s.legalName.slice(0, 2).toUpperCase()
+                    )}
                   </div>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -861,24 +932,33 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
             aria-modal="true"
             style={{
               background: '#ffffff',
-              borderRadius: 16,
+              borderRadius: 18,
               width: '100%',
-              maxWidth: 880,
-              maxHeight: '90vh',
+              maxWidth: 920,
+              maxHeight: '92vh',
               overflowY: 'auto',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              padding: '28px',
+              padding: '28px 30px',
               boxSizing: 'border-box',
               position: 'relative',
             }}
           >
             {detailLoading ? (
-              <div style={{ padding: '60px 24px', textAlign: 'center' }}>
-                <RefreshCw size={28} className="animate-spin" style={{ color: '#ea580c', margin: '0 auto 12px auto' }} />
-                <p style={{ color: '#64748b', fontSize: 14, margin: 0 }}>Loading full staff profile dossier...</p>
+              <div style={{ padding: '70px 24px', textAlign: 'center' }}>
+                <RefreshCw size={32} className="animate-spin" style={{ color: '#ea580c', margin: '0 auto 14px auto' }} />
+                <p style={{ color: '#64748b', fontSize: 14, margin: 0, fontWeight: 600 }}>Loading comprehensive employee profile...</p>
               </div>
             ) : selected && (
               <>
+                {/* Hidden file input for staff image upload */}
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  style={{ display: 'none' }}
+                  onChange={handleAvatarUpload}
+                />
+
                 {/* Modal Header */}
                 <header
                   style={{
@@ -886,40 +966,108 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                     justifyContent: 'space-between',
                     alignItems: 'flex-start',
                     borderBottom: '1px solid #e2e8f0',
-                    paddingBottom: 16,
-                    marginBottom: 20,
+                    paddingBottom: 20,
+                    marginBottom: 16,
                     flexWrap: 'wrap',
-                    gap: 14,
+                    gap: 16,
                   }}
                 >
-                  <div>
-                    <div style={{ color: '#ea580c', fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                      STAFF PROFILE DOSSIER · {selected.employee.employeeNumber}
-                    </div>
-                    <h2 style={{ margin: '4px 0 6px', fontSize: 24, fontWeight: 800, color: '#0f172a' }}>
-                      {selected.employee.legalName}
-                    </h2>
-                    <div style={{ color: '#64748b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ background: '#0f172a', color: '#ffffff', padding: '2px 8px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
-                        {getStaffRoleDisplay(selected.employee.role)}
-                      </span>
-                      <span>·</span>
-                      <span>{selected.employee.workEmail}</span>
-                      {selected.employee.phone && (
-                        <>
-                          <span>·</span>
-                          <span>{selected.employee.phone}</span>
-                        </>
-                      )}
-                      <span>·</span>
-                      <span
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                    {/* Avatar with Camera upload trigger */}
+                    <div style={{ position: 'relative' }}>
+                      <div
                         style={{
-                          color: selected.employee.status === 'ACTIVE' ? '#16a34a' : '#dc2626',
-                          fontWeight: 700,
+                          width: 72,
+                          height: 72,
+                          borderRadius: 16,
+                          background: selected.employee.role === 'GMD' ? '#fff7ed' : '#f1f5f9',
+                          border: '2px solid #e2e8f0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: selected.employee.role === 'GMD' ? '#ea580c' : '#334155',
+                          fontWeight: 800,
+                          fontSize: 22,
+                          overflow: 'hidden',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                         }}
                       >
-                        {selected.employee.status === 'ACTIVE' ? 'Active & Cleared' : 'Suspended'}
-                      </span>
+                        {selected.employee.avatarUrl ? (
+                          <img
+                            src={selected.employee.avatarUrl}
+                            alt={selected.employee.legalName}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          selected.employee.legalName.slice(0, 2).toUpperCase()
+                        )}
+                      </div>
+
+                      {/* Camera icon button */}
+                      <button
+                        type="button"
+                        onClick={() => avatarInputRef.current?.click()}
+                        disabled={uploadingAvatar}
+                        title="Upload or change staff photo"
+                        style={{
+                          position: 'absolute',
+                          bottom: -4,
+                          right: -4,
+                          width: 28,
+                          height: 28,
+                          borderRadius: '50%',
+                          background: '#ea580c',
+                          color: '#ffffff',
+                          border: '2px solid #ffffff',
+                          display: 'grid',
+                          placeItems: 'center',
+                          cursor: uploadingAvatar ? 'not-allowed' : 'pointer',
+                          boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                        }}
+                      >
+                        {uploadingAvatar ? (
+                          <RefreshCw size={12} className="animate-spin" />
+                        ) : (
+                          <Camera size={13} />
+                        )}
+                      </button>
+                    </div>
+
+                    <div>
+                      <div style={{ color: '#ea580c', fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                        STAFF PROFILE DOSSIER · {selected.employee.employeeNumber}
+                      </div>
+                      <h2 style={{ margin: '4px 0 6px', fontSize: 24, fontWeight: 800, color: '#0f172a' }}>
+                        {selected.employee.legalName}
+                      </h2>
+                      <div style={{ color: '#64748b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ background: '#0f172a', color: '#ffffff', padding: '2px 8px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                          {getStaffRoleDisplay(selected.employee.role)}
+                        </span>
+                        <span>·</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <Mail size={12} color="#94a3b8" />
+                          {selected.employee.workEmail}
+                        </span>
+                        {selected.employee.phone && (
+                          <>
+                            <span>·</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <Phone size={12} color="#94a3b8" />
+                              {selected.employee.phone}
+                            </span>
+                          </>
+                        )}
+                        <span>·</span>
+                        <span
+                          style={{
+                            color: selected.employee.status === 'ACTIVE' ? '#16a34a' : '#dc2626',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {selected.employee.status === 'ACTIVE' ? 'Active & Cleared' : 'Suspended'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -997,250 +1145,460 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                         padding: '7px 14px',
                         borderRadius: 8,
                         cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
                       }}
                       onClick={() => {
                         setSelected(null);
                         setSelectedId('');
                       }}
                     >
-                      Close
+                      <X size={14} /> Close
                     </button>
                   </div>
                 </header>
 
-                {/* 4 Detail Grid Panels */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, marginBottom: 20 }}>
-                  {/* Panel 1: Placement & Official Details */}
-                  <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 12px 0', color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                      <Briefcase size={14} /> Corporate Placement &amp; Official Details
-                    </div>
-                    <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
-                      <div><b>Position / Title:</b> {selected.employee.assignment?.positionName || selected.employee.jobTitle || '—'}</div>
-                      <div><b>Department:</b> {selected.employee.assignment?.departmentName || '—'}</div>
-                      <div><b>Operating Subsidiary:</b> {selected.employee.assignment?.subsidiaryName || '—'}</div>
-                      <div><b>Agreement Type:</b> {selected.employee.employmentType || selected.employee.employment?.agreementType || 'Full-time'} ({selected.employee.staffGrade || 'General Staff'})</div>
-                      <div><b>Work Location:</b> {selected.employee.workLocation || 'Lagos HQ'}</div>
-                      <div><b>Resumption Date:</b> {selected.employee.resumptionDate ? date(selected.employee.resumptionDate) : '—'}</div>
-                    </div>
-                  </div>
-
-                  {/* Panel 2: Personal & Demographics */}
-                  <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 12px 0', color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                      <Users size={14} /> Personal &amp; Demographics
-                    </div>
-                    <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
-                      <div><b>Gender &amp; Marital Status:</b> {selected.employee.gender || '—'} · {selected.employee.maritalStatus || '—'}</div>
-                      <div><b>Date of Birth:</b> {selected.employee.dateOfBirth ? date(selected.employee.dateOfBirth) : '—'}</div>
-                      <div><b>State of Origin:</b> {selected.employee.stateOfOrigin ? `${selected.employee.stateOfOrigin} (${selected.employee.lga || '—'})` : '—'}</div>
-                      <div><b>Residential Address:</b> {selected.employee.residentialAddress ? `${selected.employee.residentialAddress}, ${selected.employee.cityState || ''}` : '—'}</div>
-                      <div><b>Highest Qualification:</b> {selected.employee.highestEducation || '—'}</div>
-                    </div>
-                  </div>
-
-                  {/* Panel 3: Banking & Compliance Identifiers */}
-                  <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 12px 0', color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                      <CreditCard size={14} /> Banking &amp; Compliance Identifiers
-                    </div>
-                    <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
-                      <div>
-                        <b>Disbursement Bank:</b> {selected.employee.bankName || '—'} · <span style={{ fontFamily: 'monospace' }}>{selected.employee.accountNumber || '—'}</span> ({selected.employee.accountName || '—'})
-                      </div>
-                      {selected.employee.salaryAccountNumber && selected.employee.salaryAccountNumber !== selected.employee.accountNumber ? (
-                        <div style={{ color: '#c2410c' }}>
-                          <b>Dedicated Salary Bank:</b> {selected.employee.salaryBankName || '—'} · {selected.employee.salaryAccountNumber} ({selected.employee.salaryAccountName || '—'})
-                        </div>
-                      ) : (
-                        <div style={{ color: '#166534' }}>
-                          <b>Salary Account:</b> Same as operational disbursement account
-                        </div>
-                      )}
-                      <div>
-                        <b>NIN:</b> {selected.employee.nin ? `••••••••${selected.employee.nin.slice(-4)}` : '—'} · <b>BVN:</b> {selected.employee.bvn ? `••••••••${selected.employee.bvn.slice(-4)}` : '—'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Panel 4: Next of Kin */}
-                  <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 12px 0', color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                      <Phone size={14} /> Next of Kin (Emergency Contact)
-                    </div>
-                    <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
-                      <div><b>Full Legal Name:</b> {selected.employee.nextOfKinName || '—'}</div>
-                      <div><b>Relationship:</b> {selected.employee.nextOfKinRelationship || '—'}</div>
-                      <div><b>Contact Phone:</b> {selected.employee.nextOfKinPhone || '—'}</div>
-                      <div><b>Residential Address:</b> {selected.employee.nextOfKinAddress || '—'}</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Salary Card & Adjustment Form */}
+                {/* Modal Tab Switcher */}
                 <div
                   style={{
-                    background: '#ffffff',
-                    border: '1px solid #fed7aa',
-                    borderRadius: 12,
-                    padding: '18px 20px',
-                    marginBottom: 20,
                     display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
+                    gap: 8,
+                    borderBottom: '1px solid #e2e8f0',
+                    paddingBottom: 14,
+                    marginBottom: 20,
                     flexWrap: 'wrap',
-                    gap: 14,
                   }}
                 >
-                  <div>
-                    <div style={{ color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                      CURRENT MONTHLY GROSS SALARY
-                    </div>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>
-                      {selected.employee.salary?.grossFormatted || 'No active compensation record'}
-                    </div>
-                    {selected.employee.salary?.changeReason && (
-                      <div style={{ fontSize: 12, color: '#64748b' }}>
-                        Latest Adjustment: {selected.employee.salary.changeReason}
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setModalTab('dossier')}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: modalTab === 'dossier' ? 750 : 600,
+                      cursor: 'pointer',
+                      border: modalTab === 'dossier' ? '1px solid #fed7aa' : '1px solid #e2e8f0',
+                      background: modalTab === 'dossier' ? '#fff7ed' : '#ffffff',
+                      color: modalTab === 'dossier' ? '#ea580c' : '#475569',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <Users size={14} />
+                    <span>Personnel File &amp; Compliance</span>
+                  </button>
 
-                  {selected.permissions.canEditSalary && selected.employee.salary && (
-                    <button
-                      type="button"
-                      style={primary}
-                      onClick={() => document.getElementById('staff-salary-form')?.scrollIntoView({ behavior: 'smooth' })}
-                    >
-                      Record Salary Adjustment
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setModalTab('payroll')}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: modalTab === 'payroll' ? 750 : 600,
+                      cursor: 'pointer',
+                      border: modalTab === 'payroll' ? '1px solid #fed7aa' : '1px solid #e2e8f0',
+                      background: modalTab === 'payroll' ? '#fff7ed' : '#ffffff',
+                      color: modalTab === 'payroll' ? '#ea580c' : '#475569',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <Wallet size={14} />
+                    <span>Compensation &amp; Payroll ({selected.payrollHistory.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setModalTab('requests')}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: modalTab === 'requests' ? 750 : 600,
+                      cursor: 'pointer',
+                      border: modalTab === 'requests' ? '1px solid #fed7aa' : '1px solid #e2e8f0',
+                      background: modalTab === 'requests' ? '#fff7ed' : '#ffffff',
+                      color: modalTab === 'requests' ? '#ea580c' : '#475569',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <FileText size={14} />
+                    <span>Fund Requests History ({selected.requestHistory?.length || 0})</span>
+                  </button>
                 </div>
 
-                {/* Payroll Payment History */}
-                <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '20px 0 12px 0' }}>
-                  Payroll Payment History ({selected.payrollHistory.length})
-                </h3>
-                {selected.payrollHistory.length > 0 ? (
-                  <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 10 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
-                      <thead>
-                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>
-                          <th style={{ padding: '10px 14px' }}>Period</th>
-                          <th style={{ padding: '10px 14px' }}>Gross</th>
-                          <th style={{ padding: '10px 14px' }}>Net</th>
-                          <th style={{ padding: '10px 14px' }}>Status</th>
-                          <th style={{ padding: '10px 14px' }}>Confirmation &amp; Receipt</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selected.payrollHistory.map((p) => (
-                          <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ padding: '12px 14px', fontWeight: 700, color: '#0f172a' }}>{p.periodName}</td>
-                            <td style={{ padding: '12px 14px' }}>{p.grossFormatted}</td>
-                            <td style={{ padding: '12px 14px', fontWeight: 700, color: '#16a34a' }}>{p.netFormatted}</td>
-                            <td style={{ padding: '12px 14px' }}>
-                              <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
-                                {p.paymentStatus}
-                              </span>
-                            </td>
-                            <td style={{ padding: '12px 14px', color: '#475569' }}>
-                              {p.confirmation?.decision || 'Confirmed'}
-                              {p.receipt && (
-                                <>
-                                  {' '}·{' '}
-                                  <a href={p.receipt.fileUrl} target="_blank" rel="noreferrer" style={{ color: '#ea580c', fontWeight: 700 }}>
-                                    Receipt ↗
-                                  </a>
-                                </>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div style={{ padding: '18px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', color: '#64748b', fontSize: 13, textAlign: 'center' }}>
-                    No payroll disbursements recorded yet for this employee.
+                {/* TAB 1: Personnel File & Compliance */}
+                {modalTab === 'dossier' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
+                    {/* Panel 1: Placement & Official Details */}
+                    <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 12px 0', color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        <Briefcase size={14} /> Corporate Placement &amp; Official Details
+                      </div>
+                      <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
+                        <div><b>Position / Title:</b> {selected.employee.assignment?.positionName || selected.employee.jobTitle || '—'}</div>
+                        <div><b>Department:</b> {selected.employee.assignment?.departmentName || '—'}</div>
+                        <div><b>Operating Subsidiary:</b> {selected.employee.assignment?.subsidiaryName || '—'}</div>
+                        <div><b>Agreement Type:</b> {selected.employee.employmentType || selected.employee.employment?.agreementType || 'Full-time'} ({selected.employee.staffGrade || 'General Staff'})</div>
+                        <div><b>Work Location:</b> {selected.employee.workLocation || 'Lagos HQ'}</div>
+                        <div><b>Resumption Date:</b> {selected.employee.resumptionDate ? date(selected.employee.resumptionDate) : '—'}</div>
+                      </div>
+                    </div>
+
+                    {/* Panel 2: Personal & Demographics */}
+                    <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 12px 0', color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        <Users size={14} /> Personal &amp; Demographics
+                      </div>
+                      <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
+                        <div><b>Gender &amp; Marital Status:</b> {selected.employee.gender || '—'} · {selected.employee.maritalStatus || '—'}</div>
+                        <div><b>Date of Birth:</b> {selected.employee.dateOfBirth ? date(selected.employee.dateOfBirth) : '—'}</div>
+                        <div><b>State of Origin:</b> {selected.employee.stateOfOrigin ? `${selected.employee.stateOfOrigin} (${selected.employee.lga || '—'})` : '—'}</div>
+                        <div><b>Residential Address:</b> {selected.employee.residentialAddress ? `${selected.employee.residentialAddress}, ${selected.employee.cityState || ''}` : '—'}</div>
+                        <div><b>Highest Qualification:</b> {selected.employee.highestEducation || '—'}</div>
+                      </div>
+                    </div>
+
+                    {/* Panel 3: Banking & Compliance Identifiers */}
+                    <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 12px 0', color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        <CreditCard size={14} /> Banking &amp; Compliance Identifiers
+                      </div>
+                      <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
+                        <div>
+                          <b>Disbursement Bank:</b> {selected.employee.bankName || '—'} · <span style={{ fontFamily: 'monospace' }}>{selected.employee.accountNumber || '—'}</span> ({selected.employee.accountName || '—'})
+                        </div>
+                        {selected.employee.salaryAccountNumber && selected.employee.salaryAccountNumber !== selected.employee.accountNumber ? (
+                          <div style={{ color: '#c2410c' }}>
+                            <b>Dedicated Salary Bank:</b> {selected.employee.salaryBankName || '—'} · {selected.employee.salaryAccountNumber} ({selected.employee.salaryAccountName || '—'})
+                          </div>
+                        ) : (
+                          <div style={{ color: '#166534' }}>
+                            <b>Salary Account:</b> Same as operational disbursement account
+                          </div>
+                        )}
+                        <div>
+                          <b>NIN:</b> {selected.employee.nin ? `••••••••${selected.employee.nin.slice(-4)}` : '—'} · <b>BVN:</b> {selected.employee.bvn ? `••••••••${selected.employee.bvn.slice(-4)}` : '—'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Panel 4: Next of Kin */}
+                    <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 12px 0', color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        <Phone size={14} /> Next of Kin (Emergency Contact)
+                      </div>
+                      <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
+                        <div><b>Full Legal Name:</b> {selected.employee.nextOfKinName || '—'}</div>
+                        <div><b>Relationship:</b> {selected.employee.nextOfKinRelationship || '—'}</div>
+                        <div><b>Contact Phone:</b> {selected.employee.nextOfKinPhone || '—'}</div>
+                        <div><b>Residential Address:</b> {selected.employee.nextOfKinAddress || '—'}</div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {/* Salary Adjustment Form */}
-                {selected.permissions.canEditSalary && selected.employee.salary && (
-                  <form
-                    id="staff-salary-form"
-                    onSubmit={changeSalary}
-                    style={{
-                      background: '#f8fafc',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: 12,
-                      padding: '20px',
-                      marginTop: 20,
-                      display: 'grid',
-                      gap: 12,
-                    }}
-                  >
-                    <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
-                      Record a Compensation Adjustment
-                    </h3>
-                    <p style={{ margin: 0, color: '#64748b', fontSize: 12.5 }}>
-                      The staff member will be officially notified with the change amount and audit reason.
-                    </p>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                {/* TAB 2: Compensation & Payroll History */}
+                {modalTab === 'payroll' && (
+                  <div>
+                    {/* Salary Card & Adjustment Form */}
+                    <div
+                      style={{
+                        background: '#ffffff',
+                        border: '1px solid #fed7aa',
+                        borderRadius: 12,
+                        padding: '18px 20px',
+                        marginBottom: 20,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 14,
+                      }}
+                    >
                       <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                          Adjustment Type
-                        </label>
-                        <select
-                          style={{ ...input, width: '100%', boxSizing: 'border-box' }}
-                          value={salaryType}
-                          onChange={(e) => setSalaryType(e.target.value as 'ADDITION' | 'DEDUCTION')}
+                        <div style={{ color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                          CURRENT MONTHLY GROSS SALARY
+                        </div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>
+                          {selected.employee.salary?.grossFormatted || 'No active compensation record'}
+                        </div>
+                        {selected.employee.salary?.changeReason && (
+                          <div style={{ fontSize: 12, color: '#64748b' }}>
+                            Latest Adjustment: {selected.employee.salary.changeReason}
+                          </div>
+                        )}
+                      </div>
+
+                      {selected.permissions.canEditSalary && selected.employee.salary && (
+                        <button
+                          type="button"
+                          style={primary}
+                          onClick={() => document.getElementById('staff-salary-form')?.scrollIntoView({ behavior: 'smooth' })}
                         >
-                          <option value="ADDITION">Add to Gross Salary (Increase)</option>
-                          <option value="DEDUCTION">Deduct from Gross Salary (Decrease)</option>
-                        </select>
+                          Record Salary Adjustment
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Payroll Payment History */}
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', margin: '16px 0 10px 0' }}>
+                      Payroll Payment Disbursements ({selected.payrollHistory.length})
+                    </h3>
+                    {selected.payrollHistory.length > 0 ? (
+                      <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 10 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
+                          <thead>
+                            <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>
+                              <th style={{ padding: '10px 14px' }}>Period</th>
+                              <th style={{ padding: '10px 14px' }}>Gross</th>
+                              <th style={{ padding: '10px 14px' }}>Net</th>
+                              <th style={{ padding: '10px 14px' }}>Status</th>
+                              <th style={{ padding: '10px 14px' }}>Confirmation &amp; Receipt</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selected.payrollHistory.map((p) => (
+                              <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '12px 14px', fontWeight: 700, color: '#0f172a' }}>{p.periodName}</td>
+                                <td style={{ padding: '12px 14px' }}>{p.grossFormatted}</td>
+                                <td style={{ padding: '12px 14px', fontWeight: 700, color: '#16a34a' }}>{p.netFormatted}</td>
+                                <td style={{ padding: '12px 14px' }}>
+                                  <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                                    {p.paymentStatus}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '12px 14px', color: '#475569' }}>
+                                  {p.confirmation?.decision || 'Confirmed'}
+                                  {p.receipt && (
+                                    <>
+                                      {' '}·{' '}
+                                      <a href={p.receipt.fileUrl} target="_blank" rel="noreferrer" style={{ color: '#ea580c', fontWeight: 700 }}>
+                                        Receipt ↗
+                                      </a>
+                                    </>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{ padding: '22px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', color: '#64748b', fontSize: 13, textAlign: 'center' }}>
+                        No payroll disbursements recorded yet for this employee.
+                      </div>
+                    )}
+
+                    {/* Salary Adjustment Form */}
+                    {selected.permissions.canEditSalary && selected.employee.salary && (
+                      <form
+                        id="staff-salary-form"
+                        onSubmit={changeSalary}
+                        style={{
+                          background: '#f8fafc',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: 12,
+                          padding: '20px',
+                          marginTop: 20,
+                          display: 'grid',
+                          gap: 12,
+                        }}
+                      >
+                        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
+                          Record a Compensation Adjustment
+                        </h3>
+                        <p style={{ margin: 0, color: '#64748b', fontSize: 12.5 }}>
+                          The staff member will be officially notified with the change amount and audit reason.
+                        </p>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                              Adjustment Type
+                            </label>
+                            <select
+                              style={{ ...input, width: '100%', boxSizing: 'border-box' }}
+                              value={salaryType}
+                              onChange={(e) => setSalaryType(e.target.value as 'ADDITION' | 'DEDUCTION')}
+                            >
+                              <option value="ADDITION">Add to Gross Salary (Increase)</option>
+                              <option value="DEDUCTION">Deduct from Gross Salary (Decrease)</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                              Amount in Naira (₦) *
+                            </label>
+                            <input
+                              style={{ ...input, width: '100%', boxSizing: 'border-box' }}
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              required
+                              value={amount}
+                              onChange={(e) => setAmount(e.target.value)}
+                              placeholder="e.g. 50000"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                            Justification &amp; Audit Reason *
+                          </label>
+                          <textarea
+                            style={{ ...input, width: '100%', minHeight: 70, boxSizing: 'border-box' }}
+                            required
+                            minLength={5}
+                            maxLength={1000}
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="Explain the compensation addition or deduction for governance audit."
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+                          <button type="submit" style={primary} disabled={saving}>
+                            {saving ? 'Saving...' : 'Apply Adjustment & Notify Staff →'}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                )}
+
+                {/* TAB 3: Fund Request History */}
+                {modalTab === 'requests' && (
+                  <div>
+                    {/* Summary Header */}
+                    <div
+                      style={{
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 10,
+                        padding: '14px 18px',
+                        marginBottom: 16,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 8, background: '#fff7ed', display: 'grid', placeItems: 'center', color: '#ea580c' }}>
+                          <FileText size={18} />
+                        </div>
+                        <div>
+                          <strong style={{ fontSize: 14, color: '#0f172a' }}>Expense &amp; Fund Requisitions</strong>
+                          <div style={{ fontSize: 12, color: '#64748b' }}>
+                            Historical requisition filings submitted by {selected.employee.legalName}
+                          </div>
+                        </div>
                       </div>
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                          Amount in Naira (₦) *
-                        </label>
-                        <input
-                          style={{ ...input, width: '100%', boxSizing: 'border-box' }}
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          required
-                          value={amount}
-                          onChange={(e) => setAmount(e.target.value)}
-                          placeholder="e.g. 50000"
-                        />
+                      <div style={{ display: 'flex', gap: 16 }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Total Requisitions</span>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                            {selected.requestHistory?.length || 0}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Total Amount Requested</span>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: '#ea580c' }}>
+                            {fmt(selected.requestHistory?.reduce((acc, r) => acc + (r.amountMinor || 0), 0) || 0)}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    <div>
-                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                        Justification &amp; Audit Reason *
-                      </label>
-                      <textarea
-                        style={{ ...input, width: '100%', minHeight: 70, boxSizing: 'border-box' }}
-                        required
-                        minLength={5}
-                        maxLength={1000}
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        placeholder="Explain the compensation addition or deduction for governance audit."
-                      />
-                    </div>
+                    {/* Requisitions Table */}
+                    {selected.requestHistory && selected.requestHistory.length > 0 ? (
+                      <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 10 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
+                          <thead>
+                            <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>
+                              <th style={{ padding: '10px 14px' }}>Requisition #</th>
+                              <th style={{ padding: '10px 14px' }}>Title &amp; Subsidiary</th>
+                              <th style={{ padding: '10px 14px' }}>Amount</th>
+                              <th style={{ padding: '10px 14px' }}>Date</th>
+                              <th style={{ padding: '10px 14px' }}>Review Status</th>
+                              <th style={{ padding: '10px 14px' }}>Disbursement</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selected.requestHistory.map((req) => {
+                              const isApproved = req.status === 'APPROVED';
+                              const isRejected = req.status === 'REJECTED';
+                              const isPending = !isApproved && !isRejected;
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-                      <button type="submit" style={primary} disabled={saving}>
-                        {saving ? 'Saving...' : 'Apply Adjustment & Notify Staff →'}
-                      </button>
-                    </div>
-                  </form>
+                              return (
+                                <tr key={req.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                  <td style={{ padding: '12px 14px', fontWeight: 750, color: '#0f172a', fontFamily: 'monospace' }}>
+                                    {req.requestNumber}
+                                  </td>
+                                  <td style={{ padding: '12px 14px' }}>
+                                    <div style={{ fontWeight: 700, color: '#0f172a' }}>{req.title}</div>
+                                    <div style={{ fontSize: 11.5, color: '#64748b' }}>{req.subsidiaryName}</div>
+                                  </td>
+                                  <td style={{ padding: '12px 14px', fontWeight: 750, color: '#0f172a' }}>
+                                    {req.amountFormatted}
+                                  </td>
+                                  <td style={{ padding: '12px 14px', color: '#475569' }}>
+                                    {date(req.createdAt)}
+                                  </td>
+                                  <td style={{ padding: '12px 14px' }}>
+                                    <span
+                                      style={{
+                                        background: isApproved ? '#dcfce7' : isRejected ? '#fee2e2' : '#fef3c7',
+                                        color: isApproved ? '#15803d' : isRejected ? '#dc2626' : '#b45309',
+                                        padding: '2px 8px',
+                                        borderRadius: 4,
+                                        fontWeight: 700,
+                                        fontSize: 11,
+                                      }}
+                                    >
+                                      {req.status.replace(/_/g, ' ')}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '12px 14px' }}>
+                                    {req.isPaid ? (
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#15803d', fontWeight: 700, fontSize: 11.5 }}>
+                                        <CheckCircle2 size={13} /> Paid / Disbursed
+                                      </span>
+                                    ) : (
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#64748b', fontSize: 11.5 }}>
+                                        <Clock size={13} /> Unpaid
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{ padding: '36px 20px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', color: '#64748b', fontSize: 13, textAlign: 'center' }}>
+                        <FileText size={28} style={{ color: '#94a3b8', margin: '0 auto 10px auto' }} />
+                        <div style={{ fontWeight: 700, color: '#334155', marginBottom: 4 }}>No Fund Requests Yet</div>
+                        <div>No expense requisitions or fund requests have been filed by this employee.</div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </>
             )}

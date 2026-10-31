@@ -44,6 +44,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
             }
           }
         }
+      },
+      expenditureRequests: {
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        include: {
+          subsidiary: { select: { legalName: true } },
+          disbursements: { select: { id: true, amountMinor: true, status: true, paidAt: true } }
+        }
       }
     }
   });
@@ -81,6 +89,22 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
       };
     });
 
+  const requestHistory = (employee.expenditureRequests || []).map((req) => {
+    const isPaid = req.disbursements.some((d) => d.status === 'COMPLETED' || d.status === 'PAID');
+    return {
+      id: req.id,
+      requestNumber: req.requestNumber,
+      title: req.title,
+      amountFormatted: formatNaira(req.amountMinor),
+      amountMinor: Number(req.amountMinor),
+      currency: req.currency,
+      status: req.status,
+      subsidiaryName: req.subsidiary?.legalName || 'BEMS Conglomerate',
+      createdAt: req.createdAt,
+      isPaid,
+    };
+  });
+
   const agreement = employee.employmentAgreements[0];
   const currentCompensation = agreement?.compensations[0] || null;
   return NextResponse.json({
@@ -90,6 +114,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
       legalName: employee.legalName,
       role: employee.role,
       status: employee.status,
+      avatarUrl: employee.avatarUrl,
       workEmail: employee.workEmail,
       phone: employee.phone,
       createdAt: employee.createdAt,
@@ -148,6 +173,32 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
       } : null
     },
     payrollHistory,
+    requestHistory,
     permissions: { canEditSalary: hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD']) }
   });
+}
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ employeeId: string }> }) {
+  const actor = await getAuthenticatedEmployee();
+  if (!actor) return NextResponse.json({ error: 'Sign in to update profile.' }, { status: 401 });
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+    return NextResponse.json({ error: 'Executive or Super admin access is required.' }, { status: 403 });
+  }
+
+  const { employeeId } = await params;
+  const body = await request.json().catch(() => ({}));
+  const { avatarUrl, jobTitle, phone, residentialAddress, cityState } = body;
+
+  const updated = await prisma.employee.update({
+    where: { id: employeeId },
+    data: {
+      ...(typeof avatarUrl === 'string' ? { avatarUrl } : {}),
+      ...(typeof jobTitle === 'string' ? { jobTitle } : {}),
+      ...(typeof phone === 'string' ? { phone } : {}),
+      ...(typeof residentialAddress === 'string' ? { residentialAddress } : {}),
+      ...(typeof cityState === 'string' ? { cityState } : {}),
+    }
+  });
+
+  return NextResponse.json({ message: 'Profile updated successfully.', employee: updated });
 }
