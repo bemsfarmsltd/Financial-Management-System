@@ -47,8 +47,8 @@ export async function POST(request: Request) {
     if (!actor) {
       return NextResponse.json({ error: "Sign in to register vendors." }, { status: 401 });
     }
-    if (!hasAnyRole(actor, ["SYSTEM_ADMIN", "GMD", "COO", "FINANCE", "HEAD_OF_ADMIN"])) {
-      return NextResponse.json({ error: "Administrative or Finance access is required." }, { status: 403 });
+    if (!hasAnyRole(actor, ["SYSTEM_ADMIN", "SUPER_ADMIN", "GMD"])) {
+      return NextResponse.json({ error: "Executive or Super admin access is required." }, { status: 403 });
     }
 
     const body = await request.json();

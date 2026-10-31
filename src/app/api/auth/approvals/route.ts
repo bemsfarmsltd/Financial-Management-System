@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sendStaffLoginReadyEmail } from '@/lib/email';
 
 export async function GET() {
   const actor = await getAuthenticatedEmployee();
-  if (!actor || !['SYSTEM_ADMIN', 'GMD', 'COO', 'HEAD_OF_ADMIN', 'HR', 'FINANCE', 'DIRECTOR'].includes(actor.role)) {
+  if (!actor || !hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
     return NextResponse.json({ error: 'Executive or System Admin access required.' }, { status: 403 });
   }
 
@@ -61,7 +61,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const actor = await getAuthenticatedEmployee();
-  if (!actor || !['SYSTEM_ADMIN', 'GMD', 'COO', 'HEAD_OF_ADMIN', 'HR'].includes(actor.role)) {
+  if (!actor || !hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
     return NextResponse.json({ error: 'Executive or System Admin access required.' }, { status: 403 });
   }
 
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     const employeeId = typeof body.employeeId === 'string' ? body.employeeId : '';
     const decision = body.decision;
     const candidateRole = typeof body.role === 'string' && body.role ? body.role : 'STAFF';
-    const allowedRoles = ['GMD', 'HR', 'SYSTEM_ADMIN', 'STAFF'];
+    const allowedRoles = ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN', 'STAFF'];
     const assignedRole = allowedRoles.includes(candidateRole) ? candidateRole : 'STAFF';
     const subsidiaryId = typeof body.subsidiaryId === 'string' && body.subsidiaryId ? body.subsidiaryId : null;
     const departmentId = typeof body.departmentId === 'string' && body.departmentId ? body.departmentId : null;

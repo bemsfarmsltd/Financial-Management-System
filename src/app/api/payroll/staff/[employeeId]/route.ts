@@ -11,8 +11,8 @@ function formatNaira(minor: bigint | number) {
 export async function GET(_request: Request, { params }: { params: Promise<{ employeeId: string }> }) {
   const actor = await getAuthenticatedEmployee();
   if (!actor) return NextResponse.json({ error: 'Sign in to view staff payroll details.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'COO', 'HEAD_OF_ADMIN', 'HR', 'DIRECTOR', 'FINANCE'])) {
-    return NextResponse.json({ error: 'HR or executive access is required to view staff payroll details.' }, { status: 403 });
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+    return NextResponse.json({ error: 'Executive or Super admin access is required to view staff payroll details.' }, { status: 403 });
   }
 
   const { employeeId } = await params;

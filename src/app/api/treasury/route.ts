@@ -20,8 +20,8 @@ export async function GET(req: NextRequest) {
 
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view treasury information.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'COO', 'DIRECTOR', 'HEAD_OF_ADMIN', 'AI_ANALYST', 'FINANCE_CONTROLLER', 'HR'])) {
-      return NextResponse.json({ error: 'Executive or finance access is required.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Executive or Super admin access is required.' }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);
@@ -119,8 +119,8 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to configure treasury accounts.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'COO', 'FINANCE_CONTROLLER'])) {
-      return NextResponse.json({ error: 'Only GMD, System Admin, or Finance can add company bank accounts.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Only The Group Managing Director or Super admin can add company bank accounts.' }, { status: 403 });
     }
 
     const body = await req.json();

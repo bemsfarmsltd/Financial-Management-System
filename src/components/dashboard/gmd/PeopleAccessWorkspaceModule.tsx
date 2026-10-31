@@ -59,17 +59,17 @@ type Org = { id: string; legalName: string; code: string; type: string };
 type Dept = { id: string; name: string; code: string; organizationId: string };
 
 const ADMIN_ROLES = [
-  { value: 'FINANCE', label: 'Finance & Treasury Lead' },
-  { value: 'DEPT_HEAD', label: 'Department Head' },
-  { value: 'VERIFIER', label: 'Internal Auditor & Compliance Verifier' },
-  { value: 'HEAD_OF_ADMIN', label: 'Head of Administration' },
-  { value: 'HR', label: 'HR — Human Resources Lead' },
-  { value: 'COO', label: 'COO — Chief Operating Officer' },
-  { value: 'DIRECTOR', label: 'Board Member / Director' },
-  { value: 'AI_ANALYST', label: 'AI Intelligence & Copilot (AI Only)' },
-  { value: 'SYSTEM_ADMIN', label: 'System Administrator' },
-  { value: 'GMD', label: 'GMD — Group Managing Director' },
+  { value: 'SYSTEM_ADMIN', label: 'Super admin' },
+  { value: 'GMD', label: 'The Group Managing Director' },
+  { value: 'STAFF', label: 'Staff' },
 ];
+
+const getRoleDisplayName = (r: string) => {
+  if (r === 'SYSTEM_ADMIN' || r === 'SUPER_ADMIN') return 'Super admin';
+  if (r === 'GMD') return 'The Group Managing Director';
+  if (r === 'STAFF') return 'Staff';
+  return r;
+};
 
 export function PeopleAccessWorkspaceModule({
   setNotice,
@@ -100,10 +100,10 @@ export function PeopleAccessWorkspaceModule({
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({
     workEmail: '',
-    role: 'FINANCE',
+    role: 'GMD',
     subsidiaryId: '',
     departmentId: '',
-    positionName: '',
+    positionName: 'The Group Managing Director',
   });
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteError, setInviteError] = useState('');
@@ -219,10 +219,10 @@ export function PeopleAccessWorkspaceModule({
       setShowInviteModal(false);
       setInviteForm({
         workEmail: '',
-        role: 'FINANCE',
+        role: 'GMD',
         subsidiaryId: organizations[0]?.id || '',
         departmentId: '',
-        positionName: '',
+        positionName: 'The Group Managing Director',
       });
       await load();
     } catch (err: any) {
@@ -447,7 +447,7 @@ export function PeopleAccessWorkspaceModule({
                     </div>
                     <div style={{ fontSize: 12, color: '#475569', display: 'flex', gap: 8, alignItems: 'center', marginTop: 2 }}>
                       <span style={{ background: '#ea580c', color: '#ffffff', padding: '1px 7px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
-                        {inv.role}
+                        {getRoleDisplayName(inv.role)}
                       </span>
                       <span>·</span>
                       <span>🏢 {inv.subsidiary?.legalName || 'Subsidiary'}</span>
@@ -599,7 +599,7 @@ export function PeopleAccessWorkspaceModule({
                           <div style={{ fontWeight: 800, color: leader.status === 'ACTIVE' ? '#0f172a' : '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span>{leader.legalName}</span>
                             <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#e2e8f0', color: '#334155' }}>
-                              {leader.role}
+                              {getRoleDisplayName(leader.role)}
                             </span>
                             {leader.isCurrentUser && (
                               <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#dbeafe', color: '#1d4ed8' }}>
@@ -726,7 +726,7 @@ export function PeopleAccessWorkspaceModule({
                         <div>
                           <div style={{ fontWeight: 700, color: '#166534' }}>{inv.workEmail}</div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>
-                            {inv.role} · 🏢 {inv.subsidiary?.legalName || 'Subsidiary'}
+                            {getRoleDisplayName(inv.role)} · 🏢 {inv.subsidiary?.legalName || 'Subsidiary'}
                             {inv.positionName && ` (${inv.positionName})`}
                           </div>
                         </div>

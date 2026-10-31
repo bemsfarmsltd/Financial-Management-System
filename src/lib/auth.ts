@@ -267,6 +267,43 @@ export function publicEmployee(employee: AuthenticatedEmployee) {
   };
 }
 
-export function hasAnyRole(employee: AuthenticatedEmployee, roles: string[]) {
-  return roles.includes(employee.role);
+export const CANONICAL_ROLES = {
+  SUPER_ADMIN: 'SYSTEM_ADMIN',
+  GMD: 'GMD',
+  STAFF: 'STAFF',
+} as const;
+
+export const ROLE_DISPLAY_NAMES: Record<string, string> = {
+  SYSTEM_ADMIN: 'Super admin',
+  SUPER_ADMIN: 'Super admin',
+  GMD: 'The Group Managing Director',
+  STAFF: 'Staff',
+};
+
+export function getRoleDisplayName(role: string): string {
+  return ROLE_DISPLAY_NAMES[role] || (role === 'GMD' ? 'The Group Managing Director' : role.replace(/_/g, ' '));
 }
+
+export function hasAnyRole(employee: AuthenticatedEmployee | null | undefined, roles: string[]): boolean {
+  if (!employee || !employee.role) return false;
+  const role = employee.role.toUpperCase();
+
+  // Super admin has full administrative oversight
+  const isSuperAdmin = role === 'SYSTEM_ADMIN' || role === 'SUPER_ADMIN';
+
+  for (const r of roles) {
+    const target = r.toUpperCase();
+    if (role === target) return true;
+    if (isSuperAdmin && (target === 'SYSTEM_ADMIN' || target === 'SUPER_ADMIN' || target === 'ADMIN' || target === 'SUPER ADMIN')) {
+      return true;
+    }
+    if (role === 'GMD' && (target === 'GMD' || target.includes('MANAGING DIRECTOR'))) {
+      return true;
+    }
+    if (role === 'STAFF' && target === 'STAFF') {
+      return true;
+    }
+  }
+  return false;
+}
+

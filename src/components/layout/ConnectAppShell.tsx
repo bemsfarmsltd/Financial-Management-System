@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-export type SystemRole = 'GMD' | 'HR' | 'SystemAdmin' | 'Staff';
+export type SystemRole = 'GMD' | 'SystemAdmin' | 'Staff';
 
 interface RoleProfile {
   role: SystemRole;
@@ -15,10 +15,9 @@ interface RoleProfile {
 }
 
 export const roleProfiles: Record<SystemRole, RoleProfile> = {
-  GMD: { role: 'GMD', title: 'Group Managing Director', badge: 'Super Executive', platform: 'Web (Full) & Mobile', avatarColor: '#ea580c' },
-  HR: { role: 'HR', title: 'Human Resources Lead', badge: 'People & Payroll', platform: 'Web Dashboard', avatarColor: '#7158de' },
-  SystemAdmin: { role: 'SystemAdmin', title: 'System Administrator', badge: 'Workspace Control', platform: 'Web Dashboard', avatarColor: '#0f172a' },
-  Staff: { role: 'Staff', title: 'General Staff / Requester', badge: 'Requester', platform: 'Mobile App View', avatarColor: '#a76400' },
+  GMD: { role: 'GMD', title: 'The Group Managing Director', badge: 'Executive Governance', platform: 'Web (Full) & Mobile', avatarColor: '#ea580c' },
+  SystemAdmin: { role: 'SystemAdmin', title: 'Super admin', badge: 'Workspace Control', platform: 'Web Dashboard', avatarColor: '#0f172a' },
+  Staff: { role: 'Staff', title: 'Staff', badge: 'Staff Operations', platform: 'Mobile App View', avatarColor: '#a76400' },
 };
 
 interface Subsidiary {
@@ -74,9 +73,9 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
           if (d?.user?.role) {
             const r = d.user.role;
             if (r === 'STAFF') setCurrentRole('Staff');
-            else if (r === 'HR') setCurrentRole('HR');
-            else if (r === 'SYSTEM_ADMIN') setCurrentRole('SystemAdmin');
+            else if (r === 'SYSTEM_ADMIN' || r === 'SUPER_ADMIN') setCurrentRole('SystemAdmin');
             else if (r === 'GMD') setCurrentRole('GMD');
+            else setCurrentRole('Staff');
           }
         })
         .catch(() => {});
@@ -218,10 +217,6 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
     },
   ];
 
-  const hrNav = [
-    { label: 'PEOPLE & HR', items: [['Finance Overview', '/finance', '⌂'], ['Staff Directory & Payroll', '/payroll', '♙']] },
-    { label: 'PAYROLL (NO TAX)', items: [['Salary Runs (Gross = Net)', '/payroll', '⌁'], ['Intercompany Splits', '/payroll', '▥'], ['Intercompany Notes', '/intercompany', '₦']] },
-  ];
 
   const staffNav = [
     {
@@ -237,7 +232,7 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
   ];
 
   const isExecutiveAdmin = currentRole === 'GMD' || currentRole === 'SystemAdmin';
-  const navGroups = currentRole === 'GMD' ? gmdNav : currentRole === 'HR' ? hrNav : currentRole === 'SystemAdmin' ? sysAdminNav : staffNav;
+  const navGroups = currentRole === 'GMD' ? gmdNav : currentRole === 'SystemAdmin' ? sysAdminNav : staffNav;
 
   return (
     <main className={`app-shell ${currentRole === 'Staff' ? 'staff-view' : 'gmd-view'} ${collapsed ? 'collapsed' : ''}`}>

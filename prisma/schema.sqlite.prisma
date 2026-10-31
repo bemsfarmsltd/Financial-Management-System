@@ -59,7 +59,7 @@ model Employee {
   legalName      String
   workEmail      String   @unique
   phone          String?
-  role           String   // SYSTEM_ADMIN | GMD | COO | HEAD_OF_ADMIN | FINANCE | VERIFIER | DEPT_HEAD | STAFF
+  role           String   // SYSTEM_ADMIN (Super admin) | GMD (The Group Managing Director) | STAFF (Staff)
   status         String   @default("ACTIVE") // ACTIVE | ON_LEAVE | TERMINATED
   approvalStatus String   @default("APPROVED") // PENDING_APPROVAL | APPROVED | REJECTED
   passwordHash   String?

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { toSystemRequestId } from '@/lib/request-id';
 import { resolveOrganizationScope } from '@/lib/organizations';
 
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     const whereCondition: any = {};
     if (actor.role === 'STAFF') {
       whereCondition.requestedById = actor.id;
-    } else if (!['SYSTEM_ADMIN', 'GMD', 'HR', 'COO', 'FINANCE', 'DIRECTOR', 'HEAD_OF_ADMIN', 'AI_ANALYST', 'FINANCE_CONTROLLER'].includes(actor.role)) {
+    } else if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
       return NextResponse.json({ error: 'You do not have access to request records.' }, { status: 403 });
     }
     const scopedOrgIds = await resolveOrganizationScope(subsidiaryCode);

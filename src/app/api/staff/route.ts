@@ -10,8 +10,8 @@ export async function GET(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view staff records.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'COO', 'HEAD_OF_ADMIN', 'HR', 'DIRECTOR', 'FINANCE'])) {
-      return NextResponse.json({ error: 'HR or executive access is required to view staff and salary records.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Executive or Super admin access is required to view staff and salary records.' }, { status: 403 });
     }
     const { searchParams } = new URL(req.url);
     const orgId = searchParams.get('orgId') || searchParams.get('subsidiary');
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
 
     const employees = await prisma.employee.findMany({
       where: {
-        role: { notIn: ['SYSTEM_ADMIN', 'GMD'] },
+        role: { notIn: ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'] },
       },
       include: {
         assignments: {

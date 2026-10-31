@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee();
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN'])) {
+    if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Only authorized executives can stage approval decisions.' }, { status: 403 });
     }
 

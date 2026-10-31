@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view payroll.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR'])) return NextResponse.json({ error: 'HR or executive access is required to view payroll.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive access is required to view payroll.' }, { status: 403 });
     const requestedYear = req.nextUrl.searchParams.get('year');
     const requestedMonth = req.nextUrl.searchParams.get('month');
     const year = requestedYear ? Number(requestedYear) : null;
@@ -201,9 +201,9 @@ export async function POST(req: NextRequest) {
       id: disbursementAssigneeId,
       status: 'ACTIVE',
       approvalStatus: 'APPROVED',
-      role: { in: ['SYSTEM_ADMIN', 'GMD', 'COO', 'FINANCE'] }
+      role: { in: ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'] }
     } });
-    if (!assignee) return NextResponse.json({ error: 'Choose an active Finance or executive user for payment recording.' }, { status: 400 });
+    if (!assignee) return NextResponse.json({ error: 'Choose an active executive user for payment recording.' }, { status: 400 });
     const snapshot = JSON.stringify(batch.items.map(item => ({
       employeeId: item.employeeId,
       grossMinor: item.grossMinor.toString(),

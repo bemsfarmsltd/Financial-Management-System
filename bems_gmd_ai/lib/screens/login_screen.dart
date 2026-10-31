@@ -44,9 +44,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Strict Access Restriction: Only the Group Managing Director (GMD) is authorized
       final role = user.role.toUpperCase();
-      final isGmd = role == 'GMD' || email.toLowerCase().contains('gmd@');
-      if (!isGmd) {
-        throw Exception('Access Denied: The BEMi AI App is strictly reserved for the Group Managing Director (GMD). Corporate staff and officers should use the BEMS Staff App.');
+      final isExecutive = role == 'GMD' || role == 'SYSTEM_ADMIN' || role == 'SUPER_ADMIN' || email.toLowerCase().contains('gmd@');
+      if (!isExecutive) {
+        throw Exception('Access Denied: The BEMi AI App is strictly reserved for The Group Managing Director (GMD) and Super admin. Corporate staff should use the BEMS Staff App.');
       }
 
       await ChatStorageService.saveUser(user);

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sendAdminInvitationEmail } from '@/lib/email';
 
@@ -8,15 +8,9 @@ export const dynamic = 'force-dynamic';
 
 const ALLOWED_INVITE_ROLES = [
   'SYSTEM_ADMIN',
+  'SUPER_ADMIN',
   'GMD',
-  'COO',
-  'HEAD_OF_ADMIN',
-  'FINANCE',
-  'VERIFIER',
-  'DEPT_HEAD',
-  'HR',
-  'DIRECTOR',
-  'AI_ANALYST',
+  'STAFF',
 ];
 
 // GET: Validate an invitation token OR list pending invitations for administrators
@@ -77,7 +71,7 @@ export async function GET(request: Request) {
 
     // 2. Otherwise, this is an authenticated admin fetching the pending invitations list
     const actor = await getAuthenticatedEmployee();
-    if (!actor || !['SYSTEM_ADMIN', 'GMD', 'COO', 'HEAD_OF_ADMIN', 'HR', 'DIRECTOR'].includes(actor.role)) {
+    if (!actor || !hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
       return NextResponse.json({ error: 'Administrative access required to list invitations.' }, { status: 403 });
     }
 
@@ -100,7 +94,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee();
-    if (!actor || !['SYSTEM_ADMIN', 'GMD', 'COO', 'HEAD_OF_ADMIN', 'HR', 'DIRECTOR'].includes(actor.role)) {
+    if (!actor || !hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
       return NextResponse.json({ error: 'Administrative authorization is required to send role invitations.' }, { status: 403 });
     }
 

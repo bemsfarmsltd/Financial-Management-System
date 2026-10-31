@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     const where: any = {};
 
     // If logged in as staff, restrict to their own requests unless privileged
-    if (actor && !hasAnyRole(actor, ["SYSTEM_ADMIN", "GMD", "HR", "COO", "FINANCE", "DIRECTOR", "HEAD_OF_ADMIN", "AI_ANALYST", "FINANCE_CONTROLLER"])) {
+    if (actor && !hasAnyRole(actor, ["SYSTEM_ADMIN", "SUPER_ADMIN", "GMD"])) {
       where.requestedById = actor.id;
     }
 
@@ -232,8 +232,8 @@ export async function POST(request: Request) {
     if (!actor) {
       return NextResponse.json({ error: "Sign in to submit a fund request." }, { status: 401 });
     }
-    if (actor.role === "GMD" || actor.role === "SYSTEM_ADMIN") {
-      return NextResponse.json({ error: "GMD and System Admin accounts are executive governance roles and do not submit fund requests." }, { status: 403 });
+    if (hasAnyRole(actor, ["GMD", "SYSTEM_ADMIN", "SUPER_ADMIN"])) {
+      return NextResponse.json({ error: "The Group Managing Director and Super admin accounts are executive governance roles and do not submit fund requests." }, { status: 403 });
     }
 
     const body = await request.json();
@@ -338,16 +338,8 @@ export async function POST(request: Request) {
     const delivStr = deliverable || "Itemized receipt and proof of delivery.";
     const needDate = neededBy ? new Date(neededBy) : (dueDate ? new Date(dueDate) : new Date(Date.now() + 7 * 24 * 3600 * 1000));
 
-    // Determine initial approver role based on policy limits
-    let initialApproverRole = "HEAD_OF_ADMIN";
-    const amountValue = Number(amountMinor);
-    if (category === "IT_SOFTWARE" && amountValue > 15000000) {
-      initialApproverRole = "GMD";
-    } else if (amountValue > 100000000) {
-      initialApproverRole = "GMD";
-    } else if (amountValue > 10000000) {
-      initialApproverRole = "COO";
-    }
+    // In 3-role model, staff submits and GMD approves directly
+    const initialApproverRole = "GMD";
 
     const sub = await prisma.organization.findUnique({
       where: { id: subsidiaryId },
@@ -383,7 +375,7 @@ export async function POST(request: Request) {
                   authorName: "System",
                   authorRole: "SYSTEM",
                   messageType: "AUDIT_EVENT",
-                  body: `Request ${reqNum} created and submitted. Assigned to ${initialApproverRole} for review.`,
+                  body: `Request ${reqNum} created and submitted. Assigned to The Group Managing Director for executive approval.`,
                 },
               },
             },

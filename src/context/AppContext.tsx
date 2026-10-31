@@ -6,7 +6,7 @@ export interface CurrentUser {
   id: string;
   name: string;
   email: string;
-  role: "SYSTEM_ADMIN" | "GMD" | "COO" | "HEAD_OF_ADMIN" | "FINANCE" | "VERIFIER" | "STAFF";
+  role: "SYSTEM_ADMIN" | "SUPER_ADMIN" | "GMD" | "STAFF" | string;
   position: string;
   avatarUrl: string;
 }
@@ -14,50 +14,26 @@ export interface CurrentUser {
 export const USERS: CurrentUser[] = [
   {
     id: "gmd-user",
-    name: "Henry Nwosu",
-    email: "henry@bemsgroup.com",
+    name: "Henry Adeleke",
+    email: "henrysolomon50@gmail.com",
     role: "GMD",
-    position: "Group Managing Director",
+    position: "The Group Managing Director",
     avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
   },
   {
-    id: "coo-user",
-    name: "Adaobi Okeke",
-    email: "adaobi@bemsgroup.com",
-    role: "COO",
-    position: "Chief Operating Officer",
-    avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150",
-  },
-  {
     id: "admin-user",
-    name: "Babatunde Adeleke",
-    email: "babatunde@bemsgroup.com",
-    role: "HEAD_OF_ADMIN",
-    position: "Head of Administration",
+    name: "Bems Group Admin",
+    email: "bemssofthubltd@gmail.com",
+    role: "SYSTEM_ADMIN",
+    position: "Super admin",
     avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
   },
   {
-    id: "finance-user",
-    name: "Ngozi Eze",
-    email: "ngozi@bemsgroup.com",
-    role: "FINANCE",
-    position: "Senior Finance Officer",
-    avatarUrl: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150",
-  },
-  {
-    id: "verifier-user",
-    name: "Chinedu Obi",
-    email: "chinedu@bemsgroup.com",
-    role: "VERIFIER",
-    position: "Internal Audit & Accountability Verifier",
-    avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
-  },
-  {
     id: "staff-user",
-    name: "Temitope Bakare",
-    email: "temitope@bemsgroup.com",
+    name: "Solomon",
+    email: "henovatetech@gmail.com",
     role: "STAFF",
-    position: "Lead DevOps Engineer",
+    position: "Staff",
     avatarUrl: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150",
   },
 ];
@@ -102,7 +78,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             name: user.name || user.fullName || 'Employee',
             email: user.email,
             role,
-            position: role === 'SYSTEM_ADMIN' ? 'System Admin' : role.replaceAll('_', ' '),
+            position: (role === 'SYSTEM_ADMIN' || role === 'SUPER_ADMIN')
+              ? 'Super admin'
+              : (role === 'GMD' ? 'The Group Managing Director' : (role === 'STAFF' ? 'Staff' : role.replaceAll('_', ' '))),
             avatarUrl: user.avatarUrl || '',
           });
         })

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { requestIdentifierWhere, toSystemRequestId } from '@/lib/request-id';
 import { enforceMobileVersionGate } from '@/lib/mobile-gate';
@@ -40,7 +40,7 @@ export async function GET(
     select: { id: true, legalName: true, role: true },
   });
   const activeExecutives = await prisma.employee.findMany({
-    where: { role: { in: ['GMD', 'SYSTEM_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' },
+    where: { role: { in: ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' },
     select: { id: true, legalName: true, role: true },
   });
   const participantMap = new Map<string, { id: string; name: string; role: string }>();
@@ -52,7 +52,7 @@ export async function GET(
   for (const exec of activeExecutives) participantMap.set(exec.id, { id: exec.id, name: exec.legalName, role: exec.role });
 
   const participants = [...participantMap.values()];
-  const isPrivileged = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN';
+  const isPrivileged = hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
   if (!isPrivileged && !participantMap.has(actor.id)) return NextResponse.json({ error: 'You are not part of this request.' }, { status: 403 });
 
   const messages = await prisma.channelMessage.findMany({
@@ -101,7 +101,7 @@ export async function POST(
       select: { id: true, legalName: true, role: true },
     });
     const activeExecutives = await prisma.employee.findMany({
-      where: { role: { in: ['GMD', 'SYSTEM_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' },
+      where: { role: { in: ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' },
       select: { id: true, legalName: true, role: true },
     });
     const participantMap = new Map<string, { id: string; name: string; role: string }>();
@@ -112,7 +112,7 @@ export async function POST(
     for (const employee of assignedEmployees) participantMap.set(employee.id, { id: employee.id, name: employee.legalName, role: employee.role });
     for (const exec of activeExecutives) participantMap.set(exec.id, { id: exec.id, name: exec.legalName, role: exec.role });
 
-    const privileged = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN';
+    const privileged = hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
     if (!privileged && !participantMap.has(actor.id)) return NextResponse.json({ error: 'You are not part of this request.' }, { status: 403 });
 
     if (action === 'SEND_MESSAGE') {
@@ -208,7 +208,8 @@ export async function POST(
 
     const pendingStep = req.approvalSteps.find((step) => step.status === 'PENDING');
     if (!pendingStep) return NextResponse.json({ error: 'There is no pending approval decision.' }, { status: 409 });
-    if (actor.role !== 'SYSTEM_ADMIN' && actor.role !== pendingStep.assignedRole) {
+    const canApprove = hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']) || actor.role === pendingStep.assignedRole;
+    if (!canApprove) {
       return NextResponse.json({ error: 'This decision is assigned to another approver.' }, { status: 403 });
     }
 

@@ -178,7 +178,7 @@ const goalPresets: Record<string, string[]> = {
 const defaultGoals = ['Answer customer questions', 'Collect information', 'Process payments', 'Book appointments', 'Send notifications', 'Handle support cases'];
 
 
-type SystemRole = 'GMD' | 'SYSTEM_ADMIN' | 'STAFF' | 'DIRECTOR' | 'AI_ANALYST';
+type SystemRole = 'GMD' | 'SYSTEM_ADMIN' | 'SUPER_ADMIN' | 'STAFF';
 
 interface RoleProfile {
   role: SystemRole;
@@ -189,11 +189,10 @@ interface RoleProfile {
 }
 
 const roleProfiles: Record<string, RoleProfile> = {
-  GMD: { role: 'GMD', title: 'Group Managing Director', badge: 'Super Executive', platform: 'Executive Command Center', avatarColor: '#ea580c' },
-  SYSTEM_ADMIN: { role: 'SYSTEM_ADMIN', title: 'System Administrator', badge: 'Super Executive', platform: 'Executive Command Center', avatarColor: '#ea580c' },
-  STAFF: { role: 'STAFF', title: 'Staff Member', badge: 'Self-Service', platform: 'Staff Requisition & Accountability Portal', avatarColor: '#2563eb' },
-  DIRECTOR: { role: 'DIRECTOR', title: 'Board Member / Director', badge: 'Executive Board', platform: 'Board Governance Center', avatarColor: '#0d9488' },
-  AI_ANALYST: { role: 'AI_ANALYST', title: 'AI Copilot Specialist', badge: 'AI Intelligence Only', platform: 'AI Intelligence Command', avatarColor: '#8b5cf6' },
+  GMD: { role: 'GMD', title: 'The Group Managing Director', badge: 'Executive Governance', platform: 'Executive Command Center', avatarColor: '#ea580c' },
+  SYSTEM_ADMIN: { role: 'SYSTEM_ADMIN', title: 'Super admin', badge: 'Super Executive', platform: 'Executive Command Center', avatarColor: '#ea580c' },
+  SUPER_ADMIN: { role: 'SUPER_ADMIN', title: 'Super admin', badge: 'Super Executive', platform: 'Executive Command Center', avatarColor: '#ea580c' },
+  STAFF: { role: 'STAFF', title: 'Staff', badge: 'Staff Operations', platform: 'Staff Requisition & Accountability Portal', avatarColor: '#2563eb' },
 };
 
 const staffNavGroups = [

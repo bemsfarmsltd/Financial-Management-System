@@ -7,14 +7,14 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee(request);
-    if (!actor || !hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'HR', 'COO', 'HEAD_OF_ADMIN'])) {
-      return NextResponse.json({ error: 'Executive or HR authorization required.' }, { status: 403 });
+    if (!actor || !hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
+      return NextResponse.json({ error: 'Executive authorization required.' }, { status: 403 });
     }
 
     const leaders = await prisma.employee.findMany({
       where: {
         role: {
-          in: ['GMD', 'SYSTEM_ADMIN', 'COO', 'HEAD_OF_ADMIN', 'FINANCE', 'VERIFIER', 'DEPT_HEAD', 'HR', 'DIRECTOR'],
+          in: ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'],
         },
         status: { not: 'DELETED' },
       },
