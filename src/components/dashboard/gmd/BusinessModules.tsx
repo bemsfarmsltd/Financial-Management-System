@@ -1490,7 +1490,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                                         fontSize: 11,
                                       }}
                                     >
-                                      {req.status.replace(/_/g, ' ')}
+                                      {(req.status || 'UNKNOWN').replace(/_/g, ' ')}
                                     </span>
                                   </td>
                                   <td style={{ padding: '12px 14px' }}>
