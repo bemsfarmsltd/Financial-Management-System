@@ -58,10 +58,15 @@ type AdminInvitationItem = {
 type Org = { id: string; legalName: string; code: string; type: string };
 type Dept = { id: string; name: string; code: string; organizationId: string };
 
-const ADMIN_ROLES = [
+const EXECUTIVE_INVITE_ROLES = [
   { value: 'SYSTEM_ADMIN', label: 'Super admin' },
   { value: 'GMD', label: 'The Group Managing Director' },
+];
+
+const STAFF_APPROVAL_ROLES = [
   { value: 'STAFF', label: 'Staff' },
+  { value: 'GMD', label: 'The Group Managing Director' },
+  { value: 'SYSTEM_ADMIN', label: 'Super admin' },
 ];
 
 const getRoleDisplayName = (r: string) => {
@@ -805,7 +810,7 @@ export function PeopleAccessWorkspaceModule({
                     value={approvalRoles[employee.id] || 'STAFF'}
                     onChange={(e) => setApprovalRoles((prev) => ({ ...prev, [employee.id]: e.target.value }))}
                   >
-                    {ADMIN_ROLES.map((r) => {
+                    {STAFF_APPROVAL_ROLES.map((r) => {
                       const isGmdOccupied = r.value === 'GMD' && activeGmd;
                       return (
                         <option key={r.value} value={r.value} disabled={Boolean(isGmdOccupied)}>
@@ -964,7 +969,7 @@ export function PeopleAccessWorkspaceModule({
                     onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13.5, background: '#fff', boxSizing: 'border-box' }}
                   >
-                    {ADMIN_ROLES.map((r) => {
+                    {EXECUTIVE_INVITE_ROLES.map((r) => {
                       const isGmdOccupied = r.value === 'GMD' && activeGmd;
                       return (
                         <option key={r.value} value={r.value} disabled={Boolean(isGmdOccupied)}>

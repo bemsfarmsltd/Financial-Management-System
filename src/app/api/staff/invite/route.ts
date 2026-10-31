@@ -10,7 +10,6 @@ const ALLOWED_INVITE_ROLES = [
   'SYSTEM_ADMIN',
   'SUPER_ADMIN',
   'GMD',
-  'STAFF',
 ];
 
 // GET: Validate an invitation token OR list pending invitations for administrators
