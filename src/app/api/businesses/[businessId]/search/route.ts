@@ -14,7 +14,7 @@ export async function GET(
     { type: 'Finance', label: 'Treasury Accounts', sublabel: 'Operating & disbursement balances', navigate: 'Treasury accounts' },
     { type: 'Payroll', label: 'Hybrid Payroll', sublabel: 'Monthly staff salary batches', navigate: 'Hybrid payroll' },
     { type: 'HR', label: 'Staff Profiles', sublabel: 'Registered employee directory', navigate: 'Staff profiles' },
-    { type: 'HR', label: 'Staff Onboarding', sublabel: 'Self-registration review & approvals', navigate: 'Staff onboarding' },
+    { type: 'HR', label: 'Admin Onboarding', sublabel: 'Executive invitations & staff approvals', navigate: 'Admin onboarding' },
     { type: 'Governance', label: 'Audit Logs', sublabel: 'Append-only regulatory event trail', navigate: 'Audit logs' }
   ];
 

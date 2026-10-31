@@ -177,7 +177,7 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
       label: 'PEOPLE & REPORTS',
       items: [
         ['Staff profiles', '/finance?tab=Staff+profiles', '👥'],
-        ['Staff onboarding', '/finance?tab=Staff+onboarding', '✓'],
+        ['Admin onboarding', '/finance?tab=Admin+onboarding', '🛡️'],
         ['Audit logs', '/audit', '≡'],
         ['Settings', '/finance?tab=Settings', '⚙'],
       ]
@@ -210,7 +210,7 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
       label: 'ADMINISTRATION & PEOPLE',
       items: [
         ['Staff profiles', '/finance?tab=Staff+profiles', '👥'],
-        ['Staff onboarding', '/finance?tab=Staff+onboarding', '✓'],
+        ['Admin onboarding', '/finance?tab=Admin+onboarding', '🛡️'],
         ['Audit logs', '/audit', '≡'],
         ['Settings', '/finance?tab=Settings', '⚙'],
       ]

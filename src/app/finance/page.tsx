@@ -247,7 +247,7 @@ const gmdNavGroups = [
     items: [
       ['Attendance & Timekeeping', '⏱'],
       ['Staff profiles', '♙'],
-      ['Staff onboarding', '👤'],
+      ['Admin onboarding', '🛡️'],
       ['Audit logs', '≡'],
       ['Admin Settings', '⚙'],
       ['Mobile App Settings', '📱'],
@@ -3311,7 +3311,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
     if(target==='Audit logs') return <LiveAuditLogsModule scope={activeScope} setNotice={setNotice}/>;
     if(target==='Attendance & Timekeeping' || target==='Attendance') return <AttendanceDeskPage />;
     if(target==='Staff profiles') return <LiveStaffProfilesModule scope={activeScope} setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
-    if(target==='Staff onboarding') return <PeopleAccessWorkspaceModule setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
+    if(target==='Admin onboarding' || target==='Staff onboarding') return <PeopleAccessWorkspaceModule setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
     if(target==='Team & access') return <TeamAccessPage business={current} setNotice={setNotice}/>;
     if(target==='Security & compliance') return <SecurityCompliancePage name="Security & compliance" setNotice={setNotice}/>;
     if(target==='System configuration') return <ConfigurationCenter setNotice={setNotice}/>;

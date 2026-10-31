@@ -3,6 +3,26 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { RequestDossierModal, type RequestDossier } from '@/components/requests/RequestDossierModal';
+import {
+  Users,
+  UserCheck,
+  ShieldCheck,
+  Building2,
+  Search,
+  RefreshCw,
+  X,
+  Wallet,
+  Check,
+  Pause,
+  Play,
+  Trash2,
+  Mail,
+  Phone,
+  Briefcase,
+  ChevronRight,
+  ShieldAlert,
+  CreditCard,
+} from 'lucide-react';
 
 async function api<T>(path: string, init?: RequestInit, retries = 1): Promise<T> {
   let lastError: unknown;
@@ -153,73 +173,1082 @@ type StaffDetail = {
   permissions: { canEditSalary: boolean };
 };
 
+const getStaffRoleDisplay = (r: string) => {
+  if (r === 'SYSTEM_ADMIN' || r === 'SUPER_ADMIN') return 'Super admin';
+  if (r === 'GMD') return 'The Group Managing Director';
+  if (r === 'STAFF') return 'Staff';
+  return r;
+};
+
 export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotice: (message: string) => void; onNavigate?: (tab: string) => void; scope?: string }) {
-  const [rows,setRows]=useState<Staff[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [query,setQuery]=useState('');const [selected,setSelected]=useState<StaffDetail|null>(null);const [selectedId,setSelectedId]=useState('');const [detailLoading,setDetailLoading]=useState(false);const [salaryType,setSalaryType]=useState<'ADDITION'|'DEDUCTION'>('ADDITION');const [amount,setAmount]=useState('');const [reason,setReason]=useState('');const [saving,setSaving]=useState(false);
-  const load=useCallback(async()=>{
+  const [rows, setRows] = useState<Staff[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [subsidiaryFilter, setSubsidiaryFilter] = useState('ALL');
+
+  const [selected, setSelected] = useState<StaffDetail | null>(null);
+  const [selectedId, setSelectedId] = useState('');
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [salaryType, setSalaryType] = useState<'ADDITION' | 'DEDUCTION'>('ADDITION');
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
-    try{
+    try {
       const param = scope && scope !== 'ALL' ? `?orgId=${encodeURIComponent(scope)}` : '';
-      const data=await api<{employees:Staff[]}>(`/api/staff${param}`);
-      setRows(data.employees);
-    }catch(e){
+      const data = await api<{ employees: Staff[] }>(`/api/staff${param}`);
+      setRows(data.employees || []);
+    } catch (e) {
       setError(errorText(e));
-    }finally{
+    } finally {
       setLoading(false);
     }
-  },[scope]);
-  useEffect(()=>{void load()},[load]);
-  const open=async(id:string)=>{setSelectedId(id);setDetailLoading(true);setSelected(null);try{setSelected(await api<StaffDetail>(`/api/payroll/staff/${encodeURIComponent(id)}`))}catch(e){setError(errorText(e))}finally{setDetailLoading(false)}};
-  const filtered=rows.filter(s=>`${s.legalName} ${s.workEmail} ${s.role} ${s.employeeNumber}`.toLowerCase().includes(query.toLowerCase()));
-  const changeSalary=async(e:FormEvent)=>{e.preventDefault();setSaving(true);try{const data=await api<{message:string;newGrossFormatted:string}>(`/api/staff/${selectedId}/salary`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({changeType:salaryType,amount,reason})});setNotice(`${data.message} New gross: ${data.newGrossFormatted}.`);setAmount('');setReason('');await Promise.all([load(),open(selectedId)])}catch(e){setError(errorText(e))}finally{setSaving(false)}};
-  const toggleStaffStatus=async(employeeId:string,currentStatus:string,name:string)=>{
-    const nextStatus=currentStatus==='ACTIVE'?'SUSPENDED':'ACTIVE';
-    const confirmPrompt=nextStatus==='SUSPENDED'
-      ?`Are you sure you want to SUSPEND ${name}?\n\nThey will be blocked from logging into the staff app and cannot mark attendance.`
-      :`Reactivate staff account for ${name}?`;
-    if(!window.confirm(confirmPrompt))return;
+  }, [scope]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const open = async (id: string) => {
+    setSelectedId(id);
+    setDetailLoading(true);
+    setSelected(null);
+    try {
+      setSelected(await api<StaffDetail>(`/api/payroll/staff/${encodeURIComponent(id)}`));
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const changeSalary = async (e: FormEvent) => {
+    e.preventDefault();
     setSaving(true);
-    try{
-      const res=await fetch(`/api/admin/employees/${encodeURIComponent(employeeId)}/status`,{
-        method:'PATCH',
-        headers:{'Content-Type':'application/json'},
-        credentials:'include',
-        body:JSON.stringify({status:nextStatus}),
+    try {
+      const data = await api<{ message: string; newGrossFormatted: string }>(`/api/staff/${selectedId}/salary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ changeType: salaryType, amount, reason }),
       });
-      const data=await res.json();
-      if(!res.ok)throw new Error(data.error||'Failed to update status.');
-      setNotice(data.message);
-      await Promise.all([load(),selectedId?open(selectedId):Promise.resolve()]);
-    }catch(e:any){
-      setError(e.message||'Error updating status.');
-    }finally{
+      setNotice(`${data.message} New gross: ${data.newGrossFormatted}.`);
+      setAmount('');
+      setReason('');
+      await Promise.all([load(), open(selectedId)]);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
       setSaving(false);
     }
   };
-  const deleteStaffAccount=async(employeeId:string,name:string)=>{
-    if(!window.confirm(`⚠️ PERMANENT ACTION:\nAre you sure you want to permanently delete the staff account for "${name}"?\n\nThis will remove their profile and credentials.`)){
+
+  const toggleStaffStatus = async (employeeId: string, currentStatus: string, name: string) => {
+    const nextStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    const confirmPrompt = nextStatus === 'SUSPENDED'
+      ? `Are you sure you want to SUSPEND ${name}?\n\nThey will be blocked from logging into the staff app and cannot mark attendance.`
+      : `Reactivate staff account for ${name}?`;
+    if (!window.confirm(confirmPrompt)) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/employees/${encodeURIComponent(employeeId)}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update status.');
+      setNotice(data.message);
+      await Promise.all([load(), selectedId ? open(selectedId) : Promise.resolve()]);
+    } catch (e: any) {
+      setError(e.message || 'Error updating status.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteStaffAccount = async (employeeId: string, name: string) => {
+    if (!window.confirm(`⚠️ PERMANENT ACTION:\nAre you sure you want to permanently delete the staff account for "${name}"?\n\nThis will remove their profile and credentials.`)) {
       return;
     }
     setSaving(true);
-    try{
-      const res=await fetch(`/api/admin/employees/${encodeURIComponent(employeeId)}`,{
-        method:'DELETE',
-        credentials:'include',
+    try {
+      const res = await fetch(`/api/admin/employees/${encodeURIComponent(employeeId)}`, {
+        method: 'DELETE',
+        credentials: 'include',
       });
-      const data=await res.json();
-      if(!res.ok)throw new Error(data.error||'Failed to delete account.');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete account.');
       setNotice(data.message);
       setSelected(null);
       setSelectedId('');
       await load();
-    }catch(e:any){
-      setError(e.message||'Error deleting account.');
-    }finally{
+    } catch (e: any) {
+      setError(e.message || 'Error deleting account.');
+    } finally {
       setSaving(false);
     }
   };
-  return <><PageHeading eyebrow="GROUP DIRECTORY" title="Staff profiles" description="Review staff assignments, compensation, and payroll payment history." action={<div style={{display:'flex',gap:8}}><button style={primary} onClick={() => onNavigate ? onNavigate('Staff onboarding') : (typeof window !== 'undefined' ? (window.location.hash = '#StaffOnboarding') : undefined)}>＋ Onboard Staff</button><button style={secondary} onClick={()=>void load()}>↻ Refresh</button></div>}/><section style={card}><input style={{...input,maxWidth:440,marginBottom:14}} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search staff name, email, role, or staff number"/>{loading?<p>Loading staff…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:filtered.length===0?<p style={{color:'#7889a3'}}>No staff match this search.</p>:filtered.map(s=>{const comp=s.employmentAgreements?.[0]?.compensations?.[0];return <button key={s.id} onClick={()=>void open(s.id)} style={{width:'100%',display:'grid',gridTemplateColumns:'minmax(230px,2fr) 1fr 1fr 1fr 1fr auto',gap:12,alignItems:'center',padding:'14px 6px',border:0,borderBottom:'1px solid #e8edf4',background:'#fff',textAlign:'left',cursor:'pointer',color:'#263955'}}><span><b>{s.legalName}</b><small style={{display:'block',color:'#8290a4',marginTop:4}}>{s.employeeNumber} · {s.workEmail}</small></span><span>{s.role}</span><span>{s.assignments[0]?.positionName||s.assignments[0]?.department?.name||'—'}</span><span>{comp?fmt(comp.grossMinor):'No salary on file'}</span><span style={{padding:'3px 8px',borderRadius:4,fontSize:11,fontWeight:700,width:'fit-content',background:s.status==='ACTIVE'?'#dcfce7':'#fee2e2',color:s.status==='ACTIVE'?'#15803d':'#dc2626'}}>{s.status||'ACTIVE'}</span><b>View profile →</b></button>})}</section>{(selected||detailLoading)&&<div onMouseDown={e=>{if(e.target===e.currentTarget){setSelected(null);setSelectedId('')}}} style={{position:'fixed',inset:0,zIndex:1000,background:'rgba(5,18,45,.55)',display:'grid',placeItems:'center',padding:18}}><section role="dialog" aria-modal="true" style={{...card,width:'min(880px,100%)',maxHeight:'90vh',overflow:'auto',boxShadow:'0 24px 48px rgba(0,0,0,.2)'}}>{detailLoading?<p style={{padding:24,textAlign:'center'}}>Loading staff profile…</p>:selected&&<><header style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',borderBottom:'1px solid #e2e8f0',paddingBottom:14,marginBottom:18,flexWrap:'wrap',gap:12}}><div><small style={{color:'#ea580c',fontWeight:800,letterSpacing:'0.05em'}}>STAFF PROFILE · {selected.employee.employeeNumber}</small><h2 style={{margin:'4px 0 6px',fontSize:24,color:'#0f172a'}}>{selected.employee.legalName}</h2><p style={{margin:0,color:'#64748b',fontSize:13}}><span style={{background:'#e2e8f0',padding:'2px 8px',borderRadius:4,fontWeight:600,marginRight:8}}>{selected.employee.role}</span>{selected.employee.workEmail} · {selected.employee.phone||'No phone'} · <span style={{color:selected.employee.status==='ACTIVE'?'#16a34a':'#dc2626',fontWeight:700}}>{selected.employee.status}</span></p></div><div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>{selected.employee.status==='ACTIVE'?<button type="button" style={{...secondary,background:'#fff7ed',borderColor:'#fed7aa',color:'#ea580c',fontWeight:700,fontSize:12,padding:'6px 12px'}} onClick={()=>toggleStaffStatus(selected.employee.id,'ACTIVE',selected.employee.legalName)}>⏸ Suspend Account</button>:<button type="button" style={{...secondary,background:'#f0fdf4',borderColor:'#86efac',color:'#16a34a',fontWeight:700,fontSize:12,padding:'6px 12px'}} onClick={()=>toggleStaffStatus(selected.employee.id,'SUSPENDED',selected.employee.legalName)}>▶ Reactivate Account</button>}<button type="button" style={{...secondary,background:'#fef2f2',borderColor:'#fecaca',color:'#dc2626',fontWeight:700,fontSize:12,padding:'6px 12px'}} onClick={()=>deleteStaffAccount(selected.employee.id,selected.employee.legalName)}>🗑 Delete Account</button><button style={secondary} onClick={()=>{setSelected(null);setSelectedId('')}}>Close</button></div></header><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:18}}><div style={{background:'#f8fafc',padding:14,borderRadius:8,border:'1px solid #e2e8f0'}}><h4 style={{margin:'0 0 10px',fontSize:12,color:'#475569',textTransform:'uppercase',letterSpacing:'0.04em'}}>Placement & Official Details</h4><div style={{display:'grid',gap:6,fontSize:13}}><p style={{margin:0}}><b>Position:</b> {selected.employee.assignment?.positionName||selected.employee.jobTitle||'—'}</p><p style={{margin:0}}><b>Department:</b> {selected.employee.assignment?.departmentName||'—'}</p><p style={{margin:0}}><b>Company:</b> {selected.employee.assignment?.subsidiaryName||'—'}</p><p style={{margin:0}}><b>Employment:</b> {selected.employee.employmentType||selected.employee.employment?.agreementType||'Full-time'} · {selected.employee.staffGrade||'General Staff'}</p><p style={{margin:0}}><b>Work Location:</b> {selected.employee.workLocation||'Lagos HQ'}</p><p style={{margin:0}}><b>Resumption Date:</b> {selected.employee.resumptionDate?date(selected.employee.resumptionDate):'—'}</p></div></div><div style={{background:'#f8fafc',padding:14,borderRadius:8,border:'1px solid #e2e8f0'}}><h4 style={{margin:'0 0 10px',fontSize:12,color:'#475569',textTransform:'uppercase',letterSpacing:'0.04em'}}>Personal & Demographics</h4><div style={{display:'grid',gap:6,fontSize:13}}><p style={{margin:0}}><b>Gender:</b> {selected.employee.gender||'—'} · <b>Marital Status:</b> {selected.employee.maritalStatus||'—'}</p><p style={{margin:0}}><b>Date of Birth:</b> {selected.employee.dateOfBirth?date(selected.employee.dateOfBirth):'—'}</p><p style={{margin:0}}><b>Origin:</b> {selected.employee.stateOfOrigin?`${selected.employee.stateOfOrigin} (${selected.employee.lga||'—'})`:'—'}</p><p style={{margin:0}}><b>Residential Address:</b> {selected.employee.residentialAddress?`${selected.employee.residentialAddress}, ${selected.employee.cityState||''}`:'—'}</p><p style={{margin:0}}><b>Education:</b> {selected.employee.highestEducation||'—'}</p></div></div><div style={{background:'#f8fafc',padding:14,borderRadius:8,border:'1px solid #e2e8f0'}}><h4 style={{margin:'0 0 10px',fontSize:12,color:'#475569',textTransform:'uppercase',letterSpacing:'0.04em'}}>Banking & Compliance Identifiers</h4><div style={{display:'grid',gap:6,fontSize:13}}><p style={{margin:0}}><b>Disbursement Bank:</b> {selected.employee.bankName||'—'} · {selected.employee.accountNumber||'—'} ({selected.employee.accountName||'—'})</p>{selected.employee.salaryAccountNumber&&selected.employee.salaryAccountNumber!==selected.employee.accountNumber?<p style={{margin:0,color:'#c2410c'}}><b>Dedicated Salary Bank:</b> {selected.employee.salaryBankName||'—'} · {selected.employee.salaryAccountNumber} ({selected.employee.salaryAccountName||'—'})</p>:<p style={{margin:0,color:'#166534'}}><b>Salary Bank:</b> Same as disbursement account</p>}<p style={{margin:0}}><b>NIN:</b> {selected.employee.nin?`••••••••${selected.employee.nin.slice(-4)}`:'—'} · <b>BVN:</b> {selected.employee.bvn?`••••••••${selected.employee.bvn.slice(-4)}`:'—'}</p></div></div><div style={{background:'#f8fafc',padding:14,borderRadius:8,border:'1px solid #e2e8f0'}}><h4 style={{margin:'0 0 10px',fontSize:12,color:'#475569',textTransform:'uppercase',letterSpacing:'0.04em'}}>Next of Kin (Emergency Contact)</h4><div style={{display:'grid',gap:6,fontSize:13}}><p style={{margin:0}}><b>Full Name:</b> {selected.employee.nextOfKinName||'—'}</p><p style={{margin:0}}><b>Relationship:</b> {selected.employee.nextOfKinRelationship||'—'}</p><p style={{margin:0}}><b>Phone:</b> {selected.employee.nextOfKinPhone||'—'}</p><p style={{margin:0}}><b>Address:</b> {selected.employee.nextOfKinAddress||'—'}</p></div></div></div><div style={{...card,background:'#f7f9fc',margin:'12px 0',display:'flex',justifyContent:'space-between',gap:12,alignItems:'center'}}><div><small style={{color:'#74839a',fontWeight:700}}>CURRENT GROSS SALARY</small><h3 style={{margin:'4px 0',color:'#0f172a',fontSize:20}}>{selected.employee.salary?.grossFormatted||'No active salary record'}</h3>{selected.employee.salary?.changeReason&&<small style={{color:'#64748b'}}>Latest change: {selected.employee.salary.changeReason}</small>}</div>{selected.permissions.canEditSalary&&selected.employee.salary&&<button style={primary} onClick={()=>document.getElementById('staff-salary-form')?.scrollIntoView({behavior:'smooth'})}>Edit salary</button>}</div><h3 style={{fontSize:16,marginTop:20}}>Payroll payment history</h3>{selected.payrollHistory.length?selected.payrollHistory.map(p=><div key={p.id} style={{display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr 1fr 1fr',gap:8,padding:'11px 2px',borderTop:'1px solid #e8edf4'}}><b>{p.periodName}</b><span>Gross {p.grossFormatted}</span><span>Net {p.netFormatted}</span><span>{p.paymentStatus}</span><span>{p.confirmation?.decision||'Awaiting confirmation'}{p.receipt&&<> · <a href={p.receipt.fileUrl} target="_blank">Receipt</a></>}</span></div>):<p style={{color:'#7889a3',fontSize:13}}>No payroll history yet.</p>}{selected.permissions.canEditSalary&&selected.employee.salary&&<form id="staff-salary-form" onSubmit={changeSalary} style={{...card,background:'#f7f9fc',marginTop:18,display:'grid',gap:10}}><h3 style={{margin:0}}>Record a salary change</h3><p style={{margin:0,color:'#70819b'}}>The staff member will be notified with the change amount and your reason.</p><label>Change<select style={{...input,display:'block',marginTop:4}} value={salaryType} onChange={e=>setSalaryType(e.target.value as 'ADDITION'|'DEDUCTION')}><option value="ADDITION">Add to gross salary</option><option value="DEDUCTION">Deduct from gross salary</option></select></label><label>Amount in naira<input style={{...input,display:'block',marginTop:4}} type="number" min="0.01" step="0.01" required value={amount} onChange={e=>setAmount(e.target.value)}/></label><label>Reason<textarea style={{...input,display:'block',marginTop:4,minHeight:72}} required minLength={5} maxLength={1000} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Explain the salary addition or deduction."/></label><button style={primary} disabled={saving}>{saving?'Saving…':'Save change & notify staff'}</button></form>}</>}</section></div>}</>;
 
+  // Derive unique subsidiaries for filtering
+  const uniqueSubsidiaries = useMemo(() => {
+    const subs = new Set<string>();
+    rows.forEach((s) => {
+      s.assignments?.forEach((a) => {
+        if (a.subsidiary?.legalName) subs.add(a.subsidiary.legalName);
+      });
+    });
+    return Array.from(subs);
+  }, [rows]);
+
+  // Filtered dataset
+  const filtered = useMemo(() => {
+    return rows.filter((s) => {
+      const q = query.toLowerCase().trim();
+      const matchQuery =
+        !q ||
+        s.legalName.toLowerCase().includes(q) ||
+        s.workEmail.toLowerCase().includes(q) ||
+        s.employeeNumber.toLowerCase().includes(q) ||
+        s.role.toLowerCase().includes(q) ||
+        s.assignments?.some(
+          (a) =>
+            a.positionName?.toLowerCase().includes(q) ||
+            a.subsidiary?.legalName?.toLowerCase().includes(q) ||
+            a.department?.name?.toLowerCase().includes(q)
+        );
+
+      const matchRole = roleFilter === 'ALL' || s.role === roleFilter;
+      const matchStatus = statusFilter === 'ALL' || s.status === statusFilter;
+      const matchSubsidiary =
+        subsidiaryFilter === 'ALL' ||
+        s.assignments?.some((a) => a.subsidiary?.legalName === subsidiaryFilter);
+
+      return matchQuery && matchRole && matchStatus && matchSubsidiary;
+    });
+  }, [rows, query, roleFilter, statusFilter, subsidiaryFilter]);
+
+  const activeCount = rows.filter((s) => s.status === 'ACTIVE').length;
+  const payrollCount = rows.filter((s) => s.employmentAgreements?.[0]?.compensations?.length).length;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0, paddingBottom: 24 }}>
+      {/* 1. Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+        <div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#ea580c', fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>
+            <Users size={14} /> GROUP DIRECTORY &amp; HUMAN CAPITAL
+          </div>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', margin: '2px 0 6px 0', letterSpacing: '-0.02em' }}>
+            Staff Profiles &amp; Governance Directory
+          </h1>
+          <p style={{ color: '#64748b', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+            Review staff assignments, compensation packages, banking verification, and active payroll records across group subsidiaries.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '9px 14px',
+              borderRadius: 8,
+              border: '1px solid #e2e8f0',
+              background: '#ffffff',
+              color: '#334155',
+              fontSize: 12.5,
+              fontWeight: 650,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+            }}
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (onNavigate) onNavigate('Admin onboarding');
+              else if (typeof window !== 'undefined') window.location.search = '?tab=Admin+onboarding';
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '9px 18px',
+              borderRadius: 8,
+              border: 'none',
+              background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+              color: '#ffffff',
+              fontSize: 12.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 3px 12px rgba(234, 88, 12, 0.28)',
+            }}
+          >
+            <ShieldCheck size={15} color="#ffffff" />
+            <span>Admin Onboarding &amp; Invites →</span>
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#991b1b', fontSize: 13 }}>
+          <ShieldAlert size={18} />
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => setError('')}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#991b1b', cursor: 'pointer', fontWeight: 700 }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* 2. Top Executive KPI Metric Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+        {/* Card 1: Total Group Workforce (Hero Gradient Card) */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+            borderRadius: 14,
+            padding: '18px 20px',
+            color: '#ffffff',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxShadow: '0 4px 14px rgba(15, 23, 42, 0.12)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#cbd5e1', textTransform: 'uppercase' }}>
+              Total Group Workforce
+            </span>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'grid', placeItems: 'center', color: '#fed7aa' }}>
+              <Users size={16} />
+            </div>
+          </div>
+          <div style={{ margin: '14px 0 6px 0' }}>
+            <strong style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1 }}>
+              {rows.length}
+            </strong>
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8' }}>
+            Enrolled staff across all subsidiaries
+          </div>
+        </div>
+
+        {/* Card 2: Active Verified Accounts */}
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: 14,
+            padding: '18px 20px',
+            border: '1px solid #e2e8f0',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#64748b', textTransform: 'uppercase' }}>
+              Active Login Accounts
+            </span>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#f0fdf4', display: 'grid', placeItems: 'center', color: '#16a34a' }}>
+              <UserCheck size={16} />
+            </div>
+          </div>
+          <div style={{ margin: '14px 0 6px 0' }}>
+            <strong style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', color: '#0f172a', lineHeight: 1 }}>
+              {activeCount}
+            </strong>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: 4 }}>
+              Active &amp; Cleared
+            </span>
+            <span style={{ fontSize: 11, color: '#64748b' }}>attendance &amp; portal</span>
+          </div>
+        </div>
+
+        {/* Card 3: Payroll Structures */}
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: 14,
+            padding: '18px 20px',
+            border: '1px solid #e2e8f0',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#64748b', textTransform: 'uppercase' }}>
+              Salary Agreements
+            </span>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#fff7ed', display: 'grid', placeItems: 'center', color: '#ea580c' }}>
+              <Wallet size={16} />
+            </div>
+          </div>
+          <div style={{ margin: '14px 0 6px 0' }}>
+            <strong style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', color: '#0f172a', lineHeight: 1 }}>
+              {payrollCount}
+            </strong>
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b' }}>
+            Configured compensation packages
+          </div>
+        </div>
+
+        {/* Card 4: Operating Subsidiaries */}
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: 14,
+            padding: '18px 20px',
+            border: '1px solid #e2e8f0',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#64748b', textTransform: 'uppercase' }}>
+              Operating Divisions
+            </span>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#eff6ff', display: 'grid', placeItems: 'center', color: '#2563eb' }}>
+              <Building2 size={16} />
+            </div>
+          </div>
+          <div style={{ margin: '14px 0 6px 0' }}>
+            <strong style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', color: '#0f172a', lineHeight: 1 }}>
+              {uniqueSubsidiaries.length || 1}
+            </strong>
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b' }}>
+            Entities with staff assignments
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Search & Filter Bar */}
+      <div
+        style={{
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          borderRadius: 12,
+          padding: '14px 18px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+        }}
+      >
+        <div style={{ position: 'relative', flex: '1 1 280px', minWidth: 240 }}>
+          <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <input
+            type="text"
+            placeholder="Search by staff name, employee ID, email, role, or title..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '8px 12px 8px 34px',
+              borderRadius: 8,
+              border: '1px solid #cbd5e1',
+              fontSize: 12.5,
+              background: '#ffffff',
+              color: '#0f172a',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {uniqueSubsidiaries.length > 1 && (
+            <select
+              value={subsidiaryFilter}
+              onChange={(e) => setSubsidiaryFilter(e.target.value)}
+              style={{
+                padding: '7px 12px',
+                borderRadius: 8,
+                border: '1px solid #cbd5e1',
+                fontSize: 12.5,
+                background: '#ffffff',
+                color: '#334155',
+                fontWeight: 600,
+              }}
+            >
+              <option value="ALL">All Subsidiaries</option>
+              {uniqueSubsidiaries.map((sub) => (
+                <option key={sub} value={sub}>{sub}</option>
+              ))}
+            </select>
+          )}
+
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            style={{
+              padding: '7px 12px',
+              borderRadius: 8,
+              border: '1px solid #cbd5e1',
+              fontSize: 12.5,
+              background: '#ffffff',
+              color: '#334155',
+              fontWeight: 600,
+            }}
+          >
+            <option value="ALL">All Roles</option>
+            <option value="STAFF">Staff</option>
+            <option value="GMD">The Group Managing Director</option>
+            <option value="SYSTEM_ADMIN">Super admin</option>
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{
+              padding: '7px 12px',
+              borderRadius: 8,
+              border: '1px solid #cbd5e1',
+              fontSize: 12.5,
+              background: '#ffffff',
+              color: '#334155',
+              fontWeight: 600,
+            }}
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="ACTIVE">Active Accounts</option>
+            <option value="SUSPENDED">Suspended Accounts</option>
+          </select>
+
+          {(query || roleFilter !== 'ALL' || statusFilter !== 'ALL' || subsidiaryFilter !== 'ALL') && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setRoleFilter('ALL');
+                setStatusFilter('ALL');
+                setSubsidiaryFilter('ALL');
+              }}
+              style={{
+                border: 'none',
+                background: '#f1f5f9',
+                color: '#475569',
+                padding: '7px 12px',
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Reset Filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 4. Staff Directory Cards */}
+      <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {loading ? (
+          <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '48px 24px', textAlign: 'center' }}>
+            <RefreshCw size={24} className="animate-spin" style={{ color: '#ea580c', margin: '0 auto 12px auto' }} />
+            <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Loading staff directory records...</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '48px 24px', textAlign: 'center' }}>
+            <Users size={32} style={{ color: '#94a3b8', margin: '0 auto 12px auto' }} />
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: '0 0 6px 0' }}>No staff match your criteria</h3>
+            <p style={{ color: '#64748b', fontSize: 13, margin: '0 0 14px 0' }}>Try adjusting your search terms or filters.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setRoleFilter('ALL');
+                setStatusFilter('ALL');
+                setSubsidiaryFilter('ALL');
+              }}
+              style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12.5, fontWeight: 650, cursor: 'pointer', color: '#334155' }}
+            >
+              Clear Filters
+            </button>
+          </div>
+        ) : (
+          filtered.map((s) => {
+            const comp = s.employmentAgreements?.[0]?.compensations?.[0];
+            const primaryAssignment = s.assignments?.[0];
+            return (
+              <div
+                key={s.id}
+                onClick={() => void open(s.id)}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 12,
+                  padding: '16px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 16,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {/* Left: Avatar + Primary Name & ID */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 260, flex: '1 1 260px' }}>
+                  <div
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 10,
+                      background: s.role === 'GMD' ? '#fff7ed' : '#f8fafc',
+                      border: s.role === 'GMD' ? '1px solid #fed7aa' : '1px solid #cbd5e1',
+                      color: s.role === 'GMD' ? '#ea580c' : '#334155',
+                      fontWeight: 800,
+                      fontSize: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {s.legalName.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <strong style={{ fontSize: 15, color: '#0f172a' }}>{s.legalName}</strong>
+                      <span
+                        style={{
+                          background: '#f1f5f9',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: 4,
+                          padding: '1px 6px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          fontFamily: 'monospace',
+                          color: '#334155',
+                        }}
+                      >
+                        {s.employeeNumber}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '1px 7px',
+                          borderRadius: 4,
+                          background: s.role === 'GMD' ? '#ea580c' : '#e2e8f0',
+                          color: s.role === 'GMD' ? '#ffffff' : '#334155',
+                        }}
+                      >
+                        {getStaffRoleDisplay(s.role)}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 3 }}>
+                      {s.workEmail} {s.phone ? `· ${s.phone}` : ''}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Middle: Subsidiary & Position Placement */}
+                <div style={{ minWidth: 200, flex: '1 1 200px' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Briefcase size={13} color="#ea580c" />
+                    <span>{primaryAssignment?.positionName || primaryAssignment?.department?.name || 'General Staff'}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Building2 size={12} />
+                    <span>{primaryAssignment?.subsidiary?.legalName || 'BEMS Conglomerate'}</span>
+                  </div>
+                </div>
+
+                {/* Right: Salary, Status, & View Action */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 13, fontWeight: 750, color: '#0f172a' }}>
+                      {comp ? fmt(comp.grossMinor) : <span style={{ color: '#94a3b8', fontSize: 12 }}>No salary set</span>}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Monthly Gross
+                    </div>
+                  </div>
+
+                  <span
+                    style={{
+                      background: s.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2',
+                      color: s.status === 'ACTIVE' ? '#15803d' : '#dc2626',
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      fontWeight: 750,
+                      fontSize: 11.5,
+                    }}
+                  >
+                    {s.status === 'ACTIVE' ? 'Active' : 'Suspended'}
+                  </span>
+
+                  <button
+                    type="button"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      background: '#fff7ed',
+                      border: '1px solid #fed7aa',
+                      color: '#ea580c',
+                      padding: '6px 12px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span>View Profile</span>
+                    <ChevronRight size={13} />
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </section>
+
+      {/* 5. Polished Profile Dossier Modal */}
+      {(selected || detailLoading) && (
+        <div
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelected(null);
+              setSelectedId('');
+            }
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              background: '#ffffff',
+              borderRadius: 16,
+              width: '100%',
+              maxWidth: 880,
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              padding: '28px',
+              boxSizing: 'border-box',
+              position: 'relative',
+            }}
+          >
+            {detailLoading ? (
+              <div style={{ padding: '60px 24px', textAlign: 'center' }}>
+                <RefreshCw size={28} className="animate-spin" style={{ color: '#ea580c', margin: '0 auto 12px auto' }} />
+                <p style={{ color: '#64748b', fontSize: 14, margin: 0 }}>Loading full staff profile dossier...</p>
+              </div>
+            ) : selected && (
+              <>
+                {/* Modal Header */}
+                <header
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    borderBottom: '1px solid #e2e8f0',
+                    paddingBottom: 16,
+                    marginBottom: 20,
+                    flexWrap: 'wrap',
+                    gap: 14,
+                  }}
+                >
+                  <div>
+                    <div style={{ color: '#ea580c', fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      STAFF PROFILE DOSSIER · {selected.employee.employeeNumber}
+                    </div>
+                    <h2 style={{ margin: '4px 0 6px', fontSize: 24, fontWeight: 800, color: '#0f172a' }}>
+                      {selected.employee.legalName}
+                    </h2>
+                    <div style={{ color: '#64748b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ background: '#0f172a', color: '#ffffff', padding: '2px 8px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                        {getStaffRoleDisplay(selected.employee.role)}
+                      </span>
+                      <span>·</span>
+                      <span>{selected.employee.workEmail}</span>
+                      {selected.employee.phone && (
+                        <>
+                          <span>·</span>
+                          <span>{selected.employee.phone}</span>
+                        </>
+                      )}
+                      <span>·</span>
+                      <span
+                        style={{
+                          color: selected.employee.status === 'ACTIVE' ? '#16a34a' : '#dc2626',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {selected.employee.status === 'ACTIVE' ? 'Active & Cleared' : 'Suspended'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {selected.employee.status === 'ACTIVE' ? (
+                      <button
+                        type="button"
+                        style={{
+                          background: '#fff7ed',
+                          border: '1px solid #fed7aa',
+                          color: '#ea580c',
+                          fontWeight: 700,
+                          fontSize: 12,
+                          padding: '7px 14px',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                        }}
+                        onClick={() => toggleStaffStatus(selected.employee.id, 'ACTIVE', selected.employee.legalName)}
+                      >
+                        <Pause size={13} /> Suspend Account
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        style={{
+                          background: '#f0fdf4',
+                          border: '1px solid #86efac',
+                          color: '#16a34a',
+                          fontWeight: 700,
+                          fontSize: 12,
+                          padding: '7px 14px',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                        }}
+                        onClick={() => toggleStaffStatus(selected.employee.id, 'SUSPENDED', selected.employee.legalName)}
+                      >
+                        <Play size={13} /> Reactivate Account
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      style={{
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        color: '#dc2626',
+                        fontWeight: 700,
+                        fontSize: 12,
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                      }}
+                      onClick={() => deleteStaffAccount(selected.employee.id, selected.employee.legalName)}
+                    >
+                      <Trash2 size={13} /> Delete Account
+                    </button>
+
+                    <button
+                      type="button"
+                      style={{
+                        background: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        color: '#334155',
+                        fontWeight: 650,
+                        fontSize: 12.5,
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => {
+                        setSelected(null);
+                        setSelectedId('');
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </header>
+
+                {/* 4 Detail Grid Panels */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, marginBottom: 20 }}>
+                  {/* Panel 1: Placement & Official Details */}
+                  <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 12px 0', color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      <Briefcase size={14} /> Corporate Placement &amp; Official Details
+                    </div>
+                    <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
+                      <div><b>Position / Title:</b> {selected.employee.assignment?.positionName || selected.employee.jobTitle || '—'}</div>
+                      <div><b>Department:</b> {selected.employee.assignment?.departmentName || '—'}</div>
+                      <div><b>Operating Subsidiary:</b> {selected.employee.assignment?.subsidiaryName || '—'}</div>
+                      <div><b>Agreement Type:</b> {selected.employee.employmentType || selected.employee.employment?.agreementType || 'Full-time'} ({selected.employee.staffGrade || 'General Staff'})</div>
+                      <div><b>Work Location:</b> {selected.employee.workLocation || 'Lagos HQ'}</div>
+                      <div><b>Resumption Date:</b> {selected.employee.resumptionDate ? date(selected.employee.resumptionDate) : '—'}</div>
+                    </div>
+                  </div>
+
+                  {/* Panel 2: Personal & Demographics */}
+                  <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 12px 0', color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      <Users size={14} /> Personal &amp; Demographics
+                    </div>
+                    <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
+                      <div><b>Gender &amp; Marital Status:</b> {selected.employee.gender || '—'} · {selected.employee.maritalStatus || '—'}</div>
+                      <div><b>Date of Birth:</b> {selected.employee.dateOfBirth ? date(selected.employee.dateOfBirth) : '—'}</div>
+                      <div><b>State of Origin:</b> {selected.employee.stateOfOrigin ? `${selected.employee.stateOfOrigin} (${selected.employee.lga || '—'})` : '—'}</div>
+                      <div><b>Residential Address:</b> {selected.employee.residentialAddress ? `${selected.employee.residentialAddress}, ${selected.employee.cityState || ''}` : '—'}</div>
+                      <div><b>Highest Qualification:</b> {selected.employee.highestEducation || '—'}</div>
+                    </div>
+                  </div>
+
+                  {/* Panel 3: Banking & Compliance Identifiers */}
+                  <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 12px 0', color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      <CreditCard size={14} /> Banking &amp; Compliance Identifiers
+                    </div>
+                    <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
+                      <div>
+                        <b>Disbursement Bank:</b> {selected.employee.bankName || '—'} · <span style={{ fontFamily: 'monospace' }}>{selected.employee.accountNumber || '—'}</span> ({selected.employee.accountName || '—'})
+                      </div>
+                      {selected.employee.salaryAccountNumber && selected.employee.salaryAccountNumber !== selected.employee.accountNumber ? (
+                        <div style={{ color: '#c2410c' }}>
+                          <b>Dedicated Salary Bank:</b> {selected.employee.salaryBankName || '—'} · {selected.employee.salaryAccountNumber} ({selected.employee.salaryAccountName || '—'})
+                        </div>
+                      ) : (
+                        <div style={{ color: '#166534' }}>
+                          <b>Salary Account:</b> Same as operational disbursement account
+                        </div>
+                      )}
+                      <div>
+                        <b>NIN:</b> {selected.employee.nin ? `••••••••${selected.employee.nin.slice(-4)}` : '—'} · <b>BVN:</b> {selected.employee.bvn ? `••••••••${selected.employee.bvn.slice(-4)}` : '—'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Panel 4: Next of Kin */}
+                  <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 12px 0', color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      <Phone size={14} /> Next of Kin (Emergency Contact)
+                    </div>
+                    <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
+                      <div><b>Full Legal Name:</b> {selected.employee.nextOfKinName || '—'}</div>
+                      <div><b>Relationship:</b> {selected.employee.nextOfKinRelationship || '—'}</div>
+                      <div><b>Contact Phone:</b> {selected.employee.nextOfKinPhone || '—'}</div>
+                      <div><b>Residential Address:</b> {selected.employee.nextOfKinAddress || '—'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Salary Card & Adjustment Form */}
+                <div
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #fed7aa',
+                    borderRadius: 12,
+                    padding: '18px 20px',
+                    marginBottom: 20,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 14,
+                  }}
+                >
+                  <div>
+                    <div style={{ color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      CURRENT MONTHLY GROSS SALARY
+                    </div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>
+                      {selected.employee.salary?.grossFormatted || 'No active compensation record'}
+                    </div>
+                    {selected.employee.salary?.changeReason && (
+                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                        Latest Adjustment: {selected.employee.salary.changeReason}
+                      </div>
+                    )}
+                  </div>
+
+                  {selected.permissions.canEditSalary && selected.employee.salary && (
+                    <button
+                      type="button"
+                      style={primary}
+                      onClick={() => document.getElementById('staff-salary-form')?.scrollIntoView({ behavior: 'smooth' })}
+                    >
+                      Record Salary Adjustment
+                    </button>
+                  )}
+                </div>
+
+                {/* Payroll Payment History */}
+                <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '20px 0 12px 0' }}>
+                  Payroll Payment History ({selected.payrollHistory.length})
+                </h3>
+                {selected.payrollHistory.length > 0 ? (
+                  <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 10 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>
+                          <th style={{ padding: '10px 14px' }}>Period</th>
+                          <th style={{ padding: '10px 14px' }}>Gross</th>
+                          <th style={{ padding: '10px 14px' }}>Net</th>
+                          <th style={{ padding: '10px 14px' }}>Status</th>
+                          <th style={{ padding: '10px 14px' }}>Confirmation &amp; Receipt</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selected.payrollHistory.map((p) => (
+                          <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '12px 14px', fontWeight: 700, color: '#0f172a' }}>{p.periodName}</td>
+                            <td style={{ padding: '12px 14px' }}>{p.grossFormatted}</td>
+                            <td style={{ padding: '12px 14px', fontWeight: 700, color: '#16a34a' }}>{p.netFormatted}</td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                                {p.paymentStatus}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 14px', color: '#475569' }}>
+                              {p.confirmation?.decision || 'Confirmed'}
+                              {p.receipt && (
+                                <>
+                                  {' '}·{' '}
+                                  <a href={p.receipt.fileUrl} target="_blank" rel="noreferrer" style={{ color: '#ea580c', fontWeight: 700 }}>
+                                    Receipt ↗
+                                  </a>
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ padding: '18px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', color: '#64748b', fontSize: 13, textAlign: 'center' }}>
+                    No payroll disbursements recorded yet for this employee.
+                  </div>
+                )}
+
+                {/* Salary Adjustment Form */}
+                {selected.permissions.canEditSalary && selected.employee.salary && (
+                  <form
+                    id="staff-salary-form"
+                    onSubmit={changeSalary}
+                    style={{
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 12,
+                      padding: '20px',
+                      marginTop: 20,
+                      display: 'grid',
+                      gap: 12,
+                    }}
+                  >
+                    <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
+                      Record a Compensation Adjustment
+                    </h3>
+                    <p style={{ margin: 0, color: '#64748b', fontSize: 12.5 }}>
+                      The staff member will be officially notified with the change amount and audit reason.
+                    </p>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                          Adjustment Type
+                        </label>
+                        <select
+                          style={{ ...input, width: '100%', boxSizing: 'border-box' }}
+                          value={salaryType}
+                          onChange={(e) => setSalaryType(e.target.value as 'ADDITION' | 'DEDUCTION')}
+                        >
+                          <option value="ADDITION">Add to Gross Salary (Increase)</option>
+                          <option value="DEDUCTION">Deduct from Gross Salary (Decrease)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                          Amount in Naira (₦) *
+                        </label>
+                        <input
+                          style={{ ...input, width: '100%', boxSizing: 'border-box' }}
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          required
+                          value={amount}
+                          onChange={(e) => setAmount(e.target.value)}
+                          placeholder="e.g. 50000"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                        Justification &amp; Audit Reason *
+                      </label>
+                      <textarea
+                        style={{ ...input, width: '100%', minHeight: 70, boxSizing: 'border-box' }}
+                        required
+                        minLength={5}
+                        maxLength={1000}
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        placeholder="Explain the compensation addition or deduction for governance audit."
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+                      <button type="submit" style={primary} disabled={saving}>
+                        {saving ? 'Saving...' : 'Apply Adjustment & Notify Staff →'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 type OrganizationOption = { id: string; name: string; code: string };
