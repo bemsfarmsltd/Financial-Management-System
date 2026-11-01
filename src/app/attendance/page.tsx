@@ -804,74 +804,7 @@ export default function AttendanceDeskPage() {
           </div>
         </div>
 
-        {/* KPI Stats Strip */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(5, 1fr)',
-            gap: '14px',
-            marginBottom: '24px',
-          }}
-        >
-          <div style={{ padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '11px', fontWeight: 700 }}>
-              <Users size={14} color="#64748b" />
-              <span>TOTAL PERSONNEL</span>
-            </div>
-            <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', marginTop: '6px' }}>
-              {counts.total}
-            </div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>All Staff, COO & GMD</div>
-          </div>
 
-          <div style={{ padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#059669', fontSize: '11px', fontWeight: 700 }}>
-              <CheckCircle2 size={14} color="#059669" />
-              <span>ON-TIME PRESENT</span>
-            </div>
-            <div style={{ fontSize: '26px', fontWeight: 900, color: '#059669', marginTop: '6px' }}>
-              {counts.present}
-            </div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-              Checked in $\le$ 08:15 AM
-            </div>
-          </div>
-
-          <div style={{ padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ea580c', fontSize: '11px', fontWeight: 700 }}>
-              <AlertTriangle size={14} color="#ea580c" />
-              <span>LATE ARRIVALS</span>
-            </div>
-            <div style={{ fontSize: '26px', fontWeight: 900, color: '#ea580c', marginTop: '6px' }}>
-              {counts.late}
-            </div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-              Flagged for {policy.latenessDeductionPercent}% salary deduction
-            </div>
-          </div>
-
-          <div style={{ padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#2563eb', fontSize: '11px', fontWeight: 700 }}>
-              <Calendar size={14} color="#2563eb" />
-              <span>OFF-DUTY ROSTER</span>
-            </div>
-            <div style={{ fontSize: '26px', fontWeight: 900, color: '#2563eb', marginTop: '6px' }}>
-              {counts.offDay}
-            </div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Scheduled off-day in week</div>
-          </div>
-
-          <div style={{ padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626', fontSize: '11px', fontWeight: 700 }}>
-              <UserX size={14} color="#dc2626" />
-              <span>UNEXCUSED ABSENT</span>
-            </div>
-            <div style={{ fontSize: '26px', fontWeight: 900, color: '#dc2626', marginTop: '6px' }}>
-              {counts.absent}
-            </div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Pending punch or override</div>
-          </div>
-        </div>
 
         {/* Navigation Tabs */}
         <div
@@ -1164,7 +1097,7 @@ export default function AttendanceDeskPage() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
                 gap: '12px',
                 marginBottom: '16px',
               }}
@@ -1999,6 +1932,75 @@ export default function AttendanceDeskPage() {
         {/* Tab 1: Live Presence Board */}
         {activeTab === 'live' && (
           <div>
+            {/* Live Timesheet KPI Stats Strip */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+                gap: '12px',
+                marginBottom: '20px',
+              }}
+            >
+              <div style={{ padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '11px', fontWeight: 700 }}>
+                  <Users size={14} color="#64748b" />
+                  <span>TOTAL PERSONNEL</span>
+                </div>
+                <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', marginTop: '6px' }}>
+                  {counts.total}
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Active Staff & GMD</div>
+              </div>
+
+              <div style={{ padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#059669', fontSize: '11px', fontWeight: 700 }}>
+                  <CheckCircle2 size={14} color="#059669" />
+                  <span>ON-TIME PRESENT</span>
+                </div>
+                <div style={{ fontSize: '26px', fontWeight: 900, color: '#059669', marginTop: '6px' }}>
+                  {counts.present}
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                  Checked in ≤ 08:15 AM
+                </div>
+              </div>
+
+              <div style={{ padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ea580c', fontSize: '11px', fontWeight: 700 }}>
+                  <AlertTriangle size={14} color="#ea580c" />
+                  <span>LATE ARRIVALS</span>
+                </div>
+                <div style={{ fontSize: '26px', fontWeight: 900, color: '#ea580c', marginTop: '6px' }}>
+                  {counts.late}
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                  Flagged for {policy.latenessDeductionPercent}% salary deduction
+                </div>
+              </div>
+
+              <div style={{ padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#2563eb', fontSize: '11px', fontWeight: 700 }}>
+                  <Calendar size={14} color="#2563eb" />
+                  <span>OFF-DUTY ROSTER</span>
+                </div>
+                <div style={{ fontSize: '26px', fontWeight: 900, color: '#2563eb', marginTop: '6px' }}>
+                  {counts.offDay}
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Scheduled off-day in week</div>
+              </div>
+
+              <div style={{ padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626', fontSize: '11px', fontWeight: 700 }}>
+                  <UserX size={14} color="#dc2626" />
+                  <span>UNEXCUSED ABSENT</span>
+                </div>
+                <div style={{ fontSize: '26px', fontWeight: 900, color: '#dc2626', marginTop: '6px' }}>
+                  {counts.absent}
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Pending punch or override</div>
+              </div>
+            </div>
+
             {/* Filter & Search Bar */}
             <div
               style={{
