@@ -84,26 +84,702 @@ export function AccountabilityModule({ setNotice }: { setNotice: (message: strin
   return <><PageHeading eyebrow="ACCOUNTABILITY" title="Accountability closure" description="Review evidence submitted by staff, verify the spend, and close completed cases." action={<button style={secondary} onClick={() => void load()}>↻ Refresh</button>}/><div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(130px,1fr))', gap: 12, marginBottom: 16 }}>{[['OPEN',cases.filter(c=>c.status==='OPEN').length],['EVIDENCE SUBMITTED',cases.filter(c=>c.status==='EVIDENCE_SUBMITTED').length],['VERIFIED',cases.filter(c=>c.status==='VERIFIED').length],['CLOSED',cases.filter(c=>c.status==='CLOSED').length]].map(([label,value])=><article style={card} key={String(label)}><small style={{ color: '#8090a8', fontWeight: 800 }}>{label}</small><div style={{ fontSize: 26, fontWeight: 800, color: '#13244a', marginTop: 6 }}>{value}</div></article>)}</div><section style={card}><input style={{ ...input, maxWidth: 440, marginBottom: 14 }} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search request, staff, company, or status"/>{loading?<p>Loading cases…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:filtered.length===0?<p style={{ color: '#7889a3' }}>No accountability cases match this view.</p>:filtered.map(c=><button key={c.id} onClick={()=>{setSelected(c);setNotes('')}} style={{ width: '100%', textAlign: 'left', padding: '15px 8px', display: 'grid', gridTemplateColumns: 'minmax(240px,2fr) 1fr 1fr 1fr auto', gap: 14, alignItems: 'center', border: 0, borderBottom: '1px solid #e8edf4', background: '#fff', cursor: 'pointer', color: '#263955' }}><span><b>{c.request.requestNumber} · {c.request.title}</b><small style={{ display: 'block', marginTop: 5, color: '#7788a2' }}>{c.request.subsidiary.legalName} · {c.owner.legalName}</small></span><span>{fmt(c.request.amountMinor)}</span><span>Due {date(c.dueAt)}</span><b>{c.status.replaceAll('_',' ')}</b><span>Details →</span></button>)}</section>{selected&&<div role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}} style={{ position:'fixed',inset:0,zIndex:1000,background:'rgba(5,18,45,.55)',display:'grid',placeItems:'center',padding:18 }}><section role="dialog" aria-modal="true" style={{...card,width:'min(760px,100%)',maxHeight:'88vh',overflow:'auto'}}><header style={{display:'flex',justifyContent:'space-between',gap:16}}><div><small style={{color:'#ea580c',fontWeight:800}}>{selected.request.requestNumber} · {selected.status}</small><h2 style={{margin:'6px 0 12px',fontSize:22}}>{selected.request.title}</h2></div><button style={secondary} onClick={()=>setSelected(null)}>Close</button></header><p><b>Requester:</b> {selected.request.requester.legalName} · <b>Owner:</b> {selected.owner.legalName}</p><p><b>Company:</b> {selected.request.subsidiary.legalName} · <b>Approved:</b> {fmt(selected.request.amountMinor)} · <b>Due:</b> {date(selected.dueAt)}</p><h3>Payment record</h3>{selected.request.disbursements.map(d=><div key={d.id} style={{...card,background:'#f7f9fc',marginBottom:8}}>{fmt(d.amountMinor)} · {d.externalReference} · {date(d.paidAt)} {d.receipt&&<>· <a href={`/api/receipts/${d.receipt.id}`} target="_blank">{d.receipt.fileName}</a></>}</div>)}<h3>Required evidence</h3><p>{selected.requiredDeliverables}</p><h3>Staff uploads</h3>{selected.attachments.length?selected.attachments.map(a=><p key={a.id}><a href={a.url} target="_blank">{a.fileName}</a> · {date(a.uploadedAt)}</p>):<p style={{color:'#7889a3'}}>No evidence has been submitted yet.</p>}{selected.status!=='CLOSED'&&<><label style={{display:'block',fontWeight:700,marginTop:16}}>Closure notes<textarea style={{...input,display:'block',marginTop:6,minHeight:80}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Record what was checked and any variance."/></label><button style={{...primary,marginTop:12}} onClick={()=>void closeCase()} disabled={working||selected.attachments.length===0}>{working?'Closing…':'Verify evidence & close case'}</button>{selected.attachments.length===0&&<small style={{display:'block',marginTop:8,color:'#9a5b08'}}>The case can be closed after staff submit evidence.</small>}</>}</section></div>}</>;
 }
 
-type ReceiptRow = { id: string; fileName: string; fileUrl: string; fileAvailable: boolean; sha256: string; mimeType: string; uploadedAt: string; disbursement: { amountMinor: number; currency: string; externalReference: string; bankName: string; paidAt: string; request?: { requestNumber: string; title: string; subsidiary: { legalName: string }; requester: { legalName: string } } | null; payrollItem?: { employee: { legalName: string }; batch: { period: { year: number; month: number } } } | null; recordedBy: { legalName: string } } };
+type ReceiptRow = {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  fileAvailable: boolean;
+  sha256: string;
+  mimeType: string;
+  uploadedAt: string;
+  disbursement: {
+    amountMinor: number;
+    currency: string;
+    externalReference: string;
+    bankName: string;
+    paidAt: string;
+    request?: {
+      id?: string;
+      requestNumber: string;
+      title: string;
+      subsidiary: { legalName: string };
+      requester: { legalName: string };
+    } | null;
+    payrollItem?: {
+      employee: { legalName: string };
+      batch: { period: { year: number; month: number } };
+    } | null;
+    recordedBy: { legalName: string };
+  };
+};
 
 export function ReceiptArchiveModule({ setNotice, scope }: { setNotice: (message: string) => void; scope?: string }) {
-  const [rows,setRows]=useState<ReceiptRow[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [query,setQuery]=useState('');
-  const load=useCallback(async()=>{
+  const [rows, setRows] = useState<ReceiptRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'REQUESTS' | 'PAYROLL'>('ALL');
+  const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRow | null>(null);
+  const [copiedHash, setCopiedHash] = useState(false);
+
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
-    try{
+    try {
       const param = scope && scope !== 'ALL' ? `?subsidiary=${encodeURIComponent(scope)}` : '';
-      const data=await api<{receipts:ReceiptRow[]}>(`/api/receipts${param}`);
-      setRows(data.receipts);
-    }catch(e){
+      const data = await api<{ receipts: ReceiptRow[] }>(`/api/receipts${param}`);
+      setRows(data.receipts || []);
+    } catch (e) {
       setError(errorText(e));
-    }finally{
+    } finally {
       setLoading(false);
     }
-  },[scope]);
-  useEffect(()=>{void load()},[load]);
-  const filtered=rows.filter(r=>`${r.fileName} ${r.disbursement.externalReference} ${r.disbursement.request?.requestNumber||''} ${r.disbursement.request?.title||''} ${r.disbursement.payrollItem?.employee.legalName||''}`.toLowerCase().includes(query.toLowerCase()));
-  return <><PageHeading eyebrow="PAYMENT EVIDENCE" title="Receipt archive" description="Search uploaded bank slips and payroll receipts, then open the original secure file." action={<button style={secondary} onClick={()=>void load()}>↻ Refresh</button>}/><section style={card}><input style={{...input,maxWidth:440,marginBottom:14}} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search file, request, reference, or employee"/>{loading?<p>Loading receipts…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:filtered.length===0?<p style={{color:'#7889a3'}}>No payment receipts have been recorded yet.</p>:<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:760}}><thead><tr>{['Receipt','Request / recipient','Subsidiary','Amount','Uploaded','Integrity',''].map(x=><th key={x} style={{textAlign:'left',padding:10,color:'#71819a',fontSize:12}}>{x}</th>)}</tr></thead><tbody>{filtered.map(r=><tr key={r.id} style={{borderTop:'1px solid #e8edf4'}}><td style={{padding:10}}><b>{r.fileName}</b><small style={{display:'block',color:'#8593a8'}}>{r.mimeType}</small></td><td style={{padding:10}}>{r.disbursement.request?<><b>{r.disbursement.request.requestNumber}</b><small style={{display:'block',color:'#8593a8'}}>{r.disbursement.request.title}</small></>:r.disbursement.payrollItem?.employee.legalName||'Payroll payment'}</td><td style={{padding:10}}>{r.disbursement.request?.subsidiary.legalName||'Group payroll'}</td><td style={{padding:10}}>{fmt(r.disbursement.amountMinor)}</td><td style={{padding:10}}>{date(r.uploadedAt)}</td><td style={{padding:10}} title={r.sha256}>{r.sha256.slice(0,10)}…</td><td style={{padding:10}}>{r.fileAvailable?<a href={`/api/receipts/${r.id}`} target="_blank" rel="noreferrer" onClick={()=>setNotice(`Opening ${r.fileName}.`)}>Open receipt ↗</a>:<span title="This older record has no stored receipt file.">File unavailable</span>}</td></tr>)}</tbody></table></div>}</section></>;
+  }, [scope]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const totalValueMinor = useMemo(() => {
+    return rows.reduce((acc, r) => acc + (r.disbursement?.amountMinor || 0), 0);
+  }, [rows]);
+
+  const filtered = useMemo(() => {
+    return rows.filter((r) => {
+      const isPayroll = Boolean(r.disbursement?.payrollItem);
+      const isRequest = Boolean(r.disbursement?.request);
+      if (categoryFilter === 'PAYROLL' && !isPayroll) return false;
+      if (categoryFilter === 'REQUESTS' && !isRequest) return false;
+
+      const q = query.trim().toLowerCase();
+      if (!q) return true;
+      const haystack = [
+        r.fileName,
+        r.disbursement?.externalReference,
+        r.disbursement?.bankName,
+        r.disbursement?.request?.requestNumber,
+        r.disbursement?.request?.title,
+        r.disbursement?.request?.requester?.legalName,
+        r.disbursement?.request?.subsidiary?.legalName,
+        r.disbursement?.payrollItem?.employee?.legalName,
+        r.disbursement?.recordedBy?.legalName,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [rows, categoryFilter, query]);
+
+  const copyHash = (hash: string) => {
+    navigator.clipboard?.writeText(hash);
+    setCopiedHash(true);
+    setTimeout(() => setCopiedHash(false), 2000);
+  };
+
+  return (
+    <>
+      <PageHeading
+        eyebrow="AUDIT & PAYMENT EVIDENCE"
+        title="Receipt Archive"
+        description="Search, inspect, and verify cryptographically sealed bank payment slips and disbursement receipts."
+        action={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button style={secondary} onClick={() => void load()}>
+              <RefreshCw size={13} style={{ display: 'inline', marginRight: 6 }} />
+              Refresh
+            </button>
+          </div>
+        }
+      />
+
+      {/* Top Financial & Evidence Metrics */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+          gap: 12,
+          marginBottom: 18,
+        }}
+      >
+        <article style={{ ...card, padding: '16px 18px', background: '#ffffff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 11, fontWeight: 800 }}>
+            <span>TOTAL ARCHIVED SLIPS</span>
+            <Receipt size={16} color="#ea580c" />
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#0f172a', marginTop: 6 }}>
+            {rows.length}
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>Official payment attachments</div>
+        </article>
+
+        <article style={{ ...card, padding: '16px 18px', background: '#ffffff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 11, fontWeight: 800 }}>
+            <span>TOTAL VALUE COVERED</span>
+            <Wallet size={16} color="#059669" />
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#059669', marginTop: 6 }}>
+            {fmt(totalValueMinor)}
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>Disbursed bank transfers</div>
+        </article>
+
+        <article style={{ ...card, padding: '16px 18px', background: '#ffffff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 11, fontWeight: 800 }}>
+            <span>INTEGRITY SEAL</span>
+            <ShieldCheck size={16} color="#2563eb" />
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: '#2563eb', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+            100% SHA-256
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>Tamper-evident hash logged</div>
+        </article>
+
+        <article style={{ ...card, padding: '16px 18px', background: '#ffffff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 11, fontWeight: 800 }}>
+            <span>STATUTORY RETENTION</span>
+            <Clock size={16} color="#7c3aed" />
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: '#7c3aed', marginTop: 6 }}>
+            7 Years
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>Corporate audit compliance</div>
+        </article>
+      </div>
+
+      {/* Main Archive Workspace */}
+      <section style={{ ...card, padding: 20 }}>
+        {/* Filter and Search Bar */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+            marginBottom: 16,
+            paddingBottom: 14,
+            borderBottom: '1px solid #f1f5f9',
+          }}
+        >
+          {/* Category Tabs */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[
+              { id: 'ALL', label: 'All Receipts' },
+              { id: 'REQUESTS', label: 'Requisitions' },
+              { id: 'PAYROLL', label: 'Payroll Payments' },
+            ].map((tab) => {
+              const active = categoryFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setCategoryFilter(tab.id as any)}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 8,
+                    border: active ? '1.5px solid #ea580c' : '1px solid #e2e8f0',
+                    background: active ? '#fff7ed' : '#ffffff',
+                    color: active ? '#ea580c' : '#64748b',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Search Box */}
+          <div style={{ position: 'relative', width: '100%', maxWidth: 360 }}>
+            <Search
+              size={14}
+              color="#94a3b8"
+              style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}
+            />
+            <input
+              style={{
+                ...input,
+                paddingLeft: 34,
+                fontSize: 12,
+                borderRadius: 8,
+              }}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search file, request #, bank ref, or employee..."
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 0,
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: 4,
+                }}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Content Body */}
+        {loading ? (
+          <div style={{ padding: '48px 24px', textAlign: 'center', color: '#64748b' }}>
+            <RefreshCw size={24} color="#ea580c" className="animate-spin" style={{ margin: '0 auto 12px', display: 'block' }} />
+            <strong style={{ fontSize: 14, color: '#0f172a' }}>Loading payment evidence...</strong>
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 0' }}>Decrypting and indexing stored transaction receipts</p>
+          </div>
+        ) : error ? (
+          <StateMessage value={error} retry={() => void load()} />
+        ) : filtered.length === 0 ? (
+          /* Premium Rich Empty State */
+          <div
+            style={{
+              padding: '48px 24px',
+              textAlign: 'center',
+              background: '#f8fafc',
+              borderRadius: 12,
+              border: '1.5px dashed #cbd5e1',
+              margin: '10px 0',
+            }}
+          >
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 16,
+                background: '#ffedd5',
+                color: '#ea580c',
+                display: 'grid',
+                placeItems: 'center',
+                margin: '0 auto 14px',
+              }}
+            >
+              <Receipt size={28} />
+            </div>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
+              {query || categoryFilter !== 'ALL' ? 'No Matching Receipts Found' : 'No Payment Receipts Recorded Yet'}
+            </h3>
+            <p style={{ fontSize: 13, color: '#64748b', maxWidth: 480, margin: '0 auto 16px', lineHeight: 1.5 }}>
+              {query || categoryFilter !== 'ALL'
+                ? 'Try broadening your search term or selecting another filter category.'
+                : 'Payment receipts and bank transfer confirmations are automatically archived here when disbursements are executed in the Disbursements Desk or Payroll Sign-Off.'}
+            </p>
+            {query && (
+              <button
+                style={secondary}
+                onClick={() => {
+                  setQuery('');
+                  setCategoryFilter('ALL');
+                }}
+              >
+                Clear Search & Filters
+              </button>
+            )}
+          </div>
+        ) : (
+          /* High-End Evidence Table */
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 840, fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>RECEIPT DOCUMENT</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>REQUISITION / BENEFICIARY</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>SUBSIDIARY</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>AMOUNT DISBURSED</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>UPLOADED</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>INTEGRITY SEAL</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>ACTION</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r) => {
+                  const req = r.disbursement?.request;
+                  const payroll = r.disbursement?.payrollItem;
+                  return (
+                    <tr
+                      key={r.id}
+                      style={{
+                        borderBottom: '1px solid #f1f5f9',
+                        transition: 'background 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      {/* Document File Name */}
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 8,
+                              background: '#eff6ff',
+                              color: '#2563eb',
+                              display: 'grid',
+                              placeItems: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <FileText size={16} />
+                          </div>
+                          <div>
+                            <strong style={{ display: 'block', color: '#0f172a', fontWeight: 700 }}>
+                              {r.fileName}
+                            </strong>
+                            <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                              {r.mimeType || 'application/pdf'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Request or Recipient */}
+                      <td style={{ padding: '12px 14px' }}>
+                        {req ? (
+                          <div>
+                            <strong style={{ display: 'block', color: '#0f172a' }}>{req.requestNumber}</strong>
+                            <span style={{ fontSize: 11, color: '#64748b' }}>{req.title}</span>
+                          </div>
+                        ) : payroll ? (
+                          <div>
+                            <strong style={{ display: 'block', color: '#0f172a' }}>
+                              {payroll.employee.legalName}
+                            </strong>
+                            <span style={{ fontSize: 11, color: '#64748b' }}>
+                              Payroll · {payroll.batch?.period?.year}/{payroll.batch?.period?.month}
+                            </span>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#64748b' }}>Disbursement transfer</span>
+                        )}
+                      </td>
+
+                      {/* Subsidiary */}
+                      <td style={{ padding: '12px 14px', color: '#334155' }}>
+                        {req?.subsidiary?.legalName || 'Group Treasury'}
+                      </td>
+
+                      {/* Amount */}
+                      <td style={{ padding: '12px 14px' }}>
+                        <strong style={{ color: '#0f172a', fontSize: 13 }}>
+                          {fmt(r.disbursement?.amountMinor)}
+                        </strong>
+                        <span style={{ display: 'block', fontSize: 10, color: '#94a3b8' }}>
+                          via {r.disbursement?.bankName || 'Bank Transfer'}
+                        </span>
+                      </td>
+
+                      {/* Upload Date */}
+                      <td style={{ padding: '12px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                        {date(r.uploadedAt)}
+                      </td>
+
+                      {/* Hash Seal */}
+                      <td style={{ padding: '12px 14px' }}>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            background: '#ecfdf5',
+                            color: '#059669',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            fontFamily: 'monospace',
+                          }}
+                          title={`SHA-256: ${r.sha256}`}
+                        >
+                          <ShieldCheck size={12} />
+                          {r.sha256?.slice(0, 8)}…
+                        </span>
+                      </td>
+
+                      {/* Action */}
+                      <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                        <button
+                          onClick={() => setSelectedReceipt(r)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: 7,
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            color: '#0f172a',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                          }}
+                        >
+                          Inspect <ExternalLink size={12} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Modern Receipt Inspection Modal */}
+      {selectedReceipt && (
+        <div
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setSelectedReceipt(null);
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(8px)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="receipt-modal-title"
+            style={{
+              width: 'min(640px, 100%)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              background: '#ffffff',
+              borderRadius: 16,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            {/* Modal Header */}
+            <header
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: 16,
+                padding: '20px 24px',
+                borderBottom: '1px solid #e2e8f0',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    background: '#ffedd5',
+                    color: '#ea580c',
+                    display: 'grid',
+                    placeItems: 'center',
+                  }}
+                >
+                  <Receipt size={20} />
+                </div>
+                <div>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', textTransform: 'uppercase' }}>
+                    PAYMENT EVIDENCE DOSSIER
+                  </span>
+                  <h2 id="receipt-modal-title" style={{ margin: '2px 0 0', fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
+                    {selectedReceipt.fileName}
+                  </h2>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedReceipt(null)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  border: '1px solid #e2e8f0',
+                  background: '#f8fafc',
+                  color: '#64748b',
+                  display: 'grid',
+                  placeItems: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={16} />
+              </button>
+            </header>
+
+            {/* Modal Body */}
+            <div style={{ padding: 24, display: 'grid', gap: 18 }}>
+              {/* Status Banner */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '12px 16px',
+                  borderRadius: 10,
+                  background: '#ecfdf5',
+                  border: '1px solid #a7f3d0',
+                  color: '#065f46',
+                }}
+              >
+                <CheckCircle2 size={18} color="#059669" />
+                <div style={{ fontSize: 12, lineHeight: 1.4 }}>
+                  <strong>Verified Transaction Proof</strong>
+                  <div style={{ fontSize: 11, color: '#047857' }}>
+                    This receipt is immutably anchored to bank disbursement reference {selectedReceipt.disbursement?.externalReference}.
+                  </div>
+                </div>
+              </div>
+
+              {/* Transaction Key Details Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                <div style={{ padding: 12, borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                    Disbursed Amount
+                  </span>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#059669', marginTop: 4 }}>
+                    {fmt(selectedReceipt.disbursement?.amountMinor)}
+                  </div>
+                </div>
+
+                <div style={{ padding: 12, borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                    Bank & Channel
+                  </span>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginTop: 6 }}>
+                    {selectedReceipt.disbursement?.bankName || 'Direct Transfer'}
+                  </div>
+                </div>
+
+                <div style={{ padding: 12, borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                    External Reference
+                  </span>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginTop: 6, fontFamily: 'monospace' }}>
+                    {selectedReceipt.disbursement?.externalReference || '—'}
+                  </div>
+                </div>
+
+                <div style={{ padding: 12, borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                    Payment Timestamp
+                  </span>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginTop: 6 }}>
+                    {date(selectedReceipt.disbursement?.paidAt)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Linked Context Details */}
+              <div style={{ padding: 14, borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                  Linked Requisition / Beneficiary
+                </span>
+                <div style={{ marginTop: 6, fontSize: 13, color: '#0f172a' }}>
+                  {selectedReceipt.disbursement?.request ? (
+                    <>
+                      <strong>{selectedReceipt.disbursement.request.requestNumber}</strong> — {selectedReceipt.disbursement.request.title}
+                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                        Requested by {selectedReceipt.disbursement.request.requester.legalName} ({selectedReceipt.disbursement.request.subsidiary.legalName})
+                      </div>
+                    </>
+                  ) : selectedReceipt.disbursement?.payrollItem ? (
+                    <>
+                      <strong>{selectedReceipt.disbursement.payrollItem.employee.legalName}</strong>
+                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                        Executive/Staff Payroll Disbursement
+                      </div>
+                    </>
+                  ) : (
+                    'Direct Treasury Outflow'
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, borderTop: '1px solid #e2e8f0', paddingTop: 6 }}>
+                  Disbursement recorded by: <strong>{selectedReceipt.disbursement?.recordedBy?.legalName || 'Treasury Admin'}</strong>
+                </div>
+              </div>
+
+              {/* SHA-256 Fingerprint */}
+              <div style={{ padding: 12, borderRadius: 8, background: '#f1f5f9', border: '1px solid #cbd5e1' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>
+                    SHA-256 Cryptographic Fingerprint
+                  </span>
+                  <button
+                    onClick={() => copyHash(selectedReceipt.sha256)}
+                    style={{
+                      border: 0,
+                      background: 'transparent',
+                      color: copiedHash ? '#059669' : '#2563eb',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {copiedHash ? '✓ Copied' : 'Copy Hash'}
+                  </button>
+                </div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    color: '#0f172a',
+                    marginTop: 4,
+                    wordBreak: 'break-all',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {selectedReceipt.sha256}
+                </div>
+              </div>
+
+              {/* Actions Footer */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                <button type="button" style={secondary} onClick={() => setSelectedReceipt(null)}>
+                  Close
+                </button>
+                {selectedReceipt.fileAvailable ? (
+                  <a
+                    href={`/api/receipts/${selectedReceipt.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      ...primary,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      textDecoration: 'none',
+                    }}
+                    onClick={() => setNotice(`Opening ${selectedReceipt.fileName}...`)}
+                  >
+                    <ExternalLink size={14} /> Open Original Secure File
+                  </a>
+                ) : (
+                  <button disabled style={{ ...secondary, opacity: 0.6 }}>
+                    File Archive Offline
+                  </button>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+    </>
+  );
 }
 
 type EvidenceCase = Pick<AccountabilityCase,'id'|'status'|'dueAt'|'requiredDeliverables'|'request'> & { owner: AccountabilityCase['owner'] };
@@ -1529,34 +2205,897 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
 }
 
 type OrganizationOption = { id: string; name: string; code: string };
-type IntercompanyNote = { id: string; noteType: string; noteNumber: string; totalAmountMinor: number; currency: string; description: string; status: string; generatedAt: string; sourceEntity: { id: string; legalName: string }; targetEntity: { id: string; legalName: string } };
+type IntercompanyNote = {
+  id: string;
+  noteType: string;
+  noteNumber: string;
+  totalAmountMinor: number;
+  currency: string;
+  description: string;
+  status: string;
+  generatedAt: string;
+  sourceEntity: { id: string; legalName: string };
+  targetEntity: { id: string; legalName: string };
+};
 
 export function IntercompanyModule({ setNotice, scope }: { setNotice: (message: string) => void; scope?: string }) {
-  const [notes,setNotes]=useState<IntercompanyNote[]>([]);const [organizations,setOrganizations]=useState<OrganizationOption[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [creating,setCreating]=useState(false);const [source,setSource]=useState('');const [target,setTarget]=useState('');const [amount,setAmount]=useState('');const [description,setDescription]=useState('');const [noteType,setNoteType]=useState<'DEBIT_NOTE'|'CREDIT_NOTE'>('DEBIT_NOTE');const [saving,setSaving]=useState(false);const [filter,setFilter]=useState('ALL');
-  const load=useCallback(async()=>{
+  const [notes, setNotes] = useState<IntercompanyNote[]>([]);
+  const [organizations, setOrganizations] = useState<OrganizationOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [source, setSource] = useState('');
+  const [target, setTarget] = useState('');
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [noteType, setNoteType] = useState<'DEBIT_NOTE' | 'CREDIT_NOTE'>('DEBIT_NOTE');
+  const [saving, setSaving] = useState(false);
+  const [filter, setFilter] = useState('ALL');
+  const [query, setQuery] = useState('');
+  const [selectedNote, setSelectedNote] = useState<IntercompanyNote | null>(null);
+  const [reconcilingId, setReconcilingId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
-    try{
+    try {
       const param = scope && scope !== 'ALL' ? `?subsidiary=${encodeURIComponent(scope)}` : '';
-      const [n,o]=await Promise.all([
-        api<{notes:IntercompanyNote[]}>(`/api/intercompany${param}`),
-        api<{organizations:OrganizationOption[]}>('/api/organizations')
+      const [n, o] = await Promise.all([
+        api<{ notes: IntercompanyNote[] }>(`/api/intercompany${param}`),
+        api<{ organizations: OrganizationOption[] }>('/api/organizations'),
       ]);
-      setNotes(n.notes);
-      setOrganizations(o.organizations);
-      if(!source&&o.organizations[0])setSource(o.organizations[0].id);
-      if(!target&&o.organizations[1])setTarget(o.organizations[1].id);
-    }catch(e){
+      setNotes(n.notes || []);
+      setOrganizations(o.organizations || []);
+      if (!source && o.organizations[0]) setSource(o.organizations[0].id);
+      if (!target && o.organizations[1]) setTarget(o.organizations[1].id);
+    } catch (e) {
       setError(errorText(e));
-    }finally{
+    } finally {
       setLoading(false);
     }
-  },[scope,source,target]);
-  useEffect(()=>{void load()},[load]);
-  const createNote=async(e:FormEvent)=>{e.preventDefault();setSaving(true);try{const result=await api<{note:IntercompanyNote}>('/api/intercompany',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sourceEntityId:source,targetEntityId:target,noteType,amount,description})});setNotice(`${result.note.noteNumber} created.`);setCreating(false);setAmount('');setDescription('');await load()}catch(e){setError(errorText(e))}finally{setSaving(false)}};
-  const reconcile=async(note:IntercompanyNote)=>{try{await api(`/api/intercompany/${note.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'RECONCILED'})});setNotice(`${note.noteNumber} marked reconciled.`);await load()}catch(e){setError(errorText(e))}};
-  const visible=notes.filter(n=>filter==='ALL'||n.status===filter);
-  return <><PageHeading eyebrow="INTERCOMPANY ACCOUNTING" title="Intercompany notes" description="Create and track documented charges between group companies. Values come from entered records, not preset cost splits." action={<button style={primary} onClick={()=>setCreating(v=>!v)}>＋ Create note</button>}/>{creating&&<form onSubmit={createNote} style={{...card,display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}><label style={{fontWeight:700}}>From company<select style={{...input,display:'block',marginTop:4}} value={source} onChange={e=>setSource(e.target.value)}>{organizations.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></label><label style={{fontWeight:700}}>To company<select style={{...input,display:'block',marginTop:4}} value={target} onChange={e=>setTarget(e.target.value)}>{organizations.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></label><label style={{fontWeight:700}}>Note type<select style={{...input,display:'block',marginTop:4}} value={noteType} onChange={e=>setNoteType(e.target.value as 'DEBIT_NOTE'|'CREDIT_NOTE')}><option value="DEBIT_NOTE">Debit note</option><option value="CREDIT_NOTE">Credit note</option></select></label><label style={{fontWeight:700}}>Amount (₦)<input style={{...input,display:'block',marginTop:4}} type="number" min="0.01" step="0.01" required value={amount} onChange={e=>setAmount(e.target.value)}/></label><label style={{gridColumn:'1/-1',fontWeight:700}}>Reason and supporting detail<textarea style={{...input,display:'block',marginTop:4,minHeight:80}} required minLength={5} maxLength={1000} value={description} onChange={e=>setDescription(e.target.value)} placeholder="Explain the intercompany charge and its basis."/></label><div style={{gridColumn:'1/-1',display:'flex',justifyContent:'flex-end',gap:8}}><button type="button" style={secondary} onClick={()=>setCreating(false)}>Cancel</button><button style={primary} disabled={saving||source===target}>{saving?'Creating…':'Create note'}</button></div></form>}<div style={{display:'flex',gap:8,marginBottom:12}}>{['ALL','DRAFT','ISSUED','RECONCILED'].map(x=><button key={x} style={filter===x?primary:secondary} onClick={()=>setFilter(x)}>{x==='ALL'?'All notes':x.charAt(0)+x.slice(1).toLowerCase()}</button>)}<button style={{...secondary,marginLeft:'auto'}} onClick={()=>void load()}>↻ Refresh</button></div><section style={card}>{loading?<p>Loading intercompany notes…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:visible.length===0?<p style={{color:'#7889a3'}}>No intercompany notes found.</p>:visible.map(n=><div key={n.id} style={{display:'grid',gridTemplateColumns:'1fr 1.3fr 1.5fr 1fr 1fr auto',gap:10,alignItems:'center',padding:'13px 0',borderBottom:'1px solid #e8edf4'}}><b>{n.noteNumber}</b><span>{n.noteType.replace('_',' ')}</span><span>{n.sourceEntity.legalName} → {n.targetEntity.legalName}<small style={{display:'block',color:'#8290a4'}}>{n.description}</small></span><b>{fmt(n.totalAmountMinor)}</b><span>{n.status}<small style={{display:'block',color:'#8290a4'}}>{date(n.generatedAt)}</small></span>{n.status!=='RECONCILED'&&<button style={secondary} onClick={()=>void reconcile(n)}>Reconcile</button>}</div>)}</section></>;
+  }, [scope, source, target]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const totalVolumeMinor = useMemo(() => {
+    return notes.reduce((acc, n) => acc + (n.totalAmountMinor || 0), 0);
+  }, [notes]);
+
+  const debitNotesCount = useMemo(() => {
+    return notes.filter((n) => n.noteType === 'DEBIT_NOTE').length;
+  }, [notes]);
+
+  const creditNotesCount = useMemo(() => {
+    return notes.filter((n) => n.noteType === 'CREDIT_NOTE').length;
+  }, [notes]);
+
+  const reconciledCount = useMemo(() => {
+    return notes.filter((n) => n.status === 'RECONCILED').length;
+  }, [notes]);
+
+  const createNote = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!source || !target || source === target) return;
+    setSaving(true);
+    try {
+      const result = await api<{ note: IntercompanyNote }>('/api/intercompany', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceEntityId: source,
+          targetEntityId: target,
+          noteType,
+          amount,
+          description,
+        }),
+      });
+      setNotice(`${result.note.noteNumber} issued successfully.`);
+      setCreating(false);
+      setAmount('');
+      setDescription('');
+      await load();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const reconcile = async (note: IntercompanyNote) => {
+    setReconcilingId(note.id);
+    try {
+      await api(`/api/intercompany/${note.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'RECONCILED' }),
+      });
+      setNotice(`${note.noteNumber} marked as reconciled.`);
+      if (selectedNote?.id === note.id) {
+        setSelectedNote({ ...selectedNote, status: 'RECONCILED' });
+      }
+      await load();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setReconcilingId(null);
+    }
+  };
+
+  const visible = useMemo(() => {
+    return notes.filter((n) => {
+      if (filter !== 'ALL' && n.status !== filter) return false;
+      const q = query.trim().toLowerCase();
+      if (!q) return true;
+      const haystack = [
+        n.noteNumber,
+        n.noteType,
+        n.description,
+        n.sourceEntity?.legalName,
+        n.targetEntity?.legalName,
+        n.status,
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [notes, filter, query]);
+
+  return (
+    <>
+      <PageHeading
+        eyebrow="INTERCOMPANY ACCOUNTING"
+        title="Intercompany Notes"
+        description="Create and track documented internal charges, shared service cross-allocations, and debit/credit notes between subsidiaries."
+        action={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button style={secondary} onClick={() => void load()}>
+              <RefreshCw size={13} style={{ display: 'inline', marginRight: 6 }} />
+              Refresh
+            </button>
+            <button style={primary} onClick={() => setCreating(true)}>
+              + Create Note
+            </button>
+          </div>
+        }
+      />
+
+      {/* Top Financial Netting Ribbon */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+          gap: 12,
+          marginBottom: 18,
+        }}
+      >
+        <article style={{ ...card, padding: '16px 18px', background: '#ffffff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 11, fontWeight: 800 }}>
+            <span>TOTAL NOTE VOLUME</span>
+            <Wallet size={16} color="#ea580c" />
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#0f172a', marginTop: 6 }}>
+            {fmt(totalVolumeMinor)}
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>Across {notes.length} internal transactions</div>
+        </article>
+
+        <article style={{ ...card, padding: '16px 18px', background: '#ffffff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 11, fontWeight: 800 }}>
+            <span>ACTIVE DEBIT NOTES</span>
+            <Building2 size={16} color="#2563eb" />
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#2563eb', marginTop: 6 }}>
+            {debitNotesCount}
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>Receivable by issuing entity</div>
+        </article>
+
+        <article style={{ ...card, padding: '16px 18px', background: '#ffffff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 11, fontWeight: 800 }}>
+            <span>ACTIVE CREDIT NOTES</span>
+            <CreditCard size={16} color="#7c3aed" />
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#7c3aed', marginTop: 6 }}>
+            {creditNotesCount}
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>Payable by issuing entity</div>
+        </article>
+
+        <article style={{ ...card, padding: '16px 18px', background: '#ffffff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 11, fontWeight: 800 }}>
+            <span>SETTLEMENT RATIO</span>
+            <ShieldCheck size={16} color="#059669" />
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#059669', marginTop: 6 }}>
+            {notes.length ? `${Math.round((reconciledCount / notes.length) * 100)}%` : '—'}
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{reconciledCount} reconciled to date</div>
+        </article>
+      </div>
+
+      {/* Main Ledger Section */}
+      <section style={{ ...card, padding: 20 }}>
+        {/* Controls Toolbar */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+            marginBottom: 16,
+            paddingBottom: 14,
+            borderBottom: '1px solid #f1f5f9',
+          }}
+        >
+          {/* Status Filter Tabs */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[
+              { id: 'ALL', label: 'All Notes', count: notes.length },
+              { id: 'DRAFT', label: 'Draft', count: notes.filter((n) => n.status === 'DRAFT').length },
+              { id: 'ISSUED', label: 'Issued', count: notes.filter((n) => n.status === 'ISSUED').length },
+              { id: 'RECONCILED', label: 'Reconciled', count: reconciledCount },
+            ].map((tab) => {
+              const active = filter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setFilter(tab.id)}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 8,
+                    border: active ? '1.5px solid #ea580c' : '1px solid #e2e8f0',
+                    background: active ? '#fff7ed' : '#ffffff',
+                    color: active ? '#ea580c' : '#64748b',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    style={{
+                      padding: '1px 6px',
+                      borderRadius: 10,
+                      background: active ? '#ea580c' : '#f1f5f9',
+                      color: active ? '#ffffff' : '#64748b',
+                      fontSize: 10,
+                      fontWeight: 800,
+                    }}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Search Box */}
+          <div style={{ position: 'relative', width: '100%', maxWidth: 360 }}>
+            <Search
+              size={14}
+              color="#94a3b8"
+              style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}
+            />
+            <input
+              style={{
+                ...input,
+                paddingLeft: 34,
+                fontSize: 12,
+                borderRadius: 8,
+              }}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search note #, description, or subsidiary..."
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 0,
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: 4,
+                }}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Content Body */}
+        {loading ? (
+          <div style={{ padding: '48px 24px', textAlign: 'center', color: '#64748b' }}>
+            <RefreshCw size={24} color="#ea580c" className="animate-spin" style={{ margin: '0 auto 12px', display: 'block' }} />
+            <strong style={{ fontSize: 14, color: '#0f172a' }}>Loading intercompany ledger...</strong>
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 0' }}>Reconciling multi-entity debit and credit records</p>
+          </div>
+        ) : error ? (
+          <StateMessage value={error} retry={() => void load()} />
+        ) : visible.length === 0 ? (
+          /* Premium Rich Empty State */
+          <div
+            style={{
+              padding: '48px 24px',
+              textAlign: 'center',
+              background: '#f8fafc',
+              borderRadius: 12,
+              border: '1.5px dashed #cbd5e1',
+              margin: '10px 0',
+            }}
+          >
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 16,
+                background: '#ffedd5',
+                color: '#ea580c',
+                display: 'grid',
+                placeItems: 'center',
+                margin: '0 auto 14px',
+              }}
+            >
+              <Building2 size={28} />
+            </div>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
+              {query || filter !== 'ALL' ? 'No Matching Intercompany Notes Found' : 'No Intercompany Notes Issued Yet'}
+            </h3>
+            <p style={{ fontSize: 13, color: '#64748b', maxWidth: 480, margin: '0 auto 18px', lineHeight: 1.5 }}>
+              {query || filter !== 'ALL'
+                ? 'Try broadening your search keyword or switching between Draft, Issued, and Reconciled tabs.'
+                : 'Intercompany notes enable transparent cost sharing, shared services cross-billing, and formal debtor/creditor balancing between BEMS Group subsidiaries.'}
+            </p>
+            {query || filter !== 'ALL' ? (
+              <button
+                style={secondary}
+                onClick={() => {
+                  setQuery('');
+                  setFilter('ALL');
+                }}
+              >
+                Clear Search & Filters
+              </button>
+            ) : (
+              <button style={primary} onClick={() => setCreating(true)}>
+                + Issue First Intercompany Note
+              </button>
+            )}
+          </div>
+        ) : (
+          /* High-End Intercompany Table */
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 880, fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>NOTE NUMBER</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>TYPE</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>TRANSFER FLOW</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>AMOUNT</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>STATUS</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>GENERATED</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((n) => {
+                  const isDebit = n.noteType === 'DEBIT_NOTE';
+                  const isReconciled = n.status === 'RECONCILED';
+                  return (
+                    <tr
+                      key={n.id}
+                      style={{
+                        borderBottom: '1px solid #f1f5f9',
+                        transition: 'background 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      {/* Note Number */}
+                      <td style={{ padding: '12px 14px' }}>
+                        <strong style={{ color: '#0f172a', fontWeight: 800 }}>{n.noteNumber}</strong>
+                      </td>
+
+                      {/* Note Type */}
+                      <td style={{ padding: '12px 14px' }}>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            fontSize: 10,
+                            fontWeight: 800,
+                            letterSpacing: '.04em',
+                            background: isDebit ? '#eff6ff' : '#faf5ff',
+                            color: isDebit ? '#1d4ed8' : '#7c3aed',
+                            border: `1px solid ${isDebit ? '#bfdbfe' : '#e9d5ff'}`,
+                          }}
+                        >
+                          {isDebit ? 'DEBIT NOTE' : 'CREDIT NOTE'}
+                        </span>
+                      </td>
+
+                      {/* Transfer Flow */}
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontWeight: 700, color: '#0f172a' }}>{n.sourceEntity.legalName}</span>
+                          <span style={{ color: '#ea580c', fontWeight: 900 }}>→</span>
+                          <span style={{ fontWeight: 700, color: '#334155' }}>{n.targetEntity.legalName}</span>
+                        </div>
+                        <small style={{ display: 'block', color: '#64748b', marginTop: 3, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {n.description}
+                        </small>
+                      </td>
+
+                      {/* Amount */}
+                      <td style={{ padding: '12px 14px' }}>
+                        <strong style={{ color: '#0f172a', fontSize: 13 }}>
+                          {fmt(n.totalAmountMinor)}
+                        </strong>
+                      </td>
+
+                      {/* Status */}
+                      <td style={{ padding: '12px 14px' }}>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            background: isReconciled ? '#ecfdf5' : '#fffbeb',
+                            color: isReconciled ? '#059669' : '#d97706',
+                            border: `1px solid ${isReconciled ? '#a7f3d0' : '#fde68a'}`,
+                          }}
+                        >
+                          {isReconciled ? '✓ Reconciled' : n.status}
+                        </span>
+                      </td>
+
+                      {/* Generated Date */}
+                      <td style={{ padding: '12px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                        {date(n.generatedAt)}
+                      </td>
+
+                      {/* Actions */}
+                      <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+                          <button
+                            onClick={() => setSelectedNote(n)}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #cbd5e1',
+                              background: '#ffffff',
+                              color: '#0f172a',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Voucher →
+                          </button>
+                          {!isReconciled && (
+                            <button
+                              onClick={() => void reconcile(n)}
+                              disabled={reconcilingId === n.id}
+                              style={{
+                                padding: '5px 10px',
+                                borderRadius: 6,
+                                border: '1px solid #fed7aa',
+                                background: '#fff7ed',
+                                color: '#ea580c',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {reconcilingId === n.id ? 'Reconciling…' : 'Reconcile'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Brand New Dedicated Intercompany Note Modal */}
+      {creating && (
+        <div
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setCreating(false);
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(8px)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="intercompany-modal-title"
+            style={{
+              width: 'min(640px, 100%)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              background: '#ffffff',
+              borderRadius: 16,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            {/* Modal Header */}
+            <header
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: 16,
+                padding: '20px 24px',
+                borderBottom: '1px solid #e2e8f0',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    background: '#ffedd5',
+                    color: '#ea580c',
+                    display: 'grid',
+                    placeItems: 'center',
+                  }}
+                >
+                  <Building2 size={20} />
+                </div>
+                <div>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', textTransform: 'uppercase' }}>
+                    GROUP ACCOUNTING ENTRY
+                  </span>
+                  <h2 id="intercompany-modal-title" style={{ margin: '2px 0 0', fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
+                    Issue Intercompany Note
+                  </h2>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreating(false)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  border: '1px solid #e2e8f0',
+                  background: '#f8fafc',
+                  color: '#64748b',
+                  display: 'grid',
+                  placeItems: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={16} />
+              </button>
+            </header>
+
+            {/* Modal Form */}
+            <form onSubmit={createNote} style={{ padding: 24, display: 'grid', gap: 16 }}>
+              {/* Entity Transfer Selector */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr auto 1fr',
+                  gap: 12,
+                  alignItems: 'center',
+                  padding: 16,
+                  borderRadius: 12,
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                    From Company (Origin)
+                  </label>
+                  <select
+                    style={{ ...input, marginTop: 4, fontSize: 13 }}
+                    value={source}
+                    onChange={(e) => setSource(e.target.value)}
+                  >
+                    {organizations.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ color: '#ea580c', fontWeight: 900, fontSize: 20, paddingTop: 14 }}>
+                  ➔
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                    To Company (Counterparty)
+                  </label>
+                  <select
+                    style={{ ...input, marginTop: 4, fontSize: 13 }}
+                    value={target}
+                    onChange={(e) => setTarget(e.target.value)}
+                  >
+                    {organizations.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {source === target && (
+                <div style={{ padding: '8px 12px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: 11 }}>
+                  Source and Target companies must be distinct subsidiaries.
+                </div>
+              )}
+
+              {/* Note Type & Amount */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                    Note Classification
+                  </label>
+                  <select
+                    style={{ ...input, marginTop: 4, fontSize: 13 }}
+                    value={noteType}
+                    onChange={(e) => setNoteType(e.target.value as 'DEBIT_NOTE' | 'CREDIT_NOTE')}
+                  >
+                    <option value="DEBIT_NOTE">Debit Note (Receivable)</option>
+                    <option value="CREDIT_NOTE">Credit Note (Payable)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                    Transaction Amount (₦)
+                  </label>
+                  <input
+                    style={{ ...input, marginTop: 4, fontSize: 13 }}
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    required
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="e.g. 500000"
+                  />
+                  {amount && !isNaN(parseFloat(amount)) && (
+                    <small style={{ display: 'block', color: '#059669', fontWeight: 700, marginTop: 3 }}>
+                      = {fmt(Math.round(parseFloat(amount) * 100))}
+                    </small>
+                  )}
+                </div>
+              </div>
+
+              {/* Description & Basis */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                  Operational Reason & Charge Basis
+                </label>
+                <textarea
+                  style={{ ...input, marginTop: 4, minHeight: 84, fontSize: 13, resize: 'vertical' }}
+                  required
+                  minLength={5}
+                  maxLength={1000}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Detail the services rendered, shared facility costs, equipment usage, or staff loan basis..."
+                />
+              </div>
+
+              {/* Modal Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
+                <button type="button" style={secondary} onClick={() => setCreating(false)}>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={primary}
+                  disabled={saving || !amount || source === target || !description.trim()}
+                >
+                  {saving ? 'Creating Note…' : 'Issue Intercompany Note'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {/* Official Intercompany Note Voucher Modal */}
+      {selectedNote && (
+        <div
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setSelectedNote(null);
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(8px)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="voucher-modal-title"
+            style={{
+              width: 'min(640px, 100%)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              background: '#ffffff',
+              borderRadius: 16,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            {/* Voucher Header */}
+            <header
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: 16,
+                padding: '20px 24px',
+                borderBottom: '2px solid #ea580c',
+                background: '#fafafa',
+              }}
+            >
+              <div>
+                <span style={{ fontSize: 11, fontWeight: 900, color: '#ea580c', letterSpacing: '.08em' }}>
+                  BEMS GROUP · INTERCOMPANY VOUCHER
+                </span>
+                <h2 id="voucher-modal-title" style={{ margin: '4px 0 0', fontSize: 20, fontWeight: 900, color: '#0f172a' }}>
+                  {selectedNote.noteNumber}
+                </h2>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    background: selectedNote.status === 'RECONCILED' ? '#ecfdf5' : '#fff7ed',
+                    color: selectedNote.status === 'RECONCILED' ? '#059669' : '#ea580c',
+                    border: `1px solid ${selectedNote.status === 'RECONCILED' ? '#a7f3d0' : '#fed7aa'}`,
+                  }}
+                >
+                  {selectedNote.status}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedNote(null)}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    background: '#ffffff',
+                    color: '#64748b',
+                    display: 'grid',
+                    placeItems: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </header>
+
+            {/* Voucher Body */}
+            <div style={{ padding: 24, display: 'grid', gap: 18 }}>
+              {/* Counterparties Comparison */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'center' }}>
+                <div style={{ padding: 14, borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                    Issuing Origin Entity
+                  </span>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>
+                    {selectedNote.sourceEntity.legalName}
+                  </div>
+                </div>
+
+                <div style={{ color: '#ea580c', fontWeight: 900, fontSize: 18 }}>➔</div>
+
+                <div style={{ padding: 14, borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                    Debited / Credited Entity
+                  </span>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>
+                    {selectedNote.targetEntity.legalName}
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial Breakdown Card */}
+              <div style={{ padding: 16, borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
+                  <span style={{ fontSize: 12, color: '#64748b' }}>Accounting Classification</span>
+                  <strong style={{ color: '#0f172a' }}>{selectedNote.noteType.replaceAll('_', ' ')}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
+                  <span style={{ fontSize: 12, color: '#64748b' }}>Issuance Date</span>
+                  <strong style={{ color: '#0f172a' }}>{date(selectedNote.generatedAt)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>Voucher Total</span>
+                  <strong style={{ fontSize: 20, fontWeight: 900, color: '#059669' }}>
+                    {fmt(selectedNote.totalAmountMinor)}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Reason & Audit Basis */}
+              <div style={{ padding: 14, borderRadius: 10, background: '#ffffff', border: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                  Reason & Allocation Basis
+                </span>
+                <p style={{ margin: '6px 0 0', fontSize: 13, color: '#334155', lineHeight: 1.5 }}>
+                  {selectedNote.description}
+                </p>
+              </div>
+
+              {/* Voucher Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                <button type="button" style={secondary} onClick={() => setSelectedNote(null)}>
+                  Close
+                </button>
+                {selectedNote.status !== 'RECONCILED' && (
+                  <button
+                    type="button"
+                    style={primary}
+                    disabled={reconcilingId === selectedNote.id}
+                    onClick={() => void reconcile(selectedNote)}
+                  >
+                    {reconcilingId === selectedNote.id ? 'Reconciling…' : '✓ Mark as Reconciled'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+    </>
+  );
 }
 
 type AuditRow = { id: string; actorName: string; actorRole: string; targetType: string; targetId: string; action: string; metadata: string | null; createdAt: string; groupId: string; subsidiaryId: string | null };

@@ -2320,168 +2320,239 @@ export default function AttendanceDeskPage() {
 
         {/* Tab 3: Shift Hours & Lateness Deductions */}
         {activeTab === 'policy' && (
-          <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '28px', maxWidth: '720px' }}>
-            <h3 style={{ fontSize: '17px', fontWeight: 800, margin: '0 0 4px' }}>
-              Shift Resumption, Grace Period & Deduction Policies
-            </h3>
-            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 24px' }}>
-              Adjust general resumption parameters and lateness deduction penalties that directly feed into the monthly payroll module.
-            </p>
+          <div style={{ display: 'grid', gap: '20px', width: '100%' }}>
+            {/* Header with Title and Quick Save Button */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-end',
+                flexWrap: 'wrap',
+                gap: '14px',
+                paddingBottom: '4px',
+              }}
+            >
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 900, color: '#ea580c', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  GOVERNANCE & PAYROLL INTEGRATION
+                </span>
+                <h3 style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', margin: '4px 0 2px', letterSpacing: '-0.02em' }}>
+                  Shift Resumption, Grace Period & Deduction Policies
+                </h3>
+                <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+                  Configure office geofencing coordinates, arrival lock times, and pro-rated lateness penalties feeding the monthly payroll.
+                </p>
+              </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* 1. Official Company Location Calibration Section */}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={handleSavePolicy}
+                  disabled={isSaving}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                    color: '#ffffff',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    border: '1px solid #ea580c',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+                  }}
+                >
+                  <Save size={14} />
+                  <span>{isSaving ? 'Saving Policy...' : 'Save All Policies'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2-Column Responsive Command Grid */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))',
+                gap: '20px',
+              }}
+            >
+              {/* 1. Official Company Location & Geofence Station */}
               <div
                 style={{
-                  padding: '20px',
-                  borderRadius: '12px',
-                  background: '#f8fafc',
-                  border: '1.5px solid #cbd5e1',
+                  padding: '22px',
+                  borderRadius: '14px',
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 10,
+                          background: '#ffedd5',
+                          color: '#ea580c',
+                          display: 'grid',
+                          placeItems: 'center',
+                        }}
+                      >
+                        <MapPin size={20} />
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                          Official Company Geofence Station
+                        </h4>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                          Primary coordinates & perimeter radius for device validation
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCaptureGps}
+                      disabled={isCapturingGps}
                       style={{
-                        width: 34,
-                        height: 34,
-                        borderRadius: 8,
-                        background: '#ea580c',
+                        padding: '7px 12px',
+                        borderRadius: '8px',
+                        background: '#0f172a',
                         color: '#ffffff',
-                        display: 'grid',
-                        placeItems: 'center',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
                       }}
                     >
-                      <MapPin size={18} />
+                      {isCapturingGps ? <RefreshCw size={13} className="animate-spin" /> : <MapPin size={13} color="#ea580c" />}
+                      <span>{isCapturingGps ? 'Calibrating...' : '📍 Recalibrate GPS'}</span>
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
+                        OFFICE STATION NAME
+                      </label>
+                      <input
+                        type="text"
+                        value={station.name}
+                        onChange={e => setStation(prev => ({ ...prev, name: e.target.value }))}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          background: '#ffffff',
+                        }}
+                      />
                     </div>
                     <div>
-                      <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
-                        Official Company Attendance Location
-                      </h4>
-                      <span style={{ fontSize: '11px', color: '#64748b' }}>
-                        Primary office station coordinates & geofence perimeter for all employee check-ins
-                      </span>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
+                        RADIUS (METERS)
+                      </label>
+                      <input
+                        type="number"
+                        min="20"
+                        max="1000"
+                        step="10"
+                        value={station.radiusMeters}
+                        onChange={e => setStation(prev => ({ ...prev, radiusMeters: Number(e.target.value) }))}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          background: '#ffffff',
+                        }}
+                      />
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleCaptureGps}
-                    disabled={isCapturingGps}
-                    style={{
-                      padding: '8px 14px',
-                      borderRadius: '8px',
-                      background: '#0f172a',
-                      color: '#ffffff',
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 2px 6px rgba(15, 23, 42, 0.2)',
-                    }}
-                  >
-                    {isCapturingGps ? <RefreshCw size={13} className="animate-spin" /> : <MapPin size={13} color="#ea580c" />}
-                    <span>{isCapturingGps ? 'Acquiring GPS...' : '📍 Capture Current Office GPS'}</span>
-                  </button>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
-                      OFFICE LOCATION NAME
-                    </label>
-                    <input
-                      type="text"
-                      value={station.name}
-                      onChange={e => setStation(prev => ({ ...prev, name: e.target.value }))}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: '8px',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '13px',
-                        fontWeight: 700,
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
-                      GEOFENCE RADIUS (METERS)
-                    </label>
-                    <input
-                      type="number"
-                      min="20"
-                      max="1000"
-                      step="10"
-                      value={station.radiusMeters}
-                      onChange={e => setStation(prev => ({ ...prev, radiusMeters: Number(e.target.value) }))}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: '8px',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '13px',
-                        fontWeight: 700,
-                      }}
-                    />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
+                        LATITUDE (GPS)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.000001"
+                        value={station.latitude}
+                        onChange={e => setStation(prev => ({ ...prev, latitude: parseFloat(e.target.value) || 0 }))}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          fontFamily: 'monospace',
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          background: '#ffffff',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
+                        LONGITUDE (GPS)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.000001"
+                        value={station.longitude}
+                        onChange={e => setStation(prev => ({ ...prev, longitude: parseFloat(e.target.value) || 0 }))}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          fontFamily: 'monospace',
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          background: '#ffffff',
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
-                      LATITUDE (GPS)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.000001"
-                      value={station.latitude}
-                      onChange={e => setStation(prev => ({ ...prev, latitude: parseFloat(e.target.value) || 0 }))}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: '8px',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '13px',
-                        fontFamily: 'monospace',
-                        fontWeight: 700,
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
-                      LONGITUDE (GPS)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.000001"
-                      value={station.longitude}
-                      onChange={e => setStation(prev => ({ ...prev, longitude: parseFloat(e.target.value) || 0 }))}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: '8px',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '13px',
-                        fontFamily: 'monospace',
-                        fontWeight: 700,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingTop: '12px',
+                    borderTop: '1px solid #f1f5f9',
+                    marginTop: '8px',
+                  }}
+                >
                   <span style={{ fontSize: '11px', color: '#64748b' }}>
-                    Current Pin: <strong>{station.latitude.toFixed(6)}° N, {station.longitude.toFixed(6)}° E</strong> (Perimeter: <strong>{station.radiusMeters}m</strong>)
+                    Active Perimeter: <strong style={{ color: '#0f172a' }}>{station.radiusMeters}m</strong> around {station.name}
                   </span>
                   <button
                     type="button"
                     onClick={handleSaveStation}
                     disabled={isSavingStation}
                     style={{
-                      padding: '8px 16px',
+                      padding: '8px 14px',
                       borderRadius: '8px',
                       background: '#ea580c',
                       color: '#ffffff',
@@ -2495,280 +2566,396 @@ export default function AttendanceDeskPage() {
                     }}
                   >
                     <Save size={13} />
-                    <span>{isSavingStation ? 'Saving Location...' : 'Save Company Location'}</span>
+                    <span>{isSavingStation ? 'Saving Location...' : 'Save Station Pin'}</span>
                   </button>
                 </div>
               </div>
 
-              {/* 2. Shift Resumption & Timing */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              {/* 2. Shift Resumption, Timetable & Lateness Rules */}
+              <div
+                style={{
+                  padding: '22px',
+                  borderRadius: '14px',
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                }}
+              >
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#0f172a', marginBottom: '6px' }}>
-                    EARLIEST ARRIVAL CHECK-IN (LOCK TIME)
-                  </label>
-                  <input
-                    type="time"
-                    value={policy.earliestCheckInTime}
-                    onChange={e => setPolicy(prev => ({ ...prev, earliestCheckInTime: e.target.value }))}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                    }}
-                  />
-                  <span style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                    No check-in permitted before this time (07:00 AM)
-                  </span>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#475569', marginBottom: '6px' }}>
-                    SHIFT RESUMPTION TIME
-                  </label>
-                  <input
-                    type="time"
-                    value={policy.resumptionTime}
-                    onChange={e => setPolicy(prev => ({ ...prev, resumptionTime: e.target.value }))}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                    }}
-                  />
-                  <span style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                    Standard corporate start (08:00 AM)
-                  </span>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#475569', marginBottom: '6px' }}>
-                    SHIFT CLOSING TIME
-                  </label>
-                  <input
-                    type="time"
-                    value={policy.closingTime}
-                    onChange={e => setPolicy(prev => ({ ...prev, closingTime: e.target.value }))}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                    }}
-                  />
-                  <span style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                    Standard corporate close (05:00 PM)
-                  </span>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#475569', marginBottom: '6px' }}>
-                    GRACE PERIOD (MINUTES)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="60"
-                    value={policy.gracePeriodMinutes}
-                    onChange={e => setPolicy(prev => ({ ...prev, gracePeriodMinutes: Number(e.target.value) }))}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                    }}
-                  />
-                  <span style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                    Check-in up to 08:15 AM is logged ON_TIME
-                  </span>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#ea580c', marginBottom: '6px' }}>
-                    LATENESS DEDUCTION PERCENTAGE (%)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="50"
-                    value={policy.latenessDeductionPercent}
-                    onChange={e => setPolicy(prev => ({ ...prev, latenessDeductionPercent: Number(e.target.value) }))}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      border: '1px solid #ea580c',
-                      fontSize: '13px',
-                      fontWeight: 800,
-                      color: '#ea580c',
-                    }}
-                  />
-                  <span style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                    Deducted from daily pro-rated wage in payroll
-                  </span>
-                </div>
-              </div>
-
-              {/* Starlink Wi-Fi Settings Section */}
-              <div style={{ padding: '20px', borderRadius: '10px', background: '#f8fafc', border: '1.5px solid #cbd5e1' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: '#e0f2fe', color: '#0369a1', display: 'grid', placeItems: 'center' }}>
-                      <Wifi size={18} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                    <div
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 10,
+                        background: '#eff6ff',
+                        color: '#2563eb',
+                        display: 'grid',
+                        placeItems: 'center',
+                      }}
+                    >
+                      <Clock size={20} />
                     </div>
                     <div>
-                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
-                        Require Company Starlink Wi-Fi Connection
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>
-                        Staff device must be connected to the company Starlink router to unlock the QR code scanner
-                      </div>
+                      <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                        Shift Hours &amp; Lateness Penalty
+                      </h4>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>
+                        Standard operational window, grace period, and pro-rated salary penalty
+                      </span>
                     </div>
                   </div>
+
+                  {/* Visual Timeline Bar */}
+                  <div
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      marginBottom: '14px',
+                      fontSize: '11px',
+                      color: '#475569',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <div>
+                      <strong style={{ display: 'block', color: '#0f172a' }}>{policy.earliestCheckInTime}</strong>
+                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>Gate Opens</span>
+                    </div>
+                    <span style={{ color: '#cbd5e1' }}>➔</span>
+                    <div>
+                      <strong style={{ display: 'block', color: '#059669' }}>{policy.resumptionTime}</strong>
+                      <span style={{ fontSize: '10px', color: '#059669' }}>Resumption</span>
+                    </div>
+                    <span style={{ color: '#cbd5e1' }}>➔</span>
+                    <div>
+                      <strong style={{ display: 'block', color: '#ea580c' }}>
+                        + {policy.gracePeriodMinutes}m Grace
+                      </strong>
+                      <span style={{ fontSize: '10px', color: '#ea580c' }}>Lateness Cut-off</span>
+                    </div>
+                    <span style={{ color: '#cbd5e1' }}>➔</span>
+                    <div>
+                      <strong style={{ display: 'block', color: '#0f172a' }}>{policy.closingTime}</strong>
+                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>Shift Close</span>
+                    </div>
+                  </div>
+
+                  {/* 3 Times Inputs */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
+                        LOCK TIME (AM)
+                      </label>
+                      <input
+                        type="time"
+                        value={policy.earliestCheckInTime}
+                        onChange={e => setPolicy(prev => ({ ...prev, earliestCheckInTime: e.target.value }))}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color: '#0f172a',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
+                        RESUMPTION
+                      </label>
+                      <input
+                        type="time"
+                        value={policy.resumptionTime}
+                        onChange={e => setPolicy(prev => ({ ...prev, resumptionTime: e.target.value }))}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color: '#0f172a',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
+                        CLOSING TIME
+                      </label>
+                      <input
+                        type="time"
+                        value={policy.closingTime}
+                        onChange={e => setPolicy(prev => ({ ...prev, closingTime: e.target.value }))}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color: '#0f172a',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Grace and Lateness Percentage */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
+                        GRACE PERIOD (MINUTES)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="60"
+                        value={policy.gracePeriodMinutes}
+                        onChange={e => setPolicy(prev => ({ ...prev, gracePeriodMinutes: Number(e.target.value) }))}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: '#0f172a',
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#ea580c', marginBottom: '4px' }}>
+                        LATENESS DEDUCTION (%)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max="50"
+                        value={policy.latenessDeductionPercent}
+                        onChange={e => setPolicy(prev => ({ ...prev, latenessDeductionPercent: Number(e.target.value) }))}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1.5px solid #ea580c',
+                          fontSize: '13px',
+                          fontWeight: 800,
+                          color: '#ea580c',
+                          background: '#fff7ed',
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '11px', color: '#64748b', paddingTop: '10px', borderTop: '1px solid #f1f5f9', marginTop: '10px' }}>
+                  Penalty applies: Punches after resumption + grace period deduct <strong>{policy.latenessDeductionPercent}%</strong> of the daily pro-rated wage.
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Starlink Wi-Fi Network Security & Hardware Gate Card */}
+            <div
+              style={{
+                padding: '22px',
+                borderRadius: '14px',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      background: '#e0f2fe',
+                      color: '#0284c7',
+                      display: 'grid',
+                      placeItems: 'center',
+                    }}
+                  >
+                    <Wifi size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                      Starlink Corporate Wi-Fi Network Lock
+                    </h4>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>
+                      Restricts check-in scan exclusively to employees connected to the authorized Starlink router
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      background: policy.requireStarlinkIp ? '#ecfdf5' : '#f1f5f9',
+                      color: policy.requireStarlinkIp ? '#059669' : '#64748b',
+                      border: `1px solid ${policy.requireStarlinkIp ? '#a7f3d0' : '#e2e8f0'}`,
+                    }}
+                  >
+                    {policy.requireStarlinkIp ? '🟢 Starlink Lock Active' : '⚪ Network Lock Optional'}
+                  </span>
                   <input
                     type="checkbox"
                     checked={policy.requireStarlinkIp}
                     onChange={e => setPolicy(prev => ({ ...prev, requireStarlinkIp: e.target.checked }))}
-                    style={{ width: 20, height: 20, accentColor: '#ea580c' }}
+                    style={{ width: 20, height: 20, accentColor: '#ea580c', cursor: 'pointer' }}
                   />
                 </div>
-
-                {policy.requireStarlinkIp && (
-                  <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #e2e8f0' }}>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '6px' }}>
-                      COMPANY STARLINK PUBLIC IP ADDRESSES OR SUBNETS
-                    </label>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                      <input
-                        type="text"
-                        placeholder="e.g. 102.89.44.12, 197.210.55.0/24 (or leave empty to allow any connected office IP)"
-                        value={policy.starlinkIpAddresses}
-                        onChange={e => setPolicy(prev => ({ ...prev, starlinkIpAddresses: e.target.value }))}
-                        style={{
-                          flex: 1,
-                          padding: '10px 14px',
-                          borderRadius: '8px',
-                          border: '1px solid #cbd5e1',
-                          fontSize: '13px',
-                          fontFamily: 'monospace',
-                        }}
-                      />
-                      {callerIp && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            let formatted = callerIp;
-                            if (callerIp.includes(':')) {
-                              const parts = callerIp.split(':').filter(Boolean);
-                              const prefix = parts.slice(0, 4).join(':');
-                              formatted = `${prefix}:*, 98.97.*, ${callerIp}`;
-                            } else if (callerIp.startsWith('98.97.')) {
-                              const octets = callerIp.split('.');
-                              formatted = `2605:59c1:*, 98.97.*, ${callerIp}`;
-                            } else {
-                              const octets = callerIp.split('.');
-                              if (octets.length === 4) {
-                                formatted = `${octets.slice(0, 3).join('.')}.*, ${callerIp}`;
-                              }
-                            }
-                            setPolicy(prev => ({ ...prev, starlinkIpAddresses: formatted }));
-                          }}
-                          style={{
-                            padding: '10px 14px',
-                            borderRadius: '8px',
-                            background: '#0284c7',
-                            color: '#ffffff',
-                            fontSize: '11px',
-                            fontWeight: 800,
-                            border: 'none',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          <Globe size={13} />
-                          <span>Use My Current IP ({callerIp})</span>
-                        </button>
-                      )}
-                    </div>
-                    <span style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', display: 'block' }}>
-                      Current detected IP: <strong style={{ color: '#0f172a' }}>{callerIp || '127.0.0.1'}</strong>. If you are on the office Starlink right now, click "Use My Current IP" to lock the network.
-                    </span>
-                  </div>
-                )}
               </div>
 
-              <div style={{ padding: '16px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              {policy.requireStarlinkIp && (
+                <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #f1f5f9' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '6px' }}>
+                    AUTHORIZED STARLINK PUBLIC IP SUBNETS OR PREFIXES
+                  </label>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      type="text"
+                      placeholder="e.g. 2605:59c1:*, 98.97.*, 102.89.44.12"
+                      value={policy.starlinkIpAddresses}
+                      onChange={e => setPolicy(prev => ({ ...prev, starlinkIpAddresses: e.target.value }))}
+                      style={{
+                        flex: 1,
+                        minWidth: '280px',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '13px',
+                        fontFamily: 'monospace',
+                        color: '#0f172a',
+                        background: '#ffffff',
+                      }}
+                    />
+                    {callerIp && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          let formatted = callerIp;
+                          if (callerIp.includes(':')) {
+                            const parts = callerIp.split(':').filter(Boolean);
+                            const prefix = parts.slice(0, 4).join(':');
+                            formatted = `${prefix}:*, 98.97.*, ${callerIp}`;
+                          } else if (callerIp.startsWith('98.97.')) {
+                            formatted = `2605:59c1:*, 98.97.*, ${callerIp}`;
+                          } else {
+                            const octets = callerIp.split('.');
+                            if (octets.length === 4) {
+                              formatted = `${octets.slice(0, 3).join('.')}.*, ${callerIp}`;
+                            }
+                          }
+                          setPolicy(prev => ({ ...prev, starlinkIpAddresses: formatted }));
+                        }}
+                        style={{
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          background: '#0284c7',
+                          color: '#ffffff',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <Globe size={13} />
+                        <span>Detect &amp; Use Current IP ({callerIp})</span>
+                      </button>
+                    )}
+                  </div>
+                  <span style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', display: 'block' }}>
+                    Detected Gateway IP: <strong style={{ color: '#0f172a' }}>{callerIp || '127.0.0.1'}</strong>. Multiple subnets can be comma-separated with wildcard asterisks (*).
+                  </span>
+                </div>
+              )}
+
+              {/* Hardware & Verification Toggles */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                  gap: '12px',
+                  marginTop: '16px',
+                  paddingTop: '16px',
+                  borderTop: '1px solid #f1f5f9',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
+                    <strong style={{ display: 'block', fontSize: '12px', color: '#0f172a' }}>
                       Require Device Geofence Verification
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>
-                      Staff must be physically within the office station perimeter (100m)
-                    </div>
+                    </strong>
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>
+                      Employee GPS must be within office radius
+                    </span>
                   </div>
                   <input
                     type="checkbox"
                     checked={policy.requireGeofence}
                     onChange={e => setPolicy(prev => ({ ...prev, requireGeofence: e.target.checked }))}
-                    style={{ width: 18, height: 18 }}
+                    style={{ width: 18, height: 18, accentColor: '#ea580c', cursor: 'pointer' }}
                   />
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
-                      Require Dynamic QR Scan
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>
-                      Staff must scan the active rotating QR displayed on the kiosk
-                    </div>
+                    <strong style={{ display: 'block', fontSize: '12px', color: '#0f172a' }}>
+                      Require Dynamic Kiosk QR Scan
+                    </strong>
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>
+                      Rotating cryptographic QR prevents remote punching
+                    </span>
                   </div>
                   <input
                     type="checkbox"
                     checked={policy.requireQrScan}
                     onChange={e => setPolicy(prev => ({ ...prev, requireQrScan: e.target.checked }))}
-                    style={{ width: 18, height: 18 }}
+                    style={{ width: 18, height: 18, accentColor: '#ea580c', cursor: 'pointer' }}
                   />
                 </div>
               </div>
-
-              <button
-                onClick={handleSavePolicy}
-                disabled={isSaving}
-                style={{
-                  padding: '12px 24px',
-                  borderRadius: '8px',
-                  background: '#ea580c',
-                  color: '#ffffff',
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                }}
-              >
-                <Save size={16} />
-                <span>{isSaving ? 'Saving Changes...' : 'Save Attendance Policy'}</span>
-              </button>
             </div>
           </div>
         )}
