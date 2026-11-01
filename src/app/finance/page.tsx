@@ -1444,6 +1444,9 @@ function SectionHeader({eyebrow,title,text,action,onAction}:{eyebrow:string;titl
 }
 
 function Overview({business,user,cases,setActive,setNotice}:{business:Business;user:AuthUser;cases:CaseRecord[];setActive:(x:string)=>void;setNotice:(x:string)=>void}) {
+  const isGroup = business.code === 'BEMS-GROUP' || (business as any).type === 'GROUP' || business.id === 'bems-group-hq' || business.id === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30';
+  const brandColor = (business as any).brandColor || business.color || (isGroup ? '#ea580c' : '#0d8a70');
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div className="welcome-row">
@@ -1456,7 +1459,7 @@ function Overview({business,user,cases,setActive,setNotice}:{business:Business;u
           <button className="outline-button" onClick={() => setActive("Subsidiary portfolio")}>Manage Subsidiaries ▦</button>
         </div>
       </div>
-      <ModernBentoDashboard role="GMD" businessName={business.name} subsidiaryId={business.id} onNavigate={(p) => setActive(p)} />
+      <ModernBentoDashboard role="GMD" businessName={business.name} subsidiaryId={business.id} brandColor={brandColor} onNavigate={(p) => setActive(p)} />
     </div>
   );
 }
@@ -2105,6 +2108,7 @@ function DetailedModule({name,business,cases,onResolveCase,onAddCase,setNotice}:
 function RoleOverviewModule({role,business,user,cases,setActive,setNotice,onRoleChange}:{role:SystemRole;business:Business;user:AuthUser;cases:CaseRecord[];setActive:(x:string)=>void;setNotice:(x:string)=>void;onRoleChange?:(r:SystemRole)=>void}) {
   const isGroup = business.code === 'BEMS-GROUP' || (business as any).type === 'GROUP' || business.id === 'bems-group-hq' || business.id === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30';
   const activeScope = isGroup ? 'ALL' : (business.code || business.id);
+  const brandColor = (business as any).brandColor || business.color || (isGroup ? '#ea580c' : '#0d8a70');
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -2122,6 +2126,7 @@ function RoleOverviewModule({role,business,user,cases,setActive,setNotice,onRole
         role={role}
         businessName={business.name}
         subsidiaryId={activeScope}
+        brandColor={brandColor}
         onNavigate={(p) => setActive(p)}
         onRoleChange={(r) => onRoleChange && onRoleChange(r as SystemRole)}
       />
@@ -3368,6 +3373,16 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
           background: linear-gradient(135deg, ${activeBrandColor}, ${activeBrandColor}dd) !important;
           box-shadow: 0 8px 18px ${activeBrandColor}33 !important;
         }
+        .outline-button {
+          border-color: ${activeBrandColor}55 !important;
+          color: ${activeBrandColor} !important;
+        }
+        .kicker {
+          color: ${activeBrandColor} !important;
+        }
+        .text-button {
+          color: ${activeBrandColor} !important;
+        }
         .nav-group > p {
           color: ${activeBrandColor} !important;
         }
@@ -3391,11 +3406,11 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
               )}
             </span>
             <div className="brand-title-wrap" style={{display:'inline-flex',flexDirection:'column',justifyContent:'center',minWidth:0,overflow:'hidden',gap:'2px',whiteSpace:'nowrap',margin:0,padding:0}}>
-              <span className="brand-name" style={{display:'inline-block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'15px',fontWeight:850,letterSpacing:'-0.02em',color:'#ffffff',lineHeight:1,margin:0,padding:0,overflow:'hidden',textOverflow:'ellipsis',maxWidth:130}}>
+              <span className="brand-name" style={{display:'inline-block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'15px',fontWeight:850,letterSpacing:'-0.02em',color:'#ffffff',lineHeight:1,margin:0,padding:0,overflow:'hidden',textOverflow:'ellipsis',maxWidth:140}}>
                 {isGroupScope ? 'BEMS' : current.name}
               </span>
               <span className="brand-sub" style={{display:'inline-block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'11px',fontWeight:800,letterSpacing:'0.04em',color:activeBrandColor,lineHeight:1,margin:0,padding:0}}>
-                {isGroupScope ? 'FINANCE GROUP' : (current.code || 'SUBSIDIARY')}
+                {isGroupScope ? 'FINANCE GROUP' : 'FINANCE DESK'}
               </span>
             </div>
             <button aria-label={collapsed?'Expand navigation':'Collapse navigation'} title={collapsed?'Expand navigation':'Collapse navigation'} onClick={(e)=>{e.stopPropagation();setCollapsed(!collapsed)}}>{collapsed?'›':'‹'}</button>

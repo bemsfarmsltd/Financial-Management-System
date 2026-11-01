@@ -9,12 +9,13 @@ interface ModernBentoProps {
   role: string;
   businessName: string;
   subsidiaryId?: string;
+  brandColor?: string;
   onNavigate: (path: string) => void;
   onRoleChange?: (role: string) => void;
 }
 
-export function ModernBentoDashboard({ role, businessName, subsidiaryId, onNavigate }: ModernBentoProps) {
-  const { config, loading } = useDynamicDashboardConfig({ role, businessName, subsidiaryId });
+export function ModernBentoDashboard({ role, businessName, subsidiaryId, brandColor, onNavigate }: ModernBentoProps) {
+  const { config, loading } = useDynamicDashboardConfig({ role, businessName, subsidiaryId, brandColor });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>

@@ -94,24 +94,45 @@ export interface RoleDashboardConfig {
   insightLabel: string;
 }
 
+export function createDynamicRoleTheme(brandColor: string = '#ea580c'): RoleCardTheme {
+  const hex = brandColor.replace('#', '');
+  const r = parseInt(hex.length === 3 ? hex[0] + hex[0] : hex.slice(0, 2), 16) || 234;
+  const g = parseInt(hex.length === 3 ? hex[1] + hex[1] : hex.slice(2, 4), 16) || 88;
+  const b = parseInt(hex.length === 3 ? hex[2] + hex[2] : hex.slice(4, 6), 16) || 12;
+
+  // Lighter tint for gradients / highlights
+  const tintR = Math.min(255, Math.round(r + (255 - r) * 0.28));
+  const tintG = Math.min(255, Math.round(g + (255 - g) * 0.28));
+  const tintB = Math.min(255, Math.round(b + (255 - b) * 0.28));
+  const tintHex = `#${tintR.toString(16).padStart(2, '0')}${tintG.toString(16).padStart(2, '0')}${tintB.toString(16).padStart(2, '0')}`;
+
+  // Darker shade for gradients / shadows
+  const shadeR = Math.max(0, Math.round(r * 0.76));
+  const shadeG = Math.max(0, Math.round(g * 0.76));
+  const shadeB = Math.max(0, Math.round(b * 0.76));
+  const shadeHex = `#${shadeR.toString(16).padStart(2, '0')}${shadeG.toString(16).padStart(2, '0')}${shadeB.toString(16).padStart(2, '0')}`;
+
+  return {
+    primaryGradient: `linear-gradient(135deg, ${tintHex} 0%, ${brandColor} 100%)`,
+    primarySolid: brandColor,
+    secondarySolid: tintHex,
+    accentColor: `rgba(${r}, ${g}, ${b}, 0.75)`,
+    lightBg: `rgba(${r}, ${g}, ${b}, 0.08)`,
+    pillBorder: `rgba(${r}, ${g}, ${b}, 0.25)`,
+    timeTrackerBg: `linear-gradient(135deg, ${brandColor} 0%, ${shadeHex} 100%)`,
+    topographicStroke: `rgba(255, 255, 255, 0.45)`,
+    funnelGradient: `linear-gradient(180deg, ${tintHex} 0%, ${shadeHex} 100%)`,
+    funnelHatch: `repeating-linear-gradient(45deg, ${brandColor}, ${brandColor} 4px, ${tintHex} 4px, ${tintHex} 8px)`,
+    arcStroke: brandColor,
+  };
+}
+
 export const roleDashboardConfigs: Record<string, RoleDashboardConfig> = {
   GMD: {
     roleTitle: 'Group Managing Director Command',
     roleBadge: 'Super Executive',
     subtitle: 'Group-wide multi-subsidiary expenditure, approvals & treasury accountability.',
-    theme: {
-      primaryGradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-      primarySolid: '#ea580c',
-      secondarySolid: '#f97316',
-      accentColor: '#fdba74',
-      lightBg: '#fff7ed',
-      pillBorder: '#fed7aa',
-      timeTrackerBg: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
-      topographicStroke: '#fb923c',
-      funnelGradient: 'linear-gradient(180deg, #f97316 0%, #c2410c 100%)',
-      funnelHatch: 'repeating-linear-gradient(45deg, #ea580c, #ea580c 4px, #f97316 4px, #f97316 8px)',
-      arcStroke: '#ea580c',
-    },
+    theme: createDynamicRoleTheme('#ea580c'),
     bentoPills: [
       { label: 'Total Group Requests', value: '0', delta: '0 requests recorded in system', isPrimary: true, link: '/requests' },
       { label: 'Closed & Accounted', value: '0', delta: '0 closed with evidence recorded', link: '/accountability' },

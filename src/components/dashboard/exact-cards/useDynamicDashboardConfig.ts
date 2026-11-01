@@ -1,21 +1,26 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { roleDashboardConfigs, RoleDashboardConfig, FunnelStageData, VolumeRowData, BentoPillData } from './roleCardConfigs';
+import { roleDashboardConfigs, RoleDashboardConfig, FunnelStageData, VolumeRowData, BentoPillData, createDynamicRoleTheme } from './roleCardConfigs';
 
 interface DynamicDashboardParams {
   role: string;
   businessName: string;
   subsidiaryId?: string;
+  brandColor?: string;
 }
 
-export function useDynamicDashboardConfig({ role, businessName, subsidiaryId }: DynamicDashboardParams): {
+export function useDynamicDashboardConfig({ role, businessName, subsidiaryId, brandColor }: DynamicDashboardParams): {
   config: RoleDashboardConfig;
   loading: boolean;
   refetch: () => void;
 } {
   const baseConfig: RoleDashboardConfig = roleDashboardConfigs[role] || roleDashboardConfigs.GMD;
-  const [config, setConfig] = useState<RoleDashboardConfig>(baseConfig);
+  const initialTheme = brandColor ? createDynamicRoleTheme(brandColor) : baseConfig.theme;
+  const [config, setConfig] = useState<RoleDashboardConfig>({
+    ...baseConfig,
+    theme: initialTheme,
+  });
   const [loading, setLoading] = useState(true);
 
   const fetchLiveTelemetry = async () => {
@@ -29,8 +34,13 @@ export function useDynamicDashboardConfig({ role, businessName, subsidiaryId }: 
         fetch(`/api/staff${subsidiaryId && subsidiaryId !== 'ALL' ? `?orgId=${encodeURIComponent(subsidiaryId)}` : ''}`).then(r => (r.ok ? r.json() : null)).catch(() => null),
       ]);
 
+      const activeTheme = brandColor ? createDynamicRoleTheme(brandColor) : baseConfig.theme;
+
       if (!analyticsRes) {
-        setConfig(baseConfig);
+        setConfig({
+          ...baseConfig,
+          theme: activeTheme,
+        });
         setLoading(false);
         return;
       }
@@ -211,6 +221,7 @@ export function useDynamicDashboardConfig({ role, businessName, subsidiaryId }: 
 
       setConfig({
         ...baseConfig,
+        theme: activeTheme,
         bentoPills,
         funnelStages,
         volumeAmount: formatAmount(paidMinor),
@@ -227,7 +238,11 @@ export function useDynamicDashboardConfig({ role, businessName, subsidiaryId }: 
       });
     } catch (err) {
       console.error('Error loading live telemetry:', err);
-      setConfig(baseConfig);
+      const fallbackTheme = brandColor ? createDynamicRoleTheme(brandColor) : baseConfig.theme;
+      setConfig({
+        ...baseConfig,
+        theme: fallbackTheme,
+      });
     } finally {
       setLoading(false);
     }
@@ -235,7 +250,7 @@ export function useDynamicDashboardConfig({ role, businessName, subsidiaryId }: 
 
   useEffect(() => {
     fetchLiveTelemetry();
-  }, [role, businessName, subsidiaryId]);
+  }, [role, businessName, subsidiaryId, brandColor]);
 
   return { config, loading, refetch: fetchLiveTelemetry };
 }
