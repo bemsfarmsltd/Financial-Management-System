@@ -16,20 +16,28 @@ async function main() {
   // 1. Organizations
   const group = await prisma.organization.upsert({
     where: { code: "BEMS-GROUP" },
-    update: {},
+    update: {
+      brandColor: "#ea580c",
+      logoUrl: "/bems-group-logo.png?v=20261024",
+    },
     create: {
       code: "BEMS-GROUP",
-      legalName: "BEMS Group Holdings Ltd (HQ)",
+      legalName: "BEMS Group",
       type: "GROUP",
       defaultCurrency: "NGN",
       timezone: "Africa/Lagos",
       status: "ACTIVE",
+      brandColor: "#ea580c",
+      logoUrl: "/bems-group-logo.png?v=20261024",
     },
   });
 
   const subTech = await prisma.organization.upsert({
     where: { code: "BEMS-SOFT" },
-    update: {},
+    update: {
+      brandColor: "#0d8a70",
+      logoUrl: "/bems-group-logo.png?v=20261024",
+    },
     create: {
       parentGroupId: group.id,
       code: "BEMS-SOFT",
@@ -38,6 +46,8 @@ async function main() {
       defaultCurrency: "NGN",
       timezone: "Africa/Lagos",
       status: "ACTIVE",
+      brandColor: "#0d8a70",
+      logoUrl: "/bems-group-logo.png?v=20261024",
     },
   });
 

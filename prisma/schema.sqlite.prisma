@@ -16,6 +16,8 @@ model Organization {
   status          String   @default("ACTIVE") // ACTIVE | INACTIVE
   defaultCurrency String   @default("NGN")
   timezone        String   @default("Africa/Lagos")
+  logoUrl         String?
+  brandColor      String?  @default("#ea580c")
   createdAt       DateTime @default(now())
   effectiveStart  DateTime @default(now())
 

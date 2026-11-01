@@ -34,6 +34,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ or
     const industry = typeof body.industry === 'string' ? body.industry.trim() : undefined;
     const headquarters = typeof body.headquarters === 'string' ? body.headquarters.trim() : undefined;
     const rcNumber = typeof body.rcNumber === 'string' ? body.rcNumber.trim() : undefined;
+    const brandColor = typeof body.brandColor === 'string' && body.brandColor.trim() 
+      ? body.brandColor.trim() 
+      : typeof body.color === 'string' && body.color.trim() 
+      ? body.color.trim() 
+      : undefined;
+    const logoUrl = typeof body.logoUrl === 'string' ? body.logoUrl.trim() : undefined;
     const monthlyBudget = typeof body.monthlyBudget === 'number' 
       ? body.monthlyBudget 
       : typeof body.initialBudget === 'number' 
@@ -57,10 +63,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ or
           code,
           defaultCurrency,
           type,
+          ...(brandColor !== undefined ? { brandColor } : {}),
+          ...(logoUrl !== undefined ? { logoUrl } : {}),
         },
       });
 
       // 2. Upsert WorkspaceSettings
+      if (brandColor !== undefined) {
+        await tx.workspaceSetting.upsert({
+          where: { organizationId_key: { organizationId, key: 'BRAND_COLOR' } },
+          create: { organizationId, key: 'BRAND_COLOR', value: brandColor, updatedById: actor.id },
+          update: { value: brandColor, updatedById: actor.id },
+        });
+      }
+      if (logoUrl !== undefined) {
+        await tx.workspaceSetting.upsert({
+          where: { organizationId_key: { organizationId, key: 'BRAND_LOGO_URL' } },
+          create: { organizationId, key: 'BRAND_LOGO_URL', value: logoUrl, updatedById: actor.id },
+          update: { value: logoUrl, updatedById: actor.id },
+        });
+      }
       if (industry !== undefined) {
         await tx.workspaceSetting.upsert({
           where: { organizationId_key: { organizationId, key: 'SUBSIDIARY_INDUSTRY' } },
@@ -157,8 +179,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ or
         industry: industry || current.settings.find(s => s.key === 'SUBSIDIARY_INDUSTRY')?.value || 'Operating Subsidiary',
         headquarters: headquarters || current.settings.find(s => s.key === 'HEADQUARTERS_LOCATION')?.value || 'Lagos, Nigeria',
         rcNumber: rcNumber !== undefined ? rcNumber : current.settings.find(s => s.key === 'RC_NUMBER')?.value || null,
-        initials: updated.code.replace(/^BEMS-?/, '').slice(0, 2) || updated.legalName.slice(0, 2).toUpperCase(),
-        color: updated.type === 'GROUP' ? '#ea580c' : '#0d8a70',
+        color: updated.brandColor || (updated.type === 'GROUP' ? '#ea580c' : '#0d8a70'),
+        brandColor: updated.brandColor || (updated.type === 'GROUP' ? '#ea580c' : '#0d8a70'),
+        logoUrl: updated.logoUrl || null,
         readiness: 100,
         departmentCount: current.departments.length,
         staffCount: current.employeeAssignments.length,

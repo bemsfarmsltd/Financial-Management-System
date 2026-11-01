@@ -7,21 +7,53 @@ export async function GET() {
     const actor = await getAuthenticatedEmployee();
     if (!actor) return NextResponse.json({ error: 'Sign in to view subsidiaries.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR', 'FINANCE'])) return NextResponse.json({ error: 'Executive or finance access is required.' }, { status: 403 });
+    // Ensure BEMS Group always exists in the database as the master holding entity
+    const existingGroup = await prisma.organization.findFirst({
+      where: { OR: [{ code: 'BEMS-GROUP' }, { type: 'GROUP' }] },
+    });
+    if (!existingGroup) {
+      await prisma.organization.create({
+        data: {
+          code: 'BEMS-GROUP',
+          legalName: 'BEMS Group',
+          type: 'GROUP',
+          defaultCurrency: 'NGN',
+          timezone: 'Africa/Lagos',
+          status: 'ACTIVE',
+          brandColor: '#ea580c',
+          logoUrl: '/bems-group-logo.png?v=20261024',
+        },
+      });
+    }
+
     const orgs = await prisma.organization.findMany({
-      orderBy: { createdAt: 'asc' },
+      orderBy: [
+        { type: 'asc' }, // GROUP first, then SUBSIDIARY
+        { createdAt: 'asc' },
+      ],
       include: {
         departments: { select: { id: true, name: true, code: true } },
         employeeAssignments: { select: { id: true } },
         budgets: { where: { status: 'ACTIVE' }, select: { totalAmount: true } },
-        settings: { where: { key: { in: ['SUBSIDIARY_INDUSTRY', 'HEADQUARTERS_LOCATION', 'RC_NUMBER'] } } },
+        settings: { where: { key: { in: ['SUBSIDIARY_INDUSTRY', 'HEADQUARTERS_LOCATION', 'RC_NUMBER', 'BRAND_COLOR', 'BRAND_LOGO_URL'] } } },
       },
     });
+
+    // Ensure GROUP is explicitly first in array
+    const sortedOrgs = [...orgs].sort((a, b) => {
+      if (a.type === 'GROUP' && b.type !== 'GROUP') return -1;
+      if (b.type === 'GROUP' && a.type !== 'GROUP') return 1;
+      return 0;
+    });
+
     return NextResponse.json({
-      organizations: orgs.map(o => {
+      organizations: sortedOrgs.map(o => {
         const totalBudget = o.budgets.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
         const industrySetting = o.settings.find(s => s.key === 'SUBSIDIARY_INDUSTRY');
         const hqSetting = o.settings.find(s => s.key === 'HEADQUARTERS_LOCATION');
         const rcSetting = o.settings.find(s => s.key === 'RC_NUMBER');
+        const brandColorSetting = o.settings.find(s => s.key === 'BRAND_COLOR');
+        const logoUrlSetting = o.settings.find(s => s.key === 'BRAND_LOGO_URL');
 
         const resolvedIndustry = industrySetting?.value || (
           o.type === 'GROUP' 
@@ -33,6 +65,9 @@ export async function GET() {
             : 'Operating Commercial Subsidiary'
         );
 
+        const resolvedColor = o.brandColor || brandColorSetting?.value || (o.type === 'GROUP' ? '#ea580c' : '#0d8a70');
+        const resolvedLogo = o.logoUrl || logoUrlSetting?.value || (o.type === 'GROUP' ? '/bems-group-logo.png?v=20261024' : null);
+
         return {
           id: o.id,
           name: o.legalName,
@@ -43,7 +78,9 @@ export async function GET() {
           headquarters: hqSetting?.value || 'Lagos, Nigeria',
           rcNumber: rcSetting?.value || null,
           initials: o.code.replace(/^BEMS-?/, '').slice(0, 2) || o.legalName.slice(0, 2).toUpperCase(),
-          color: o.type === 'GROUP' ? '#ea580c' : '#0d8a70',
+          color: resolvedColor,
+          brandColor: resolvedColor,
+          logoUrl: resolvedLogo,
           readiness: 100,
           departmentCount: o.departments.length,
           staffCount: o.employeeAssignments.length,
@@ -68,6 +105,8 @@ export async function POST(req: Request) {
       industry,
       code,
       color,
+      brandColor,
+      logoUrl,
       rcNumber,
       headquarters,
       leadName,
@@ -75,6 +114,8 @@ export async function POST(req: Request) {
       initialBudget,
       departments,
     } = body;
+
+    const resolvedColor = brandColor || color || '#0d8a70';
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Subsidiary legal name is required' }, { status: 400 });
@@ -105,10 +146,26 @@ export async function POST(req: Request) {
         status: 'ACTIVE',
         defaultCurrency: body.currency && ['NGN', 'USD', 'GBP', 'EUR'].includes(body.currency) ? body.currency : 'NGN',
         timezone: 'Africa/Lagos',
+        brandColor: resolvedColor,
+        logoUrl: logoUrl || null,
       },
     });
 
     // 2. Persist metadata in WorkspaceSetting
+    if (resolvedColor) {
+      try {
+        await prisma.workspaceSetting.create({
+          data: { organizationId: newOrg.id, key: 'BRAND_COLOR', value: resolvedColor, updatedById: actor.id },
+        });
+      } catch {}
+    }
+    if (logoUrl) {
+      try {
+        await prisma.workspaceSetting.create({
+          data: { organizationId: newOrg.id, key: 'BRAND_LOGO_URL', value: logoUrl, updatedById: actor.id },
+        });
+      } catch {}
+    }
     if (industry) {
       try {
         await prisma.workspaceSetting.create({
@@ -202,7 +259,9 @@ export async function POST(req: Request) {
           status: 'Live',
           industry: industry || 'Enterprise Technology',
           initials: newOrg.code.replace(/^BEMS-?/, '').slice(0, 2) || 'BS',
-          color: color || '#ea580c',
+          color: resolvedColor,
+          brandColor: resolvedColor,
+          logoUrl: logoUrl || null,
           rcNumber: rcNumber || `RC-${Math.floor(1000000 + Math.random() * 9000000)}`,
           headquarters: headquarters || 'Lagos, Nigeria',
           leadName: leadName || 'Managing Director',

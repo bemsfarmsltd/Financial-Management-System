@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, FormEvent } from 'react';
+import React, { useState, useEffect, useRef, FormEvent } from 'react';
 
 export interface CorporateSubsidiaryModalProps {
   onCancel?: () => void;
@@ -106,6 +106,19 @@ export const CONGLOMERATE_LOCATIONS = [
   'OTHER',
 ];
 
+export const BRAND_COLOR_PRESETS = [
+  { name: 'Agri Emerald', hex: '#0d8a70' },
+  { name: 'BEMS Orange', hex: '#ea580c' },
+  { name: 'Tech Sapphire', hex: '#2563eb' },
+  { name: 'Violet Digital', hex: '#7c3aed' },
+  { name: 'Energy Crimson', hex: '#dc2626' },
+  { name: 'Commodities Amber', hex: '#d97706' },
+  { name: 'Corporate Obsidian', hex: '#0f172a' },
+  { name: 'Logistics Mahogany', hex: '#9a3412' },
+  { name: 'Teal Fleet', hex: '#0891b2' },
+  { name: 'Rose Luxury', hex: '#e11d48' },
+];
+
 export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubsidiaryModalProps) {
   const [sector, setSector] = useState('TECHNOLOGY');
   const [legalName, setLegalName] = useState('');
@@ -121,6 +134,41 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
   const [customDeptInput, setCustomDeptInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Branding & Workspace Theme States
+  const [logoUrl, setLogoUrl] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [brandColor, setBrandColor] = useState('#0d8a70');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      setError('Logo image must be smaller than 8MB.');
+      return;
+    }
+    setUploadingLogo(true);
+    setError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to upload logo');
+      setLogoUrl(data.url);
+    } catch (err: any) {
+      setError(err.message || 'Error uploading logo image.');
+    } finally {
+      setUploadingLogo(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoUrl('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   // Close modal when pressing Escape key
   useEffect(() => {
@@ -231,6 +279,9 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
           headquarters: effectiveLocation,
           initialBudget: Number(initialBudget) || 0,
           departments: selectedDepts,
+          brandColor,
+          color: brandColor,
+          logoUrl: logoUrl.trim() || undefined,
         }),
       });
 
@@ -489,6 +540,307 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
                 <option value="INFRASTRUCTURE_SITE">Infrastructure, Plant or Terminal Site</option>
                 <option value="REGIONAL_OFFICE">Regional Liaison or Branch Office</option>
               </select>
+            </div>
+
+            {/* BRAND IDENTITY & WORKSPACE THEME */}
+            <div
+              style={{
+                gridColumn: 'span 2',
+                background: '#ffffff',
+                border: '1.5px solid #e2e8f0',
+                borderRadius: 14,
+                padding: '20px',
+                boxShadow: '0 4px 16px rgba(15, 23, 42, 0.04)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ display: 'inline-flex', width: 22, height: 22, borderRadius: 6, background: `${brandColor}18`, color: brandColor, alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>✦</span>
+                    Subsidiary Brand Identity & Workspace Theme
+                  </h4>
+                  <small style={{ color: '#64748b', fontSize: 11, display: 'block', marginTop: 2 }}>
+                    Upload official corporate logo and select workspace theme color (updates whole dashboard interface)
+                  </small>
+                </div>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 10px',
+                    borderRadius: 20,
+                    background: `${brandColor}12`,
+                    border: `1px solid ${brandColor}40`,
+                    color: brandColor,
+                    fontSize: 11,
+                    fontWeight: 750,
+                  }}
+                >
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: brandColor }} />
+                  {brandColor.toUpperCase()}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 260px) 1fr', gap: 20, alignItems: 'start' }}>
+                {/* Logo Uploader Column */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                    Official Logo / Crest
+                  </label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    onChange={handleLogoUpload}
+                    style={{ display: 'none' }}
+                  />
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '2px dashed #cbd5e1',
+                      borderRadius: 12,
+                      padding: 16,
+                      background: '#f8fafc',
+                      minHeight: 120,
+                      textAlign: 'center',
+                      position: 'relative',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {logoUrl ? (
+                      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                        <div
+                          style={{
+                            width: 64,
+                            height: 64,
+                            borderRadius: 12,
+                            background: '#ffffff',
+                            border: `2px solid ${brandColor}`,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                            padding: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <img src={logoUrl} alt="Subsidiary logo preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            style={{
+                              background: '#ffffff',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: 6,
+                              padding: '3px 8px',
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: '#334155',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Change
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRemoveLogo}
+                            style={{
+                              background: '#fee2e2',
+                              border: '1px solid #fecaca',
+                              borderRadius: 6,
+                              padding: '3px 8px',
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: '#991b1b',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                        <div
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 10,
+                            background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            display: 'grid',
+                            placeItems: 'center',
+                            fontSize: 18,
+                            color: '#94a3b8',
+                          }}
+                        >
+                          🏛
+                        </div>
+                        <button
+                          type="button"
+                          disabled={uploadingLogo}
+                          onClick={() => fileInputRef.current?.click()}
+                          style={{
+                            background: '#ffffff',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: 8,
+                            padding: '6px 12px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: '#0f172a',
+                            cursor: 'pointer',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                          }}
+                        >
+                          {uploadingLogo ? 'Uploading...' : 'Upload Logo image'}
+                        </button>
+                        <small style={{ fontSize: 9, color: '#94a3b8' }}>PNG, JPG, SVG up to 8MB</small>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Brand Color Picker Column */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                    Workspace Accent Color
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                    {BRAND_COLOR_PRESETS.map((p) => {
+                      const isSelected = brandColor.toLowerCase() === p.hex.toLowerCase();
+                      return (
+                        <button
+                          key={p.hex}
+                          type="button"
+                          title={`${p.name} (${p.hex})`}
+                          onClick={() => setBrandColor(p.hex)}
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '50%',
+                            background: p.hex,
+                            border: isSelected ? '3px solid #ffffff' : '2px solid transparent',
+                            boxShadow: isSelected ? `0 0 0 2px ${p.hex}, 0 4px 10px rgba(0,0,0,0.2)` : '0 1px 3px rgba(0,0,0,0.1)',
+                            cursor: 'pointer',
+                            display: 'grid',
+                            placeItems: 'center',
+                            color: '#ffffff',
+                            fontSize: 12,
+                            fontWeight: 900,
+                            transition: 'transform 0.15s ease',
+                            transform: isSelected ? 'scale(1.15)' : 'scale(1)',
+                          }}
+                        >
+                          {isSelected && '✓'}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input
+                        type="color"
+                        value={brandColor}
+                        onChange={(e) => setBrandColor(e.target.value)}
+                        style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 8,
+                          border: '1px solid #cbd5e1',
+                          padding: 2,
+                          cursor: 'pointer',
+                          background: '#ffffff',
+                        }}
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      value={brandColor}
+                      onChange={(e) => setBrandColor(e.target.value)}
+                      placeholder="#0d8a70"
+                      style={{
+                        width: 110,
+                        padding: '8px 10px',
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        fontFamily: 'monospace',
+                        color: '#0f172a',
+                        textTransform: 'uppercase',
+                      }}
+                    />
+                    <small style={{ fontSize: 10, color: '#64748b' }}>Custom hex code</small>
+                  </div>
+
+                  {/* Live Mini Preview Bar */}
+                  <div
+                    style={{
+                      marginTop: 14,
+                      padding: '10px 14px',
+                      background: 'linear-gradient(135deg, #0a101d, #141c2c)',
+                      borderRadius: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      border: `1px solid ${brandColor}40`,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 6,
+                          background: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden',
+                          border: `1.5px solid ${brandColor}`,
+                        }}
+                      >
+                        {logoUrl ? (
+                          <img src={logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                        ) : (
+                          <span style={{ fontSize: 10, fontWeight: 900, color: brandColor }}>
+                            {code ? code.slice(0, 2) : 'BS'}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <strong style={{ fontSize: 11, color: '#ffffff', display: 'block', lineHeight: 1.2 }}>
+                          {legalName || 'Subsidiary Legal Name'}
+                        </strong>
+                        <span style={{ fontSize: 9, color: brandColor, fontWeight: 700 }}>
+                          Workspace Preview
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        background: brandColor,
+                        color: '#ffffff',
+                        fontSize: 10,
+                        fontWeight: 800,
+                        letterSpacing: '0.02em',
+                      }}
+                    >
+                      Active Theme
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* CAC RC Number */}

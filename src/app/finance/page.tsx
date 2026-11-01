@@ -122,9 +122,13 @@ type Business = {
   status: 'Live' | 'Setup';
   readiness: number;
   color: string;
+  brandColor?: string;
+  logoUrl?: string | null;
   aiEnabled: boolean;
   code?: string;
   type?: string;
+  budgetFormatted?: string;
+  budget?: number;
 };
 
 type OnboardingData = {
@@ -142,11 +146,14 @@ const defaultBemsBusinesses: Business[] = [
   {
     id: "bems-group-hq",
     name: "BEMS Group",
-    industry: "Conglomerate & Holding HQ",
+    industry: "Conglomerate Consolidated HQ",
     initials: "BG",
     status: "Live",
     readiness: 100,
-    color: "#0b1220",
+    color: "#ea580c",
+    brandColor: "#ea580c",
+    logoUrl: "/bems-group-logo.png?v=20261024",
+    type: "GROUP",
     aiEnabled: true,
   }
 ];
@@ -2800,8 +2807,10 @@ function VendorsModule({business,setNotice,onNavigate}:{business:Business;setNot
 function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,currentId,setCurrentId,onUpdateBusiness}:{user:AuthUser;onSignOut:()=>void;onAddBusiness:()=>void;onEditBusiness?:(b:Business)=>void;businesses:Business[];currentId:string;setCurrentId:(value:string)=>void;onUpdateBusiness:(id:string,patch:Partial<Business>)=>Promise<Business>}) {
   const safeUser: AuthUser = user;
   const current = (businesses && businesses.length > 0 ? (businesses.find(b=>b.id===currentId) || businesses[0]) : defaultBemsBusinesses[0]) || defaultBemsBusinesses[0];
-  const isGroupScope = (current as any).code === 'BEMS-GROUP' || (current as any).type === 'GROUP' || current.id === 'bems-group-hq' || current.id === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30';
+  const isGroupScope = (current as any).code === 'BEMS-GROUP' || (current as any).type === 'GROUP' || current.id === 'bems-group-hq' || current.id === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30' || current.name.toLowerCase().includes('bems group');
   const activeScope = isGroupScope ? 'ALL' : ((current as any).code || current.id);
+  const activeBrandColor = current.brandColor || current.color || (isGroupScope ? '#ea580c' : '#0d8a70');
+  const activeLogoUrl = current.logoUrl || (isGroupScope ? '/bems-group-logo.png?v=20261024' : null);
   const isAiOnly = (safeUser.role as string) === 'AI_ANALYST';
   const [currentRole, setCurrentRole] = useState<SystemRole>((safeUser.role as SystemRole) || 'GMD');
   const isStaff = (currentRole as string) === 'STAFF' || (safeUser.role as string) === 'STAFF';
@@ -2970,8 +2979,17 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
     }
     setSwitcher(false);
     setCurrentId(id);
-    setActive('Overview');
-    setNotice(`${next.name} loaded as a separate workspace.`);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('org', id);
+      window.history.replaceState({}, '', url.toString());
+    }
+    const isNextGroup = next.type === 'GROUP' || next.id === 'bems-group-hq' || next.code === 'BEMS-GROUP';
+    if (isNextGroup) {
+      setNotice('Switched to BEMS Group Master View: Consolidated data across all subsidiaries.');
+    } else {
+      setNotice(`Switched workspace to ${next.name}. Theme and branding loaded.`);
+    }
   }, [businesses, current.id, setCurrentId, setNotice]);
   const searchResults=navigation.flatMap(g=>g.items.map(([name])=>name)).filter(name=>search&&name.toLowerCase().includes(search.toLowerCase())).slice(0,6);
   const [dataResults,setDataResults]=useState<{type:string;label:string;sublabel:string;navigate:string}[]>([]);
@@ -3333,13 +3351,52 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
         aiManager.sendMessage(question, elementContext);
       }}
     >
+      <style>{`
+        :root, .app-shell {
+          --brand-primary: ${activeBrandColor} !important;
+          --electric: ${activeBrandColor} !important;
+          --orange: ${activeBrandColor} !important;
+          --orange-dark: ${activeBrandColor} !important;
+          --orange-soft: ${activeBrandColor}18 !important;
+          --orange-light: ${activeBrandColor}28 !important;
+        }
+        .nav-item.active {
+          background: linear-gradient(90deg, ${activeBrandColor}, ${activeBrandColor}cc) !important;
+          box-shadow: inset 3px 0 #ffffff, 0 6px 16px ${activeBrandColor}40 !important;
+        }
+        .primary-button, .continue-button {
+          background: linear-gradient(135deg, ${activeBrandColor}, ${activeBrandColor}dd) !important;
+          box-shadow: 0 8px 18px ${activeBrandColor}33 !important;
+        }
+        .nav-group > p {
+          color: ${activeBrandColor} !important;
+        }
+        .business-switch:hover {
+          background: ${activeBrandColor}10 !important;
+        }
+        .brand-sub {
+          color: ${activeBrandColor} !important;
+        }
+      `}</style>
       <main className={shellClass}>
         <aside className="sidebar">
           <div className="side-brand" style={{ cursor: 'pointer' }} onClick={() => { if (typeof window !== 'undefined') window.location.href = '/'; }}>
-            <img src="/bems-group-logo.png?v=20261024" alt="BEMS logo"/>
-            <div className="brand-title-wrap" style={{display:'inline-flex',flexDirection:'row',alignItems:'baseline',gap:'6px',whiteSpace:'nowrap',margin:0,padding:0}}>
-              <span className="brand-name" style={{display:'inline-block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'16px',fontWeight:850,letterSpacing:'-0.02em',color:'#ffffff',lineHeight:1,margin:0,padding:0}}>BEMS</span>
-              <span className="brand-sub" style={{display:'inline-block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'15px',fontWeight:800,letterSpacing:'0.04em',color:'#f97316',lineHeight:1,margin:0,padding:0}}>FINANCE</span>
+            <span style={{ width: 38, height: 38, borderRadius: 8, background: '#ffffff', border: `1.5px solid ${activeBrandColor}50`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 2, flexShrink: 0 }}>
+              {activeLogoUrl ? (
+                <img src={activeLogoUrl} alt={current.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }}/>
+              ) : (
+                <span style={{ fontSize: 13, fontWeight: 900, color: activeBrandColor }}>
+                  {current.initials || current.name.slice(0, 2).toUpperCase()}
+                </span>
+              )}
+            </span>
+            <div className="brand-title-wrap" style={{display:'inline-flex',flexDirection:'column',justifyContent:'center',minWidth:0,overflow:'hidden',gap:'2px',whiteSpace:'nowrap',margin:0,padding:0}}>
+              <span className="brand-name" style={{display:'inline-block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'15px',fontWeight:850,letterSpacing:'-0.02em',color:'#ffffff',lineHeight:1,margin:0,padding:0,overflow:'hidden',textOverflow:'ellipsis',maxWidth:130}}>
+                {isGroupScope ? 'BEMS' : current.name}
+              </span>
+              <span className="brand-sub" style={{display:'inline-block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'11px',fontWeight:800,letterSpacing:'0.04em',color:activeBrandColor,lineHeight:1,margin:0,padding:0}}>
+                {isGroupScope ? 'FINANCE GROUP' : (current.code || 'SUBSIDIARY')}
+              </span>
             </div>
             <button aria-label={collapsed?'Expand navigation':'Collapse navigation'} title={collapsed?'Expand navigation':'Collapse navigation'} onClick={(e)=>{e.stopPropagation();setCollapsed(!collapsed)}}>{collapsed?'›':'‹'}</button>
           </div>
@@ -3348,7 +3405,212 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
         </aside>
         <section className="workspace">
           <header className="topbar">
-            <div className="business-switch-wrap"><button className="business-switch" onClick={()=>{setSwitcher(!switcher);setTopPanel(null)}}><span style={{background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:'8px',padding:'2px',display:'inline-flex',alignItems:'center',justifyContent:'center',overflow:'hidden',width:36,height:36,flexShrink:0}}><img src="/bems-group-logo.png?v=20261024" alt="BEMS logo" style={{width:'100%',height:'100%',objectFit:'contain'}}/></span><div><strong>{current.name}</strong><small>{current.industry}</small></div><b>⌄</b></button>{switcher&&<div className="switch-menu"><p>SWITCH WORKSPACE</p>{businesses.map(b=><button className={b.id===current.id?'selected':''} key={b.id} onClick={()=>selectBusiness(b.id)}><span style={{background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:'6px',padding:'2px',display:'inline-flex',alignItems:'center',justifyContent:'center',overflow:'hidden',width:28,height:28,flexShrink:0}}><img src="/bems-group-logo.png?v=20261024" alt="" style={{width:'100%',height:'100%',objectFit:'contain'}}/></span><div><strong>{b.name}</strong><small>{b.industry} · {b.readiness}% ready</small></div>{b.id===current.id&&<b>✓</b>}</button>)}<button className="switch-add" onClick={()=>{setSwitcher(false);setActive('Settings')}}>⚙ Manage businesses in Settings</button></div>}</div><div className="global-search"><span>⌕</span><input aria-label="Search workspace" value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Search ${current.name}`}/><kbd>⌘ K</kbd>{search&&<div className="search-results">{(searchResults.length||dataResults.length)?<>{searchResults.map(name=><button key={`nav-${name}`} onClick={()=>openModule(name)}><span>{isLocked(name)?'⌾':'→'}</span><div><strong>{name}</strong><small>{isLocked(name)?'Locked in current environment':'Open in this workspace'}</small></div></button>)}{dataResults.map((r,i)=><button key={`data-${i}`} onClick={()=>openModule(r.navigate)}><span>◎</span><div><strong>{r.label}</strong><small>{r.type} · {r.sublabel}</small></div></button>)}</>:<p>No workspace results</p>}</div>}</div>
+            <div className="business-switch-wrap">
+              <button className="business-switch" onClick={()=>{setSwitcher(!switcher);setTopPanel(null)}}>
+                <span style={{background:'#ffffff',border:`1.5px solid ${activeBrandColor}50`,borderRadius:'8px',padding:'2px',display:'inline-flex',alignItems:'center',justifyContent:'center',overflow:'hidden',width:36,height:36,flexShrink:0}}>
+                  {activeLogoUrl ? (
+                    <img src={activeLogoUrl} alt={current.name} style={{width:'100%',height:'100%',objectFit:'contain'}}/>
+                  ) : (
+                    <span style={{fontSize:12,fontWeight:900,color:activeBrandColor}}>{current.initials || current.name.slice(0, 2).toUpperCase()}</span>
+                  )}
+                </span>
+                <div>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <strong>{current.name}</strong>
+                    {isGroupScope && (
+                      <span style={{fontSize:8,fontWeight:800,padding:'1px 5px',borderRadius:6,background:`${activeBrandColor}20`,color:activeBrandColor,border:`1px solid ${activeBrandColor}40`}}>
+                        GROUP VIEW
+                      </span>
+                    )}
+                  </div>
+                  <small>{isGroupScope ? 'Consolidated Master View · All Companies' : current.industry}</small>
+                </div>
+                <b>⌄</b>
+              </button>
+              {switcher && (
+                <div className="switch-menu" style={{ width: 340, padding: 12, borderRadius: 16, boxShadow: '0 20px 60px rgba(15, 23, 42, 0.22)', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px 10px', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', color: '#64748b', textTransform: 'uppercase' }}>
+                      SWITCH WORKSPACE
+                    </span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: activeBrandColor, background: `${activeBrandColor}14`, padding: '2px 8px', borderRadius: 12 }}>
+                      {businesses.length} {businesses.length === 1 ? 'Entity' : 'Entities'}
+                    </span>
+                  </div>
+
+                  {/* MASTER CONGLOMERATE VIEW */}
+                  {(() => {
+                    const groupEntity = businesses.find(b => b.type === 'GROUP' || b.id === 'bems-group-hq' || b.code === 'BEMS-GROUP');
+                    const isGroupSelected = groupEntity ? groupEntity.id === current.id : isGroupScope;
+                    if (!groupEntity) return null;
+                    return (
+                      <div style={{ marginTop: 10, marginBottom: 8 }}>
+                        <div style={{ fontSize: 9, fontWeight: 800, color: '#ea580c', letterSpacing: '0.08em', padding: '0 6px 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span>🏛</span> MASTER CONGLOMERATE VIEW
+                        </div>
+                        <button
+                          type="button"
+                          className={isGroupSelected ? 'selected' : ''}
+                          onClick={() => selectBusiness(groupEntity.id)}
+                          style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: '10px',
+                            borderRadius: 10,
+                            background: isGroupSelected ? '#fff7ed' : '#ffffff',
+                            border: isGroupSelected ? '1.5px solid #fdba74' : '1px solid #e2e8f0',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <span style={{ width: 34, height: 34, borderRadius: 8, background: '#0b1220', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 2, flexShrink: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+                            <img src="/bems-group-logo.png?v=20261024" alt="BEMS Group" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <strong style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>{groupEntity.name}</strong>
+                              <span style={{ fontSize: 8, fontWeight: 800, background: '#ea580c', color: '#fff', padding: '1px 5px', borderRadius: 4 }}>
+                                CONSOLIDATED
+                              </span>
+                            </div>
+                            <small style={{ fontSize: 10, color: '#64748b', display: 'block', marginTop: 2 }}>
+                              Aggregates all company data across all pages
+                            </small>
+                          </div>
+                          {isGroupSelected && <b style={{ color: '#ea580c', fontSize: 14 }}>✓</b>}
+                        </button>
+                      </div>
+                    );
+                  })()}
+
+                  {/* OPERATING SUBSIDIARIES */}
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#64748b', letterSpacing: '0.08em', padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span>🏢</span> OPERATING SUBSIDIARIES
+                    </div>
+                    <div style={{ maxHeight: 200, overflowY: 'auto', display: 'grid', gap: 4 }}>
+                      {businesses
+                        .filter(b => b.type !== 'GROUP' && b.id !== 'bems-group-hq' && b.code !== 'BEMS-GROUP')
+                        .map(b => {
+                          const isSelected = b.id === current.id;
+                          const subColor = b.brandColor || b.color || '#0d8a70';
+                          const subLogo = b.logoUrl;
+                          return (
+                            <button
+                              type="button"
+                              className={isSelected ? 'selected' : ''}
+                              key={b.id}
+                              onClick={() => selectBusiness(b.id)}
+                              style={{
+                                width: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                padding: '8px 10px',
+                                borderRadius: 9,
+                                background: isSelected ? `${subColor}12` : 'transparent',
+                                border: isSelected ? `1.5px solid ${subColor}60` : '1px solid transparent',
+                                textAlign: 'left',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 32,
+                                  height: 32,
+                                  borderRadius: 7,
+                                  background: '#ffffff',
+                                  border: `1.5px solid ${subColor}50`,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  overflow: 'hidden',
+                                  padding: 2,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {subLogo ? (
+                                  <img src={subLogo} alt={b.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                ) : (
+                                  <span style={{ fontSize: 11, fontWeight: 900, color: subColor }}>
+                                    {b.initials || b.code?.slice(0, 2) || b.name.slice(0, 2).toUpperCase()}
+                                  </span>
+                                )}
+                              </span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                  <strong style={{ fontSize: 11, fontWeight: 750, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {b.name}
+                                  </strong>
+                                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: subColor, flexShrink: 0 }} />
+                                </div>
+                                <small style={{ fontSize: 10, color: '#64748b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {b.industry || 'Subsidiary'}
+                                </small>
+                              </div>
+                              {isSelected && <b style={{ color: subColor, fontSize: 13 }}>✓</b>}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+
+                  {/* ACTIONS FOOTER */}
+                  <div style={{ borderTop: '1px solid #f1f5f9', marginTop: 8, paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSwitcher(false);
+                        onAddBusiness();
+                      }}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        background: `linear-gradient(135deg, ${activeBrandColor}, ${activeBrandColor}ee)`,
+                        color: '#ffffff',
+                        border: 'none',
+                        fontSize: 11,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        boxShadow: `0 4px 12px ${activeBrandColor}33`,
+                      }}
+                    >
+                      <span>＋</span> Add New Subsidiary
+                    </button>
+                    <button
+                      type="button"
+                      className="switch-add"
+                      onClick={() => {
+                        setSwitcher(false);
+                        setActive('Subsidiary portfolio');
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '7px 8px',
+                        color: '#64748b',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        background: 'transparent',
+                        border: 'none',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⚙ Manage Subsidiaries & Portfolios
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div><div className="global-search"><span>⌕</span><input aria-label="Search workspace" value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Search ${current.name}`}/><kbd>⌘ K</kbd>{search&&<div className="search-results">{(searchResults.length||dataResults.length)?<>{searchResults.map(name=><button key={`nav-${name}`} onClick={()=>openModule(name)}><span>{isLocked(name)?'⌾':'→'}</span><div><strong>{name}</strong><small>{isLocked(name)?'Locked in current environment':'Open in this workspace'}</small></div></button>)}{dataResults.map((r,i)=><button key={`data-${i}`} onClick={()=>openModule(r.navigate)}><span>◎</span><div><strong>{r.label}</strong><small>{r.type} · {r.sublabel}</small></div></button>)}</>:<p>No workspace results</p>}</div>}</div>
             <div className="top-actions">
               {isStaff && (
                 <button
@@ -3572,7 +3834,13 @@ export default function Home() {
       .then(d => {
         if (d && d.organizations && d.organizations.length > 0) {
           setBusinesses(d.organizations);
-          setCurrentId(d.organizations[0].id);
+          const urlOrg = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('org') : null;
+          const matchOrg = urlOrg ? d.organizations.find((o: any) => o.id === urlOrg || o.code === urlOrg) : null;
+          if (matchOrg) {
+            setCurrentId(matchOrg.id);
+          } else {
+            setCurrentId(d.organizations[0].id);
+          }
         } else {
           setBusinesses(defaultBemsBusinesses);
           setCurrentId('bems-group-hq');
@@ -3640,7 +3908,11 @@ export default function Home() {
         initials: newOrg.initials || (newOrg.code ? newOrg.code.replace(/^BEMS-?/, '').slice(0, 2) : 'BS'),
         status: 'Live',
         readiness: 100,
-        color: newOrg.color || '#ea580c',
+        color: newOrg.brandColor || newOrg.color || '#0d8a70',
+        brandColor: newOrg.brandColor || newOrg.color || '#0d8a70',
+        logoUrl: newOrg.logoUrl || null,
+        code: newOrg.code,
+        type: newOrg.type || 'SUBSIDIARY',
         aiEnabled: true,
       };
       setBusinesses(old => {
@@ -3648,6 +3920,11 @@ export default function Home() {
         return exists ? old : [...old, next];
       });
       setCurrentId(next.id);
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('org', next.id);
+        window.history.replaceState(null, '', url.toString());
+      }
     }
     setAddingBusiness(false);
   };
@@ -3664,6 +3941,9 @@ export default function Home() {
           name: updatedOrg.name || updatedOrg.legalName || b.name,
           industry: updatedOrg.industry || b.industry,
           initials: updatedOrg.initials || (updatedOrg.code ? updatedOrg.code.replace(/^BEMS-?/, '').slice(0, 2) : b.initials),
+          color: updatedOrg.brandColor || updatedOrg.color || b.color,
+          brandColor: updatedOrg.brandColor || updatedOrg.color || b.brandColor,
+          logoUrl: updatedOrg.logoUrl !== undefined ? updatedOrg.logoUrl : b.logoUrl,
           budgetFormatted: updatedOrg.budgetFormatted || (b as any).budgetFormatted,
         };
       }));
