@@ -1,13 +1,51 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface Props {
   size?: number;
+  brandColor?: string;
 }
 
-export function KineticOptikkaTorus({ size = 420 }: Props) {
+function hexToRgb(hex?: string) {
+  if (!hex) return { r: 13, g: 138, b: 112 };
+  let clean = hex.trim().replace('#', '');
+  if (clean.length === 3) {
+    clean = clean.split('').map(c => c + c).join('');
+  }
+  if (clean.length !== 6) {
+    return { r: 13, g: 138, b: 112 };
+  }
+  const num = parseInt(clean, 16);
+  if (isNaN(num)) return { r: 13, g: 138, b: 112 };
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255,
+  };
+}
+
+export function KineticOptikkaTorus({ size = 420, brandColor }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [currentBrand, setCurrentBrand] = useState<string>(brandColor || '#0d8a70');
+
+  useEffect(() => {
+    if (brandColor) {
+      setCurrentBrand(brandColor);
+    } else if (typeof window !== 'undefined') {
+      const computed = getComputedStyle(document.documentElement).getPropertyValue('--brand-primary').trim();
+      if (computed && computed.startsWith('#')) {
+        setCurrentBrand(computed);
+      }
+    }
+  }, [brandColor]);
+
+  const primaryRgb = hexToRgb(currentBrand);
+  const tintRgb = {
+    r: Math.min(255, primaryRgb.r + 40),
+    g: Math.min(255, primaryRgb.g + 40),
+    b: Math.min(255, primaryRgb.b + 40),
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -70,20 +108,20 @@ export function KineticOptikkaTorus({ size = 420 }: Props) {
         // Depth for sorting (simulating 3D rotation)
         const depth = Math.sin(u + angleOffset * 0.45) * 100 + dz * 50;
 
-        // Color interpolation: vibrant brand orange to charcoal/slate
+        // Color interpolation: vibrant subsidiary brand color to charcoal/slate
         const normalizedAngle = (u % (Math.PI * 2)) / (Math.PI * 2);
         let color: string;
         let alpha = 0.88;
 
         if (normalizedAngle < 0.48) {
           const t = normalizedAngle / 0.48;
-          const r = Math.round(234 + (249 - 234) * t);
-          const g = Math.round(88 + (115 - 88) * t);
-          const b = Math.round(12 + (22 - 12) * t);
+          const r = Math.round(primaryRgb.r + (tintRgb.r - primaryRgb.r) * t);
+          const g = Math.round(primaryRgb.g + (tintRgb.g - primaryRgb.g) * t);
+          const b = Math.round(primaryRgb.b + (tintRgb.b - primaryRgb.b) * t);
           color = `rgb(${r}, ${g}, ${b})`;
           alpha = 0.96;
         } else if (normalizedAngle < 0.52) {
-          color = '#ea580c';
+          color = `rgb(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b})`;
           alpha = 0.98;
         } else {
           const t = (normalizedAngle - 0.52) / 0.48;
@@ -109,11 +147,11 @@ export function KineticOptikkaTorus({ size = 420 }: Props) {
       // Sort by depth (farthest first)
       fins.sort((a, b) => a.depth - b.depth);
 
-      // Core glow at center
+      // Core glow at center using subsidiary brand color
       const coreGradient = ctx.createRadialGradient(centerX, centerY, 5, centerX, centerY, majorRadius * 0.95);
-      coreGradient.addColorStop(0, 'rgba(249, 115, 22, 0.16)');
-      coreGradient.addColorStop(0.5, 'rgba(234, 88, 12, 0.06)');
-      coreGradient.addColorStop(1, 'rgba(249, 115, 22, 0)');
+      coreGradient.addColorStop(0, `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.22)`);
+      coreGradient.addColorStop(0.5, `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.08)`);
+      coreGradient.addColorStop(1, `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0)`);
       ctx.fillStyle = coreGradient;
       ctx.beginPath();
       ctx.arc(centerX, centerY, majorRadius * 0.95, 0, Math.PI * 2);
@@ -142,7 +180,7 @@ export function KineticOptikkaTorus({ size = 420 }: Props) {
       isRunning = false;
       cancelAnimationFrame(animationFrameId);
     };
-  }, [size]);
+  }, [size, primaryRgb.r, primaryRgb.g, primaryRgb.b]);
 
   return (
     <div

@@ -205,7 +205,7 @@ export function ReceiptArchiveModule({ setNotice, scope }: { setNotice: (message
         <article style={{ ...card, padding: '16px 18px', background: '#ffffff' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 11, fontWeight: 800 }}>
             <span>TOTAL ARCHIVED SLIPS</span>
-            <Receipt size={16} color="#ea580c" />
+            <Receipt size={16} color="var(--brand-primary, #0d8a70)" />
           </div>
           <div style={{ fontSize: 26, fontWeight: 900, color: '#0f172a', marginTop: 6 }}>
             {rows.length}
@@ -334,7 +334,7 @@ export function ReceiptArchiveModule({ setNotice, scope }: { setNotice: (message
         {/* Content Body */}
         {loading ? (
           <div style={{ padding: '48px 24px', textAlign: 'center', color: '#64748b' }}>
-            <RefreshCw size={24} color="#ea580c" className="animate-spin" style={{ margin: '0 auto 12px', display: 'block' }} />
+            <RefreshCw size={24} color="var(--brand-primary, #0d8a70)" className="animate-spin" style={{ margin: '0 auto 12px', display: 'block' }} />
             <strong style={{ fontSize: 14, color: '#0f172a' }}>Loading payment evidence...</strong>
             <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 0' }}>Decrypting and indexing stored transaction receipts</p>
           </div>
@@ -1481,7 +1481,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                 {/* Middle: Subsidiary & Position Placement */}
                 <div style={{ minWidth: 200, flex: '1 1 200px' }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <Briefcase size={13} color="#ea580c" />
+                    <Briefcase size={13} color="var(--brand-primary, #0d8a70)" />
                     <span>{primaryAssignment?.positionName || primaryAssignment?.department?.name || 'General Staff'}</span>
                   </div>
                   <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -2375,7 +2375,7 @@ export function IntercompanyModule({ setNotice, scope }: { setNotice: (message: 
         <article style={{ ...card, padding: '16px 18px', background: '#ffffff' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 11, fontWeight: 800 }}>
             <span>TOTAL NOTE VOLUME</span>
-            <Wallet size={16} color="#ea580c" />
+            <Wallet size={16} color="var(--brand-primary, #0d8a70)" />
           </div>
           <div style={{ fontSize: 26, fontWeight: 900, color: '#0f172a', marginTop: 6 }}>
             {fmt(totalVolumeMinor)}
@@ -2520,7 +2520,7 @@ export function IntercompanyModule({ setNotice, scope }: { setNotice: (message: 
         {/* Content Body */}
         {loading ? (
           <div style={{ padding: '48px 24px', textAlign: 'center', color: '#64748b' }}>
-            <RefreshCw size={24} color="#ea580c" className="animate-spin" style={{ margin: '0 auto 12px', display: 'block' }} />
+            <RefreshCw size={24} color="var(--brand-primary, #0d8a70)" className="animate-spin" style={{ margin: '0 auto 12px', display: 'block' }} />
             <strong style={{ fontSize: 14, color: '#0f172a' }}>Loading intercompany ledger...</strong>
             <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 0' }}>Reconciling multi-entity debit and credit records</p>
           </div>

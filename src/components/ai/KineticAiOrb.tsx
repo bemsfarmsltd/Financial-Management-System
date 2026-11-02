@@ -1,18 +1,51 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface Props {
   size?: 'compact' | 'hud' | 'hero';
   isTyping?: boolean;
   onClick?: () => void;
+  brandColor?: string;
 }
 
-export function KineticAiOrb({ size = 'hud', isTyping = false, onClick }: Props) {
+function hexToRgb(hex?: string) {
+  if (!hex) return { r: 13, g: 138, b: 112 };
+  let clean = hex.trim().replace('#', '');
+  if (clean.length === 3) {
+    clean = clean.split('').map(c => c + c).join('');
+  }
+  if (clean.length !== 6) {
+    return { r: 13, g: 138, b: 112 };
+  }
+  const num = parseInt(clean, 16);
+  if (isNaN(num)) return { r: 13, g: 138, b: 112 };
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255,
+  };
+}
+
+export function KineticAiOrb({ size = 'hud', isTyping = false, onClick, brandColor }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouseRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
+  const [currentBrand, setCurrentBrand] = useState<string>(brandColor || '#0d8a70');
 
   const px = size === 'compact' ? 32 : size === 'hud' ? 44 : 110;
+
+  useEffect(() => {
+    if (brandColor) {
+      setCurrentBrand(brandColor);
+    } else if (typeof window !== 'undefined') {
+      const computed = getComputedStyle(document.documentElement).getPropertyValue('--brand-primary').trim();
+      if (computed && computed.startsWith('#')) {
+        setCurrentBrand(computed);
+      }
+    }
+  }, [brandColor]);
+
+  const primaryRgb = hexToRgb(currentBrand);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -85,7 +118,7 @@ export function KineticAiOrb({ size = 'hud', isTyping = false, onClick }: Props)
         const colorRatio = (i / strands + rotation * 0.1) % 1;
         let strokeStyle: string;
         if (colorRatio < 0.33) {
-          strokeStyle = `rgba(234, 88, 12, ${0.45 + scale * 0.35})`; // BEMS Orange
+          strokeStyle = `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, ${0.5 + scale * 0.35})`;
         } else if (colorRatio < 0.66) {
           strokeStyle = `rgba(245, 158, 11, ${0.4 + scale * 0.35})`; // Gold
         } else if (colorRatio < 0.85) {
@@ -105,8 +138,8 @@ export function KineticAiOrb({ size = 'hud', isTyping = false, onClick }: Props)
 
       // Center ambient glowing core
       const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseRadius * 0.85);
-      coreGrad.addColorStop(0, isTyping ? 'rgba(234, 88, 12, 0.4)' : 'rgba(234, 88, 12, 0.18)');
-      coreGrad.addColorStop(0.7, 'rgba(245, 158, 11, 0.08)');
+      coreGrad.addColorStop(0, isTyping ? `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.45)` : `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.22)`);
+      coreGrad.addColorStop(0.7, `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.08)`);
       coreGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
       ctx.fillStyle = coreGrad;
@@ -123,7 +156,7 @@ export function KineticAiOrb({ size = 'hud', isTyping = false, onClick }: Props)
       cancelAnimationFrame(animId);
       window.removeEventListener('mousemove', handleMouseMove);
     };
-  }, [size, isTyping]);
+  }, [size, isTyping, primaryRgb.r, primaryRgb.g, primaryRgb.b]);
 
   return (
     <div

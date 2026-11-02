@@ -403,7 +403,7 @@ export function PeopleAccessWorkspaceModule({
       {/* 1. Executive Top Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#ea580c', fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--brand-primary, #0d8a70)', fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>
             <ShieldCheck size={14} /> SYSTEM ADMINISTRATION &amp; ACCESS
           </div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', margin: '2px 0 6px 0', letterSpacing: '-0.02em' }}>
@@ -456,12 +456,12 @@ export function PeopleAccessWorkspaceModule({
               padding: '9px 18px',
               borderRadius: 8,
               border: 'none',
-              background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+              background: 'var(--brand-gradient, linear-gradient(135deg, var(--brand-primary, #0d8a70) 0%, var(--brand-primary, #0d8a70) 100%))',
               color: '#ffffff',
               fontSize: 12.5,
               fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: '0 3px 12px rgba(234, 88, 12, 0.28)',
+              boxShadow: '0 3px 12px var(--brand-shadow-color, rgba(13, 138, 112, 0.28))',
               transition: 'all 0.15s ease',
             }}
           >
@@ -528,7 +528,7 @@ export function PeopleAccessWorkspaceModule({
             background: '#ffffff',
             borderRadius: 14,
             padding: '18px 20px',
-            border: activeTab === 'approvals' ? '1.5px solid #ea580c' : '1px solid #e2e8f0',
+            border: activeTab === 'approvals' ? '1.5px solid var(--brand-primary, #0d8a70)' : '1px solid #e2e8f0',
             cursor: 'pointer',
             display: 'flex',
             flexDirection: 'column',
@@ -541,7 +541,7 @@ export function PeopleAccessWorkspaceModule({
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#64748b', textTransform: 'uppercase' }}>
               Staff Approvals Queue
             </span>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: employees.length > 0 ? '#fff7ed' : '#f0fdf4', display: 'grid', placeItems: 'center', color: employees.length > 0 ? '#ea580c' : '#16a34a' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: employees.length > 0 ? 'var(--brand-tint, rgba(13, 138, 112, 0.12))' : '#f0fdf4', display: 'grid', placeItems: 'center', color: employees.length > 0 ? 'var(--brand-primary, #0d8a70)' : '#16a34a' }}>
               <UserRound size={15} />
             </div>
           </div>
@@ -571,7 +571,7 @@ export function PeopleAccessWorkspaceModule({
             background: '#ffffff',
             borderRadius: 14,
             padding: '18px 20px',
-            border: activeTab === 'invitations' ? '1.5px solid #ea580c' : '1px solid #e2e8f0',
+            border: activeTab === 'invitations' ? '1.5px solid var(--brand-primary, #0d8a70)' : '1px solid #e2e8f0',
             cursor: 'pointer',
             display: 'flex',
             flexDirection: 'column',
@@ -655,7 +655,7 @@ export function PeopleAccessWorkspaceModule({
             <span>Staff Approval Queue</span>
             <span
               style={{
-                background: activeTab === 'approvals' ? '#ea580c' : '#cbd5e1',
+                background: activeTab === 'approvals' ? 'var(--brand-primary, #0d8a70)' : '#cbd5e1',
                 color: activeTab === 'approvals' ? '#ffffff' : '#0f172a',
                 padding: '1px 7px',
                 borderRadius: 999,
@@ -689,7 +689,7 @@ export function PeopleAccessWorkspaceModule({
             <span>Executive Leadership Directory</span>
             <span
               style={{
-                background: activeTab === 'directory' ? '#ea580c' : '#cbd5e1',
+                background: activeTab === 'directory' ? 'var(--brand-primary, #0d8a70)' : '#cbd5e1',
                 color: activeTab === 'directory' ? '#ffffff' : '#0f172a',
                 padding: '1px 7px',
                 borderRadius: 999,
@@ -723,7 +723,7 @@ export function PeopleAccessWorkspaceModule({
             <span>Dispatched Invitations</span>
             <span
               style={{
-                background: activeTab === 'invitations' ? '#ea580c' : '#cbd5e1',
+                background: activeTab === 'invitations' ? 'var(--brand-primary, #0d8a70)' : '#cbd5e1',
                 color: activeTab === 'invitations' ? '#ffffff' : '#0f172a',
                 padding: '1px 7px',
                 borderRadius: 999,
@@ -783,12 +783,12 @@ export function PeopleAccessWorkspaceModule({
                         width: 44,
                         height: 44,
                         borderRadius: 10,
-                        background: '#fff7ed',
-                        border: '1px solid #fed7aa',
+                        background: 'var(--brand-tint, rgba(13, 138, 112, 0.12))',
+                        border: '1px solid var(--brand-border, rgba(13, 138, 112, 0.35))',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: '#ea580c',
+                        color: 'var(--brand-primary, #0d8a70)',
                         fontWeight: 800,
                         fontSize: 15,
                         flexShrink: 0,
@@ -1031,9 +1031,9 @@ export function PeopleAccessWorkspaceModule({
                       width: 42,
                       height: 42,
                       borderRadius: 10,
-                      background: leader.role === 'GMD' ? '#fff7ed' : '#f8fafc',
-                      border: leader.role === 'GMD' ? '1px solid #fed7aa' : '1px solid #cbd5e1',
-                      color: leader.role === 'GMD' ? '#ea580c' : '#334155',
+                      background: leader.role === 'GMD' ? 'var(--brand-tint, rgba(13, 138, 112, 0.12))' : '#f8fafc',
+                      border: leader.role === 'GMD' ? '1px solid var(--brand-border, rgba(13, 138, 112, 0.35))' : '1px solid #cbd5e1',
+                      color: leader.role === 'GMD' ? 'var(--brand-primary, #0d8a70)' : '#334155',
                       fontWeight: 800,
                       fontSize: 13,
                       display: 'flex',
@@ -1053,7 +1053,7 @@ export function PeopleAccessWorkspaceModule({
                           fontWeight: 700,
                           padding: '2px 8px',
                           borderRadius: 4,
-                          background: leader.role === 'GMD' ? '#ea580c' : '#334155',
+                          background: leader.role === 'GMD' ? 'var(--brand-primary, #0d8a70)' : '#334155',
                           color: '#ffffff',
                         }}
                       >
@@ -1101,8 +1101,8 @@ export function PeopleAccessWorkspaceModule({
                             alignItems: 'center',
                             gap: 5,
                             background: '#ffffff',
-                            border: '1px solid #fed7aa',
-                            color: '#ea580c',
+                            border: '1px solid var(--brand-border, rgba(13, 138, 112, 0.35))',
+                            color: 'var(--brand-primary, #0d8a70)',
                             padding: '6px 12px',
                             borderRadius: 6,
                             fontWeight: 700,
@@ -1194,12 +1194,12 @@ export function PeopleAccessWorkspaceModule({
                       width: 40,
                       height: 40,
                       borderRadius: 10,
-                      background: '#fff7ed',
-                      border: '1px solid #fed7aa',
+                      background: 'var(--brand-tint, rgba(13, 138, 112, 0.12))',
+                      border: '1px solid var(--brand-border, rgba(13, 138, 112, 0.35))',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#ea580c',
+                      color: 'var(--brand-primary, #0d8a70)',
                       fontWeight: 800,
                       fontSize: 14,
                       flexShrink: 0,
@@ -1212,7 +1212,7 @@ export function PeopleAccessWorkspaceModule({
                       {inv.workEmail}
                     </div>
                     <div style={{ fontSize: 12, color: '#64748b', display: 'flex', gap: 8, alignItems: 'center', marginTop: 3 }}>
-                      <span style={{ background: '#ea580c', color: '#ffffff', padding: '1px 7px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                      <span style={{ background: 'var(--brand-primary, #0d8a70)', color: '#ffffff', padding: '1px 7px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
                         {getRoleDisplayName(inv.role)}
                       </span>
                       <span>·</span>
@@ -1338,7 +1338,7 @@ export function PeopleAccessWorkspaceModule({
                   padding: '8px 16px',
                   borderRadius: 8,
                   border: 'none',
-                  background: '#ea580c',
+                  background: 'var(--brand-primary, #0d8a70)',
                   color: '#ffffff',
                   fontSize: 12.5,
                   fontWeight: 700,
@@ -1382,7 +1382,7 @@ export function PeopleAccessWorkspaceModule({
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, borderBottom: '1px solid #f1f5f9', paddingBottom: 14 }}>
               <div>
-                <div style={{ color: '#ea580c', fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                <div style={{ color: 'var(--brand-primary, #0d8a70)', fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
                   GOVERNANCE ACCESS PROVISIONING
                 </div>
                 <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', margin: '4px 0 0 0' }}>
@@ -1511,7 +1511,7 @@ export function PeopleAccessWorkspaceModule({
                     padding: '9px 22px',
                     borderRadius: 8,
                     border: 'none',
-                    background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                    background: 'var(--brand-gradient, linear-gradient(135deg, var(--brand-primary, #0d8a70) 0%, var(--brand-primary, #0d8a70) 100%))',
                     color: '#fff',
                     fontSize: 13,
                     fontWeight: 700,
@@ -1519,7 +1519,7 @@ export function PeopleAccessWorkspaceModule({
                     display: 'flex',
                     alignItems: 'center',
                     gap: 7,
-                    boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+                    boxShadow: '0 2px 8px var(--brand-shadow-color, rgba(13, 138, 112, 0.25))',
                   }}
                 >
                   <Send size={14} />

@@ -65,7 +65,7 @@ export function AmbientAiCopilotHud({
       >
         <KineticAiOrb size="compact" isTyping={false} />
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: '10px', fontWeight: 800, color: '#ea580c', letterSpacing: '0.06em' }}>
+          <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--brand-primary, #0d8a70)', letterSpacing: '0.06em' }}>
             AI COPILOT ACTIVE
           </span>
           <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>
@@ -138,7 +138,7 @@ export function AmbientAiCopilotHud({
                 width: '10px',
                 height: '10px',
                 borderRadius: '50%',
-                background: '#ea580c',
+                background: 'var(--brand-primary, #0d8a70)',
                 border: '2px solid #ffffff',
                 animation: 'pulse 2s infinite',
               }}

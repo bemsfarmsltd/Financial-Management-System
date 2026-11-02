@@ -4007,14 +4007,17 @@ export default function Home() {
 
   // 3. Dynamic AI Motion Pre-Screen before dashboard access (on login & reload)
   if (showAiEntry) {
+    const activeEntryBusiness = businesses.find(b => b.id === currentId) || businesses[0] || defaultBemsBusinesses[0];
+    const entryBrandColor = activeEntryBusiness?.brandColor || activeEntryBusiness?.color || '#0d8a70';
     return (
       <AiMotionEntryScreen
         key={`ai-entry-${entryMode}-${user.id}`}
         onComplete={() => setShowAiEntry(false)}
-        businessName="BEMS Group"
+        businessName={activeEntryBusiness?.name || "BEMS Group"}
         userName={user.fullName || user.name || 'Executive'}
         userRole={user.role || 'STAFF'}
         mode={entryMode}
+        brandColor={entryBrandColor}
       />
     );
   }

@@ -10,6 +10,7 @@ interface Props {
   userName?: string;
   userRole?: string;
   mode?: 'login' | 'reload';
+  brandColor?: string;
 }
 
 export function AiMotionEntryScreen({
@@ -18,6 +19,7 @@ export function AiMotionEntryScreen({
   userName = '',
   userRole = '',
   mode = 'reload',
+  brandColor,
 }: Props) {
   const [financialIndex, setFinancialIndex] = useState(0);
   const [isFadingOut, setIsFadingOut] = useState(false);
@@ -179,7 +181,7 @@ export function AiMotionEntryScreen({
           userSelect: 'none',
         }}
       >
-        <KineticOptikkaTorus size={460} />
+        <KineticOptikkaTorus size={460} brandColor={brandColor} />
       </div>
     );
   }
@@ -211,14 +213,14 @@ export function AiMotionEntryScreen({
       {/* Top Subtle Brand Tag */}
       <div style={{ width: '100%', maxWidth: '1000px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ea580c', display: 'inline-block' }} />
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: brandColor || '#0d8a70', display: 'inline-block' }} />
           <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#78716c' }}>
             BEMS AI · AUTONOMOUS LEDGER GOVERNANCE
           </span>
         </div>
 
         <span style={{ fontSize: '11px', fontWeight: 700, color: '#78716c', letterSpacing: '0.04em' }}>
-          BEMS Group
+          {businessName || 'BEMS Group'}
         </span>
       </div>
 
@@ -236,7 +238,7 @@ export function AiMotionEntryScreen({
       >
         {/* Kinetic 3D Torus Object */}
         <div style={{ transform: 'scale(1.02)', marginBottom: '18px' }}>
-          <KineticOptikkaTorus size={380} />
+          <KineticOptikkaTorus size={380} brandColor={brandColor} />
         </div>
 
         {/* Executive Welcome Header with dynamic user name */}
