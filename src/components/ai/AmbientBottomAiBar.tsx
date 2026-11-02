@@ -80,11 +80,11 @@ export function AmbientBottomAiBar({
       case 'warning':
         return { bg: '#fef2f2', text: '#b91c1c', border: '#fecaca', dot: '#ef4444' };
       case 'highlight':
-        return { bg: '#fff7ed', text: '#c2410c', border: '#fed7aa', dot: '#f97316' };
+        return { bg: 'var(--brand-tint, #eff6ff)', text: 'var(--brand-primary, #2563eb)', border: 'var(--brand-primary, #bfdbfe)', dot: 'var(--brand-primary, #3b82f6)' };
       case 'success':
         return { bg: '#ecfdf5', text: '#047857', border: '#a7f3d0', dot: '#10b981' };
       default:
-        return { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe', dot: '#3b82f6' };
+        return { bg: 'var(--brand-tint, #eff6ff)', text: 'var(--brand-primary, #2563eb)', border: 'var(--brand-primary, #bfdbfe)', dot: 'var(--brand-primary, #3b82f6)' };
     }
   };
 
@@ -120,7 +120,7 @@ export function AmbientBottomAiBar({
             WebkitBackdropFilter: 'blur(30px) saturate(190%)',
             border: '1px solid rgba(255, 255, 255, 0.80)',
             borderRadius: '24px',
-            boxShadow: '0 25px 70px rgba(15, 23, 42, 0.16), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), 0 0 40px rgba(249, 115, 22, 0.10)',
+            boxShadow: '0 25px 70px rgba(15, 23, 42, 0.16), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), 0 0 40px var(--brand-shadow-color, rgba(37, 99, 235, 0.10))',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -141,7 +141,7 @@ export function AmbientBottomAiBar({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sparkles size={14} color="#ea580c" />
+              <Sparkles size={14} color="var(--brand-primary, #2563eb)" />
               <strong style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>
                 BEMS AI Financial Assistant · Live Stream
               </strong>
@@ -237,7 +237,7 @@ export function AmbientBottomAiBar({
                       color: '#64748b',
                     }}
                   >
-                    <span style={{ fontWeight: 700, color: isUser ? '#ea580c' : '#0284c7' }}>
+                    <span style={{ fontWeight: 700, color: isUser ? 'var(--brand-primary, #2563eb)' : '#0284c7' }}>
                       {isUser ? userName.split(' ')[0] : 'BEMS AI Copilot'}
                     </span>
                     <span>·</span>
@@ -247,7 +247,7 @@ export function AmbientBottomAiBar({
                   <div
                     style={{
                       background: isUser
-                        ? 'linear-gradient(135deg, rgba(234, 88, 12, 0.95) 0%, rgba(249, 115, 22, 0.95) 100%)'
+                        ? 'var(--brand-gradient, linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%))'
                         : 'rgba(255, 255, 255, 0.88)',
                       backdropFilter: 'blur(20px)',
                       WebkitBackdropFilter: 'blur(20px)',
@@ -259,7 +259,7 @@ export function AmbientBottomAiBar({
                       lineHeight: 1.5,
                       maxWidth: isUser ? '85%' : '98%',
                       width: isUser ? 'auto' : '100%',
-                      boxShadow: isUser ? '0 4px 14px rgba(234, 88, 12, 0.25)' : '0 4px 20px rgba(15, 23, 42, 0.06)',
+                      boxShadow: isUser ? '0 4px 14px var(--brand-shadow-color, rgba(37, 99, 235, 0.25))' : '0 4px 20px rgba(15, 23, 42, 0.06)',
                     }}
                   >
                     <FormattedAiMessage
@@ -357,9 +357,9 @@ export function AmbientBottomAiBar({
             {isTyping && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '11px' }}>
                 <div style={{ display: 'flex', gap: '3px' }}>
-                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#ea580c', animation: 'pulse 1s infinite' }} />
-                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#ea580c', animation: 'pulse 1s infinite 0.2s' }} />
-                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#ea580c', animation: 'pulse 1s infinite 0.4s' }} />
+                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--brand-primary, #2563eb)', animation: 'pulse 1s infinite' }} />
+                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--brand-primary, #2563eb)', animation: 'pulse 1s infinite 0.2s' }} />
+                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--brand-primary, #2563eb)', animation: 'pulse 1s infinite 0.4s' }} />
                 </div>
                 <span style={{ fontWeight: 600 }}>Analyzing BEMS ledger...</span>
               </div>
@@ -463,9 +463,9 @@ export function AmbientBottomAiBar({
               gap: '5px',
               padding: '4px 10px',
               borderRadius: '999px',
-              background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
-              border: '1px solid #fed7aa',
-              color: '#c2410c',
+              background: 'var(--brand-tint, rgba(37, 99, 235, 0.12))',
+              border: '1px solid var(--brand-border, rgba(37, 99, 235, 0.35))',
+              color: 'var(--brand-primary, #2563eb)',
               fontSize: '10.5px',
               fontWeight: 800,
               cursor: 'pointer',
@@ -492,16 +492,16 @@ export function AmbientBottomAiBar({
               padding: '4px 10px',
               borderRadius: '999px',
               background: isInspectMode
-                ? 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)'
+                ? 'var(--brand-gradient, linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%))'
                 : 'rgba(255, 255, 255, 0.75)',
-              border: isInspectMode ? '1px solid #c2410c' : '1px solid rgba(226, 232, 240, 0.9)',
+              border: isInspectMode ? '1px solid var(--brand-primary, #2563eb)' : '1px solid rgba(226, 232, 240, 0.9)',
               color: isInspectMode ? '#ffffff' : '#334155',
               fontSize: '10.5px',
               fontWeight: 700,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               flexShrink: 0,
-              boxShadow: isInspectMode ? '0 0 12px rgba(234, 88, 12, 0.45)' : '0 1px 2px rgba(0,0,0,0.03)',
+              boxShadow: isInspectMode ? '0 0 12px var(--brand-shadow-color, rgba(37, 99, 235, 0.45))' : '0 1px 2px rgba(0,0,0,0.03)',
               transition: 'all 0.15s ease',
             }}
           >
@@ -552,7 +552,7 @@ export function AmbientBottomAiBar({
             type="submit"
             disabled={!inputText.trim() || isTyping}
             style={{
-              background: inputText.trim() && !isTyping ? 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)' : 'rgba(255, 255, 255, 0.45)',
+              background: inputText.trim() && !isTyping ? 'var(--brand-gradient, linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%))' : 'rgba(255, 255, 255, 0.45)',
               color: inputText.trim() && !isTyping ? '#ffffff' : '#94a3b8',
               border: '1px solid rgba(255, 255, 255, 0.60)',
               borderRadius: '50%',

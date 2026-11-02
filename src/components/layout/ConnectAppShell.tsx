@@ -260,6 +260,9 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
         :root {
           --brand-primary: ${activeBrandColor};
           --brand-primary-rgb: ${activeBrandColor};
+          --brand-tint: ${activeBrandColor}18;
+          --brand-gradient: linear-gradient(135deg, ${activeBrandColor}18 0%, ${activeBrandColor} 100%);
+          --brand-shadow-color: ${activeBrandColor}40;
         }
         .side-brand span,
         .side-brand .brand-sub {

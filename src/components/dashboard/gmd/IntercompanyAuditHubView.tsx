@@ -53,14 +53,14 @@ export function IntercompanyAuditHubView({
               width: '28px',
               height: '28px',
               borderRadius: '6px',
-              background: 'linear-gradient(135deg, #f97316, #ea580c)',
+              background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
               color: '#fff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontWeight: 800,
               fontSize: '13px',
-              boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)',
+              boxShadow: '0 2px 6px var(--brand-shadow-color, rgba(0, 0, 0, 0.25))',
             }}
           >
             ▥
@@ -94,7 +94,7 @@ export function IntercompanyAuditHubView({
               fontSize: '11px',
               fontWeight: activeTab === 'notes' ? 700 : 500,
               color: activeTab === 'notes' ? '#ffffff' : '#475569',
-              background: activeTab === 'notes' ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' : 'transparent',
+              background: activeTab === 'notes' ? 'var(--brand-gradient, var(--brand-primary, #0d8a70))' : 'transparent',
               border: 0,
               borderRadius: '6px',
               cursor: 'pointer',
@@ -127,7 +127,7 @@ export function IntercompanyAuditHubView({
               fontSize: '11px',
               fontWeight: activeTab === 'allocation' ? 700 : 500,
               color: activeTab === 'allocation' ? '#ffffff' : '#475569',
-              background: activeTab === 'allocation' ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' : 'transparent',
+              background: activeTab === 'allocation' ? 'var(--brand-gradient, var(--brand-primary, #0d8a70))' : 'transparent',
               border: 0,
               borderRadius: '6px',
               cursor: 'pointer',
@@ -160,7 +160,7 @@ export function IntercompanyAuditHubView({
               fontSize: '11px',
               fontWeight: activeTab === 'audit' ? 700 : 500,
               color: activeTab === 'audit' ? '#ffffff' : '#475569',
-              background: activeTab === 'audit' ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' : 'transparent',
+              background: activeTab === 'audit' ? 'var(--brand-gradient, var(--brand-primary, #0d8a70))' : 'transparent',
               border: 0,
               borderRadius: '6px',
               cursor: 'pointer',
@@ -212,7 +212,7 @@ export function IntercompanyAuditHubView({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '20px' }}>
             <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
               <div style={{ fontSize: '9px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Engineering Allocation</div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: '#ea580c', marginTop: '4px' }}>70 / 30 Split</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--brand-primary, #0d8a70)', marginTop: '4px' }}>70 / 30 Split</div>
               <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>BemsSoft 70% · Bems Logistics 30%</div>
             </div>
             <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
@@ -248,7 +248,7 @@ export function IntercompanyAuditHubView({
                   <td style={{ padding: '10px', fontWeight: 600, color: '#0b1220' }}>{r[0]}</td>
                   <td style={{ padding: '10px', color: '#475569' }}>{r[1]}</td>
                   <td style={{ padding: '10px', color: '#475569' }}>{r[2]}</td>
-                  <td style={{ padding: '10px', fontWeight: 700, color: '#ea580c' }}>{r[3]}</td>
+                  <td style={{ padding: '10px', fontWeight: 700, color: 'var(--brand-primary, #0d8a70)' }}>{r[3]}</td>
                   <td style={{ padding: '10px' }}>
                     <span style={{ padding: '2px 8px', borderRadius: '999px', background: '#ecfdf5', color: '#059669', fontSize: '10px', fontWeight: 700 }}>
                       {r[4]}

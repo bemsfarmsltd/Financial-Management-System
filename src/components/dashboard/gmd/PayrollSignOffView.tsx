@@ -344,8 +344,8 @@ export function PayrollSignOffView({
               style={{
                 padding: '6px 12px',
                 borderRadius: '6px',
-                border: '1px solid #ea580c',
-                background: 'linear-gradient(135deg, #f97316, #ea580c)',
+                border: '1px solid var(--brand-primary, #0d8a70)',
+                background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
                 color: '#fff',
                 fontSize: '10px',
                 fontWeight: 700,
@@ -403,7 +403,7 @@ export function PayrollSignOffView({
       {/* TOP 4 KPI CARDS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' }}>
         <div style={{
-          background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+          background: 'var(--brand-gradient, linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%))',
           borderRadius: '10px',
           padding: '12px 14px',
           color: '#fff',
@@ -412,10 +412,10 @@ export function PayrollSignOffView({
           justifyContent: 'space-between',
           height: '75px',
           boxSizing: 'border-box',
-          boxShadow: '0 8px 20px rgba(234, 88, 12, 0.22)',
+          boxShadow: '0 8px 20px var(--brand-shadow-color, rgba(37, 99, 235, 0.22))',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.8px', color: '#fed7aa', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.8px', color: 'rgba(255, 255, 255, 0.85)', textTransform: 'uppercase' }}>
               GROSS RUN-RATE
             </span>
             <Users size={12} color="#fed7aa" />
@@ -493,10 +493,10 @@ export function PayrollSignOffView({
             <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.8px', color: '#64748b', textTransform: 'uppercase' }}>
               ACTIVE HEADCOUNT
             </span>
-            <ShieldCheck size={12} color="#ea580c" />
+            <ShieldCheck size={12} color="var(--brand-primary, #0d8a70)" />
           </div>
           <div>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#ea580c', lineHeight: 1.1 }}>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand-primary, #0d8a70)', lineHeight: 1.1 }}>
               {data?.items.length ?? '—'} Staff
             </div>
             <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>In this payroll batch</div>
@@ -521,14 +521,14 @@ export function PayrollSignOffView({
               Allocation recorded for this batch
             </h4>
           </div>
-          <span style={{ fontSize: '9px', fontWeight: 700, color: '#ea580c', background: '#fff7ed', padding: '3px 8px', borderRadius: '4px' }}>
+          <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--brand-primary, #0d8a70)', background: 'var(--brand-tint, rgba(13, 138, 112, 0.1))', padding: '3px 8px', borderRadius: '4px' }}>
             {data?.batch.costAllocation.totalAllocatedFormatted || 'No allocation recorded'}
           </span>
         </div>
 
         {data?.batch.costAllocation.allocations.length ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', fontSize: '10px', color: '#334155', marginTop: '10px' }}>
           {data.batch.costAllocation.allocations.map((allocation) => <div key={allocation.subsidiaryId} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#ea580c' }} />
+            <span style={{ width: '8px', height: '8px', borderRadius: '2px', background: 'var(--brand-primary, #0d8a70)' }} />
             <strong>{allocation.subsidiaryName}</strong>: {allocation.amountFormatted}
           </div>)}
         </div> : <p style={{ fontSize: '10px', color: '#64748b', margin: '8px 0 0' }}>This batch has no recorded subsidiary cost allocations.</p>}
@@ -776,13 +776,13 @@ export function PayrollSignOffView({
                   style={{
                     padding: '6px 14px',
                     borderRadius: '6px',
-                    border: '1px solid #ea580c',
-                    background: 'linear-gradient(135deg, #f97316, #ea580c)',
+                    border: '1px solid var(--brand-primary, #0d8a70)',
+                    background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
                     color: '#fff',
                     fontSize: '10px',
                     fontWeight: 700,
                     cursor: approving ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 3px 10px rgba(234, 88, 12, 0.25)',
+                    boxShadow: '0 3px 10px var(--brand-shadow-color, rgba(0, 0, 0, 0.25))',
                   }}
                 >
                   {approving ? 'Signing off…' : 'Confirm Executive Sign-off ✍️'}
@@ -796,7 +796,7 @@ export function PayrollSignOffView({
       {paymentItem && <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(6,26,66,.62)', display: 'grid', placeItems: 'center', padding: 16 }}>
         <form onSubmit={handleRecordPayment} style={{ width: 'min(480px,100%)', background: '#fff', borderRadius: 12, padding: 18, boxShadow: '0 18px 48px rgba(0,0,0,.24)', display: 'grid', gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-            <div><div style={{ fontSize: 9, fontWeight: 800, color: '#ea580c', letterSpacing: '.08em' }}>RECORD EXTERNAL TRANSFER</div><h3 style={{ margin: '4px 0', fontSize: 15 }}>{paymentItem.employeeName} · {paymentItem.netFormatted}</h3><p style={{ margin: 0, color: '#64748b', fontSize: 10 }}>Record the completed bank transfer and attach its actual receipt. The employee will be asked to confirm receipt.</p></div>
+            <div><div style={{ fontSize: 9, fontWeight: 800, color: 'var(--brand-primary, #0d8a70)', letterSpacing: '.08em' }}>RECORD EXTERNAL TRANSFER</div><h3 style={{ margin: '4px 0', fontSize: 15 }}>{paymentItem.employeeName} · {paymentItem.netFormatted}</h3><p style={{ margin: 0, color: '#64748b', fontSize: 10 }}>Record the completed bank transfer and attach its actual receipt. The employee will be asked to confirm receipt.</p></div>
             <button type="button" onClick={() => setPaymentItem(null)} aria-label="Close" style={{ border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer' }}><X size={16}/></button>
           </div>
           <label style={{ fontSize: 10, fontWeight: 700 }}>Transfer reference<input name="externalReference" required style={payrollInputStyle}/></label>
@@ -806,7 +806,7 @@ export function PayrollSignOffView({
           <label style={{ fontSize: 10, fontWeight: 700 }}>Bank transfer receipt (PDF, PNG or JPG)<input name="receipt" type="file" accept="application/pdf,image/png,image/jpeg" required style={{ ...payrollInputStyle, padding: 7 }}/></label>
           <div style={{ display: 'flex', justifyContent: 'end', gap: 8, marginTop: 4 }}>
             <button type="button" onClick={() => setPaymentItem(null)} style={{ ...payrollButtonStyle, background: '#fff', color: '#475569', border: '1px solid #dbe3ef' }}>Cancel</button>
-            <button disabled={recordingPayment} type="submit" style={{ ...payrollButtonStyle, background: 'linear-gradient(135deg, #f97316, #ea580c)', color: '#fff', border: '1px solid #ea580c' }}><UploadCloud size={13}/> {recordingPayment ? 'Recording…' : 'Record payment & notify staff'}</button>
+            <button disabled={recordingPayment} type="submit" style={{ ...payrollButtonStyle, background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))', color: '#fff', border: '1px solid var(--brand-primary, #0d8a70)' }}><UploadCloud size={13}/> {recordingPayment ? 'Recording…' : 'Record payment & notify staff'}</button>
           </div>
         </form>
       </div>}
@@ -818,7 +818,7 @@ export function PayrollSignOffView({
         <section role="dialog" aria-modal="true" aria-labelledby="staff-detail-title" style={{ width: 'min(760px, 100%)', maxHeight: 'min(88vh, 820px)', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#fff', border: '1px solid #dbe3ef', borderRadius: 12, boxShadow: '0 22px 60px rgba(0,0,0,.28)' }}>
           <header style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: '#f8fafc' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-              <div style={{ width: 38, height: 38, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, background: '#fff7ed', color: '#ea580c', fontSize: 15, fontWeight: 800 }}>{selectedStaff.employeeName.charAt(0)}</div>
+              <div style={{ width: 38, height: 38, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, background: 'var(--brand-tint, rgba(13, 138, 112, 0.1))', color: 'var(--brand-primary, #0d8a70)', fontSize: 15, fontWeight: 800 }}>{selectedStaff.employeeName.charAt(0)}</div>
               <div style={{ minWidth: 0 }}>
                 <h2 id="staff-detail-title" style={{ margin: 0, color: '#0f172a', fontSize: 16, fontWeight: 750 }}>{staffDetail?.employee.legalName || selectedStaff.employeeName}</h2>
                 <div style={{ marginTop: 3, color: '#64748b', fontSize: 10 }}>{(staffDetail?.employee.role || selectedStaff.role).replace(/_/g, ' ')} · {staffDetail?.employee.employeeNumber || 'Loading staff profile…'}</div>
@@ -829,13 +829,13 @@ export function PayrollSignOffView({
 
           <div style={{ overflowY: 'auto', padding: 16 }}>
             {staffDetailLoading ? <div style={{ padding: 30, textAlign: 'center', color: '#64748b', fontSize: 12 }}>Loading staff profile and payment history…</div> : staffDetailError ? <div role="alert" style={{ padding: 12, borderRadius: 8, background: '#fff7ed', color: '#b45309', fontSize: 11 }}>{staffDetailError}</div> : staffDetail && <>
-              <div style={{ padding: '11px 12px', marginBottom: 10, border: '1px solid #fed7aa', borderRadius: 8, background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ padding: '11px 12px', marginBottom: 10, border: '1px solid var(--brand-border, rgba(13, 138, 112, 0.25))', borderRadius: 8, background: 'var(--brand-tint, rgba(13, 138, 112, 0.08))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <div style={{ color: '#ea580c', fontSize: 9, fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase' }}>Current gross salary</div>
+                  <div style={{ color: 'var(--brand-primary, #0d8a70)', fontSize: 9, fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase' }}>Current gross salary</div>
                   <div style={{ marginTop: 3, color: '#0f172a', fontSize: 16, fontWeight: 800 }}>{staffDetail.employee.salary?.grossFormatted || 'No active salary record'}{staffDetail.employee.salary && <span style={{ marginLeft: 5, color: '#64748b', fontSize: 10, fontWeight: 600 }}>· {staffDetail.employee.salary.recurrence.toLowerCase()}</span>}</div>
                   {staffDetail.employee.salary?.changeReason && <div style={{ marginTop: 3, color: '#475569', fontSize: 9 }}>Latest change: {staffDetail.employee.salary.changeReason}</div>}
                 </div>
-                {staffDetail.permissions.canEditSalary && <button type="button" disabled={!staffDetail.employee.salary} onClick={() => setSalaryEditorOpen(true)} style={{ ...payrollButtonStyle, flexShrink: 0, background: '#fff', color: '#ea580c', border: '1px solid #fed7aa', opacity: staffDetail.employee.salary ? 1 : .55, cursor: staffDetail.employee.salary ? 'pointer' : 'not-allowed' }}>Edit salary</button>}
+                {staffDetail.permissions.canEditSalary && <button type="button" disabled={!staffDetail.employee.salary} onClick={() => setSalaryEditorOpen(true)} style={{ ...payrollButtonStyle, flexShrink: 0, background: '#fff', color: 'var(--brand-primary, #0d8a70)', border: '1px solid var(--brand-border, #cbd5e1)', opacity: staffDetail.employee.salary ? 1 : .55, cursor: staffDetail.employee.salary ? 'pointer' : 'not-allowed' }}>Edit salary</button>}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: 8, marginBottom: 14 }}>
@@ -895,7 +895,7 @@ export function PayrollSignOffView({
       >
         <form onSubmit={handleSalaryChange} role="dialog" aria-modal="true" aria-labelledby="salary-change-title" style={{ width: 'min(440px, 100%)', display: 'grid', gap: 12, padding: 18, border: '1px solid #dbe3ef', borderRadius: 12, background: '#fff', boxShadow: '0 22px 60px rgba(0,0,0,.28)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 10 }}>
-            <div><div style={{ color: '#ea580c', fontSize: 9, fontWeight: 800, letterSpacing: '.08em' }}>GMD SALARY CHANGE</div><h3 id="salary-change-title" style={{ margin: '4px 0 0', color: '#0f172a', fontSize: 15 }}>{selectedStaff.employeeName}</h3><p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 10 }}>Current gross: {staffDetail.employee.salary.grossFormatted} per {staffDetail.employee.salary.recurrence.toLowerCase()}.</p></div>
+            <div><div style={{ color: 'var(--brand-primary, #0d8a70)', fontSize: 9, fontWeight: 800, letterSpacing: '.08em' }}>GMD SALARY CHANGE</div><h3 id="salary-change-title" style={{ margin: '4px 0 0', color: '#0f172a', fontSize: 15 }}>{selectedStaff.employeeName}</h3><p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 10 }}>Current gross: {staffDetail.employee.salary.grossFormatted} per {staffDetail.employee.salary.recurrence.toLowerCase()}.</p></div>
             <button type="button" disabled={savingSalaryChange} onClick={() => setSalaryEditorOpen(false)} aria-label="Close salary editor" style={{ border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer' }}><X size={16}/></button>
           </div>
           <label style={{ color: '#334155', fontSize: 10, fontWeight: 700 }}>Change type
@@ -913,7 +913,7 @@ export function PayrollSignOffView({
           <div style={{ padding: '9px 10px', borderRadius: 7, background: '#fffbeb', color: '#92400e', fontSize: 10 }}>The change starts now and applies to future payroll runs. Already submitted or paid payroll records will not change. The staff member will be notified with the amount and reason.</div>
           <div style={{ display: 'flex', justifyContent: 'end', gap: 8 }}>
             <button type="button" disabled={savingSalaryChange} onClick={() => setSalaryEditorOpen(false)} style={{ ...payrollButtonStyle, background: '#fff', color: '#475569', border: '1px solid #dbe3ef' }}>Cancel</button>
-            <button type="submit" disabled={savingSalaryChange} style={{ ...payrollButtonStyle, background: 'linear-gradient(135deg, #f97316, #ea580c)', color: '#fff', border: '1px solid #ea580c', opacity: savingSalaryChange ? .7 : 1 }}>{savingSalaryChange ? 'Saving…' : 'Save salary change & notify staff'}</button>
+            <button type="submit" disabled={savingSalaryChange} style={{ ...payrollButtonStyle, background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))', color: '#fff', border: '1px solid var(--brand-primary, #0d8a70)', opacity: savingSalaryChange ? .7 : 1 }}>{savingSalaryChange ? 'Saving…' : 'Save salary change & notify staff'}</button>
           </div>
         </form>
       </div>}

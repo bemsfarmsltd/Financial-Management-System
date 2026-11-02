@@ -54,8 +54,8 @@ async function api<T>(path: string, init?: RequestInit, retries = 1): Promise<T>
 
 const card: CSSProperties = { background: '#fff', border: '1px solid #dce5f1', borderRadius: 14, padding: 18 };
 const input: CSSProperties = { width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', color: '#14213d' };
-const primary: CSSProperties = { padding: '9px 15px', border: '1px solid #ea580c', borderRadius: 8, background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: '#fff', fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(234, 88, 12, 0.28)' };
-const secondary: CSSProperties = { padding: '8px 13px', border: '1px solid #fed7aa', borderRadius: 8, background: '#fff', color: '#334155', fontWeight: 650, cursor: 'pointer' };
+const primary: CSSProperties = { padding: '9px 15px', border: '1px solid var(--brand-primary, #0d8a70)', borderRadius: 8, background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))', color: '#fff', fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px var(--brand-shadow-color, rgba(0, 0, 0, 0.15))' };
+const secondary: CSSProperties = { padding: '8px 13px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', color: '#334155', fontWeight: 650, cursor: 'pointer' };
 const fmt = (minor: number | bigint | null | undefined) => new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(Number(minor || 0) / 100);
 const date = (value?: string | Date | null) => value ? new Date(value).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const errorText = (error: unknown) => error instanceof Error ? error.message : 'Something went wrong.';
@@ -1042,7 +1042,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
       {/* 1. Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#ea580c', fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--brand-primary, #0d8a70)', fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>
             <Users size={14} /> GROUP DIRECTORY &amp; HUMAN CAPITAL
           </div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', margin: '2px 0 6px 0', letterSpacing: '-0.02em' }}>
@@ -1090,12 +1090,12 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
               padding: '9px 18px',
               borderRadius: 8,
               border: 'none',
-              background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+              background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
               color: '#ffffff',
               fontSize: 12.5,
               fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: '0 3px 12px rgba(234, 88, 12, 0.28)',
+              boxShadow: '0 3px 12px var(--brand-shadow-color, rgba(0, 0, 0, 0.28))',
             }}
           >
             <ShieldCheck size={15} color="#ffffff" />
@@ -1202,7 +1202,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#64748b', textTransform: 'uppercase' }}>
               Salary Agreements
             </span>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#fff7ed', display: 'grid', placeItems: 'center', color: '#ea580c' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--brand-tint, rgba(13, 138, 112, 0.1))', display: 'grid', placeItems: 'center', color: 'var(--brand-primary, #0d8a70)' }}>
               <Wallet size={16} />
             </div>
           </div>
@@ -3425,7 +3425,7 @@ export function WorkspaceSettingsModule({ businessName, setNotice, initialSectio
   {/* Advanced link */}
   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10,fontSize:12.5,color:'#64748b'}}>
     <span>Looking for full APK release logs, hashes, and detailed version history?</span>
-    <a href="/admin/settings/mobile-apps" style={{color:'#ea580c',fontWeight:700,textDecoration:'none'}}>Open Full Dedicated Release Console →</a>
+    <a href="/admin/settings/mobile-apps" style={{color:'var(--brand-primary, #0d8a70)',fontWeight:700,textDecoration:'none'}}>Open Full Dedicated Release Console →</a>
   </div>
 </div>}{!isMobileSection&&<button style={{...primary,marginTop:22}} disabled={saving} onClick={()=>void save()}>{saving?'Saving…':'Save changes'}</button>}</>}</div></section></>;
 }

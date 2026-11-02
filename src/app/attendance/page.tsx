@@ -773,7 +773,7 @@ export default function AttendanceDeskPage() {
               style={{
                 padding: '10px 18px',
                 borderRadius: '8px',
-                background: policy.starlinkPowerOutageMode ? '#059669' : '#ea580c',
+                background: policy.starlinkPowerOutageMode ? '#059669' : 'var(--brand-primary, #ea580c)',
                 color: '#ffffff',
                 fontSize: '12px',
                 fontWeight: 800,
@@ -838,8 +838,8 @@ export default function AttendanceDeskPage() {
                     padding: '12px 18px',
                     border: 'none',
                     background: 'transparent',
-                    borderBottom: isActive ? '2px solid #ea580c' : '2px solid transparent',
-                    color: isActive ? '#ea580c' : '#64748b',
+                    borderBottom: isActive ? '2px solid var(--brand-primary, #0d8a70)' : '2px solid transparent',
+                    color: isActive ? 'var(--brand-primary, #0d8a70)' : '#64748b',
                     fontSize: '13px',
                     fontWeight: 700,
                     cursor: 'pointer',
@@ -1123,10 +1123,10 @@ export default function AttendanceDeskPage() {
               </div>
 
               <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#ea580c', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <AlertTriangle size={14} color="#ea580c" /> MORNING: LATE
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--brand-primary, #0d8a70)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertTriangle size={14} color="var(--brand-primary, #0d8a70)" /> MORNING: LATE
                 </div>
-                <div style={{ fontSize: '24px', fontWeight: 900, color: '#ea580c', marginTop: '4px' }}>
+                <div style={{ fontSize: '24px', fontWeight: 900, color: 'var(--brand-primary, #0d8a70)', marginTop: '4px' }}>
                   {dailyCounts.late}
                 </div>
                 <div style={{ fontSize: '11px', color: '#94a3b8' }}>-5.0% salary deduction applied</div>
@@ -2352,16 +2352,16 @@ export default function AttendanceDeskPage() {
                   style={{
                     padding: '9px 18px',
                     borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                    background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
                     color: '#ffffff',
                     fontSize: '12px',
                     fontWeight: 800,
-                    border: '1px solid #ea580c',
+                    border: '1px solid var(--brand-primary, #0d8a70)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+                    boxShadow: '0 2px 8px var(--brand-shadow-color, rgba(0, 0, 0, 0.25))',
                   }}
                 >
                   <Save size={14} />

@@ -3389,8 +3389,10 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
       <style>{`
         :root, .app-shell, body {
           --brand-primary: ${activeBrandColor} !important;
+          --brand-primary-rgb: ${activeBrandColor} !important;
           --brand-gradient: linear-gradient(135deg, ${activeTintHex} 0%, ${activeBrandColor} 100%) !important;
           --brand-shadow-color: ${activeBrandColor}40 !important;
+          --brand-tint: ${activeBrandColor}18 !important;
           --brand-soft: ${activeBrandColor}14 !important;
           --brand-light: ${activeBrandColor}28 !important;
           --brand-border: ${activeBrandColor}55 !important;
@@ -3401,6 +3403,12 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
           --orange-dark: ${activeBrandColor} !important;
           --orange-soft: ${activeBrandColor}14 !important;
           --orange-light: ${activeBrandColor}28 !important;
+        }
+        .help-button > span {
+          background: ${activeBrandColor} !important;
+        }
+        .help-button small {
+          color: #cbd5e1 !important;
         }
         .nav-item.active {
           background: linear-gradient(90deg, ${activeBrandColor}, ${activeBrandColor}cc) !important;
@@ -3429,6 +3437,12 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
         .brand-sub {
           color: ${activeBrandColor} !important;
         }
+        .ambient-bottom-ai-wrapper button[style*="linear-gradient(135deg, rgb(234, 88, 12)"],
+        .ambient-bottom-ai-wrapper button[style*="linear-gradient(135deg, #ea580c"],
+        .ambient-bottom-ai-wrapper [style*="color: #ea580c"],
+        .ambient-bottom-ai-wrapper [style*="color: rgb(234, 88, 12)"] {
+          color: ${activeBrandColor} !important;
+        }
         .workspace [style*="#ea580c"],
         .workspace [style*="#f97316"],
         .workspace [style*="rgb(234, 88, 12)"],
@@ -3439,11 +3453,17 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
         .workspace [style*="background: #ea580c"],
         .workspace [style*="background: #f97316"],
         .workspace [style*="background:#ea580c"],
-        .workspace [style*="background:#f97316"] {
+        .workspace [style*="background:#f97316"],
+        .workspace [style*="background-color: #ea580c"],
+        .workspace [style*="background-color: #f97316"],
+        .workspace [style*="background-color: rgb(234, 88, 12)"],
+        .workspace [style*="background-color: rgb(249, 115, 22)"] {
           background: ${activeBrandColor} !important;
         }
         .workspace [style*="linear-gradient(135deg, #f97316"],
-        .workspace [style*="linear-gradient(135deg, #ea580c"] {
+        .workspace [style*="linear-gradient(135deg, #ea580c"],
+        .workspace [style*="linear-gradient(135deg, rgb(249, 115, 22)"],
+        .workspace [style*="linear-gradient(135deg, rgb(234, 88, 12)"] {
           background: linear-gradient(135deg, ${activeTintHex} 0%, ${activeBrandColor} 100%) !important;
         }
       `}</style>
