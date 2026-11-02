@@ -46,7 +46,7 @@ export function ExactForestBentoCards({ config, onNavigate, businessName = 'BEMS
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '13.5px', fontWeight: '600', opacity: 0.9 }}>{pill.label}</span>
+                  <span style={{ fontSize: '13.5px', fontWeight: '700', color: '#ffffff', textShadow: '0 1px 2px rgba(0,0,0,0.25)' }}>{pill.label}</span>
                   <div
                     style={{
                       width: '32px',
@@ -58,18 +58,19 @@ export function ExactForestBentoCards({ config, onNavigate, businessName = 'BEMS
                       placeItems: 'center',
                       fontSize: '14px',
                       fontWeight: '800',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
                     }}
                   >
                     ↗
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '42px', fontWeight: '800', lineHeight: 1.1, margin: '8px 0 6px', letterSpacing: '-0.03em' }}>
+                  <div style={{ fontSize: '42px', fontWeight: '800', lineHeight: 1.1, margin: '8px 0 6px', letterSpacing: '-0.03em', color: '#ffffff', textShadow: '0 2px 6px rgba(0,0,0,0.3)' }}>
                     {pill.value}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', opacity: 0.9 }}>
-                    <span style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', textAlign: 'center', lineHeight: '14px' }}>⇗</span>
-                    <span>{pill.delta}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#ffffff', fontWeight: '600' }}>
+                    <span style={{ display: 'inline-block', width: '16px', height: '16px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', color: '#ffffff', textAlign: 'center', lineHeight: '16px', fontSize: '10px' }}>⇗</span>
+                    <span style={{ color: '#ffffff', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>{pill.delta}</span>
                   </div>
                 </div>
               </div>
@@ -251,20 +252,25 @@ export function ExactForestBentoCards({ config, onNavigate, businessName = 'BEMS
               color: '#ffffff',
               border: 0,
               borderRadius: '24px',
-              padding: '14px 20px',
-              fontSize: '13.5px',
+              padding: '12px 20px',
+              minHeight: '44px',
+              width: '100%',
+              fontSize: '13px',
               fontWeight: '700',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '10px',
+              gap: '8px',
               cursor: 'pointer',
               boxShadow: `0 6px 18px ${theme.primarySolid}35`,
-              marginTop: '20px',
+              marginTop: '16px',
+              boxSizing: 'border-box',
             }}
           >
-            <span style={{ fontSize: '15px' }}>🛡️</span>
-            <span>{config.reminderButton || 'Open Approvals Desk'}</span>
+            <span style={{ fontSize: '15px', lineHeight: 1 }}>🛡️</span>
+            <span style={{ color: '#ffffff', fontSize: '13px', fontWeight: '700', letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>
+              {config.reminderButton || 'Open Approvals Desk'}
+            </span>
           </button>
         </div>
 
@@ -493,8 +499,10 @@ export function ExactForestBentoCards({ config, onNavigate, businessName = 'BEMS
           <TopographicBackground strokeColor={theme.topographicStroke} />
 
           <div style={{ position: 'relative', zIndex: 1 }}>
-            <span style={{ fontSize: '13px', fontWeight: '700', opacity: 0.9 }}>{config.timerTitle}</span>
-            <small style={{ fontSize: '11px', opacity: 0.75, display: 'block', marginTop: '2px' }}>
+            <span style={{ fontSize: '13.5px', fontWeight: '700', color: '#ffffff', textShadow: '0 1px 2px rgba(0,0,0,0.25)', display: 'block' }}>
+              {config.timerTitle}
+            </span>
+            <small style={{ fontSize: '11.5px', color: '#ffffff', opacity: 0.92, display: 'block', marginTop: '2px', fontWeight: '500', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>
               {config.timerSubtitle}
             </small>
           </div>
@@ -507,6 +515,8 @@ export function ExactForestBentoCards({ config, onNavigate, businessName = 'BEMS
                 fontFamily: 'monospace, system-ui',
                 letterSpacing: '0.04em',
                 lineHeight: 1,
+                color: '#ffffff',
+                textShadow: '0 0 24px rgba(255,255,255,0.45), 0 2px 8px rgba(0,0,0,0.35)',
               }}
             >
               {config.timerValue}
