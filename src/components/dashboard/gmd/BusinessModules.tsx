@@ -891,7 +891,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
   const [selected, setSelected] = useState<StaffDetail | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [detailLoading, setDetailLoading] = useState(false);
-  const [salaryType, setSalaryType] = useState<'ADDITION' | 'DEDUCTION'>('ADDITION');
+  const [salaryType, setSalaryType] = useState<'SET_EXACT' | 'ADDITION' | 'DEDUCTION'>('SET_EXACT');
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [modalTab, setModalTab] = useState<'dossier' | 'payroll' | 'requests'>('dossier');
@@ -1935,13 +1935,13 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                         )}
                       </div>
 
-                      {selected.permissions.canEditSalary && selected.employee.salary && (
+                      {selected.permissions.canEditSalary && (
                         <button
                           type="button"
                           style={primary}
                           onClick={() => document.getElementById('staff-salary-form')?.scrollIntoView({ behavior: 'smooth' })}
                         >
-                          Record Salary Adjustment
+                          {selected.employee.salary ? 'Record Compensation Adjustment' : 'Set Initial Monthly Salary'}
                         </button>
                       )}
                     </div>
@@ -1995,8 +1995,8 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                       </div>
                     )}
 
-                    {/* Salary Adjustment Form */}
-                    {selected.permissions.canEditSalary && selected.employee.salary && (
+                    {/* Salary Entry & Adjustment Form */}
+                    {selected.permissions.canEditSalary && (
                       <form
                         id="staff-salary-form"
                         onSubmit={changeSalary}
@@ -2011,10 +2011,10 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                         }}
                       >
                         <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
-                          Record a Compensation Adjustment
+                          {selected.employee.salary ? 'Record Compensation Entry / Adjustment' : 'Set Initial Monthly Gross Salary'}
                         </h3>
                         <p style={{ margin: 0, color: '#64748b', fontSize: 12.5 }}>
-                          The staff member will be officially notified with the change amount and audit reason.
+                          The staff member will be officially notified with the updated compensation and audit reason.
                         </p>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
@@ -2025,26 +2025,27 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                             <select
                               style={{ ...input, width: '100%', boxSizing: 'border-box' }}
                               value={salaryType}
-                              onChange={(e) => setSalaryType(e.target.value as 'ADDITION' | 'DEDUCTION')}
+                              onChange={(e) => setSalaryType(e.target.value as 'SET_EXACT' | 'ADDITION' | 'DEDUCTION')}
                             >
-                              <option value="ADDITION">Add to Gross Salary (Increase)</option>
+                              <option value="SET_EXACT">Set Exact Monthly Gross (e.g. ₦450,000)</option>
+                              <option value="ADDITION">Add to Gross Salary (Increase / Raise)</option>
                               <option value="DEDUCTION">Deduct from Gross Salary (Decrease)</option>
                             </select>
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                              Amount in Naira (₦) *
+                              {salaryType === 'SET_EXACT' ? 'Monthly Gross in Naira (₦) *' : 'Adjustment Amount in Naira (₦) *'}
                             </label>
                             <input
                               style={{ ...input, width: '100%', boxSizing: 'border-box' }}
                               type="number"
-                              min="0.01"
-                              step="0.01"
+                              min="1"
+                              step="1"
                               required
                               value={amount}
                               onChange={(e) => setAmount(e.target.value)}
-                              placeholder="e.g. 50000"
+                              placeholder={salaryType === 'SET_EXACT' ? 'e.g. 450000' : 'e.g. 50000'}
                             />
                           </div>
                         </div>

@@ -17,30 +17,49 @@ export async function POST(request: Request, { params }: { params: Promise<{ emp
   try {
     const { employeeId } = await params;
     const body = await request.json();
-    const changeType = body.changeType === 'ADDITION' || body.changeType === 'DEDUCTION' ? body.changeType : null;
+    const changeType = body.changeType === 'ADDITION' || body.changeType === 'DEDUCTION' || body.changeType === 'SET_EXACT' ? body.changeType : null;
     const amount = Number(body.amount);
     const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
-    if (!changeType) return NextResponse.json({ error: 'Choose an addition or deduction.' }, { status: 400 });
+    if (!changeType) return NextResponse.json({ error: 'Choose an adjustment type (Set Exact, Addition, or Deduction).' }, { status: 400 });
     if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000) return NextResponse.json({ error: 'Enter a valid positive amount.' }, { status: 400 });
     if (reason.length < 5 || reason.length > 1000) return NextResponse.json({ error: 'Enter a reason of at least 5 characters.' }, { status: 400 });
-    const deltaMinor = BigInt(Math.round(amount * 100));
+    const targetMinor = BigInt(Math.round(amount * 100));
     const now = new Date();
 
     const result = await prisma.$transaction(async tx => {
-      const employee = await tx.employee.findUnique({ where: { id: employeeId }, select: { id: true, legalName: true, status: true } });
+      const employee = await tx.employee.findUnique({
+        where: { id: employeeId },
+        select: { id: true, legalName: true, status: true, assignments: { select: { subsidiaryId: true }, take: 1 } }
+      });
       if (!employee) throw new Error('Staff member not found.');
       if (employee.status !== 'ACTIVE') throw new Error('Salary can only be changed for active staff.');
 
-      const agreement = await tx.employmentAgreement.findFirst({
+      let agreement = await tx.employmentAgreement.findFirst({
         where: { employeeId, status: 'ACTIVE' },
         orderBy: { startDate: 'desc' },
         include: {
           compensations: { orderBy: [{ version: 'desc' }, { effectiveFrom: 'desc' }], take: 1 }
         }
       });
-      if (!agreement) throw new Error('This staff member has no active employment agreement.');
+
+      if (!agreement) {
+        const defaultOrg = employee.assignments[0]?.subsidiaryId || (await tx.organization.findFirst({ select: { id: true } }))?.id || '';
+        agreement = await tx.employmentAgreement.create({
+          data: {
+            employeeId,
+            employerEntityId: defaultOrg,
+            agreementType: 'PERMANENT',
+            paymentModel: 'GROUP_PAID',
+            status: 'ACTIVE',
+            startDate: now
+          },
+          include: {
+            compensations: true
+          }
+        });
+      }
+
       const latest = agreement.compensations[0];
-      if (!latest) throw new Error('This staff member has no salary record to adjust.');
 
       const effectiveSalary = await tx.compensationAgreement.findFirst({
         where: {
@@ -51,8 +70,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ emp
         orderBy: [{ effectiveFrom: 'desc' }, { version: 'desc' }]
       });
       const current = effectiveSalary || latest;
-      const newGrossMinor = changeType === 'ADDITION' ? current.grossMinor + deltaMinor : current.grossMinor - deltaMinor;
-      if (newGrossMinor <= BigInt(0)) throw new Error('A deduction cannot reduce salary to zero or below.');
+      let newGrossMinor: bigint;
+      let prevGrossMinor: bigint = current ? current.grossMinor : BigInt(0);
+
+      if (changeType === 'SET_EXACT') {
+        newGrossMinor = targetMinor;
+      } else if (changeType === 'ADDITION') {
+        newGrossMinor = prevGrossMinor + targetMinor;
+      } else {
+        newGrossMinor = prevGrossMinor - targetMinor;
+      }
+
+      if (newGrossMinor <= BigInt(0)) throw new Error('Salary cannot be zero or negative.');
 
       const prior = await tx.compensationAgreement.findMany({ where: { employmentAgreementId: agreement.id }, select: { version: true } });
       const nextVersion = Math.max(0, ...prior.map(compensation => compensation.version)) + 1;
@@ -63,8 +92,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ emp
         data: {
           employmentAgreementId: agreement.id,
           grossMinor: newGrossMinor,
-          currency: current.currency,
-          recurrence: current.recurrence,
+          currency: current?.currency || 'NGN',
+          recurrence: current?.recurrence || 'MONTHLY',
           effectiveFrom: now,
           version: nextVersion,
           approvedBy: actor.id,
@@ -73,14 +102,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ emp
         }
       });
 
-      const verb = changeType === 'ADDITION' ? 'increased' : 'decreased';
-      const amountLabel = formatNaira(deltaMinor);
+      const bodyText = changeType === 'SET_EXACT'
+        ? `Your monthly gross salary is set to ${formatNaira(newGrossMinor)}. Reason: ${reason}`
+        : `Your gross salary was ${changeType === 'ADDITION' ? 'increased' : 'decreased'} by ${formatNaira(targetMinor)}, from ${formatNaira(prevGrossMinor)} to ${formatNaira(newGrossMinor)}. Reason: ${reason}`;
+
       await tx.systemNotification.create({
         data: {
           employeeId,
           kind: 'PAYROLL_SALARY_CHANGED',
           title: 'Your salary has been updated',
-          body: `Your gross salary was ${verb} by ${amountLabel}, from ${formatNaira(current.grossMinor)} to ${formatNaira(newGrossMinor)}. Reason: ${reason}`,
+          body: bodyText,
           linkUrl: '/payroll'
         }
       });
@@ -97,11 +128,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ emp
           targetId: employeeId,
           action: 'SALARY_CHANGED',
           correlationId: `CORR-SALARY-${randomUUID()}`,
-          metadata: JSON.stringify({ employeeName: employee.legalName, compensationId: compensation.id, changeType, changeAmountMinor: deltaMinor.toString(), previousGrossMinor: current.grossMinor.toString(), newGrossMinor: newGrossMinor.toString(), reason }),
+          metadata: JSON.stringify({ employeeName: employee.legalName, compensationId: compensation.id, changeType, targetAmountMinor: targetMinor.toString(), previousGrossMinor: prevGrossMinor.toString(), newGrossMinor: newGrossMinor.toString(), reason }),
         },
       });
 
-      return { compensation, previousGrossMinor: current.grossMinor, newGrossMinor };
+      return { compensation, previousGrossMinor: prevGrossMinor, newGrossMinor };
     });
 
     return NextResponse.json({
