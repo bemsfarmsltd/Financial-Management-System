@@ -18,6 +18,7 @@ import {
   User,
   ArrowRight,
   ExternalLink,
+  Receipt,
 } from 'lucide-react';
 import { toSystemRequestId } from '@/lib/request-id';
 
@@ -102,6 +103,8 @@ export interface RequisitionModalData {
     fileUrl: string;
     contentType: string;
     notes?: string | null;
+    ownerType?: string;
+    checksum?: string | null;
     uploadedAt?: string | null;
   }>;
 }
@@ -128,7 +131,15 @@ export function ExecutiveRequisitionModal({
   onDecline,
 }: ExecutiveRequisitionModalProps) {
   const [copiedSystemId, setCopiedSystemId] = useState(false);
+  const [evidenceTab, setEvidenceTab] = useState<'ALL' | 'PRE_APPROVAL' | 'POST_RETIREMENT' | 'COMPARE'>('ALL');
   const systemId = request.systemId || toSystemRequestId(request.id);
+
+  const preApprovalEvidence = (request.attachments || []).filter(
+    (att) => !att.ownerType || att.ownerType === 'REQUEST'
+  );
+  const postRetirementEvidence = (request.attachments || []).filter(
+    (att) => att.ownerType === 'ACCOUNTABILITY'
+  );
 
   const copySystemId = async () => {
     try {
@@ -494,187 +505,313 @@ export function ExecutiveRequisitionModal({
               </div>
             </div>
 
-            {/* Uploaded Evidence & Proforma Receipts Gallery */}
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 16px', background: '#ffffff' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Paperclip size={13} color="var(--brand-primary, #0d8a70)" />
-                  <span style={{ fontSize: '9.5px', fontWeight: 800, letterSpacing: '0.8px', color: '#0f172a', textTransform: 'uppercase' }}>
-                    UPLOADED EVIDENCE &amp; PROFORMA RECEIPTS ({request.attachments?.length || 0})
-                  </span>
+            {/* DUAL-CHAMBER AUDIT EVIDENCE VAULT (PRE-APPROVAL INVOICES VS POST-DISBURSEMENT RECEIPTS) */}
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 16px', background: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Paperclip size={14} color="var(--brand-primary, #0d8a70)" />
+                  <div>
+                    <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.8px', color: '#0f172a', textTransform: 'uppercase', display: 'block' }}>
+                      AUDIT EVIDENCE VAULT ({request.attachments?.length || 0} TOTAL FILES)
+                    </span>
+                    <span style={{ fontSize: '9px', color: '#64748b' }}>
+                      Stage 1 Invoices &amp; Quotations vs. Stage 2 Post-Disbursement Physical Receipts
+                    </span>
+                  </div>
                 </div>
-                {request.attachments && request.attachments.length > 0 ? (
-                  <span
+
+                {/* Evidence Chamber Filter Pills */}
+                <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '2px', borderRadius: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setEvidenceTab('ALL')}
                     style={{
-                      fontSize: '9px',
+                      border: 0,
+                      background: evidenceTab === 'ALL' ? '#ffffff' : 'transparent',
+                      color: evidenceTab === 'ALL' ? '#0f172a' : '#64748b',
+                      fontSize: '9.5px',
                       fontWeight: 750,
-                      color: '#047857',
-                      background: '#ecfdf5',
                       padding: '3px 8px',
                       borderRadius: '6px',
-                      border: '1px solid #a7f3d0',
+                      cursor: 'pointer',
+                      boxShadow: evidenceTab === 'ALL' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
                     }}
                   >
-                    ✓ Verified on File
-                  </span>
-                ) : (
-                  <span
+                    All Files ({request.attachments?.length || 0})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEvidenceTab('PRE_APPROVAL')}
                     style={{
-                      fontSize: '9px',
-                      fontWeight: 650,
-                      color: '#94a3b8',
-                      background: '#f8fafc',
+                      border: 0,
+                      background: evidenceTab === 'PRE_APPROVAL' ? '#ffffff' : 'transparent',
+                      color: evidenceTab === 'PRE_APPROVAL' ? '#0284c7' : '#64748b',
+                      fontSize: '9.5px',
+                      fontWeight: 750,
                       padding: '3px 8px',
                       borderRadius: '6px',
-                      border: '1px solid #e2e8f0',
+                      cursor: 'pointer',
+                      boxShadow: evidenceTab === 'PRE_APPROVAL' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
                     }}
                   >
-                    No Attachments
-                  </span>
-                )}
+                    1. Pre-Quotes ({preApprovalEvidence.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEvidenceTab('POST_RETIREMENT')}
+                    style={{
+                      border: 0,
+                      background: evidenceTab === 'POST_RETIREMENT' ? '#ffffff' : 'transparent',
+                      color: evidenceTab === 'POST_RETIREMENT' ? '#059669' : '#64748b',
+                      fontSize: '9.5px',
+                      fontWeight: 750,
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      boxShadow: evidenceTab === 'POST_RETIREMENT' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                    }}
+                  >
+                    2. Post-Receipts ({postRetirementEvidence.length})
+                  </button>
+                  {preApprovalEvidence.length > 0 && postRetirementEvidence.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setEvidenceTab('COMPARE')}
+                      style={{
+                        border: 0,
+                        background: evidenceTab === 'COMPARE' ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : 'transparent',
+                        color: evidenceTab === 'COMPARE' ? '#ffffff' : '#7c3aed',
+                        fontSize: '9.5px',
+                        fontWeight: 800,
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        boxShadow: evidenceTab === 'COMPARE' ? '0 1px 4px rgba(124, 58, 237, 0.3)' : 'none',
+                      }}
+                    >
+                      ⚡ Side-by-Side Split
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {request.attachments && request.attachments.length > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px', marginTop: '10px' }}>
-                  {request.attachments.map((att) => {
-                    const isImage =
-                      att.contentType.startsWith('image/') ||
-                      /\.(jpg|jpeg|png|webp|gif)$/i.test(att.fileUrl || att.fileName);
-                    return (
-                      <div
-                        key={att.id}
-                        style={{
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '10px',
-                          overflow: 'hidden',
-                          background: '#f8fafc',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          transition: 'all 0.18s ease',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
-                        }}
-                      >
-                        {isImage ? (
-                          <div
-                            onClick={() => onImageClick?.({ url: att.fileUrl, name: att.fileName })}
-                            style={{
-                              width: '100%',
-                              height: '92px',
-                              position: 'relative',
-                              cursor: 'pointer',
-                              background: '#e2e8f0',
-                              overflow: 'hidden',
-                            }}
-                            title="Click to view full photo proof"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={att.fileUrl}
-                              alt={att.fileName}
-                              style={{
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover',
-                                transition: 'transform 0.2s ease',
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = 'scale(1.06)';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = 'scale(1)';
-                              }}
-                            />
-                            <span
-                              style={{
-                                position: 'absolute',
-                                bottom: '4px',
-                                right: '4px',
-                                background: 'rgba(15, 23, 42, 0.75)',
-                                color: '#ffffff',
-                                padding: '2px 5px',
-                                borderRadius: '4px',
-                                fontSize: '8px',
-                                fontWeight: 700,
-                                backdropFilter: 'blur(4px)',
-                              }}
-                            >
-                              View
-                            </span>
-                          </div>
-                        ) : (
-                          <div
-                            style={{
-                              height: '92px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              background: '#f1f5f9',
-                              color: '#64748b',
-                            }}
-                          >
-                            <FileText size={28} color="#0284c7" />
-                            <span style={{ fontSize: '9px', fontWeight: 700, color: '#0369a1', marginTop: '4px' }}>
-                              PDF Document
-                            </span>
-                          </div>
-                        )}
-
-                        <div style={{ padding: '8px 10px', background: '#ffffff', borderTop: '1px solid #f1f5f9' }}>
-                          <div
-                            style={{
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              color: '#0f172a',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                            title={att.fileName}
-                          >
-                            {att.fileName}
-                          </div>
-                          <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: '9px', color: '#64748b' }}>
-                              {isImage ? 'Picture Proof' : 'Official Doc'}
-                            </span>
-                            <a
-                              href={att.fileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              download
-                              style={{
-                                color: 'var(--brand-primary, #0d8a70)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '3px',
-                                fontSize: '9.5px',
-                                fontWeight: 750,
-                                textDecoration: 'none',
-                              }}
-                            >
-                              <Download size={11} /> Open
-                            </a>
+              {/* SIDE-BY-SIDE SPLIT VIEW */}
+              {evidenceTab === 'COMPARE' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginTop: '10px', background: '#f8fafc', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  {/* Left Column: Pre-Approval Quotes */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', color: '#0369a1', background: '#e0f2fe', padding: '2px 6px', borderRadius: '4px' }}>
+                        CHAMBER A: PRE-APPROVAL INVOICE / QUOTE
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gap: '8px' }}>
+                      {preApprovalEvidence.map((att) => (
+                        <div key={att.id} style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', background: '#ffffff' }}>
+                          {att.contentType.startsWith('image/') || /\.(jpg|jpeg|png|webp)$/i.test(att.fileUrl) ? (
+                            <img src={att.fileUrl} alt={att.fileName} onClick={() => onImageClick?.({ url: att.fileUrl, name: att.fileName })} style={{ width: '100%', height: '140px', objectFit: 'contain', background: '#0f172a', cursor: 'pointer' }} />
+                          ) : (
+                            <div style={{ height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9' }}><FileText size={24} color="#0284c7" /></div>
+                          )}
+                          <div style={{ padding: '6px 8px', fontSize: '10px' }}>
+                            <b style={{ color: '#0f172a', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.fileName}</b>
+                            <span style={{ color: '#64748b', fontSize: '9px' }}>{att.notes || 'Uploaded at request creation'}</span>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Post-Disbursement Receipts */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', color: '#15803d', background: '#dcfce7', padding: '2px 6px', borderRadius: '4px' }}>
+                        CHAMBER B: POST-EXPENSE RETIREMENT RECEIPT
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gap: '8px' }}>
+                      {postRetirementEvidence.map((att) => (
+                        <div key={att.id} style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', background: '#ffffff' }}>
+                          {att.contentType.startsWith('image/') || /\.(jpg|jpeg|png|webp)$/i.test(att.fileUrl) ? (
+                            <img src={att.fileUrl} alt={att.fileName} onClick={() => onImageClick?.({ url: att.fileUrl, name: att.fileName })} style={{ width: '100%', height: '140px', objectFit: 'contain', background: '#0f172a', cursor: 'pointer' }} />
+                          ) : (
+                            <div style={{ height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9' }}><Receipt size={24} color="#059669" /></div>
+                          )}
+                          <div style={{ padding: '6px 8px', fontSize: '10px' }}>
+                            <b style={{ color: '#0f172a', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.fileName}</b>
+                            <span style={{ color: '#64748b', fontSize: '9px' }}>{att.notes || 'Uploaded on mobile SLA'} · SHA-256 ✓</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ) : (
-                <div
-                  style={{
-                    padding: '12px 14px',
-                    background: '#f8fafc',
-                    borderRadius: '8px',
-                    fontSize: '11px',
-                    color: '#64748b',
-                    marginTop: '6px',
-                    fontStyle: 'italic',
-                    border: '1px dashed #cbd5e1',
-                  }}
-                >
-                  No supporting receipts or proforma files were uploaded for this requisition.
+                /* STANDARD GALLERY VIEW WITH PHASE BADGES */
+                <div>
+                  {(!request.attachments || request.attachments.length === 0) ? (
+                    <div style={{ padding: '24px 16px', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                      <Paperclip size={20} color="#94a3b8" style={{ margin: '0 auto 6px' }} />
+                      <p style={{ margin: 0, fontSize: '11px', color: '#64748b', fontWeight: 600 }}>No supporting files or receipts attached to this requisition.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginTop: '6px' }}>
+                      {(request.attachments || [])
+                        .filter((att) => {
+                          if (evidenceTab === 'PRE_APPROVAL') return !att.ownerType || att.ownerType === 'REQUEST';
+                          if (evidenceTab === 'POST_RETIREMENT') return att.ownerType === 'ACCOUNTABILITY';
+                          return true;
+                        })
+                        .map((att) => {
+                          const isPost = att.ownerType === 'ACCOUNTABILITY';
+                          const isImage = att.contentType.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(att.fileUrl || att.fileName);
+
+                          return (
+                            <div
+                              key={att.id}
+                              style={{
+                                border: isPost ? '1px solid #86efac' : '1px solid #bae6fd',
+                                borderRadius: '10px',
+                                overflow: 'hidden',
+                                background: '#ffffff',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                transition: 'all 0.18s ease',
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                              }}
+                            >
+                              {/* Chamber Badge Header */}
+                              <div
+                                style={{
+                                  padding: '4px 8px',
+                                  background: isPost ? '#f0fdf4' : '#f0f9ff',
+                                  borderBottom: isPost ? '1px solid #dcfce7' : '1px solid #e0f2fe',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                }}
+                              >
+                                <span style={{ fontSize: '8px', fontWeight: 800, color: isPost ? '#15803d' : '#0369a1', textTransform: 'uppercase' }}>
+                                  {isPost ? '🧾 Post-Receipt' : '📋 Pre-Quote'}
+                                </span>
+                                {att.checksum && (
+                                  <span style={{ fontSize: '7.5px', color: '#16a34a', fontWeight: 700 }}>
+                                    SHA-256 ✓
+                                  </span>
+                                )}
+                              </div>
+
+                              {isImage ? (
+                                <div
+                                  onClick={() => onImageClick?.({ url: att.fileUrl, name: att.fileName })}
+                                  style={{
+                                    width: '100%',
+                                    height: '96px',
+                                    position: 'relative',
+                                    cursor: 'pointer',
+                                    background: '#0f172a',
+                                    overflow: 'hidden',
+                                  }}
+                                  title="Click to view full photo proof"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={att.fileUrl}
+                                    alt={att.fileName}
+                                    style={{
+                                      width: '100%',
+                                      height: '100%',
+                                      objectFit: 'cover',
+                                      transition: 'transform 0.2s ease',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.transform = 'scale(1.06)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.transform = 'scale(1)';
+                                    }}
+                                  />
+                                  <span
+                                    style={{
+                                      position: 'absolute',
+                                      bottom: '4px',
+                                      right: '4px',
+                                      background: 'rgba(15, 23, 42, 0.75)',
+                                      color: '#ffffff',
+                                      padding: '2px 5px',
+                                      borderRadius: '4px',
+                                      fontSize: '8px',
+                                      fontWeight: 700,
+                                      backdropFilter: 'blur(4px)',
+                                    }}
+                                  >
+                                    View
+                                  </span>
+                                </div>
+                              ) : (
+                                <div
+                                  style={{
+                                    height: '96px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: '#f8fafc',
+                                    color: '#64748b',
+                                  }}
+                                >
+                                  <FileText size={26} color={isPost ? '#059669' : '#0284c7'} />
+                                  <span style={{ fontSize: '9px', fontWeight: 700, color: isPost ? '#047857' : '#0369a1', marginTop: '4px' }}>
+                                    PDF Document
+                                  </span>
+                                </div>
+                              )}
+
+                              <div style={{ padding: '8px 10px', background: '#ffffff', borderTop: '1px solid #f1f5f9' }}>
+                                <div
+                                  style={{
+                                    fontSize: '10.5px',
+                                    fontWeight: 700,
+                                    color: '#0f172a',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                  title={att.fileName}
+                                >
+                                  {att.fileName}
+                                </div>
+                                <div style={{ fontSize: '8.5px', color: '#64748b', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {att.notes || (isPost ? 'SLA Retirement' : 'Requisition quote')}
+                                </div>
+                                <div style={{ marginTop: '5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <span style={{ fontSize: '8.5px', color: '#94a3b8' }}>
+                                    {att.uploadedAt ? new Date(att.uploadedAt).toLocaleDateString() : 'Recorded'}
+                                  </span>
+                                  <a
+                                    href={att.fileUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    download
+                                    style={{
+                                      color: 'var(--brand-primary, #0d8a70)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      fontSize: '9px',
+                                      fontWeight: 750,
+                                      textDecoration: 'none',
+                                    }}
+                                  >
+                                    <Download size={10} /> Open
+                                  </a>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

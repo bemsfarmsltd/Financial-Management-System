@@ -140,6 +140,8 @@ export async function GET(
           fileUrl: att.fileUrl,
           contentType: att.contentType,
           notes: att.notes || null,
+          ownerType: att.ownerType || 'REQUEST',
+          checksum: att.checksum || null,
           uploadedAt: att.uploadedAt,
         })),
         accountability: expenditure.accountabilityCase ? {

@@ -407,101 +407,127 @@ export function DisbursementsDeskView({
       )}
 
       {/* TOP 4 KPI CARDS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' }}>
+      {/* TOP 4 KPI CARDS (HIGH-CONTRAST WCAG AAA EXECUTIVE CARDS) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
+        {/* Card 1: Approved - Awaiting Bank Transfer */}
         <div style={{
-          background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+          background: '#ffffff',
           borderRadius: '10px',
+          border: '1px solid #e2e8f0',
+          borderTop: '4px solid #ea580c',
           padding: '12px 14px',
-          color: '#fff',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          height: '75px',
+          height: '84px',
           boxSizing: 'border-box',
-          boxShadow: '0 8px 20px rgba(234, 88, 12, 0.22)',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.8px', color: '#fed7aa', textTransform: 'uppercase' }}>
-              APPROVED READY FOR TRANSFER
+            <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.8px', color: '#64748b', textTransform: 'uppercase' }}>
+              1. APPROVED (AWAITING TRANSFER)
             </span>
-            <Wallet size={12} color="#fed7aa" />
+            <span style={{ background: '#fff7ed', color: '#c2410c', padding: '1px 6px', borderRadius: '4px', fontSize: '8px', fontWeight: 800 }}>
+              IN BANK ACCOUNT
+            </span>
           </div>
           <div>
-            <div style={{ fontSize: '18px', fontWeight: 700, lineHeight: 1.1 }}>{summary.pendingPayoutTotalFormatted}</div>
-            <div style={{ fontSize: '9px', color: '#bfdbfe', marginTop: '2px' }}>{summary.pendingCount} Pending Maker Recording</div>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', lineHeight: 1.1 }}>
+              {summary.pendingPayoutTotalFormatted}
+            </div>
+            <div style={{ fontSize: '9.5px', color: '#ea580c', fontWeight: 700, marginTop: '3px' }}>
+              {summary.pendingCount} Pending Bank Transfers
+            </div>
           </div>
         </div>
 
+        {/* Card 2: Disbursed - Awaiting Staff Confirmation */}
         <div style={{
-          background: '#fff',
+          background: '#ffffff',
           borderRadius: '10px',
           border: '1px solid #e2e8f0',
+          borderTop: '4px solid #0284c7',
           padding: '12px 14px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          height: '75px',
-          boxSizing: 'border-box'
+          height: '84px',
+          boxSizing: 'border-box',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.8px', color: '#64748b', textTransform: 'uppercase' }}>
-              AWAITING STAFF CONFIRMATION
+            <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.8px', color: '#64748b', textTransform: 'uppercase' }}>
+              2. DISBURSED (AWAITING ALERT)
             </span>
-            <Clock size={12} color="#d97706" />
+            <span style={{ background: '#f0f9ff', color: '#0369a1', padding: '1px 6px', borderRadius: '4px', fontSize: '8px', fontWeight: 800 }}>
+              TRANSFERRED
+            </span>
           </div>
           <div>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#d97706', lineHeight: 1.1 }}>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: '#0284c7', lineHeight: 1.1 }}>
               {summary.awaitingConfirmationTotalFormatted}
             </div>
-            <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>{summary.awaitingCount} Requesters to confirm receipt</div>
+            <div style={{ fontSize: '9.5px', color: '#64748b', fontWeight: 650, marginTop: '3px' }}>
+              {summary.awaitingCount} Requesters to confirm receipt
+            </div>
           </div>
         </div>
 
+        {/* Card 3: Staff Confirmed Payments */}
         <div style={{
-          background: '#fff',
+          background: '#ffffff',
           borderRadius: '10px',
           border: '1px solid #e2e8f0',
+          borderTop: '4px solid #059669',
           padding: '12px 14px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          height: '75px',
-          boxSizing: 'border-box'
+          height: '84px',
+          boxSizing: 'border-box',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.8px', color: '#64748b', textTransform: 'uppercase' }}>
-              STAFF-CONFIRMED PAYMENTS
+            <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.8px', color: '#64748b', textTransform: 'uppercase' }}>
+              3. STAFF-CONFIRMED PAYMENTS
             </span>
-            <CheckCircle2 size={12} color="#059669" />
+            <span style={{ background: '#ecfdf5', color: '#047857', padding: '1px 6px', borderRadius: '4px', fontSize: '8px', fontWeight: 800 }}>
+              RECEIVED
+            </span>
           </div>
           <div>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#059669', lineHeight: 1.1 }}>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: '#059669', lineHeight: 1.1 }}>
               {summary.totalDisbursedFormatted}
             </div>
-            <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>{summary.verifiedCount} Cleared Corporate Transfers</div>
+            <div style={{ fontSize: '9.5px', color: '#047857', fontWeight: 700, marginTop: '3px' }}>
+              {summary.verifiedCount} Cleared Corporate Transfers
+            </div>
           </div>
         </div>
 
+        {/* Card 4: Duplicate Protection */}
         <div style={{
-          background: '#fff',
+          background: '#ffffff',
           borderRadius: '10px',
           border: '1px solid #e2e8f0',
+          borderTop: '4px solid #7c3aed',
           padding: '12px 14px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          height: '75px',
-          boxSizing: 'border-box'
+          height: '84px',
+          boxSizing: 'border-box',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.8px', color: '#64748b', textTransform: 'uppercase' }}>
-              DUPLICATE PROTECTION
+            <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.8px', color: '#64748b', textTransform: 'uppercase' }}>
+              4. DUPLICATE PROTECTION
             </span>
-            <ShieldCheck size={12} color="#ea580c" />
+            <ShieldCheck size={13} color="#7c3aed" />
           </div>
           <div>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#ea580c', lineHeight: 1.1 }}>100% SHA-256</div>
-            <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>Cryptographic Duplicate Guard</div>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: '#7c3aed', lineHeight: 1.1 }}>100% SHA-256</div>
+            <div style={{ fontSize: '9.5px', color: '#64748b', fontWeight: 650, marginTop: '3px' }}>Cryptographic Duplicate Guard</div>
           </div>
         </div>
       </div>
@@ -532,9 +558,9 @@ export function DisbursementsDeskView({
               gap: '6px'
             }}
           >
-            Awaiting Bank Transfer
+            1. Awaiting Bank Transfer
             <span style={{
-              background: activeTab === 'AWAITING_TRANSFER' ? 'rgba(255,255,255,0.2)' : '#e2e8f0',
+              background: activeTab === 'AWAITING_TRANSFER' ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
               padding: '1px 6px',
               borderRadius: '10px',
               fontSize: '9px'
@@ -549,7 +575,7 @@ export function DisbursementsDeskView({
               padding: '6px 12px',
               borderRadius: '6px',
               border: 0,
-              background: activeTab === 'AWAITING_CONFIRMATION' ? '#d97706' : '#f1f5f9',
+              background: activeTab === 'AWAITING_CONFIRMATION' ? '#0284c7' : '#f1f5f9',
               color: activeTab === 'AWAITING_CONFIRMATION' ? '#fff' : '#475569',
               fontSize: '11px',
               fontWeight: 700,
@@ -559,7 +585,7 @@ export function DisbursementsDeskView({
               gap: '6px'
             }}
           >
-            Awaiting Staff Confirmation
+            2. Awaiting Staff Confirmation
             <span style={{
               background: activeTab === 'AWAITING_CONFIRMATION' ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
               padding: '1px 6px',
@@ -586,7 +612,7 @@ export function DisbursementsDeskView({
               gap: '6px'
             }}
           >
-            Staff-Confirmed Payments
+            3. Staff-Confirmed Payments
             <span style={{
               background: activeTab === 'CLEARED' ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
               padding: '1px 6px',

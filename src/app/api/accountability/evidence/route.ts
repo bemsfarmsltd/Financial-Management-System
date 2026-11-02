@@ -67,7 +67,35 @@ export async function POST(request: Request) {
     const record = await tx.attachment.create({ data: { ownerType: 'ACCOUNTABILITY', ownerId: accCase.id, requestId: accCase.requestId, fileName: safeName, fileUrl: '', checksum, contentType: normalizedType, fileData: bytes as any, notes: notes || null, uploadedById: actor.id } });
     await tx.attachment.update({ where: { id: record.id }, data: { fileUrl: `/api/accountability/evidence/${record.id}` } });
     await tx.accountabilityCase.update({ where: { id: accCase.id }, data: { status: 'EVIDENCE_SUBMITTED' } });
-    await tx.expenditureRequest.update({ where: { id: accCase.requestId }, data: { accountabilityStatus: 'EVIDENCE_SUBMITTED' } });
+
+    // Auto-confirm linked disbursement if still awaiting confirmation
+    for (const d of accCase.request.disbursements) {
+      if (['AWAITING_RECIPIENT_CONFIRMATION', 'PENDING_VERIFICATION'].includes(d.status)) {
+        await tx.disbursement.update({ where: { id: d.id }, data: { status: 'RECIPIENT_CONFIRMED' } });
+        await tx.recipientPaymentConfirmation.upsert({
+          where: { disbursementId: d.id },
+          create: {
+            disbursementId: d.id,
+            employeeId: actor.id,
+            decision: 'RECEIVED',
+            note: 'Auto-confirmed upon post-expense evidence upload.',
+          },
+          update: {
+            decision: 'RECEIVED',
+            note: 'Auto-confirmed upon post-expense evidence upload.',
+          },
+        });
+      }
+    }
+
+    await tx.expenditureRequest.update({
+      where: { id: accCase.requestId },
+      data: {
+        accountabilityStatus: 'EVIDENCE_SUBMITTED',
+        paymentStatus: 'RECIPIENT_CONFIRMED',
+      },
+    });
+
     if (accCase.request.channel) await tx.channelMessage.create({ data: { channelId: accCase.request.channel.id, authorId: actor.id, authorName: actor.legalName, authorRole: actor.role, body: `Accountability evidence uploaded: ${safeName}${notes ? ` — ${notes}` : ''}`, messageType: 'AUDIT_EVENT' } });
     await tx.auditEvent.create({ data: { actorId: actor.id, actorName: actor.legalName, actorRole: actor.role, groupId: accCase.request.groupId, subsidiaryId: accCase.request.subsidiaryId, targetType: 'REQUEST', targetId: accCase.requestId, action: 'EVIDENCE_SUBMITTED', correlationId: `CORR-EVIDENCE-${randomUUID()}`, metadata: JSON.stringify({ caseId, fileName: safeName, contentType: normalizedType, checksum, size: bytes.length }) } });
     return record;

@@ -189,6 +189,8 @@ export async function GET(request: Request) {
           fileUrl: att.fileUrl,
           contentType: att.contentType,
           notes: att.notes || null,
+          ownerType: att.ownerType || 'REQUEST',
+          checksum: att.checksum || null,
           uploadedAt: att.uploadedAt ? new Date(att.uploadedAt).toISOString() : null,
         })),
       };
