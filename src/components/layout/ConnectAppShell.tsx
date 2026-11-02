@@ -52,7 +52,7 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/staff')) return 'Staff';
     return 'GMD';
   });
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [subsidiaries, setSubsidiaries] = useState<Subsidiary[]>(defaultSubsidiaries);
   const [currentSubId, setCurrentSubId] = useState('bems-group-hq');
   const [subSwitcherOpen, setSubSwitcherOpen] = useState(false);

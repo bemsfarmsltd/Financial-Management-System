@@ -87,10 +87,10 @@ export function ContextualAskPopover({ context, position, onClose, onSubmit }: P
         background: 'rgba(255, 255, 255, 0.96)',
         backdropFilter: 'blur(24px)',
         WebkitBackdropFilter: 'blur(24px)',
-        border: '1px solid rgba(234, 88, 12, 0.35)',
+        border: '1px solid var(--brand-border, rgba(13, 138, 112, 0.35))',
         borderRadius: '16px',
         padding: '16px',
-        boxShadow: '0 20px 40px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(234, 88, 12, 0.15)',
+        boxShadow: '0 20px 40px rgba(15, 23, 42, 0.16), 0 0 0 1px var(--brand-border, rgba(13, 138, 112, 0.15))',
         animation: 'bemsFadeSlideUp 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
@@ -102,22 +102,22 @@ export function ContextualAskPopover({ context, position, onClose, onSubmit }: P
               width: '24px',
               height: '24px',
               borderRadius: '6px',
-              background: '#fff7ed',
-              border: '1px solid #fed7aa',
+              background: 'var(--brand-tint, #fff7ed)',
+              border: '1px solid var(--brand-border, #fed7aa)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
             }}
           >
-            <Target style={{ width: 13, height: 13, color: '#ea580c' }} />
+            <Target style={{ width: 13, height: 13, color: 'var(--brand-primary, #0d8a70)' }} />
           </div>
           <div style={{ minWidth: 0 }}>
             <span
               style={{
                 fontSize: '10px',
                 fontWeight: 700,
-                color: '#ea580c',
+                color: 'var(--brand-primary, #0d8a70)',
                 letterSpacing: '0.04em',
                 textTransform: 'uppercase',
                 display: 'block',
@@ -187,7 +187,7 @@ export function ContextualAskPopover({ context, position, onClose, onSubmit }: P
             boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.04)',
             transition: 'border-color 0.15s ease',
           }}
-          onFocus={(e) => (e.target.style.borderColor = '#ea580c')}
+          onFocus={(e) => (e.target.style.borderColor = 'var(--brand-primary, #0d8a70)')}
           onBlur={(e) => (e.target.style.borderColor = '#cbd5e1')}
           onKeyDown={(e) => {
             if (e.key === 'Escape') onClose();
@@ -201,7 +201,7 @@ export function ContextualAskPopover({ context, position, onClose, onSubmit }: P
             right: '6px',
             top: '50%',
             transform: 'translateY(-50%)',
-            background: question.trim() ? '#ea580c' : '#f1f5f9',
+            background: question.trim() ? 'var(--brand-primary, #0d8a70)' : '#f1f5f9',
             color: question.trim() ? '#ffffff' : '#94a3b8',
             border: 'none',
             borderRadius: '7px',
@@ -221,7 +221,7 @@ export function ContextualAskPopover({ context, position, onClose, onSubmit }: P
       {/* Suggested Quick Prompt Chips */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
         <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Sparkles style={{ width: 11, height: 11, color: '#ea580c' }} />
+          <Sparkles style={{ width: 11, height: 11, color: 'var(--brand-primary, #0d8a70)' }} />
           Suggested queries:
         </span>
         {suggestions.map((s, idx) => (
@@ -245,9 +245,9 @@ export function ContextualAskPopover({ context, position, onClose, onSubmit }: P
               transition: 'all 0.12s ease',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#fff7ed';
-              e.currentTarget.style.borderColor = '#fed7aa';
-              e.currentTarget.style.color = '#c2410c';
+              e.currentTarget.style.background = 'var(--brand-tint, #fff7ed)';
+              e.currentTarget.style.borderColor = 'var(--brand-border, #fed7aa)';
+              e.currentTarget.style.color = 'var(--brand-primary, #0d8a70)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = '#f8fafc';

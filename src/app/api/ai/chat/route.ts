@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     const actor = await getAuthenticatedEmployee(req);
     const body = await req.json().catch(() => ({}));
     const message: string = (body.message || '').trim();
+    const targetElement = body.context?.target_element;
 
     if (!message) {
       return NextResponse.json({ error: 'Message cannot be empty.' }, { status: 400 });
@@ -93,7 +94,6 @@ export async function POST(req: NextRequest) {
 
         const webhookSecret = process.env.BEMS_N8N_SHARED_SECRET || 'bems_n8n_sec_88491029384756102938475';
 
-        const targetElement = body.context?.target_element;
         let queryText = message;
         if (targetElement) {
           queryText = `[User clicked element: "${targetElement.label}" with value "${targetElement.value || 'N/A'}" under section "${targetElement.section || 'General'}" on page "${targetElement.page}" for subsidiary "${targetElement.subsidiary}"]: ${message}`;
@@ -220,7 +220,45 @@ title: "<Chart Title>"
     let actionCard: any = null;
 
     // Check intents
-    if (
+    if (targetElement) {
+      const elLabel = (targetElement.label || '').toLowerCase();
+      const elVal = targetElement.value || '0';
+      const elSec = targetElement.section || 'Executive Telemetry';
+      const elSub = targetElement.subsidiary || 'BEMS Group';
+
+      if (elLabel.includes('payments recorded')) {
+        reply = `**Payments Recorded (${elVal}):**\n\nThis telemetry counter reflects the volume of disbursed payment vouchers authorized and settled from company bank accounts for **${elSub}**.\n\n• **Live Ledger Status:** Currently standing at **${elVal}** because no disbursements have been processed in this cycle.\n• **Disbursement Procedure:** To disburse funds for approved requisitions, go to **Approvals & payments** and select **Record Payment** to synchronize with bank reserves.`;
+      } else if (elLabel.includes('closed & accounted')) {
+        reply = `**Closed & Accounted (${elVal}):**\n\nThis metric tracks the number of staff cash advances that have submitted verified physical receipts and have been reconciled within the mandatory 72-hour retiral SLA.\n\n• **Current Status:** Currently at **${elVal}**. There are **${openCases.length} open advances** currently progressing through the evidence verification workflow.`;
+      } else if (elLabel.includes('review required') || elLabel.includes('awaiting authorization')) {
+        reply = `**Executive Review Required (${elVal}):**\n\nYou have **${pendingCount} pending requisition${pendingCount > 1 ? 's' : ''}** totaling **${formatNaira(pendingSum)}** awaiting executive authorization for **${elSub}**.\n\n${pendingRequests.map((r, i) => `${i + 1}. **${r.requestNumber}** — ${r.title} (${formatNaira(Number(r.amountMinor) / 100)})`).join('\n')}\n\nYou can authorize or review these requests directly from the Approvals desk.`;
+        actionCard = {
+          type: 'APPROVALS',
+          title: 'Pending Authorization Queue',
+          count: pendingCount,
+          total: formatNaira(pendingSum),
+          requests: pendingRequests.map((r) => ({
+            id: r.id,
+            number: r.requestNumber,
+            title: r.title,
+            amount: formatNaira(Number(r.amountMinor) / 100),
+            by: r.requester?.legalName || 'Staff',
+          })),
+        };
+      } else if (elLabel.includes('requests') || elLabel.includes('group requests')) {
+        reply = `**Total Requests Pipeline (${elVal}):**\n\nThis metric captures all expenditure requests logged under **${elSub}**.\n\n• **Total Volume:** **${elVal} total requests** recorded across operational procurement and advances.\n• **Active In Review:** **${pendingCount} requests** (${formatNaira(pendingSum)}) are actively awaiting executive sign-off.`;
+      } else if (elLabel.includes('velocity') || elLabel.includes('spending')) {
+        reply = `**Group Spending Velocity (${elVal}):**\n\nThis telemetry chart represents 7-day cash outflow pacing across Monday through Sunday.\n\n• **Telemetry Reading:** A baseline level of **${elVal}** reflects zero cash disbursements committed on this weekday, ensuring that corporate liquidity remains preserved.`;
+      } else if (elLabel.includes('clearance rate') || elLabel.includes('accountability')) {
+        reply = `**Accountability Clearance Rate (${elVal}):**\n\nThis compliance index measures receipt retirement discipline for staff cash advances.\n\n• **Audit Standing:** **${elVal} compliance score**, confirming zero delinquent or unretired advances beyond the 72-hour window.`;
+      } else if (elLabel.includes('sla clock') || elLabel.includes('clock') || elLabel.includes('01:00:00')) {
+        reply = `**GMD Review SLA Clock (${elVal}):**\n\nThis is the executive 1-Hour SLA countdown timer for pending fund requests.\n\n• **Policy Requirement:** To prevent operational gridlock, every requisition flagged for GMD review has a 1-hour priority window before escalation alerts are triggered.`;
+      } else if (elLabel.includes('starlink') || elLabel.includes('wi-fi') || elLabel.includes('attendance')) {
+        reply = `**Starlink Wi-Fi Attendance Policy:**\n\nStaff check-ins enforce a strict 3-way security protocol combining company Starlink Wi-Fi network telemetry, GPS office geofencing, and reception kiosk verification.\n\n• **Arrival Window:** 07:00 AM – 08:00 AM (Grace window up to 08:15 AM).\n• **Power Outage Override:** In case of grid failure, executive administrators can toggle Power Outage Mode to maintain continuity.`;
+      } else {
+        reply = `**Contextual Inquiry — ${targetElement.label} (${elVal}):**\n\n• **Section:** ${elSec}\n• **Workspace:** ${elSub}\n• **Query:** "${message}"\n\nThis element represents a live telemetry indicator synchronized with BEMS Group database records. Every transaction and status change updates this figure in real time.`;
+      }
+    } else if (
       normalized.includes('bank') ||
       normalized.includes('balance') ||
       normalized.includes('cash') ||

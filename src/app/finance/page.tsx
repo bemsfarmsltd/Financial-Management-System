@@ -2849,7 +2849,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
     }
     return 'Overview';
   });
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
 
   const [allowAiAnalystChat, setAllowAiAnalystChat] = useState(true);

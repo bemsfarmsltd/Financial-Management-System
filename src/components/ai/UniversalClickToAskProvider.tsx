@@ -168,13 +168,13 @@ export function UniversalClickToAskProvider({
             top: `${hoverRect.top}px`,
             width: `${hoverRect.width}px`,
             height: `${hoverRect.height}px`,
-            border: '2px solid #ea580c',
-            backgroundColor: 'rgba(234, 88, 12, 0.10)',
+            border: '2px solid var(--brand-primary, #0d8a70)',
+            backgroundColor: 'var(--brand-tint, rgba(13, 138, 112, 0.10))',
             borderRadius: '6px',
             pointerEvents: 'none',
             zIndex: 9980,
             transition: 'all 0.05s ease-out',
-            boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.8), 0 4px 16px rgba(234, 88, 12, 0.25)',
+            boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.8), 0 4px 16px var(--brand-shadow-color, rgba(13, 138, 112, 0.25))',
           }}
         >
           <span
@@ -182,21 +182,21 @@ export function UniversalClickToAskProvider({
               position: 'absolute',
               bottom: 'calc(100% + 4px)',
               left: '0',
-              background: '#ea580c',
+              background: 'var(--brand-primary, #0d8a70)',
               color: '#ffffff',
               fontSize: '10px',
               fontWeight: 700,
               padding: '2px 6px',
               borderRadius: '4px',
               whiteSpace: 'nowrap',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
             }}
           >
             <span>🎯 Click to Ask AI</span>
-            {hoverLabel ? <span style={{ opacity: 0.85, fontWeight: 500 }}>· {hoverLabel}</span> : null}
+            {hoverLabel ? <span style={{ opacity: 0.9, fontWeight: 500 }}>· {hoverLabel}</span> : null}
           </span>
         </div>
       )}

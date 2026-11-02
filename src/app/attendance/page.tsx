@@ -773,7 +773,7 @@ export default function AttendanceDeskPage() {
               style={{
                 padding: '10px 18px',
                 borderRadius: '8px',
-                background: policy.starlinkPowerOutageMode ? '#059669' : 'var(--brand-primary, #ea580c)',
+                background: policy.starlinkPowerOutageMode ? '#059669' : 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
                 color: '#ffffff',
                 fontSize: '12px',
                 fontWeight: 800,
@@ -785,7 +785,7 @@ export default function AttendanceDeskPage() {
                 whiteSpace: 'nowrap',
                 boxShadow: policy.starlinkPowerOutageMode
                   ? '0 2px 8px rgba(5, 150, 105, 0.3)'
-                  : '0 2px 8px rgba(234, 88, 12, 0.3)',
+                  : '0 2px 8px var(--brand-shadow-color, rgba(13, 138, 112, 0.3))',
               }}
             >
               {isTogglingPower ? (

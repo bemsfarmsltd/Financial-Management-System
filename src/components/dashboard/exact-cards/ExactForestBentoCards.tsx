@@ -263,8 +263,8 @@ export function ExactForestBentoCards({ config, onNavigate, businessName = 'BEMS
               marginTop: '20px',
             }}
           >
-            <span style={{ fontSize: '16px' }}>📹</span>
-            <span>{config.reminderButton}</span>
+            <span style={{ fontSize: '15px' }}>🛡️</span>
+            <span>{config.reminderButton || 'Open Approvals Desk'}</span>
           </button>
         </div>
 
