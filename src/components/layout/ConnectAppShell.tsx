@@ -283,6 +283,53 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
           background: ${activeBrandColor} !important;
           color: #ffffff !important;
         }
+        .sidebar {
+          background: radial-gradient(circle at 18% 12%, ${activeBrandColor}38, transparent 48%),
+                      linear-gradient(175deg, #070c16 0%, #0e1422 60%, ${activeBrandColor}1c 100%) !important;
+          position: sticky !important;
+          top: 0 !important;
+          height: 100vh !important;
+          overflow: hidden !important;
+        }
+        .sidebar-circuit {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          opacity: 0.55 !important;
+          overflow: hidden;
+          z-index: 1;
+        }
+        .sidebar-circuit:before {
+          content: '';
+          position: absolute;
+          left: -90px;
+          top: 165px;
+          width: 250px;
+          height: 250px;
+          border: 1.5px solid ${activeBrandColor}80 !important;
+          border-radius: 50%;
+          box-shadow: 0 0 0 35px ${activeBrandColor}18, 0 0 0 85px ${activeBrandColor}08 !important;
+        }
+        .sidebar-circuit:after {
+          content: '';
+          position: absolute;
+          width: 190px;
+          height: 380px;
+          right: -120px;
+          bottom: 30px;
+          border: 1.5px solid ${activeBrandColor}60 !important;
+          border-radius: 50%;
+          transform: rotate(24deg);
+        }
+        .sidebar-circuit i {
+          position: absolute;
+          width: 8px;
+          height: 8px;
+          border: 1.5px solid #ffffff !important;
+          background: ${activeBrandColor} !important;
+          border-radius: 50%;
+          box-shadow: 0 0 14px ${activeBrandColor}, 0 0 4px #ffffff !important;
+        }
       `}</style>
       <main
         className={`app-shell ${currentRole === 'Staff' ? 'staff-view' : 'gmd-view'} ${collapsed ? 'collapsed' : ''}`}
