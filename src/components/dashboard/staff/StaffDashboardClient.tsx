@@ -240,6 +240,7 @@ export function StaffDashboardClient({
       for (const r of myReqs) {
         if (
           r.paymentStatus === 'PAID' ||
+          r.paymentStatus === 'RECIPIENT_CONFIRMED' ||
           r.accountabilityStatus === 'OPEN' ||
           r.accountabilityStatus === 'EVIDENCE_SUBMITTED' ||
           r.approvalStatus === 'APPROVED'
@@ -247,7 +248,7 @@ export function StaffDashboardClient({
           const alreadyHasCase = myCases.some(
             (c: any) => c.requestId === r.id || c.request?.requestNumber === r.requestNumber
           );
-          if (!alreadyHasCase && (r.paymentStatus === 'PAID' || r.accountabilityStatus === 'OPEN')) {
+          if (!alreadyHasCase && (r.paymentStatus === 'PAID' || r.paymentStatus === 'RECIPIENT_CONFIRMED' || r.accountabilityStatus === 'OPEN' || r.accountabilityStatus === 'EVIDENCE_SUBMITTED')) {
             myCases.push({
               id: `case-${r.id}`,
               requestId: r.id,
@@ -326,36 +327,50 @@ export function StaffDashboardClient({
   // Requisition chart toggle: 'Category' | 'Status'
   const [requisitionChartMetric, setRequisitionChartMetric] = useState<'Category' | 'Status'>('Category');
 
-  // Pending retirements (Matching mobile app: any advance not yet evidence submitted or closed)
-  const pendingRetirements = useMemo(() => {
+  // Active advances requiring accountability (Disbursed advances not yet verified/closed by Finance)
+  const activeAdvanceCases = useMemo(() => {
     return accountabilityCases.filter((c: any) => {
       const s = String(c.status || '').toUpperCase();
       const acc = String(c.request?.accountabilityStatus || '').toUpperCase();
       return (
-        s !== 'EVIDENCE_SUBMITTED' &&
         s !== 'CLOSED' &&
         s !== 'VERIFIED' &&
         s !== 'CLEARED' &&
         s !== 'RECONCILED' &&
-        acc !== 'EVIDENCE_SUBMITTED' &&
         acc !== 'CLOSED' &&
         acc !== 'VERIFIED'
       );
     });
   }, [accountabilityCases]);
 
-  // Cleared / Archived retirements
+  // Unsubmitted advances (Still waiting for staff to upload receipts within 72h)
+  const pendingRetirements = useMemo(() => {
+    return activeAdvanceCases.filter((c: any) => {
+      const s = String(c.status || '').toUpperCase();
+      const acc = String(c.request?.accountabilityStatus || '').toUpperCase();
+      return s !== 'EVIDENCE_SUBMITTED' && acc !== 'EVIDENCE_SUBMITTED';
+    });
+  }, [activeAdvanceCases]);
+
+  // Advances where staff has submitted evidence, now awaiting Finance clearance
+  const submittedUnderReviewCases = useMemo(() => {
+    return activeAdvanceCases.filter((c: any) => {
+      const s = String(c.status || '').toUpperCase();
+      const acc = String(c.request?.accountabilityStatus || '').toUpperCase();
+      return s === 'EVIDENCE_SUBMITTED' || acc === 'EVIDENCE_SUBMITTED';
+    });
+  }, [activeAdvanceCases]);
+
+  // Cleared / Archived retirements (Only cases verified and closed by Finance)
   const clearedRetirements = useMemo(() => {
     const list: any[] = [];
     for (const c of accountabilityCases) {
       const s = String(c.status || '').toUpperCase();
       const acc = String(c.request?.accountabilityStatus || '').toUpperCase();
       if (
-        s === 'EVIDENCE_SUBMITTED' ||
         s === 'CLOSED' ||
         s === 'VERIFIED' ||
         s === 'CLEARED' ||
-        acc === 'EVIDENCE_SUBMITTED' ||
         acc === 'CLOSED' ||
         acc === 'VERIFIED'
       ) {
@@ -364,7 +379,7 @@ export function StaffDashboardClient({
     }
     for (const r of requests) {
       const acc = String(r.accountabilityStatus || '').toUpperCase();
-      if (acc === 'EVIDENCE_SUBMITTED' || acc === 'CLOSED' || acc === 'VERIFIED') {
+      if (acc === 'CLOSED' || acc === 'VERIFIED') {
         if (!list.some((c: any) => c.request?.requestNumber === r.requestNumber)) {
           list.push({
             id: `req-${r.id}`,
@@ -381,16 +396,19 @@ export function StaffDashboardClient({
     return list;
   }, [accountabilityCases, requests]);
 
+  // Total active advance amount held (All disbursed advances not yet verified/closed by Finance)
   const activeAdvanceAmount = useMemo(() => {
-    return pendingRetirements.reduce((sum, c) => {
-      const amt = Number(c.request?.amountMinor || c.amountMinor || 0) / 100;
-      return sum + (isNaN(amt) ? 0 : amt);
+    return activeAdvanceCases.reduce((sum, c) => {
+      const amt = Number(c.request?.amountMinor || c.amountMinor || c.amount || c.amountNaira || 0);
+      const normalizedAmt = amt > 100000000 && !c.amountNaira ? amt / 100 : (c.amountNaira || amt);
+      return sum + (isNaN(normalizedAmt) ? 0 : normalizedAmt);
     }, 0);
-  }, [pendingRetirements]);
+  }, [activeAdvanceCases]);
 
   const nearestAdvanceCase = useMemo(() => {
-    if (pendingRetirements.length === 0) return null;
-    return [...pendingRetirements].sort((a: any, b: any) => {
+    const candidateList = pendingRetirements.length > 0 ? pendingRetirements : activeAdvanceCases;
+    if (candidateList.length === 0) return null;
+    return [...candidateList].sort((a: any, b: any) => {
       const timeA = a.dueAt ? new Date(a.dueAt).getTime() : Infinity;
       const timeB = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
       return timeA - timeB;
@@ -1055,7 +1073,17 @@ export function StaffDashboardClient({
                     <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight">
                       {hideBalance ? '₦ ••••••••' : formatNaira(activeAdvanceAmount)}
                     </h2>
-                    <p className="text-[11.5px] text-white/85 mt-1 flex items-center gap-1">
+                    {submittedUnderReviewCases.length > 0 && (
+                      <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-emerald-100 bg-emerald-950/60 border border-emerald-400/40 px-3 py-1 rounded-full w-fit backdrop-blur-sm shadow-sm">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>
+                          {pendingRetirements.length === 0
+                            ? 'Evidence Submitted · Awaiting Finance Clearance'
+                            : `${submittedUnderReviewCases.length} In Review · ${pendingRetirements.length} Pending Retirement`}
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-[11.5px] text-white/85 mt-1.5 flex items-center gap-1">
                       <CreditCard className="w-3.5 h-3.5 text-white/70" />
                       Bank: {userProfile.bankName || 'Access Bank'} ({userProfile.accountNumber || '—'})
                     </p>
@@ -1073,9 +1101,10 @@ export function StaffDashboardClient({
 
                     <button
                       onClick={() => {
-                        if (pendingRetirements.length > 0) {
-                          setActiveRetirementCase(pendingRetirements[0]);
-                          setActualSpentAmount(Number(pendingRetirements[0].request?.amountMinor || 0) / 100);
+                        const targetCase = pendingRetirements.length > 0 ? pendingRetirements[0] : activeAdvanceCases[0];
+                        if (targetCase) {
+                          setActiveRetirementCase(targetCase);
+                          setActualSpentAmount(Number(targetCase.request?.amountMinor || targetCase.amountMinor || 0) / 100);
                         } else {
                           setActiveTab('RETIREMENT');
                         }
@@ -1083,7 +1112,7 @@ export function StaffDashboardClient({
                       className="py-3 px-3 bg-[#EA580C] hover:bg-orange-700 text-white font-black text-xs rounded-2xl shadow-md shadow-[#EA580C]/40 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
                     >
                       <ArrowDownLeft className="w-4 h-4 text-white" />
-                      <span>Retire 72h</span>
+                      <span>{pendingRetirements.length > 0 ? 'Retire 72h' : submittedUnderReviewCases.length > 0 ? 'Evidence In Review' : 'Retire 72h'}</span>
                     </button>
                   </div>
                 </div>
@@ -1929,7 +1958,7 @@ export function StaffDashboardClient({
               <div className="space-y-3">
                 <h3 className="text-sm font-black text-[#0F172A]">Active Advances Requiring Proof</h3>
 
-                {pendingRetirements.length === 0 ? (
+                {activeAdvanceCases.length === 0 ? (
                   <div className="bg-white border border-[#E2E8F0] rounded-3xl p-8 text-center shadow-sm space-y-3">
                     <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-[#10B981] flex items-center justify-center mx-auto">
                       <ShieldCheck className="w-6 h-6" />
@@ -1943,7 +1972,7 @@ export function StaffDashboardClient({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {pendingRetirements.map((c: any) => {
+                    {activeAdvanceCases.map((c: any) => {
                       const amount = Number(c.request?.amountMinor || c.amountMinor || 0) / 100;
                       const reqNum = c.request?.requestNumber || c.requestNumber || 'ADVANCE';
                       const reqTitle = c.request?.title || c.title || 'Operational Advance';
@@ -1951,21 +1980,34 @@ export function StaffDashboardClient({
                       const dueTime = c.dueAt ? new Date(c.dueAt).getTime() : Date.now() + 72 * 3600 * 1000;
                       const remHours = Math.max(0, Math.round((dueTime - Date.now()) / (1000 * 60 * 60)));
                       const isOver = dueTime <= Date.now();
+                      const isSubmitted = c.status === 'EVIDENCE_SUBMITTED' || c.request?.accountabilityStatus === 'EVIDENCE_SUBMITTED';
 
                       return (
                         <div
                           key={c.id}
-                          className="bg-white rounded-3xl p-5 border border-amber-200/80 shadow-sm space-y-3 hover:border-amber-400 transition-all"
+                          className={`bg-white rounded-3xl p-5 border shadow-sm space-y-3 transition-all ${
+                            isSubmitted
+                              ? 'border-emerald-300 bg-emerald-50/20 hover:border-emerald-400'
+                              : 'border-amber-200/80 hover:border-amber-400'
+                          }`}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#EA580C]">
+                              <div className={`w-8 h-8 rounded-xl border flex items-center justify-center ${
+                                isSubmitted
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                                  : 'bg-orange-50 border-orange-100 text-[#EA580C]'
+                              }`}>
                                 <Receipt className="w-4 h-4" />
                               </div>
-                              <span className="text-xs font-black text-[#EA580C]">{reqNum}</span>
+                              <span className={`text-xs font-black ${isSubmitted ? 'text-emerald-700' : 'text-[#EA580C]'}`}>{reqNum}</span>
                             </div>
-                            <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black bg-[#FEF3C7] text-[#D97706] border border-amber-200">
-                              {isOver ? '24h Overdue' : `${remHours}h Left`}
+                            <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black border ${
+                              isSubmitted
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-[#FEF3C7] text-[#D97706] border-amber-200'
+                            }`}>
+                              {isSubmitted ? '● Evidence Submitted (Review)' : isOver ? '24h Overdue' : `${remHours}h Left`}
                             </span>
                           </div>
 
@@ -1978,7 +2020,7 @@ export function StaffDashboardClient({
 
                           {/* Required Proof Box */}
                           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-start gap-2 text-xs text-slate-600">
-                            <Receipt className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
+                            <Receipt className={`w-4 h-4 shrink-0 mt-0.5 ${isSubmitted ? 'text-emerald-600' : 'text-[#EA580C]'}`} />
                             <span><strong>Required Proof:</strong> {deliverables}</span>
                           </div>
 
@@ -1988,10 +2030,14 @@ export function StaffDashboardClient({
                               setActualSpentAmount(amount);
                               setRefundReturnedAmount(0);
                             }}
-                            className="w-full py-3 bg-[#EA580C] hover:bg-orange-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 active:scale-[0.98] transition-all"
+                            className={`w-full py-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all ${
+                              isSubmitted
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20'
+                                : 'bg-[#EA580C] hover:bg-orange-700 text-white shadow-orange-500/20'
+                            }`}
                           >
                             <Camera className="w-4 h-4" />
-                            <span>Upload Physical Receipts & GRN</span>
+                            <span>{isSubmitted ? 'Evidence Submitted (Update Proof)' : 'Upload Physical Receipts & GRN'}</span>
                           </button>
                         </div>
                       );

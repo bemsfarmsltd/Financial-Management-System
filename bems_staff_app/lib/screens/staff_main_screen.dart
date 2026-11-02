@@ -34,9 +34,19 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   Map<String, dynamic>? _todayAttendance;
   bool _isPunching = false;
 
+  List<AccountabilityCaseItem> get _activeAdvanceCases => _cases.where((c) {
+    final s = c.status.toUpperCase();
+    return s != 'CLOSED' && s != 'VERIFIED';
+  }).toList();
+
   List<AccountabilityCaseItem> get _pendingRetirementCases => _cases.where((c) {
     final s = c.status.toUpperCase();
     return s != 'EVIDENCE_SUBMITTED' && s != 'CLOSED' && s != 'VERIFIED';
+  }).toList();
+
+  List<AccountabilityCaseItem> get _submittedUnderReviewCases => _cases.where((c) {
+    final s = c.status.toUpperCase();
+    return s == 'EVIDENCE_SUBMITTED';
   }).toList();
 
   // Search & Filter state for Requisitions
@@ -2102,7 +2112,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
   // TAB 0: HOME WORKSPACE
   Widget _buildHomeTab(NumberFormat formatter) {
-    final activeAdvanceAmount = _pendingRetirementCases.fold<double>(0, (sum, c) => sum + c.amountNaira);
+    final activeAdvanceAmount = _activeAdvanceCases.fold<double>(0, (sum, c) => sum + c.amountNaira);
 
     return RefreshIndicator(
       onRefresh: _loadData,
@@ -2462,6 +2472,34 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                             ),
                           ],
                         ),
+                        if (_submittedUnderReviewCases.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF064E3B).withOpacity(0.85),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFF34D399).withOpacity(0.4)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(color: Color(0xFF34D399), shape: BoxShape.circle),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _pendingRetirementCases.isEmpty
+                                      ? 'Evidence Submitted · Awaiting Finance Clearance'
+                                      : '${_submittedUnderReviewCases.length} In Review · ${_pendingRetirementCases.length} Pending Retirement',
+                                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFFA7F3D0)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 20),
 
                         Row(
@@ -2487,16 +2525,21 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                             Expanded(
                               child: ElevatedButton.icon(
                                 onPressed: () {
-                                  if (_pendingRetirementCases.isNotEmpty) {
-                                    _showRetirementEvidenceDialog(_pendingRetirementCases.first);
+                                  final targetCase = _pendingRetirementCases.isNotEmpty
+                                      ? _pendingRetirementCases.first
+                                      : (_activeAdvanceCases.isNotEmpty ? _activeAdvanceCases.first : null);
+                                  if (targetCase != null) {
+                                    _showRetirementEvidenceDialog(targetCase);
                                   } else {
                                     setState(() => _currentIndex = 2);
                                   }
                                 },
                                 icon: const Icon(Icons.arrow_downward_rounded, size: 16, color: Colors.white),
-                                label: const Text(
-                                  'Retire 72h',
-                                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white),
+                                label: Text(
+                                  _pendingRetirementCases.isNotEmpty
+                                      ? 'Retire 72h'
+                                      : (_submittedUnderReviewCases.isNotEmpty ? 'Evidence In Review' : 'Retire 72h'),
+                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white),
                                 ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFFEA580C),
@@ -3847,7 +3890,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
   // TAB 2: 72H SLA EVIDENCE RETIREMENT (DEEP IMPLEMENTATION)
   Widget _buildRetirementTab(NumberFormat formatter) {
-    final nearestCase = _pendingRetirementCases.isNotEmpty ? _pendingRetirementCases.first : null;
+    final nearestCase = _pendingRetirementCases.isNotEmpty
+        ? _pendingRetirementCases.first
+        : (_activeAdvanceCases.isNotEmpty ? _activeAdvanceCases.first : null);
     final hoursRemaining = nearestCase != null ? nearestCase.hoursRemaining : 72;
     final hoursElapsed = (72 - hoursRemaining).clamp(0, 72);
     final progress = nearestCase != null ? (hoursElapsed / 72.0).clamp(0.0, 1.0) : 1.0;
@@ -3892,10 +3937,23 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
+                      color: nearestCase != null && nearestCase.status == 'EVIDENCE_SUBMITTED'
+                          ? const Color(0xFFECFDF5)
+                          : (nearestCase != null ? const Color(0xFFFEF3C7) : const Color(0xFFECFDF5)),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(nearestCase != null ? 'ACTIVE ADVANCE' : 'POLICY COMPLIANT', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF059669))),
+                    child: Text(
+                      nearestCase != null
+                          ? (nearestCase.status == 'EVIDENCE_SUBMITTED' ? 'IN FINANCE REVIEW' : 'ACTIVE ADVANCE')
+                          : 'POLICY COMPLIANT',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: nearestCase != null && nearestCase.status == 'EVIDENCE_SUBMITTED'
+                            ? const Color(0xFF059669)
+                            : (nearestCase != null ? const Color(0xFFD97706) : const Color(0xFF059669)),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -3913,7 +3971,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           value: progress,
                           strokeWidth: 6,
                           backgroundColor: const Color(0xFFF1F5F9),
-                          valueColor: AlwaysStoppedAnimation<Color>(nearestCase != null ? const Color(0xFFEA580C) : const Color(0xFF059669)),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            nearestCase != null
+                                ? (nearestCase.status == 'EVIDENCE_SUBMITTED' ? const Color(0xFF10B981) : const Color(0xFFEA580C))
+                                : const Color(0xFF059669),
+                          ),
                         ),
                       ),
                       Text(nearestCase != null ? '${hoursRemaining}h' : '0h', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF0F172A))),
@@ -3926,14 +3988,18 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       children: [
                         Text(
                           nearestCase != null
-                              ? '$hoursElapsed Hours Elapsed · $hoursRemaining Hours Left'
+                              ? (nearestCase.status == 'EVIDENCE_SUBMITTED'
+                                  ? 'Evidence Submitted · Awaiting Finance Verification'
+                                  : '$hoursElapsed Hours Elapsed · $hoursRemaining Hours Left')
                               : '100% Policy Compliant · 0 Advances Due',
                           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           nearestCase != null
-                              ? 'Physical receipts for ${nearestCase.requestNumber} must be photographed and submitted before deadline.'
+                              ? (nearestCase.status == 'EVIDENCE_SUBMITTED'
+                                  ? 'Receipts for ${nearestCase.requestNumber} are submitted and under review by Finance.'
+                                  : 'Physical receipts for ${nearestCase.requestNumber} must be photographed and submitted before deadline.')
                               : 'All operational funds are fully accounted for. Great job maintaining company compliance!',
                           style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
                         ),
@@ -3956,7 +4022,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         const Text('Active Advances Requiring Proof', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
         const SizedBox(height: 12),
 
-        if (_pendingRetirementCases.isEmpty)
+        if (_activeAdvanceCases.isEmpty)
           Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
@@ -3977,14 +4043,20 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             ),
           )
         else
-          ..._pendingRetirementCases.map((c) {
+          ..._activeAdvanceCases.map((c) {
+            final isSubmitted = c.status == 'EVIDENCE_SUBMITTED';
+
             return Container(
               margin: const EdgeInsets.only(bottom: 14),
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: isSubmitted ? const Color(0xFFF0FDF4) : Colors.white,
                 borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: c.isOverdue ? const Color(0xFFFCA5A5) : const Color(0xFFFDE68A)),
+                border: Border.all(
+                  color: isSubmitted
+                      ? const Color(0xFF6EE7B7)
+                      : (c.isOverdue ? const Color(0xFFFCA5A5) : const Color(0xFFFDE68A)),
+                ),
                 boxShadow: [
                   BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4)),
                 ],
@@ -4008,33 +4080,40 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                     errorBuilder: (_, __, ___) => Container(
                                       width: 32,
                                       height: 32,
-                                      color: const Color(0xFFEA580C).withOpacity(0.1),
-                                      child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 18),
+                                      color: isSubmitted ? const Color(0xFF10B981).withOpacity(0.1) : const Color(0xFFEA580C).withOpacity(0.1),
+                                      child: Icon(Icons.receipt_long_rounded, color: isSubmitted ? const Color(0xFF10B981) : const Color(0xFFEA580C), size: 18),
                                     ),
                                   )
                                 : Container(
                                     width: 32,
                                     height: 32,
-                                    color: const Color(0xFFEA580C).withOpacity(0.1),
-                                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 18),
+                                    color: isSubmitted ? const Color(0xFF10B981).withOpacity(0.1) : const Color(0xFFEA580C).withOpacity(0.1),
+                                    child: Icon(Icons.receipt_long_rounded, color: isSubmitted ? const Color(0xFF10B981) : const Color(0xFFEA580C), size: 18),
                                   ),
                           ),
                           const SizedBox(width: 8),
-                          Text(c.requestNumber, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                          Text(c.requestNumber, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: isSubmitted ? const Color(0xFF059669) : const Color(0xFFEA580C))),
                         ],
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: c.isOverdue ? const Color(0xFFFEF2F2) : const Color(0xFFFEF3C7),
+                          color: isSubmitted
+                              ? const Color(0xFFECFDF5)
+                              : (c.isOverdue ? const Color(0xFFFEF2F2) : const Color(0xFFFEF3C7)),
                           borderRadius: BorderRadius.circular(8),
+                          border: isSubmitted ? Border.all(color: const Color(0xFFA7F3D0)) : null,
                         ),
                         child: Text(
-                          c.isOverdue ? '24h Overdue' : '${c.hoursRemaining}h Left',
+                          isSubmitted
+                              ? '● Evidence Submitted (Review)'
+                              : (c.isOverdue ? '24h Overdue' : '${c.hoursRemaining}h Left'),
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
-                            color: c.isOverdue ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+                            color: isSubmitted
+                                ? const Color(0xFF059669)
+                                : (c.isOverdue ? const Color(0xFFDC2626) : const Color(0xFFD97706)),
                           ),
                         ),
                       ),
@@ -4048,13 +4127,13 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: isSubmitted ? Colors.white : const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: isSubmitted ? const Color(0xFFA7F3D0) : const Color(0xFFE2E8F0)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 16),
+                        Icon(Icons.receipt_long_rounded, color: isSubmitted ? const Color(0xFF059669) : const Color(0xFFEA580C), size: 16),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -4068,10 +4147,13 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   const SizedBox(height: 14),
                   ElevatedButton.icon(
                     onPressed: () => _showRetirementEvidenceDialog(c),
-                    icon: const Icon(Icons.camera_alt_rounded, size: 16),
-                    label: const Text('Upload Physical Receipts & GRN', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                    icon: Icon(isSubmitted ? Icons.check_circle_rounded : Icons.camera_alt_rounded, size: 16),
+                    label: Text(
+                      isSubmitted ? 'Evidence Submitted (Update Proof)' : 'Upload Physical Receipts & GRN',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                    ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEA580C),
+                      backgroundColor: isSubmitted ? const Color(0xFF059669) : const Color(0xFFEA580C),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -4093,7 +4175,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           builder: (context) {
             final clearedRequests = _requests.where((r) {
               final acc = r.accountabilityStatus.toUpperCase();
-              return acc == 'EVIDENCE_SUBMITTED' || acc == 'CLOSED' || acc == 'VERIFIED';
+              return acc == 'CLOSED' || acc == 'VERIFIED';
             }).toList();
 
             if (clearedRequests.isNotEmpty) {
