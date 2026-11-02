@@ -9,9 +9,9 @@ export const dynamic = 'force-dynamic';
 export default async function StaffPage() {
   const actor = await getAuthenticatedEmployee();
 
-  // Redirect unauthenticated visitors to login
+  // Redirect unauthenticated visitors to portal sign-in
   if (!actor) {
-    redirect('/auth/login?redirect=/staff');
+    redirect('/finance');
   }
 
   // Allow STAFF, as well as SUPER_ADMIN and GMD for administrative preview
