@@ -3459,12 +3459,9 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
                 </span>
               )}
             </span>
-            <div className="brand-title-wrap" style={{display:'inline-flex',flexDirection:'column',justifyContent:'center',minWidth:0,overflow:'hidden',gap:'2px',whiteSpace:'nowrap',margin:0,padding:0}}>
-              <span className="brand-name" title={current.name} style={{display:'block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'14px',fontWeight:850,letterSpacing:'-0.01em',color:'#ffffff',lineHeight:1.15,margin:0,padding:0,overflow:'hidden',textOverflow:'ellipsis',maxWidth:145}}>
+            <div className="brand-title-wrap" style={{display:'inline-flex',alignItems:'center',minWidth:0,overflow:'hidden',whiteSpace:'nowrap',margin:0,padding:0}}>
+              <span className="brand-name" title={current.name} style={{display:'block',fontFamily:"'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",fontSize:'15px',fontWeight:850,letterSpacing:'-0.01em',color:'#ffffff',lineHeight:1.2,margin:0,padding:0,overflow:'hidden',textOverflow:'ellipsis',maxWidth:155}}>
                 {current.name}
-              </span>
-              <span className="brand-sub" title={current.industry || (isGroupScope ? 'Holding & Conglomerate HQ' : 'Operating Subsidiary')} style={{display:'block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'9px',fontWeight:750,letterSpacing:'0.08em',color:activeBrandColor,textTransform:'uppercase',lineHeight:1,margin:0,padding:0,overflow:'hidden',textOverflow:'ellipsis',maxWidth:145}}>
-                {current.industry || (isGroupScope ? 'Holding & Conglomerate HQ' : 'Operating Subsidiary')}
               </span>
             </div>
             <button aria-label={collapsed?'Expand navigation':'Collapse navigation'} title={collapsed?'Expand navigation':'Collapse navigation'} onClick={(e)=>{e.stopPropagation();setCollapsed(!collapsed)}}>{collapsed?'›':'‹'}</button>
