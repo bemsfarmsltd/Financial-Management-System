@@ -454,7 +454,14 @@ export function StaffDashboardClient({
 
       for (const r of requests) {
         const amt = Number(r.amountMinor || 0) / 100;
-        if (r.paymentStatus === 'PAID') {
+        const isDisbursed =
+          r.paymentStatus === 'PAID' ||
+          r.paymentStatus === 'RECIPIENT_CONFIRMED' ||
+          r.accountabilityStatus === 'EVIDENCE_SUBMITTED' ||
+          r.accountabilityStatus === 'CLOSED' ||
+          r.accountabilityStatus === 'VERIFIED';
+
+        if (isDisbursed) {
           disbursedVal += amt;
           disbursedCount++;
         } else if (r.approvalStatus === 'APPROVED') {
@@ -483,8 +490,10 @@ export function StaffDashboardClient({
   }, [requests]);
 
   const compactExpenditureTotal = useMemo(() => {
-    if (totalExpenditureValue >= 1000000000) {
-      return `₦${(totalExpenditureValue / 1000000).toFixed(1)}M`;
+    if (totalExpenditureValue >= 1000000000000) {
+      return `₦${(totalExpenditureValue / 1000000000000).toFixed(1)}T`;
+    } else if (totalExpenditureValue >= 1000000000) {
+      return `₦${(totalExpenditureValue / 1000000000).toFixed(1)}B`;
     } else if (totalExpenditureValue >= 1000000) {
       return `₦${(totalExpenditureValue / 1000000).toFixed(1)}M`;
     } else if (totalExpenditureValue >= 1000) {
@@ -502,9 +511,16 @@ export function StaffDashboardClient({
         const matchPayee = r.payeeName?.toLowerCase().includes(q);
         if (!matchNum && !matchTitle && !matchPayee) return false;
       }
-      if (statusFilter === 'PENDING') return r.approvalStatus === 'SUBMITTED';
-      if (statusFilter === 'APPROVED') return r.approvalStatus === 'APPROVED';
-      if (statusFilter === 'PAID') return r.paymentStatus === 'PAID';
+      const isDisbursed =
+        r.paymentStatus === 'PAID' ||
+        r.paymentStatus === 'RECIPIENT_CONFIRMED' ||
+        r.accountabilityStatus === 'EVIDENCE_SUBMITTED' ||
+        r.accountabilityStatus === 'CLOSED' ||
+        r.accountabilityStatus === 'VERIFIED';
+
+      if (statusFilter === 'PENDING') return r.approvalStatus === 'SUBMITTED' || r.approvalStatus === 'IN_REVIEW';
+      if (statusFilter === 'APPROVED') return r.approvalStatus === 'APPROVED' && !isDisbursed;
+      if (statusFilter === 'PAID') return isDisbursed;
       if (statusFilter === 'RECURRING') return r.isRecurring === true;
       return true;
     });
@@ -1615,17 +1631,30 @@ export function StaffDashboardClient({
                     <div className="relative w-32 h-32 flex items-center justify-center shrink-0">
                       <svg className="w-32 h-32 -rotate-90" viewBox="0 0 100 100">
                         <circle cx="50" cy="50" r="38" fill="transparent" stroke="#F1F5F9" strokeWidth="12" />
-                        <circle
-                          cx="50"
-                          cy="50"
-                          r="38"
-                          fill="transparent"
-                          stroke="#EA580C"
-                          strokeWidth="12"
-                          strokeDasharray="238.76"
-                          strokeDashoffset={0}
-                          strokeLinecap="round"
-                        />
+                        {(() => {
+                          const circumference = 2 * Math.PI * 38; // ~238.76
+                          let accumulatedPct = 0;
+                          return expenditureSegments.map((seg, idx) => {
+                            const pct = totalExpenditureValue > 0 ? seg.value / totalExpenditureValue : 0;
+                            const strokeDasharray = `${(pct * circumference).toFixed(2)} ${circumference.toFixed(2)}`;
+                            const strokeDashoffset = (-accumulatedPct * circumference).toFixed(2);
+                            accumulatedPct += pct;
+                            return (
+                              <circle
+                                key={idx}
+                                cx="50"
+                                cy="50"
+                                r="38"
+                                fill="transparent"
+                                stroke={seg.color}
+                                strokeWidth="12"
+                                strokeDasharray={strokeDasharray}
+                                strokeDashoffset={strokeDashoffset}
+                                strokeLinecap="round"
+                              />
+                            );
+                          });
+                        })()}
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-1">
                         <span className="text-xs font-black text-[#0F172A] leading-tight truncate max-w-[80px]">
@@ -1649,7 +1678,7 @@ export function StaffDashboardClient({
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               <span className="font-extrabold text-[#0F172A] text-xs">{formatNaira(seg.value)}</span>
-                              <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">
+                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded border" style={{ color: seg.color, backgroundColor: `${seg.color}15`, borderColor: `${seg.color}35` }}>
                                 {pct}%
                               </span>
                             </div>
@@ -1678,15 +1707,35 @@ export function StaffDashboardClient({
                           year: 'numeric',
                         });
 
+                    const isDisbursed =
+                      r.paymentStatus === 'PAID' ||
+                      r.paymentStatus === 'RECIPIENT_CONFIRMED' ||
+                      r.accountabilityStatus === 'EVIDENCE_SUBMITTED' ||
+                      r.accountabilityStatus === 'CLOSED' ||
+                      r.accountabilityStatus === 'VERIFIED';
+
+                    const isApproved = r.approvalStatus === 'APPROVED' && !isDisbursed;
+                    const isRejected = r.approvalStatus === 'REJECTED';
+
                     return (
                       <div
                         key={r.id}
-                        className="p-4 bg-white border border-[#E2E8F0] rounded-2xl hover:border-orange-300 hover:shadow-md transition-all space-y-3"
+                        className={`p-4 bg-white border rounded-2xl hover:shadow-md transition-all space-y-3 ${
+                          isDisbursed
+                            ? 'border-emerald-300 ring-1 ring-emerald-100 hover:border-emerald-400'
+                            : 'border-[#E2E8F0] hover:border-orange-300'
+                        }`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center shrink-0">
-                              <User className="w-5 h-5" />
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                              isDisbursed
+                                ? 'bg-emerald-50 border-emerald-200 text-[#059669]'
+                                : isApproved
+                                ? 'bg-blue-50 border-blue-200 text-[#2563EB]'
+                                : 'bg-orange-50 border-orange-100 text-[#EA580C]'
+                            }`}>
+                              {isDisbursed ? <CheckCircle2 className="w-5 h-5" /> : <User className="w-5 h-5" />}
                             </div>
                             <div className="min-w-0">
                               <h4 className="text-sm font-extrabold text-[#0F172A] truncate">{r.title}</h4>
@@ -1705,19 +1754,26 @@ export function StaffDashboardClient({
                               )}
                               <span className="font-black text-sm text-[#0F172A]">{formatNaira(amt)}</span>
                             </div>
-                            <span
-                              className={`text-[10px] font-bold block mt-0.5 ${
-                                r.paymentStatus === 'PAID'
-                                  ? 'text-[#059669]'
-                                  : r.approvalStatus === 'APPROVED'
-                                  ? 'text-[#059669]'
-                                  : r.approvalStatus === 'REJECTED'
-                                  ? 'text-[#DC2626]'
-                                  : 'text-[#EA580C]'
-                              }`}
-                            >
-                              {r.paymentStatus === 'PAID' ? 'Disbursed' : r.approvalStatus === 'APPROVED' ? 'Approved' : r.approvalStatus === 'REJECTED' ? 'Declined' : 'In Review'}
-                            </span>
+                            <div className="flex items-center justify-end gap-1 mt-1">
+                              {isDisbursed ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  <span>DISBURSED</span>
+                                </span>
+                              ) : isApproved ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                                  <span>Approved</span>
+                                </span>
+                              ) : isRejected ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                                  <span>Declined</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                                  <span>In Review</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 

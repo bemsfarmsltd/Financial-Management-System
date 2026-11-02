@@ -3238,9 +3238,15 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         final matchPayee = r.payeeName.toLowerCase().contains(q);
         if (!matchCode && !matchTitle && !matchPayee) return false;
       }
-      if (_selectedStatusFilter == 'PENDING') return r.approvalStatus == 'SUBMITTED';
-      if (_selectedStatusFilter == 'APPROVED') return r.approvalStatus == 'APPROVED';
-      if (_selectedStatusFilter == 'PAID') return r.paymentStatus == 'PAID';
+      final isDisbursed = r.paymentStatus == 'PAID' ||
+          r.paymentStatus == 'RECIPIENT_CONFIRMED' ||
+          r.accountabilityStatus == 'EVIDENCE_SUBMITTED' ||
+          r.accountabilityStatus == 'CLOSED' ||
+          r.accountabilityStatus == 'VERIFIED';
+
+      if (_selectedStatusFilter == 'PENDING') return r.approvalStatus == 'SUBMITTED' || r.approvalStatus == 'IN_REVIEW';
+      if (_selectedStatusFilter == 'APPROVED') return r.approvalStatus == 'APPROVED' && !isDisbursed;
+      if (_selectedStatusFilter == 'PAID') return isDisbursed;
       if (_selectedStatusFilter == 'REJECTED') return r.approvalStatus == 'REJECTED';
       if (_selectedStatusFilter == 'RECURRING') return r.isRecurring;
       return true;
@@ -3418,7 +3424,13 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       int rejectedCount = 0;
 
       for (final r in _requests) {
-        if (r.paymentStatus == 'PAID') {
+        final isDisbursed = r.paymentStatus == 'PAID' ||
+            r.paymentStatus == 'RECIPIENT_CONFIRMED' ||
+            r.accountabilityStatus == 'EVIDENCE_SUBMITTED' ||
+            r.accountabilityStatus == 'CLOSED' ||
+            r.accountabilityStatus == 'VERIFIED';
+
+        if (isDisbursed) {
           disbursedVal += r.amountNaira;
           disbursedCount++;
         } else if (r.approvalStatus == 'APPROVED') {
@@ -3468,7 +3480,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     }
 
     String compactTotal = '';
-    if (totalVal >= 1000000) {
+    if (totalVal >= 1000000000000) {
+      compactTotal = '₦${(totalVal / 1000000000000).toStringAsFixed(1)}T';
+    } else if (totalVal >= 1000000000) {
+      compactTotal = '₦${(totalVal / 1000000000).toStringAsFixed(1)}B';
+    } else if (totalVal >= 1000000) {
       compactTotal = '₦${(totalVal / 1000000).toStringAsFixed(1)}M';
     } else if (totalVal >= 1000) {
       compactTotal = '₦${(totalVal / 1000).toStringAsFixed(0)}K';
@@ -3564,10 +3580,20 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     Color statusTextColor;
     String statusLabel;
 
-    if (req.approvalStatus == 'APPROVED') {
+    final isDisbursed = req.paymentStatus == 'PAID' ||
+        req.paymentStatus == 'RECIPIENT_CONFIRMED' ||
+        req.accountabilityStatus == 'EVIDENCE_SUBMITTED' ||
+        req.accountabilityStatus == 'CLOSED' ||
+        req.accountabilityStatus == 'VERIFIED';
+
+    if (isDisbursed) {
       statusBg = const Color(0xFFECFDF5);
       statusTextColor = const Color(0xFF059669);
-      statusLabel = req.paymentStatus == 'PAID' ? 'Disbursed' : 'Approved';
+      statusLabel = 'DISBURSED';
+    } else if (req.approvalStatus == 'APPROVED') {
+      statusBg = const Color(0xFFEFF6FF);
+      statusTextColor = const Color(0xFF2563EB);
+      statusLabel = 'Approved';
     } else if (req.approvalStatus == 'REJECTED') {
       statusBg = const Color(0xFFFEF2F2);
       statusTextColor = const Color(0xFFDC2626);
@@ -3587,10 +3613,15 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(
+            color: isDisbursed ? const Color(0xFF6EE7B7) : const Color(0xFFE2E8F0),
+            width: isDisbursed ? 1.5 : 1.0,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.015),
+              color: isDisbursed
+                  ? const Color(0xFF059669).withOpacity(0.06)
+                  : Colors.black.withOpacity(0.015),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
