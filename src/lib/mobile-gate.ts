@@ -55,7 +55,7 @@ export async function getMobileAppGate(appId: string) {
           minimumAllowedVersion: '1.0.2',
           latestVersionAvailable: '1.0.2',
           forceUpdate: true,
-          directDownloadUrl: 'https://bemserp.work/download/gmd-app.apk',
+          directDownloadUrl: 'https://bemserp.work/download/gmd-app.apk?v=1.0.2',
           upgradePromptNotes: 'Critical update: Disbursed status indicators, Attendance Scanner alignment, and performance optimizations.',
         }
       : {
@@ -65,7 +65,7 @@ export async function getMobileAppGate(appId: string) {
           minimumAllowedVersion: '1.0.2',
           latestVersionAvailable: '1.0.2',
           forceUpdate: true,
-          directDownloadUrl: 'https://bemserp.work/download/staff-app.apk',
+          directDownloadUrl: 'https://bemserp.work/download/staff-app.apk?v=1.0.2',
           upgradePromptNotes: 'Critical update: Disbursed status indicators, Attendance Scanner alignment, and performance optimizations.',
         };
 

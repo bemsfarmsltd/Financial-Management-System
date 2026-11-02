@@ -24,9 +24,9 @@ export async function GET(
         headers: {
           'Content-Type': 'application/vnd.android.package-archive',
           'Content-Disposition': `attachment; filename="${safeFilename}"`,
-          'Content-Length': fileBuffer.length.toString(),
-          'Cache-Control': 'public, max-age=300, must-revalidate',
-        },
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
       });
     } catch {
       return NextResponse.json(
