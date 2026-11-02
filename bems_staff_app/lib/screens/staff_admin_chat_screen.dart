@@ -231,7 +231,7 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF064E3B),
+        backgroundColor: const Color(0xFFEA580C),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
@@ -300,15 +300,15 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
           // Banner Notice
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: const Color(0xFFECFDF5),
+            color: const Color(0xFFFFF7ED),
             child: const Row(
               children: [
-                Icon(Icons.lock_rounded, size: 13, color: Color(0xFF047857)),
+                Icon(Icons.lock_rounded, size: 13, color: Color(0xFFEA580C)),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Confidential channel. Directly monitored by Finance Officers and Group Managing Directorate.',
-                    style: TextStyle(fontSize: 10.5, color: Color(0xFF047857), fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 10.5, color: Color(0xFFEA580C), fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
@@ -321,7 +321,7 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF064E3B)),
+                    child: CircularProgressIndicator(color: Color(0xFFEA580C)),
                   )
                 : _errorMessage != null
                     ? Center(
@@ -340,7 +340,7 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
                               const SizedBox(height: 12),
                               ElevatedButton(
                                 onPressed: () => _loadMessages(),
-                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF064E3B)),
+                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEA580C)),
                                 child: const Text('Try Again', style: TextStyle(color: Colors.white)),
                               ),
                             ],
@@ -383,9 +383,9 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
                                     alignment: WrapAlignment.center,
                                     children: _quickTopics.map((topic) {
                                       return ActionChip(
-                                        label: Text(topic, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF064E3B))),
-                                        backgroundColor: const Color(0xFFECFDF5),
-                                        side: const BorderSide(color: Color(0xFFA7F3D0)),
+                                        label: Text(topic, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFEA580C))),
+                                        backgroundColor: const Color(0xFFFFF7ED),
+                                        side: const BorderSide(color: Color(0xFFFED7AA)),
                                         onPressed: () => _sendMessage(topic),
                                       );
                                     }).toList(),
@@ -479,24 +479,24 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFECFDF5),
+                        color: const Color(0xFFFFF7ED),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFA7F3D0)),
+                        border: Border.all(color: const Color(0xFFFED7AA)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.attach_file_rounded, size: 16, color: Color(0xFF047857)),
+                          const Icon(Icons.attach_file_rounded, size: 16, color: Color(0xFFEA580C)),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               _pendingAttachmentName!,
-                              style: const TextStyle(fontSize: 11, color: Color(0xFF047857), fontWeight: FontWeight.w700),
+                              style: const TextStyle(fontSize: 11, color: Color(0xFFEA580C), fontWeight: FontWeight.w700),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF047857)),
+                            icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFEA580C)),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                             onPressed: () => setState(() {

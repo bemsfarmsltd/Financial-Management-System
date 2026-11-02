@@ -114,7 +114,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Fingerprint unlock enabled for this device.'),
-              backgroundColor: Color(0xFF047857),
+              backgroundColor: Color(0xFFEA580C),
             ),
           );
         }
@@ -478,7 +478,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
                   label: const Text('Open Request Chat & Queries', style: TextStyle(fontWeight: FontWeight.w800)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF064E3B),
+                    backgroundColor: const Color(0xFFEA580C),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -2293,12 +2293,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: _todayAttendance != null ? const Color(0xFFECFDF5) : const Color(0xFFF1F5F9),
+                              color: _todayAttendance != null ? const Color(0xFFFFF7ED) : const Color(0xFFF1F5F9),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
                               Icons.access_time_filled_rounded,
-                              color: _todayAttendance != null ? const Color(0xFF064E3B) : const Color(0xFF475569),
+                              color: _todayAttendance != null ? const Color(0xFFEA580C) : const Color(0xFF475569),
                               size: 18,
                             ),
                           ),
@@ -2324,7 +2324,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w900,
-                                  color: _todayAttendance != null ? const Color(0xFF064E3B) : const Color(0xFF0F172A),
+                                  color: _todayAttendance != null ? const Color(0xFFEA580C) : const Color(0xFF0F172A),
                                 ),
                               ),
                             ],
@@ -2335,18 +2335,18 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: _todayAttendance!['status'] == 'LATE' ? const Color(0xFFFFF7ED) : const Color(0xFFECFDF5),
+                            color: const Color(0xFFFFF7ED),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: _todayAttendance!['status'] == 'LATE' ? const Color(0xFFFED7AA) : const Color(0xFFA7F3D0),
+                              color: const Color(0xFFFED7AA),
                             ),
                           ),
                           child: Text(
                             _todayAttendance!['status'] == 'LATE' ? 'LATE (-5%)' : 'ON TIME',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
-                              color: _todayAttendance!['status'] == 'LATE' ? const Color(0xFFEA580C) : const Color(0xFF064E3B),
+                              color: Color(0xFFEA580C),
                             ),
                           ),
                         ),
@@ -2382,7 +2382,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF064E3B),
+                            backgroundColor: const Color(0xFFEA580C),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -2431,14 +2431,14 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           Container(
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF064E3B), Color(0xFF065F46), Color(0xFF047857)],
+                colors: [Color(0xFFEA580C), Color(0xFFC2410C), Color(0xFF9A3412)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(26),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF064E3B).withOpacity(0.32),
+                  color: const Color(0xFFEA580C).withOpacity(0.32),
                   blurRadius: 24,
                   offset: const Offset(0, 10),
                 ),
@@ -2558,9 +2558,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF064E3B).withOpacity(0.85),
+                              color: const Color(0xFFC2410C).withOpacity(0.85),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: const Color(0xFF34D399).withOpacity(0.4)),
+                              border: Border.all(color: const Color(0xFFFDBA74).withOpacity(0.4)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -2568,14 +2568,14 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                 Container(
                                   width: 6,
                                   height: 6,
-                                  decoration: const BoxDecoration(color: Color(0xFF34D399), shape: BoxShape.circle),
+                                  decoration: const BoxDecoration(color: Color(0xFFFED7AA), shape: BoxShape.circle),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   _pendingRetirementCases.isEmpty
                                       ? 'Evidence Submitted · Awaiting Finance Clearance'
                                       : '${_submittedUnderReviewCases.length} In Review · ${_pendingRetirementCases.length} Pending Retirement',
-                                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFFA7F3D0)),
+                                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFFFFEDD5)),
                                 ),
                               ],
                             ),
@@ -2588,10 +2588,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                             Expanded(
                               child: ElevatedButton.icon(
                                 onPressed: _openNewRequestModal,
-                                icon: const Icon(Icons.arrow_upward_rounded, size: 16, color: Color(0xFF064E3B)),
+                                icon: const Icon(Icons.arrow_upward_rounded, size: 16, color: Color(0xFFEA580C)),
                                 label: const Text(
                                   'Request Funds',
-                                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: Color(0xFF064E3B)),
+                                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: Color(0xFFEA580C)),
                                 ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white,
@@ -2660,11 +2660,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
+                    color: const Color(0xFFFFF7ED),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: const Color(0xFFFED7AA)),
                   ),
-                  child: const Icon(Icons.wallet_outlined, color: Color(0xFF064E3B), size: 22),
+                  child: const Icon(Icons.wallet_outlined, color: Color(0xFFEA580C), size: 22),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -2708,9 +2708,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 margin: const EdgeInsets.only(bottom: 18),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFECFDF5),
+                  color: const Color(0xFFFFF7ED),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFA7F3D0)),
+                  border: Border.all(color: const Color(0xFFFED7AA)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2720,18 +2720,18 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       children: [
                         const Text(
                           'Treasury Payout Received',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF065F46)),
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF9A3412)),
                         ),
                         Text(
                           formatter.format(disb.amountNaira),
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF065F46)),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF9A3412)),
                         ),
                       ],
                     ),
                     const SizedBox(height: 6),
                     Text(
                       '${disb.title} (Ref: ${disb.reference})',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF047857), fontWeight: FontWeight.w600),
+                      style: const TextStyle(fontSize: 12, color: Color(0xFFC2410C), fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -2740,7 +2740,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           child: ElevatedButton(
                             onPressed: () => _handleConfirmPayment(disb),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF059669),
+                              backgroundColor: const Color(0xFFEA580C),
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -2778,8 +2778,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   title: 'New Request',
                   subtitle: 'Operational',
                   icon: Icons.add_shopping_cart_rounded,
-                  iconColor: const Color(0xFF064E3B),
-                  iconBgColor: const Color(0xFFECFDF5),
+                  iconColor: const Color(0xFFEA580C),
+                  iconBgColor: const Color(0xFFFFF7ED),
                   onTap: _openNewRequestModal,
                 ),
               ),
@@ -2789,8 +2789,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   title: 'Confirm Funds',
                   subtitle: 'Dual-Key Auth',
                   icon: Icons.price_check_rounded,
-                  iconColor: const Color(0xFF064E3B),
-                  iconBgColor: const Color(0xFFF1F5F9),
+                  iconColor: const Color(0xFFEA580C),
+                  iconBgColor: const Color(0xFFFFF7ED),
                   onTap: () {
                     if (_disbursementsAwaiting.isNotEmpty) {
                       _handleConfirmPayment(_disbursementsAwaiting.first);
@@ -2840,8 +2840,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   title: 'Admin Helpdesk',
                   subtitle: 'Chat With Admin',
                   icon: Icons.support_agent_rounded,
-                  iconColor: const Color(0xFF064E3B),
-                  iconBgColor: const Color(0xFFECFDF5),
+                  iconColor: const Color(0xFFEA580C),
+                  iconBgColor: const Color(0xFFFFF7ED),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -2883,7 +2883,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               const Text('Recent Requisitions', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
               GestureDetector(
                 onTap: () => setState(() => _currentIndex = 1),
-                child: const Text('See More', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF064E3B))),
+                child: const Text('See More', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
               ),
             ],
           ),
@@ -2901,7 +2901,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     required String subtitle,
     required IconData icon,
     required VoidCallback onTap,
-    Color iconColor = const Color(0xFF064E3B),
+    Color iconColor = const Color(0xFFEA580C),
     Color iconBgColor = const Color(0xFFF1F5F9),
   }) {
     return InkWell(
@@ -2976,7 +2976,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
-                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFF064E3B), size: 20),
+                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 20),
                   ),
                   const SizedBox(width: 10),
                   const Text(
@@ -3031,7 +3031,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   icon: const Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
                   label: const Text('Snap Picture', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF064E3B),
+                    backgroundColor: const Color(0xFFEA580C),
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3144,12 +3144,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     }
 
     final categoryColors = [
-      const Color(0xFF064E3B),
-      const Color(0xFF059669),
-      const Color(0xFF10B981),
+      const Color(0xFFEA580C),
+      const Color(0xFFF97316),
+      const Color(0xFFFB923C),
+      const Color(0xFFFDBA74),
       const Color(0xFF334155),
       const Color(0xFF475569),
-      const Color(0xFF64748B),
     ];
 
     final sortedCats = categoryTotals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
@@ -3222,7 +3222,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           ? '₦${(r.amountNaira / 1000000).toStringAsFixed(1)}M'
                           : '₦${(r.amountNaira / 1000).toInt()}k',
                       style: TextStyle(
-                        color: isLast ? const Color(0xFF064E3B) : const Color(0xFF94A3B8),
+                        color: isLast ? const Color(0xFFEA580C) : const Color(0xFF94A3B8),
                         fontSize: 9,
                         fontWeight: isLast ? FontWeight.w800 : FontWeight.w600,
                       ),
@@ -3234,7 +3234,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: isLast
-                              ? [const Color(0xFF064E3B), const Color(0xFF10B981)]
+                              ? [const Color(0xFFEA580C), const Color(0xFFFB923C)]
                               : [const Color(0xFF94A3B8), const Color(0xFFCBD5E1)],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
@@ -3868,18 +3868,18 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFECFDF5),
+                          color: const Color(0xFFFFF7ED),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFA7F3D0)),
+                          border: Border.all(color: const Color(0xFFFED7AA)),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.chat_bubble_outline_rounded, size: 12, color: Color(0xFF047857)),
+                            Icon(Icons.chat_bubble_outline_rounded, size: 12, color: Color(0xFFEA580C)),
                             SizedBox(width: 4),
                             Text(
                               'Request Chat',
-                              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFF047857)),
+                              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFFEA580C)),
                             ),
                           ],
                         ),
@@ -4733,8 +4733,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 secondary: Container(
                   width: 38,
                   height: 38,
-                  decoration: const BoxDecoration(color: Color(0xFFF0FDF4), shape: BoxShape.circle),
-                  child: const Icon(Icons.fingerprint_rounded, color: Color(0xFF064E3B), size: 20),
+                  decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
+                  child: const Icon(Icons.fingerprint_rounded, color: Color(0xFFEA580C), size: 20),
                 ),
                 title: const Text('Fingerprint & Biometric Sign-In', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
                 subtitle: Text(
@@ -4745,7 +4745,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           : 'Not configured · Tap switch to enroll'),
                   style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                 ),
-                activeColor: const Color(0xFF064E3B),
+                activeColor: const Color(0xFFEA580C),
                 value: _isBiometricEnabled,
                 onChanged: _toggleBiometric,
               ),
@@ -4755,8 +4755,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 leading: Container(
                   width: 38,
                   height: 38,
-                  decoration: const BoxDecoration(color: Color(0xFFF0FDF4), shape: BoxShape.circle),
-                  child: const Icon(Icons.support_agent_rounded, color: Color(0xFF047857), size: 20),
+                  decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
+                  child: const Icon(Icons.support_agent_rounded, color: Color(0xFFEA580C), size: 20),
                 ),
                 title: const Text('Finance & Admin Helpdesk Chat', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
                 subtitle: const Text('Direct messaging with Executive Admin & GMD', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),

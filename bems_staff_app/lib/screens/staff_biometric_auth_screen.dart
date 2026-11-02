@@ -130,11 +130,11 @@ class _StaffBiometricAuthScreenState extends State<StaffBiometricAuthScreen>
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF064E3B),
+                  color: const Color(0xFFEA580C),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF064E3B).withOpacity(0.2),
+                      color: const Color(0xFFEA580C).withOpacity(0.2),
                       blurRadius: 18,
                       offset: const Offset(0, 6),
                     ),
@@ -166,9 +166,9 @@ class _StaffBiometricAuthScreenState extends State<StaffBiometricAuthScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: const Color(0xFFFFF7ED),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                  border: Border.all(color: const Color(0xFFFED7AA)),
                 ),
                 child: Text(
                   widget.user.jobTitle.isNotEmpty ? widget.user.jobTitle : 'STAFF',
@@ -176,7 +176,7 @@ class _StaffBiometricAuthScreenState extends State<StaffBiometricAuthScreen>
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
-                    color: Color(0xFF475569),
+                    color: Color(0xFFEA580C),
                   ),
                 ),
               ),
@@ -195,18 +195,18 @@ class _StaffBiometricAuthScreenState extends State<StaffBiometricAuthScreen>
                       shape: BoxShape.circle,
                       color: _authSuccess
                           ? const Color(0xFF10B981).withOpacity(0.12)
-                          : const Color(0xFF064E3B).withOpacity(0.06),
+                          : const Color(0xFFEA580C).withOpacity(0.06),
                       border: Border.all(
                         color: _authSuccess
                             ? const Color(0xFF10B981)
-                            : const Color(0xFF064E3B).withOpacity(0.35),
+                            : const Color(0xFFEA580C).withOpacity(0.35),
                         width: 2.2,
                       ),
                       boxShadow: [
                         BoxShadow(
                           color: (_authSuccess
                                   ? const Color(0xFF10B981)
-                                  : const Color(0xFF064E3B))
+                                  : const Color(0xFFEA580C))
                               .withOpacity(0.14),
                           blurRadius: 24,
                           spreadRadius: 2,
@@ -221,7 +221,7 @@ class _StaffBiometricAuthScreenState extends State<StaffBiometricAuthScreen>
                         size: 58,
                         color: _authSuccess
                             ? const Color(0xFF10B981)
-                            : const Color(0xFF064E3B),
+                            : const Color(0xFFEA580C),
                       ),
                     ),
                   ),

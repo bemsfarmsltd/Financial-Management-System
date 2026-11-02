@@ -108,11 +108,11 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
+                color: const Color(0xFFFFF7ED),
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFA7F3D0)),
+                border: Border.all(color: const Color(0xFFFED7AA)),
               ),
-              child: const Icon(Icons.fingerprint_rounded, size: 44, color: Color(0xFF064E3B)),
+              child: const Icon(Icons.fingerprint_rounded, size: 44, color: Color(0xFFEA580C)),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -153,7 +153,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                       _navigateToMain(user);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF064E3B),
+                      backgroundColor: const Color(0xFFEA580C),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -200,7 +200,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Understood', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF064E3B))),
+              child: const Text('Understood', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
             ),
           ],
         ),

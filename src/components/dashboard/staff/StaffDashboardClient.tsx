@@ -488,7 +488,7 @@ export function StaffDashboardClient({
   // Expenditure Distribution Segments
   const expenditureSegments = useMemo(() => {
     if (requests.length === 0) return [];
-    const colorPalette = ['#064E3B', '#059669', '#10B981', '#334155', '#475569', '#64748B', '#0F172A'];
+    const colorPalette = ['#EA580C', '#F97316', '#FB923C', '#FDBA74', '#334155', '#475569', '#0F172A'];
     if (requisitionChartMetric === 'Category') {
       const catMap: Record<string, { value: number; count: number }> = {};
       for (const r of requests) {
@@ -1134,10 +1134,10 @@ export function StaffDashboardClient({
                 {/* LEFT & CENTER COLUMN: WIDE DESKTOP CARDS (COLS 1 TO 8) */}
                 <div className="lg:col-span-7 xl:col-span-8 space-y-6">
 
-              {/* CARD 2: HERO ADVANCE CARD (DEEP EMERALD GREEN GRADIENT) */}
-              <div className="rounded-[26px] bg-gradient-to-br from-[#064E3B] via-[#065F46] to-[#047857] text-white p-5 shadow-xl shadow-[#064E3B]/25 relative overflow-hidden">
+              {/* CARD 2: HERO ADVANCE CARD (BEMS CORPORATE ORANGE GRADIENT) */}
+              <div className="rounded-[26px] bg-gradient-to-br from-[#EA580C] via-[#C2410C] to-[#9A3412] text-white p-5 shadow-xl shadow-[#EA580C]/25 relative overflow-hidden">
                 {/* Ambient Glow */}
-                <div className="absolute -bottom-10 -left-10 w-36 h-36 bg-[#EA580C]/20 rounded-full blur-2xl pointer-events-none"></div>
+                <div className="absolute -bottom-10 -left-10 w-36 h-36 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
 
                 <div className="relative z-10 space-y-4">
                   <div className="flex items-center justify-between">
@@ -1160,8 +1160,8 @@ export function StaffDashboardClient({
                       {hideBalance ? '₦ ••••••••' : formatNaira(activeAdvanceAmount)}
                     </h2>
                     {submittedUnderReviewCases.length > 0 && (
-                      <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-emerald-100 bg-emerald-950/60 border border-emerald-400/40 px-3 py-1 rounded-full w-fit backdrop-blur-sm shadow-sm">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-amber-100 bg-amber-950/60 border border-amber-400/40 px-3 py-1 rounded-full w-fit backdrop-blur-sm shadow-sm">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                         <span>
                           {pendingRetirements.length === 0
                             ? 'Evidence Submitted · Awaiting Finance Clearance'
@@ -1175,13 +1175,13 @@ export function StaffDashboardClient({
                     </p>
                   </div>
 
-                  {/* Two Buttons: Request Funds (White) & Retire 72h (Orange) */}
+                  {/* Two Buttons: Request Funds (White) & Retire 72h (Amber) */}
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <button
                       onClick={() => setIsNewRequestOpen(true)}
-                      className="py-3 px-3 bg-white hover:bg-slate-50 text-[#064E3B] font-black text-xs rounded-2xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                      className="py-3 px-3 bg-white hover:bg-slate-50 text-[#EA580C] font-black text-xs rounded-2xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
                     >
-                      <ArrowUpRight className="w-4 h-4 text-[#064E3B]" />
+                      <ArrowUpRight className="w-4 h-4 text-[#EA580C]" />
                       <span>Request Funds</span>
                     </button>
 
@@ -1250,7 +1250,7 @@ export function StaffDashboardClient({
                     onClick={() => setIsNewRequestOpen(true)}
                     className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#064E3B]/10 group-hover:border-[#064E3B]/20 text-slate-800 group-hover:text-[#064E3B] transition-all flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#EA580C]/10 group-hover:border-[#EA580C]/20 text-slate-800 group-hover:text-[#EA580C] transition-all flex items-center justify-center">
                       <Plus className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div>
@@ -1271,7 +1271,7 @@ export function StaffDashboardClient({
                     }}
                     className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#064E3B]/10 group-hover:border-[#064E3B]/20 text-slate-800 group-hover:text-[#064E3B] transition-all flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#EA580C]/10 group-hover:border-[#EA580C]/20 text-slate-800 group-hover:text-[#EA580C] transition-all flex items-center justify-center">
                       <CheckCheck className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div>
@@ -1285,7 +1285,7 @@ export function StaffDashboardClient({
                     onClick={() => setActiveTab('RETIREMENT')}
                     className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#064E3B]/10 group-hover:border-[#064E3B]/20 text-slate-800 group-hover:text-[#064E3B] transition-all flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#EA580C]/10 group-hover:border-[#EA580C]/20 text-slate-800 group-hover:text-[#EA580C] transition-all flex items-center justify-center">
                       <Receipt className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div>
@@ -1299,7 +1299,7 @@ export function StaffDashboardClient({
                     onClick={() => setActiveTab('PROFILE')}
                     className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#064E3B]/10 group-hover:border-[#064E3B]/20 text-slate-800 group-hover:text-[#064E3B] transition-all flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#EA580C]/10 group-hover:border-[#EA580C]/20 text-slate-800 group-hover:text-[#EA580C] transition-all flex items-center justify-center">
                       <User className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div>
@@ -1313,7 +1313,7 @@ export function StaffDashboardClient({
                     onClick={() => setIsAdminChatOpen(true)}
                     className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#064E3B]/10 group-hover:border-[#064E3B]/20 text-slate-800 group-hover:text-[#064E3B] transition-all flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#EA580C]/10 group-hover:border-[#EA580C]/20 text-slate-800 group-hover:text-[#EA580C] transition-all flex items-center justify-center">
                       <MessageSquare className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div>
@@ -1327,7 +1327,7 @@ export function StaffDashboardClient({
                     onClick={() => setActiveTab('REQUESTS')}
                     className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#064E3B]/10 group-hover:border-[#064E3B]/20 text-slate-800 group-hover:text-[#064E3B] transition-all flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#EA580C]/10 group-hover:border-[#EA580C]/20 text-slate-800 group-hover:text-[#EA580C] transition-all flex items-center justify-center">
                       <FileText className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div>
@@ -1342,7 +1342,7 @@ export function StaffDashboardClient({
               <div className="p-5 bg-white rounded-[24px] border border-slate-200/90 shadow-sm space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 text-[#064E3B] flex items-center justify-center font-black">
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center font-black">
                       <Receipt className="w-5 h-5" />
                     </div>
                     <div>
@@ -1350,7 +1350,7 @@ export function StaffDashboardClient({
                       <p className="text-[11px] text-[#64748B]">Photograph physical receipts or attach vendor invoice PDFs</p>
                     </div>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-orange-50 text-[#EA580C] border border-orange-200">
                     🛡️ 72H POLICY
                   </span>
                 </div>
@@ -1367,7 +1367,7 @@ export function StaffDashboardClient({
                         setActiveTab('RETIREMENT');
                       }
                     }}
-                    className="py-2.5 px-3 bg-[#064E3B] hover:bg-[#043e2f] text-white font-black text-xs rounded-xl shadow-md shadow-[#064E3B]/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                    className="py-2.5 px-3 bg-[#EA580C] hover:bg-[#C2410C] text-white font-black text-xs rounded-xl shadow-md shadow-[#EA580C]/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
                   >
                     <Camera className="w-3.5 h-3.5" />
                     <span>Snap Picture</span>
@@ -1425,7 +1425,7 @@ export function StaffDashboardClient({
                         return (
                           <div key={r.id || idx} className="flex-1 flex flex-col items-center justify-end h-full">
                             <span className={`text-[9px] font-black mb-1 truncate max-w-[70px] ${
-                              isLast ? 'text-[#064E3B]' : 'text-slate-400'
+                              isLast ? 'text-[#EA580C]' : 'text-slate-400'
                             }`}>
                               {labelAmt}
                             </span>
@@ -1433,12 +1433,12 @@ export function StaffDashboardClient({
                               style={{ height: `${heightPct}%` }}
                               className={`w-full max-w-[36px] rounded-t-lg transition-all ${
                                 isLast
-                                  ? 'bg-gradient-to-t from-[#064E3B] to-[#10B981] shadow-sm shadow-emerald-800/20'
+                                  ? 'bg-gradient-to-t from-[#EA580C] to-[#FB923C] shadow-sm shadow-orange-800/20'
                                   : 'bg-gradient-to-t from-slate-400 to-slate-300'
                               }`}
                             />
                             <span className={`text-[10px] font-black mt-1.5 truncate max-w-[60px] ${
-                              isLast ? 'text-[#064E3B]' : 'text-slate-500'
+                              isLast ? 'text-[#EA580C]' : 'text-slate-500'
                             }`}>
                               {r.requestNumber ? r.requestNumber.slice(-4) : `REQ-${idx + 1}`}
                             </span>
@@ -1526,7 +1526,7 @@ export function StaffDashboardClient({
                         setScannerPunchSuccessRecord(null);
                         setIsAttendanceScanModalOpen(true);
                       }}
-                      className="w-full py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] bg-[#064E3B] hover:bg-emerald-800 text-white"
+                      className="w-full py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] bg-[#EA580C] hover:bg-[#C2410C] text-white"
                     >
                       {punching ? (
                         <RefreshCw className="w-4 h-4 animate-spin" />
@@ -1557,7 +1557,7 @@ export function StaffDashboardClient({
               <div className="p-5 bg-white rounded-[24px] border border-slate-200 shadow-sm space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 text-[#064E3B] flex items-center justify-center font-black">
+                    <div className="w-11 h-11 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center font-black">
                       <Wallet className="w-5 h-5" />
                     </div>
                     <div>
@@ -1608,7 +1608,7 @@ export function StaffDashboardClient({
                   </div>
                   <button
                     onClick={() => setIsDualBankingOpen(true)}
-                    className="text-xs font-bold text-[#064E3B] hover:underline"
+                    className="text-xs font-bold text-[#EA580C] hover:underline"
                   >
                     Configure
                   </button>

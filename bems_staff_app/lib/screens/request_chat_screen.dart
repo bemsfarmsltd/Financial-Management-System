@@ -259,7 +259,7 @@ class _RequestChatScreenState extends State<RequestChatScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF064E3B),
+        backgroundColor: const Color(0xFFEA580C),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
@@ -376,7 +376,7 @@ class _RequestChatScreenState extends State<RequestChatScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF064E3B)),
+                    child: CircularProgressIndicator(color: Color(0xFFEA580C)),
                   )
                 : _errorMessage != null
                     ? Center(
@@ -395,7 +395,7 @@ class _RequestChatScreenState extends State<RequestChatScreen> {
                               const SizedBox(height: 12),
                               ElevatedButton(
                                 onPressed: () => _loadMessages(),
-                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF064E3B)),
+                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEA580C)),
                                 child: const Text('Try Again', style: TextStyle(color: Colors.white)),
                               ),
                             ],
@@ -410,11 +410,11 @@ class _RequestChatScreenState extends State<RequestChatScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFECFDF5),
+                                    color: const Color(0xFFFFF7ED),
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: const Color(0xFFA7F3D0)),
+                                    border: Border.all(color: const Color(0xFFFED7AA)),
                                   ),
-                                  child: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF047857), size: 32),
+                                  child: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFFEA580C), size: 32),
                                 ),
                                 const SizedBox(height: 12),
                                 const Text(
@@ -465,10 +465,10 @@ class _RequestChatScreenState extends State<RequestChatScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: _visibility == 'GROUP' ? const Color(0xFFECFDF5) : Colors.transparent,
+                            color: _visibility == 'GROUP' ? const Color(0xFFFFF7ED) : Colors.transparent,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: _visibility == 'GROUP' ? const Color(0xFFA7F3D0) : Colors.transparent,
+                              color: _visibility == 'GROUP' ? const Color(0xFFFED7AA) : Colors.transparent,
                             ),
                           ),
                           child: Row(
@@ -476,7 +476,7 @@ class _RequestChatScreenState extends State<RequestChatScreen> {
                               Icon(
                                 Icons.public_rounded,
                                 size: 12,
-                                color: _visibility == 'GROUP' ? const Color(0xFF047857) : const Color(0xFF64748B),
+                                color: _visibility == 'GROUP' ? const Color(0xFFEA580C) : const Color(0xFF64748B),
                               ),
                               const SizedBox(width: 4),
                               Text(
@@ -484,7 +484,7 @@ class _RequestChatScreenState extends State<RequestChatScreen> {
                                 style: TextStyle(
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w700,
-                                  color: _visibility == 'GROUP' ? const Color(0xFF047857) : const Color(0xFF64748B),
+                                  color: _visibility == 'GROUP' ? const Color(0xFFEA580C) : const Color(0xFF64748B),
                                 ),
                               ),
                             ],
@@ -586,24 +586,24 @@ class _RequestChatScreenState extends State<RequestChatScreen> {
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFECFDF5),
+                        color: const Color(0xFFFFF7ED),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFA7F3D0)),
+                        border: Border.all(color: const Color(0xFFFED7AA)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.attach_file_rounded, size: 16, color: Color(0xFF047857)),
+                          const Icon(Icons.attach_file_rounded, size: 16, color: Color(0xFFEA580C)),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               _pendingAttachmentName!,
-                              style: const TextStyle(fontSize: 11, color: Color(0xFF047857), fontWeight: FontWeight.w700),
+                              style: const TextStyle(fontSize: 11, color: Color(0xFFEA580C), fontWeight: FontWeight.w700),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF047857)),
+                            icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFEA580C)),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                             onPressed: () => setState(() {
@@ -652,11 +652,11 @@ class _RequestChatScreenState extends State<RequestChatScreen> {
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF064E3B),
+                            color: const Color(0xFFEA580C),
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF064E3B).withOpacity(0.3),
+                                color: const Color(0xFFEA580C).withOpacity(0.3),
                                 blurRadius: 8,
                                 offset: const Offset(0, 3),
                               ),
