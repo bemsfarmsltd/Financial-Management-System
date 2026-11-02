@@ -2138,7 +2138,11 @@ function RoleOverviewModule({role,business,user,cases,setActive,setNotice,onRole
 function ExecutiveBriefingModule({business,setNotice,onNavigate}:{business:Business;setNotice:(x:string)=>void;onNavigate:(p:string)=>void}) {
   return (
     <div style={{ marginTop: '4px' }}>
-      <ExecutiveBriefingClient />
+      <ExecutiveBriefingClient
+        activeSubsidiaryId={business.id}
+        activeSubsidiaryName={business.name}
+        onNavigate={onNavigate}
+      />
     </div>
   );
 }

@@ -134,6 +134,9 @@ interface Props {
   budgets: BudgetItem[];
   accountabilityCases: AccountabilityCaseItem[];
   disbursements: DisbursementItem[];
+  activeSubsidiaryId?: string;
+  activeSubsidiaryName?: string;
+  onNavigate?: (tab: string) => void;
 }
 
 export function ExecutiveBriefingClient({
@@ -142,9 +145,15 @@ export function ExecutiveBriefingClient({
   budgets: initialBudgets = [],
   accountabilityCases: initialCases = [],
   disbursements: initialDisbursements = [],
+  activeSubsidiaryId,
+  activeSubsidiaryName,
+  onNavigate,
 }: Partial<Props> = {}) {
   const router = useRouter();
-  const [selectedSub, setSelectedSub] = useState<string>('ALL');
+  const isGroupHq = !activeSubsidiaryId || activeSubsidiaryId === 'bems-group-hq' || activeSubsidiaryId === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30' || activeSubsidiaryId === 'ALL';
+  const initialSub = isGroupHq ? 'ALL' : activeSubsidiaryId;
+
+  const [selectedSub, setSelectedSub] = useState<string>(initialSub);
   const [orgs, setOrgs] = useState<Organization[]>(initialOrgs);
   const [requestsList, setRequestsList] = useState<RequestItem[]>(initialRequests);
   const [budgetsList, setBudgetsList] = useState<BudgetItem[]>(initialBudgets);
@@ -153,6 +162,14 @@ export function ExecutiveBriefingClient({
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
+  const [inspectingReq, setInspectingReq] = useState<RequestItem | null>(null);
+
+  useEffect(() => {
+    if (activeSubsidiaryId) {
+      const isGroup = activeSubsidiaryId === 'bems-group-hq' || activeSubsidiaryId === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30' || activeSubsidiaryId === 'ALL';
+      setSelectedSub(isGroup ? 'ALL' : activeSubsidiaryId);
+    }
+  }, [activeSubsidiaryId]);
 
   useEffect(() => {
     fetch('/api/treasury')
@@ -198,23 +215,28 @@ export function ExecutiveBriefingClient({
   // Filter based on selected subsidiary
   const filteredRequests = useMemo(() => {
     if (selectedSub === 'ALL') return requestsList;
-    return requestsList.filter((r) => r.subsidiary?.id === selectedSub || r.subsidiary?.legalName.includes(selectedSub));
+    return requestsList.filter((r) => r.subsidiary?.id === selectedSub || (r.subsidiary?.legalName && r.subsidiary.legalName.toLowerCase().includes(selectedSub.toLowerCase())));
   }, [requestsList, selectedSub]);
 
   const filteredBudgets = useMemo(() => {
     if (selectedSub === 'ALL') return budgetsList;
-    return budgetsList.filter((b) => b.organizationId === selectedSub || b.organization?.legalName.includes(selectedSub));
+    return budgetsList.filter((b) => b.organizationId === selectedSub || (b.organization?.legalName && b.organization.legalName.toLowerCase().includes(selectedSub.toLowerCase())));
   }, [budgetsList, selectedSub]);
 
   const filteredAccountability = useMemo(() => {
     if (selectedSub === 'ALL') return casesList;
-    return casesList.filter((c) => c.request?.subsidiary?.legalName.includes(selectedSub));
+    return casesList.filter((c) => (c.request?.subsidiary as any)?.id === selectedSub || (c.request?.subsidiary?.legalName && c.request.subsidiary.legalName.toLowerCase().includes(selectedSub.toLowerCase())));
   }, [casesList, selectedSub]);
+
+  const filteredDisbList = useMemo(() => {
+    if (selectedSub === 'ALL') return disbList;
+    return disbList.filter((d) => (d.payerOrg as any)?.id === selectedSub || (d.payerOrg?.legalName && d.payerOrg.legalName.toLowerCase().includes(selectedSub.toLowerCase())));
+  }, [disbList, selectedSub]);
 
   // Telemetry Calculations
   const totalVerifiedDisbursed = useMemo(() => {
-    return disbList.reduce((acc, d) => acc + d.amountNaira, 0);
-  }, [disbList]);
+    return filteredDisbList.reduce((acc, d) => acc + d.amountNaira, 0);
+  }, [filteredDisbList]);
 
   const totalCommitted = useMemo(() => {
     return filteredRequests
@@ -234,23 +256,26 @@ export function ExecutiveBriefingClient({
     return tier3Escalations.reduce((acc, r) => acc + r.amountNaira, 0);
   }, [tier3Escalations]);
 
-  // Corporate bank accounts (derived directly from live treasury registry)
+  // Corporate bank accounts (derived directly from live treasury registry filtered by selected subsidiary)
   const corporateTreasury = useMemo(() => {
-    const totalLiquid = bankAccounts.reduce((acc, a) => acc + (Number(a.balance) || 0), 0);
-    const bankNames = bankAccounts.map((a) => a.bankName).filter(Boolean);
+    const relevantAccounts = selectedSub === 'ALL'
+      ? bankAccounts
+      : bankAccounts.filter((a) => a.organizationId === selectedSub || a.organization?.id === selectedSub || (a.organization?.legalName && a.organization.legalName.toLowerCase().includes(selectedSub.toLowerCase())) || (a.assignedSubsidiary && a.assignedSubsidiary.toLowerCase().includes(selectedSub.toLowerCase())));
+    const totalLiquid = relevantAccounts.reduce((acc, a) => acc + (Number(a.balance) || 0), 0);
+    const bankNames = relevantAccounts.map((a) => a.bankName).filter(Boolean);
     const uniqueBankNames = Array.from(new Set(bankNames));
     return {
       totalLiquid,
       bankListLabel: uniqueBankNames.length > 0 ? uniqueBankNames.join(' & ') : 'No accounts configured',
-      hasAccounts: bankAccounts.length > 0,
+      hasAccounts: relevantAccounts.length > 0,
     };
-  }, [bankAccounts]);
+  }, [bankAccounts, selectedSub]);
 
   // Real monthly burn based on verified disbursements
   const monthlyBurn = useMemo(() => {
-    const totalDisb = disbList.reduce((acc, d) => acc + d.amountNaira, 0);
+    const totalDisb = filteredDisbList.reduce((acc, d) => acc + d.amountNaira, 0);
     return totalDisb;
-  }, [disbList]);
+  }, [filteredDisbList]);
 
   const runwayMonths = useMemo(() => {
     if (corporateTreasury.totalLiquid <= 0) return '0.0';
@@ -676,20 +701,41 @@ export function ExecutiveBriefingClient({
               Expenses over ₦2,000,000 or company assets that need your sign-off.
             </p>
           </div>
-          <Link
-            href="/approvals"
-            style={{
-              fontSize: '12px',
-              color: 'var(--brand-primary, var(--blue))',
-              fontWeight: '600',
-              textDecoration: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
-            All Approvals <ChevronRight size={13} />
-          </Link>
+          {onNavigate ? (
+            <button
+              type="button"
+              onClick={() => onNavigate('Approvals & payments')}
+              style={{
+                fontSize: '12px',
+                color: 'var(--brand-primary, var(--blue))',
+                fontWeight: '600',
+                background: 'transparent',
+                border: 0,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: 0,
+              }}
+            >
+              All Approvals <ChevronRight size={13} />
+            </button>
+          ) : (
+            <Link
+              href="/approvals"
+              style={{
+                fontSize: '12px',
+                color: 'var(--brand-primary, var(--blue))',
+                fontWeight: '600',
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              All Approvals <ChevronRight size={13} />
+            </Link>
+          )}
         </div>
 
         {tier3Escalations.length === 0 ? (
@@ -776,8 +822,9 @@ export function ExecutiveBriefingClient({
                   </strong>
 
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <Link
-                      href={`/requests/${req.requestNumber}`}
+                    <button
+                      type="button"
+                      onClick={() => setInspectingReq(req)}
                       style={{
                         fontSize: '11px',
                         padding: '6px 11px',
@@ -785,12 +832,15 @@ export function ExecutiveBriefingClient({
                         border: '1px solid var(--line)',
                         background: '#fff',
                         color: 'var(--navy)',
-                        textDecoration: 'none',
                         fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
                       }}
                     >
                       Open Request ↗
-                    </Link>
+                    </button>
 
                     <button
                       onClick={() => {
@@ -852,20 +902,41 @@ export function ExecutiveBriefingClient({
               Budget, money spent, and balance remaining for each company.
             </p>
           </div>
-          <Link
-            href="/budgets"
-            style={{
-              fontSize: '12px',
-              color: 'var(--brand-primary, var(--blue))',
-              fontWeight: '600',
-              textDecoration: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
-            All Budgets <ChevronRight size={13} />
-          </Link>
+          {onNavigate ? (
+            <button
+              type="button"
+              onClick={() => onNavigate('Budgets & controls')}
+              style={{
+                fontSize: '12px',
+                color: 'var(--brand-primary, var(--blue))',
+                fontWeight: '600',
+                background: 'transparent',
+                border: 0,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: 0,
+              }}
+            >
+              All Budgets <ChevronRight size={13} />
+            </button>
+          ) : (
+            <Link
+              href="/budgets"
+              style={{
+                fontSize: '12px',
+                color: 'var(--brand-primary, var(--blue))',
+                fontWeight: '600',
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              All Budgets <ChevronRight size={13} />
+            </Link>
+          )}
         </div>
 
         <div
@@ -1096,20 +1167,41 @@ export function ExecutiveBriefingClient({
               Proof from staff showing how disbursed funds were spent.
             </p>
           </div>
-          <Link
-            href="/accountability"
-            style={{
-              fontSize: '12px',
-              color: 'var(--brand-primary, var(--blue))',
-              fontWeight: '600',
-              textDecoration: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
-            All Proofs <ChevronRight size={13} />
-          </Link>
+          {onNavigate ? (
+            <button
+              type="button"
+              onClick={() => onNavigate('Staff advances')}
+              style={{
+                fontSize: '12px',
+                color: 'var(--brand-primary, var(--blue))',
+                fontWeight: '600',
+                background: 'transparent',
+                border: 0,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: 0,
+              }}
+            >
+              All Proofs <ChevronRight size={13} />
+            </button>
+          ) : (
+            <Link
+              href="/accountability"
+              style={{
+                fontSize: '12px',
+                color: 'var(--brand-primary, var(--blue))',
+                fontWeight: '600',
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              All Proofs <ChevronRight size={13} />
+            </Link>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1368,6 +1460,273 @@ export function ExecutiveBriefingClient({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* REQUEST DOSSIER INSPECTION MODAL */}
+      {inspectingReq && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(7, 26, 64, 0.65)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setInspectingReq(null);
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '18px',
+              maxWidth: '640px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              padding: '26px',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.3)',
+              position: 'relative',
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--blue)', background: '#eff6ff', padding: '3px 8px', borderRadius: '6px' }}>
+                    {inspectingReq.requestNumber}
+                  </span>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#475569', background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px' }}>
+                    {inspectingReq.subsidiary?.legalName || 'BEMS Conglomerate'}
+                  </span>
+                  <span style={{ fontSize: '10px', fontWeight: '800', color: '#059669', background: '#ecfdf5', padding: '3px 8px', borderRadius: '6px' }}>
+                    {inspectingReq.category}
+                  </span>
+                </div>
+                <h2 style={{ margin: '4px 0 0', fontSize: '20px', color: 'var(--navy)', fontWeight: '800' }}>
+                  {inspectingReq.title}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectingReq(null)}
+                style={{
+                  border: 0,
+                  background: '#f1f5f9',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  cursor: 'pointer',
+                  fontWeight: '700',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Amount Banner */}
+            <div style={{ background: 'linear-gradient(135deg, #071A40 0%, #0F3572 100%)', borderRadius: '14px', padding: '16px 20px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <div>
+                <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#93c5fd', fontWeight: '700' }}>
+                  Total Requested Amount
+                </span>
+                <div style={{ fontSize: '26px', fontWeight: '900', color: '#fff', marginTop: '2px' }}>
+                  ₦{inspectingReq.amountNaira.toLocaleString()}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ fontSize: '11px', color: '#cbd5e1', display: 'block' }}>Needed By</span>
+                <strong style={{ fontSize: '13px', color: '#fff' }}>
+                  {new Date(inspectingReq.neededBy).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </strong>
+              </div>
+            </div>
+
+            {/* Requester Profile */}
+            <div style={{ background: '#f8fafc', border: '1px solid var(--line)', borderRadius: '12px', padding: '12px 16px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: '800' }}>Requested By</span>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--navy)' }}>
+                  {inspectingReq.requester.legalName}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  {inspectingReq.requester.workEmail}
+                </div>
+              </div>
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#475569', background: '#e2e8f0', padding: '3px 8px', borderRadius: '6px' }}>
+                {inspectingReq.requester.role}
+              </span>
+            </div>
+
+            {/* Justification & Deliverable */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '14px', marginBottom: '18px' }}>
+              <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: '12px', padding: '14px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--navy)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                  Operational Justification
+                </span>
+                <p style={{ margin: 0, fontSize: '13px', color: '#334155', lineHeight: 1.5 }}>
+                  {inspectingReq.justification || 'No justification provided.'}
+                </p>
+              </div>
+
+              <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: '12px', padding: '14px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--navy)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                  Expected Deliverable
+                </span>
+                <p style={{ margin: 0, fontSize: '13px', color: '#334155', lineHeight: 1.5 }}>
+                  {inspectingReq.deliverable || 'Itemized receipt and proof of delivery.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Approval Chain Evaluation */}
+            {inspectingReq.approvalSteps && inspectingReq.approvalSteps.length > 0 && (
+              <div style={{ background: '#f8fafc', border: '1px solid var(--line)', borderRadius: '12px', padding: '14px', marginBottom: '20px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--navy)', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                  Approval Chain Evaluation
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {inspectingReq.approvalSteps.map((step) => (
+                    <div key={step.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', border: '1px solid var(--line)', padding: '8px 12px', borderRadius: '8px' }}>
+                      <div>
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--navy)' }}>
+                          Stage {step.stageIndex + 1}: {step.assignedRole}
+                        </span>
+                        {step.approverName && (
+                          <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                            By {step.approverName} {step.decidedAt ? `· ${new Date(step.decidedAt).toLocaleDateString()}` : ''}
+                          </div>
+                        )}
+                        {step.decisionReason && (
+                          <div style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic', marginTop: '2px' }}>
+                            "{step.decisionReason}"
+                          </div>
+                        )}
+                      </div>
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: '800',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        background: step.status === 'APPROVED' ? '#ecfdf5' : step.status === 'REJECTED' ? '#fef2f2' : '#fef9c3',
+                        color: step.status === 'APPROVED' ? '#059669' : step.status === 'REJECTED' ? '#dc2626' : '#ca8a04',
+                      }}>
+                        {step.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', paddingTop: '10px', borderTop: '1px solid var(--line)' }}>
+              {onNavigate ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInspectingReq(null);
+                    onNavigate('Approvals & payments');
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--line)',
+                    background: '#f8fafc',
+                    color: 'var(--navy)',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Go to Approvals Desk →
+                </button>
+              ) : (
+                <div />
+              )}
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const req = inspectingReq;
+                    setInspectingReq(null);
+                    setActiveDecisionReq(req);
+                    setDecisionAction('REQUEST_CLARIFICATION');
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #bfdbfe',
+                    background: '#eff6ff',
+                    color: '#2563eb',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Ask Question
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const req = inspectingReq;
+                    setInspectingReq(null);
+                    setActiveDecisionReq(req);
+                    setDecisionAction('REJECT');
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #fecaca',
+                    background: '#fef2f2',
+                    color: '#dc2626',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Reject
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const req = inspectingReq;
+                    setInspectingReq(null);
+                    setActiveDecisionReq(req);
+                    setDecisionAction('APPROVE');
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: 0,
+                    background: '#059669',
+                    color: '#fff',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <CheckCircle2 size={13} />
+                  Approve Fund Release
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

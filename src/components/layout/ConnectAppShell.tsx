@@ -45,7 +45,7 @@ const defaultSubsidiaries: Subsidiary[] = [
   { id: 'bems-group-hq', name: 'BEMS Group', code: 'BEMS-GROUP', industry: 'Conglomerate & Holding HQ', initials: 'BG', color: '#0b1220', status: 'Live' },
 ];
 
-export function ConnectAppShell({ children, initialRole }: { children: React.ReactNode; initialRole?: SystemRole }) {
+export function ConnectAppShell({ children, initialRole, initialSubId }: { children: React.ReactNode; initialRole?: SystemRole; initialSubId?: string }) {
   const pathname = usePathname();
   const [currentRole, setCurrentRole] = useState<SystemRole>(() => {
     if (initialRole) return initialRole;
@@ -54,7 +54,7 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
   });
   const [collapsed, setCollapsed] = useState(true);
   const [subsidiaries, setSubsidiaries] = useState<Subsidiary[]>(defaultSubsidiaries);
-  const [currentSubId, setCurrentSubId] = useState('bems-group-hq');
+  const [currentSubId, setCurrentSubId] = useState(initialSubId || 'bems-group-hq');
   const [subSwitcherOpen, setSubSwitcherOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -88,8 +88,8 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
       .then(d => {
         if (d && d.organizations && d.organizations.length > 0) {
           setSubsidiaries(d.organizations);
-          let targetId = d.organizations[0].id;
-          if (typeof window !== 'undefined') {
+          let targetId = initialSubId || d.organizations[0].id;
+          if (!initialSubId && typeof window !== 'undefined') {
             const stored = localStorage.getItem('bems_active_org');
             if (stored && d.organizations.some((o: any) => o.id === stored)) {
               targetId = stored;
@@ -98,11 +98,11 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
           setCurrentSubId(targetId);
         } else {
           setSubsidiaries(defaultSubsidiaries);
-          setCurrentSubId('bems-group-hq');
+          setCurrentSubId(initialSubId || 'bems-group-hq');
         }
       })
       .catch(() => {});
-  }, [initialRole]);
+  }, [initialRole, initialSubId]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && currentSubId) {

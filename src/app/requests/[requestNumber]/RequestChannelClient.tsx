@@ -193,11 +193,19 @@ export function RequestChannelClient({ request }: RequestChannelClientProps) {
       {/* Back Link & Top Bar */}
       <div className="flex items-center justify-between">
         <Link
-          href="/requests"
+          href={
+            ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(currentUser.role) && request.subsidiary?.id
+              ? `/finance?org=${encodeURIComponent(request.subsidiary.id)}&tab=Approvals+%26+payments`
+              : '/requests'
+          }
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 transition"
         >
           <ChevronLeft className="h-4 w-4" />
-          <span>Back to All Requests</span>
+          <span>
+            {['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(currentUser.role)
+              ? 'Back to Approvals Desk'
+              : 'Back to All Requests'}
+          </span>
         </Link>
         <span className="font-mono text-xs text-slate-600" title="Stable system-wide request identifier">
           System ID: {request.systemId || `SYS-${String(request.id).toUpperCase()}`}

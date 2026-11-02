@@ -50,7 +50,7 @@ export default async function RequestDetailPage({
   serializableRequest.systemId = toSystemRequestId(request.id);
 
   return (
-    <ConnectAppShell>
+    <ConnectAppShell initialSubId={request.subsidiary.id}>
       <RequestChannelClient request={serializableRequest} />
     </ConnectAppShell>
   );
