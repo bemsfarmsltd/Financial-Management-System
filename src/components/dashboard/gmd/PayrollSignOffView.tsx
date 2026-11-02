@@ -12,7 +12,9 @@ import {
   Building2,
   PieChart,
   ShieldCheck,
-  UploadCloud
+  UploadCloud,
+  Search,
+  Filter,
 } from 'lucide-react';
 
 interface PayrollItem {
@@ -141,6 +143,41 @@ export function PayrollSignOffView({
   const [salaryChangeAmount, setSalaryChangeAmount] = useState('');
   const [salaryChangeReason, setSalaryChangeReason] = useState('');
   const [savingSalaryChange, setSavingSalaryChange] = useState(false);
+
+  // Table filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [subsidiaryCostFilter, setSubsidiaryCostFilter] = useState('ALL');
+  const [paymentFilter, setPaymentFilter] = useState('ALL');
+
+  const availableCostSubsidiaries = React.useMemo(() => {
+    const set = new Set<string>();
+    (data?.items || []).forEach(item => {
+      item.allocations.forEach(a => set.add(a.subsidiaryName));
+    });
+    return Array.from(set);
+  }, [data]);
+
+  const filteredItems = React.useMemo(() => {
+    return (data?.items || []).filter((item) => {
+      const q = searchQuery.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        item.employeeName.toLowerCase().includes(q) ||
+        item.role.toLowerCase().includes(q) ||
+        item.email.toLowerCase().includes(q) ||
+        item.allocations.some(a => a.subsidiaryName.toLowerCase().includes(q));
+
+      const matchesSub =
+        subsidiaryCostFilter === 'ALL' ||
+        item.allocations.some(a => a.subsidiaryName === subsidiaryCostFilter);
+
+      const matchesPayment =
+        paymentFilter === 'ALL' ||
+        (paymentFilter === 'PAID' ? Boolean(item.paymentId) : !item.paymentId);
+
+      return matchesSearch && matchesSub && matchesPayment;
+    });
+  }, [data?.items, searchQuery, subsidiaryCostFilter, paymentFilter]);
 
   const openStaffDetail = async (item: PayrollItem) => {
     setSelectedStaff(item);
@@ -568,6 +605,101 @@ export function PayrollSignOffView({
           </span>
         </div>
 
+        {/* Table Multi-Filter Toolbar */}
+        <div style={{
+          padding: '8px 12px',
+          background: '#f8fafc',
+          borderBottom: '1px solid #e2e8f0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 8,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flex: 1 }}>
+            <div style={{ position: 'relative', minWidth: 200, flex: '1 1 200px' }}>
+              <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+              <input
+                type="text"
+                placeholder="Search staff name, role, email, or subsidiary…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '5px 8px 5px 26px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  fontSize: 10,
+                  background: '#ffffff',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            {availableCostSubsidiaries.length > 1 && (
+              <select
+                value={subsidiaryCostFilter}
+                onChange={(e) => setSubsidiaryCostFilter(e.target.value)}
+                style={{
+                  padding: '5px 8px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  background: '#ffffff',
+                  color: '#334155',
+                }}
+              >
+                <option value="ALL">All Cost Entities ({availableCostSubsidiaries.length})</option>
+                {availableCostSubsidiaries.map(sub => (
+                  <option key={sub} value={sub}>{sub}</option>
+                ))}
+              </select>
+            )}
+
+            <select
+              value={paymentFilter}
+              onChange={(e) => setPaymentFilter(e.target.value)}
+              style={{
+                padding: '5px 8px',
+                borderRadius: 6,
+                border: '1px solid #cbd5e1',
+                fontSize: 10,
+                fontWeight: 600,
+                background: '#ffffff',
+                color: '#334155',
+              }}
+            >
+              <option value="ALL">All Payout Statuses</option>
+              <option value="PAID">Paid / Slip Attached</option>
+              <option value="UNPAID">Pending Transfer</option>
+            </select>
+          </div>
+
+          {(searchQuery || subsidiaryCostFilter !== 'ALL' || paymentFilter !== 'ALL') && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setSubsidiaryCostFilter('ALL');
+                setPaymentFilter('ALL');
+              }}
+              style={{
+                border: 0,
+                background: '#e2e8f0',
+                color: '#475569',
+                padding: '4px 10px',
+                borderRadius: 6,
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Reset Filters
+            </button>
+          )}
+        </div>
+
         {loading ? (
           <div style={{ padding: '30px', textAlign: 'center', fontSize: '11px', color: '#64748b' }}>
             Loading payroll register…
@@ -576,9 +708,13 @@ export function PayrollSignOffView({
           <div style={{ padding: '30px', textAlign: 'center', fontSize: '11px', color: '#64748b' }}>
             No payroll items found for current batch.
           </div>
+        ) : filteredItems.length === 0 ? (
+          <div style={{ padding: '30px', textAlign: 'center', fontSize: '11px', color: '#64748b' }}>
+            No employee records match the active filter criteria.
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {data.items.map((item) => (
+            {filteredItems.map((item) => (
               <div
                 key={item.id}
                 role="button"

@@ -17,7 +17,9 @@ import {
   ShieldAlert,
   Wallet,
   ExternalLink,
+  Filter,
 } from 'lucide-react';
+import { ExecutiveRecurringModal } from '../ExecutiveRecurringModal';
 
 type RecurringRequest = {
   id: string;
@@ -69,6 +71,9 @@ export function RecurringCommitmentsView({ businessName }: { businessName: strin
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('ALL');
+  const [subsidiaryFilter, setSubsidiaryFilter] = useState('ALL');
+  const [cadenceFilter, setCadenceFilter] = useState('ALL');
+  const [paymentFilter, setPaymentFilter] = useState('ALL');
   const [selectedRequest, setSelectedRequest] = useState<RecurringRequest | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
@@ -112,9 +117,30 @@ export function RecurringCommitmentsView({ businessName }: { businessName: strin
     void load();
   }, []);
 
+  const isGroupView = !businessName || businessName === 'BEMS Group';
+
+  const availableSubsidiaries = useMemo(() => {
+    const set = new Set<string>();
+    (data?.requests || []).forEach(r => {
+      if (r.subsidiary?.legalName) set.add(r.subsidiary.legalName);
+    });
+    return Array.from(set);
+  }, [data]);
+
+  const scopedRequests = useMemo(() => {
+    if (isGroupView) return data?.requests || [];
+    return (data?.requests || []).filter(r =>
+      r.subsidiary.legalName.toLowerCase() === businessName.toLowerCase() ||
+      r.subsidiary.code.toLowerCase() === businessName.toLowerCase()
+    );
+  }, [data, businessName, isGroupView]);
+
   const filtered = useMemo(
     () =>
-      (data?.requests || []).filter((request) => {
+      scopedRequests.filter((request) => {
+        if (isGroupView && subsidiaryFilter !== 'ALL') {
+          if (request.subsidiary.legalName !== subsidiaryFilter) return false;
+        }
         const normalizedQuery = query.trim().toLowerCase();
         const matchesQuery =
           !normalizedQuery ||
@@ -122,23 +148,57 @@ export function RecurringCommitmentsView({ businessName }: { businessName: strin
             request.systemId,
             request.requestNumber,
             request.title,
+            request.category,
             request.subsidiary.legalName,
             request.requester.legalName,
             request.vendor?.name || '',
           ].some((value) => value.toLowerCase().includes(normalizedQuery));
+
         const matchesStatus =
           status === 'ALL' || (status === 'APPROVED' ? request.approvalStatus === 'APPROVED' : request.approvalStatus !== 'APPROVED');
-        return matchesQuery && matchesStatus;
+
+        const matchesCadence =
+          cadenceFilter === 'ALL' || request.recurringInterval === cadenceFilter;
+
+        const matchesPayment =
+          paymentFilter === 'ALL' ||
+          (paymentFilter === 'PAID'
+            ? request.paymentStatus === 'RECIPIENT_CONFIRMED' || request.paymentStatus === 'AWAITING_RECIPIENT_CONFIRMATION'
+            : request.paymentStatus === 'UNPAID');
+
+        return matchesQuery && matchesStatus && matchesCadence && matchesPayment;
       }),
-    [data, query, status],
+    [scopedRequests, isGroupView, subsidiaryFilter, query, status, cadenceFilter, paymentFilter],
   );
 
-  const upcoming = (data?.requests || [])
+  const activeApprovedCount = scopedRequests.filter(r => r.approvalStatus === 'APPROVED').length;
+  const activePendingCount = scopedRequests.filter(r => r.approvalStatus !== 'APPROVED').length;
+  const activeAnnualMinor = scopedRequests
+    .filter(r => r.approvalStatus === 'APPROVED')
+    .reduce((sum, r) => {
+      const amount = Number(r.amountMinor) || 0;
+      const mult = r.recurringInterval === 'ANNUAL' ? 1 : r.recurringInterval === 'QUARTERLY' ? 4 : 12;
+      return sum + amount * mult;
+    }, 0);
+
+  const upcoming = scopedRequests
     .filter((request) => request.approvalStatus === 'APPROVED' && new Date(request.neededBy).getTime() >= Date.now())
     .sort((a, b) => new Date(a.neededBy).getTime() - new Date(b.neededBy).getTime())[0];
   const dueCaption = upcoming ? `Needed by ${formatDate(upcoming.neededBy)} (${getRelativeDays(upcoming.neededBy)})` : 'No upcoming approved request date';
 
   const openRequest = (request: RecurringRequest) => setSelectedRequest(request);
+
+  const hasActiveFilters = Boolean(
+    query || status !== 'ALL' || subsidiaryFilter !== 'ALL' || cadenceFilter !== 'ALL' || paymentFilter !== 'ALL'
+  );
+
+  const handleResetFilters = () => {
+    setQuery('');
+    setStatus('ALL');
+    setSubsidiaryFilter('ALL');
+    setCadenceFilter('ALL');
+    setPaymentFilter('ALL');
+  };
 
   return (
     <div style={{ display: 'grid', gap: 16, width: '100%' }}>
@@ -176,13 +236,13 @@ export function RecurringCommitmentsView({ businessName }: { businessName: strin
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
         <Metric
           label="ACTIVE RUN-RATE COMMITMENTS"
-          value={data ? String(data.summary.approvedCount) : '—'}
-          detail={`${data?.summary.pendingCount ?? 0} awaiting executive approval`}
+          value={data ? String(activeApprovedCount) : '—'}
+          detail={`${activePendingCount} awaiting executive approval`}
           icon={<Repeat size={16} color="var(--brand-primary, #ea580c)" />}
         />
         <Metric
           label="PROJECTED ANNUAL RUN-RATE"
-          value={data ? formatNaira(data.summary.annualRunRateMinor) : '—'}
+          value={data ? formatNaira(activeAnnualMinor) : '—'}
           detail="Combined recurring monthly & annual spend"
           icon={<CircleDollarSign size={16} color="#059669" />}
         />
@@ -207,27 +267,107 @@ export function RecurringCommitmentsView({ businessName }: { businessName: strin
             <h2 style={{ margin: 0, color: '#0f172a', fontSize: 16, fontWeight: 800 }}>Recurring Requisitions Queue</h2>
             <p style={{ margin: '3px 0 0', color: '#64748b', fontSize: 11 }}>
               Every cycle is individually approved by the Group Managing Director and anchored by 72-hour retiral accountability.
+              {scopedRequests.length > 0 && ` Showing ${filtered.length} of ${scopedRequests.length} commitments.`}
             </p>
           </div>
+        </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <label style={{ position: 'relative', width: '280px' }}>
-              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#8b9ab0' }} />
+        {/* Multi-Dimensional Filter Toolbar */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 10,
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: 10,
+            padding: '10px 14px',
+            marginBottom: 14,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flex: 1 }}>
+            <div style={{ position: 'relative', minWidth: 220, flex: '1 1 220px' }}>
+              <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
               <input
                 aria-label="Search recurring requests"
-                placeholder="Search system ID, title, vendor, or subsidiary..."
+                placeholder="Search system ID, title, vendor, or category…"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                style={searchInput}
+                style={{ ...searchInput, paddingLeft: 28, height: 34, fontSize: 11 }}
               />
-            </label>
+            </div>
 
-            <select aria-label="Filter recurring request status" value={status} onChange={(event) => setStatus(event.target.value)} style={selectStyle}>
-              <option value="ALL">All Statuses</option>
+            {isGroupView && availableSubsidiaries.length > 1 && (
+              <select
+                aria-label="Filter by subsidiary"
+                value={subsidiaryFilter}
+                onChange={(e) => setSubsidiaryFilter(e.target.value)}
+                style={{ ...selectStyle, minWidth: 150, height: 34, fontSize: 11 }}
+              >
+                <option value="ALL">All Subsidiaries ({availableSubsidiaries.length})</option>
+                {availableSubsidiaries.map((sub) => (
+                  <option key={sub} value={sub}>
+                    {sub}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <select
+              aria-label="Filter cadence interval"
+              value={cadenceFilter}
+              onChange={(e) => setCadenceFilter(e.target.value)}
+              style={{ ...selectStyle, minWidth: 120, height: 34, fontSize: 11 }}
+            >
+              <option value="ALL">All Intervals</option>
+              <option value="MONTHLY">Monthly</option>
+              <option value="QUARTERLY">Quarterly</option>
+              <option value="ANNUAL">Annual</option>
+            </select>
+
+            <select
+              aria-label="Filter approval status"
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+              style={{ ...selectStyle, minWidth: 130, height: 34, fontSize: 11 }}
+            >
+              <option value="ALL">All Approvals</option>
               <option value="APPROVED">Approved Commitments</option>
               <option value="PENDING">Awaiting Review</option>
             </select>
+
+            <select
+              aria-label="Filter payment status"
+              value={paymentFilter}
+              onChange={(e) => setPaymentFilter(e.target.value)}
+              style={{ ...selectStyle, minWidth: 120, height: 34, fontSize: 11 }}
+            >
+              <option value="ALL">All Payouts</option>
+              <option value="PAID">Confirmed Paid</option>
+              <option value="UNPAID">Unpaid / In Gate</option>
+            </select>
           </div>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              style={{
+                border: 0,
+                background: '#e2e8f0',
+                color: '#475569',
+                padding: '5px 12px',
+                borderRadius: 6,
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Reset Filters
+            </button>
+          )}
         </div>
 
         {error ? (
@@ -419,126 +559,11 @@ export function RecurringCommitmentsView({ businessName }: { businessName: strin
         </span>
       </div>
 
-      {/* Redesigned Commitment Inspection Modal with Lifecycle Stepper */}
-      {selectedRequest && (
-        <div
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setSelectedRequest(null);
-          }}
-          style={modalBackdrop}
-        >
-          <section role="dialog" aria-modal="true" aria-labelledby="recurring-request-title" style={modalCard}>
-            {/* Header */}
-            <header
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: 16,
-                padding: '20px 24px',
-                borderBottom: '1px solid #e2e8f0',
-                background: '#fafafa',
-              }}
-            >
-              <div>
-                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--brand-primary, #0d8a70)', letterSpacing: '.08em' }}>
-                  {selectedRequest.requestNumber} · {selectedRequest.subsidiary.legalName}
-                </span>
-                <h2 id="recurring-request-title" style={{ margin: '4px 0 2px', color: '#0f172a', fontSize: 20, fontWeight: 900 }}>
-                  {selectedRequest.title}
-                </h2>
-                <span style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{selectedRequest.systemId}</span>
-              </div>
-              <button type="button" onClick={() => setSelectedRequest(null)} aria-label="Close request details" style={closeButton}>
-                <X size={16} />
-              </button>
-            </header>
-
-            {/* Body */}
-            <div style={{ padding: 24, display: 'grid', gap: 18 }}>
-              {/* Lifecycle Stepper */}
-              <div style={{ padding: 14, borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
-                  RECURRING CYCLE LIFECYCLE
-                </span>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 10 }}>
-                  <StepBadge
-                    step="1"
-                    title="Submitted"
-                    completed={true}
-                    current={false}
-                  />
-                  <StepBadge
-                    step="2"
-                    title="GMD Approval"
-                    completed={selectedRequest.approvalStatus === 'APPROVED'}
-                    current={selectedRequest.approvalStatus !== 'APPROVED'}
-                  />
-                  <StepBadge
-                    step="3"
-                    title="Disbursement"
-                    completed={selectedRequest.paymentStatus === 'RECIPIENT_CONFIRMED' || selectedRequest.paymentStatus === 'AWAITING_RECIPIENT_CONFIRMATION'}
-                    current={selectedRequest.approvalStatus === 'APPROVED' && selectedRequest.paymentStatus === 'UNPAID'}
-                  />
-                  <StepBadge
-                    step="4"
-                    title="Accountability"
-                    completed={selectedRequest.accountabilityStatus === 'VERIFIED' || selectedRequest.accountabilityStatus === 'CLOSED'}
-                    current={selectedRequest.accountabilityStatus === 'EVIDENCE_SUBMITTED'}
-                  />
-                </div>
-              </div>
-
-              {/* Financial Breakdown Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
-                <Detail label="Recurring Amount" value={formatNaira(selectedRequest.amountMinor)} highlight="#059669" />
-                <Detail label="Cadence Interval" value={cadenceLabel[selectedRequest.recurringInterval || ''] || 'Monthly'} />
-                <Detail
-                  label="Annual Projection"
-                  value={
-                    selectedRequest.recurringInterval === 'ANNUAL'
-                      ? formatNaira(selectedRequest.amountMinor)
-                      : selectedRequest.recurringInterval === 'QUARTERLY'
-                      ? formatNaira(Number(selectedRequest.amountMinor) * 4)
-                      : formatNaira(Number(selectedRequest.amountMinor) * 12)
-                  }
-                />
-                <Detail label="Requester" value={`${selectedRequest.requester.legalName} (${selectedRequest.requester.role.replaceAll('_', ' ')})`} />
-                <Detail label="Vendor / Beneficiary" value={selectedRequest.vendor?.name || 'Direct Employee Disbursement'} />
-                <Detail label="Next Execution Due" value={formatDate(selectedRequest.neededBy)} />
-              </div>
-
-              {/* Justification & Deliverable */}
-              <div style={{ display: 'grid', gap: 12 }}>
-                <Detail label="Operational Justification" value={selectedRequest.justification || 'No justification provided.'} />
-                {selectedRequest.deliverable && <Detail label="Expected Proof / Deliverable" value={selectedRequest.deliverable} />}
-              </div>
-
-              {/* Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
-                <button type="button" onClick={() => setSelectedRequest(null)} style={secondaryButton}>
-                  Close
-                </button>
-                <a
-                  href={`/requests/${selectedRequest.requestNumber}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{
-                    ...primaryButton,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    textDecoration: 'none',
-                  }}
-                >
-                  <ExternalLink size={14} /> Open Full Dossier
-                </a>
-              </div>
-            </div>
-          </section>
-        </div>
-      )}
+      {/* Executive Requisition Inspection Modal */}
+      <ExecutiveRecurringModal
+        request={selectedRequest}
+        onClose={() => setSelectedRequest(null)}
+      />
     </div>
   );
 }

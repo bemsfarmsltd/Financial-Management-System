@@ -55,7 +55,11 @@ export function TreasuryFinanceHubView({
       )}
       {initialTab === 'budgets' && (
         <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0' }}>
-          <BudgetsClient />
+          <BudgetsClient
+            activeOrgId={businessId}
+            activeOrgName={businessName}
+            activeOrgCode={businessCode}
+          />
         </div>
       )}
       {initialTab === 'payroll' && (

@@ -15,7 +15,9 @@ import {
   BadgeCheck,
   ExternalLink,
   Lock,
-  Trash2
+  Trash2,
+  Search,
+  Filter,
 } from 'lucide-react';
 
 interface BankAccount {
@@ -65,6 +67,26 @@ export function TreasuryAccountsView({
   const [summary, setSummary] = useState<TreasurySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('ALL');
+
+  const filteredAccounts = React.useMemo(() => {
+    return accounts.filter((acc) => {
+      const q = searchQuery.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        acc.bankName.toLowerCase().includes(q) ||
+        acc.accountName.toLowerCase().includes(q) ||
+        acc.accountNumber.includes(q) ||
+        acc.assignedSubsidiary.toLowerCase().includes(q);
+
+      const matchesType =
+        typeFilter === 'ALL' ||
+        acc.accountType.toLowerCase().includes(typeFilter.toLowerCase());
+
+      return matchesSearch && matchesType;
+    });
+  }, [accounts, searchQuery, typeFilter]);
 
   // Add Account Modal State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -407,8 +429,92 @@ export function TreasuryAccountsView({
           </button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-          {accounts.map((acc) => (
+        <>
+          {/* Multi-Filter Toolbar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 10,
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 10,
+              padding: '10px 14px',
+              marginBottom: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flex: 1 }}>
+              <div style={{ position: 'relative', minWidth: 220, flex: '1 1 220px' }}>
+                <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                <input
+                  type="text"
+                  placeholder="Search bank name, account number, or subsidiary…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '6px 10px 6px 30px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 11,
+                    background: '#ffffff',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: '#ffffff',
+                  color: '#334155',
+                }}
+              >
+                <option value="ALL">All Account Types</option>
+                <option value="Operational">Operational Accounts</option>
+                <option value="Payroll">Payroll Accounts</option>
+                <option value="Reserve">Reserve Accounts</option>
+              </select>
+            </div>
+
+            {(searchQuery || typeFilter !== 'ALL') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setTypeFilter('ALL');
+                }}
+                style={{
+                  border: 0,
+                  background: '#e2e8f0',
+                  color: '#475569',
+                  padding: '5px 12px',
+                  borderRadius: 6,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Reset Filters
+              </button>
+            )}
+          </div>
+
+          {filteredAccounts.length === 0 ? (
+            <div style={{ padding: '36px', textAlign: 'center', background: '#fff', borderRadius: 12, border: '1px dashed #cbd5e1', color: '#64748b', fontSize: 12, marginBottom: 16 }}>
+              No bank accounts match the active search and filter criteria.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+              {filteredAccounts.map((acc) => (
             <div
               key={acc.id}
               style={{
@@ -512,6 +618,8 @@ export function TreasuryAccountsView({
             </div>
           ))}
         </div>
+          )}
+        </>
       )}
 
       {/* POLICY INFORMATION */}

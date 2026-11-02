@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Search, Filter, Layers, CheckCircle2, AlertTriangle, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface BudgetLine {
   id: string;
@@ -42,16 +44,49 @@ interface Org {
 
 export function BudgetsClient({
   initialBudgets,
-  organizations: initialOrgs
+  organizations: initialOrgs,
+  activeOrgId,
+  activeOrgName,
+  activeOrgCode,
 }: {
   initialBudgets?: Budget[];
   organizations?: Org[];
+  activeOrgId?: string;
+  activeOrgName?: string;
+  activeOrgCode?: string;
 }) {
+  const searchParams = useSearchParams();
+  const urlOrgParam = searchParams?.get('org');
+
   const [budgets, setBudgets] = useState<Budget[]>(initialBudgets || []);
   const [orgs, setOrgs] = useState<Org[]>(initialOrgs || []);
   const [selectedOrgId, setSelectedOrgId] = useState<string>('all');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Table multi-filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'OPEX' | 'CAPEX'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'HEALTHY' | 'WARNING' | 'CRITICAL'>('ALL');
+
+  // Auto-scope to active subsidiary when loaded or prop changes
+  useEffect(() => {
+    const targetId = urlOrgParam || activeOrgId;
+    if (targetId && targetId !== 'all') {
+      setSelectedOrgId(targetId);
+      return;
+    }
+    if (activeOrgName && activeOrgName !== 'BEMS Group' && orgs.length > 0) {
+      const match = orgs.find(
+        o => o.legalName.toLowerCase() === activeOrgName.toLowerCase() ||
+             (activeOrgCode && o.code.toLowerCase() === activeOrgCode.toLowerCase())
+      );
+      if (match) {
+        setSelectedOrgId(match.id);
+        return;
+      }
+    }
+  }, [urlOrgParam, activeOrgId, activeOrgName, activeOrgCode, orgs]);
 
   useEffect(() => {
     if (!initialBudgets || initialBudgets.length === 0) {
@@ -272,7 +307,7 @@ export function BudgetsClient({
       </div>
 
       {/* SUBSIDIARY FILTER TABS */}
-      <div style={{ display: 'flex', gap: '6px', margin: '0 0 14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+      <div style={{ display: 'flex', gap: '6px', margin: '0 0 14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', overflowX: 'auto' }}>
         <button
           onClick={() => setSelectedOrgId('all')}
           style={{
@@ -283,7 +318,8 @@ export function BudgetsClient({
             borderRadius: '6px',
             fontSize: '10px',
             fontWeight: '700',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            whiteSpace: 'nowrap'
           }}
         >
           All Entities ({budgets.length})
@@ -300,12 +336,115 @@ export function BudgetsClient({
               borderRadius: '6px',
               fontSize: '10px',
               fontWeight: '700',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
             }}
           >
             {org.legalName}
           </button>
         ))}
+      </div>
+
+      {/* MULTI-DIMENSIONAL TABLE FILTER BAR */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '10px',
+        background: '#f8fafc',
+        border: '1px solid #e2e8f0',
+        borderRadius: '10px',
+        padding: '10px 14px',
+        marginBottom: '16px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: 1 }}>
+          <div style={{ position: 'relative', minWidth: '220px', flex: '1 1 220px' }}>
+            <Search size={13} style={{ position: 'absolute', left: '10px', top: '9px', color: '#94a3b8' }} />
+            <input
+              type="text"
+              placeholder="Search department or expense line category…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '6px 10px 6px 30px',
+                borderRadius: '7px',
+                border: '1px solid #cbd5e1',
+                fontSize: '11px',
+                background: '#ffffff',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b' }}>TYPE:</span>
+            {(['ALL', 'OPEX', 'CAPEX'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTypeFilter(t)}
+                style={{
+                  border: '1px solid',
+                  borderColor: typeFilter === t ? 'var(--brand-primary, #0d8a70)' : '#cbd5e1',
+                  background: typeFilter === t ? 'var(--brand-primary, #0d8a70)' : '#ffffff',
+                  color: typeFilter === t ? '#ffffff' : '#475569',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b' }}>STATUS:</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              style={{
+                padding: '4px 8px',
+                borderRadius: '6px',
+                border: '1px solid #cbd5e1',
+                fontSize: '10px',
+                fontWeight: 600,
+                background: '#ffffff',
+                color: '#334155'
+              }}
+            >
+              <option value="ALL">All Thresholds</option>
+              <option value="HEALTHY">✓ Healthy (&lt;75%)</option>
+              <option value="WARNING">⚠️ Warning (75% - 89%)</option>
+              <option value="CRITICAL">🚨 Critical (≥90%)</option>
+            </select>
+          </div>
+        </div>
+
+        {(searchQuery || typeFilter !== 'ALL' || statusFilter !== 'ALL') && (
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setTypeFilter('ALL');
+              setStatusFilter('ALL');
+            }}
+            style={{
+              border: 0,
+              background: '#f1f5f9',
+              color: '#64748b',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              fontSize: '10px',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            Reset Filters
+          </button>
+        )}
       </div>
 
       {/* BUDGET ENVELOPES & DEPARTMENT LINES */}
@@ -330,6 +469,20 @@ export function BudgetsClient({
             const pct = budget.totalAmount > 0 ? Math.round((consumed / budget.totalAmount) * 100) : 0;
             const isWarning = pct >= budget.warningThreshold;
 
+            const displayedLines = budget.lines.filter(line => {
+              const q = searchQuery.trim().toLowerCase();
+              const matchesQuery = !q || line.departmentName.toLowerCase().includes(q) || line.category.toLowerCase().includes(q);
+              const matchesType = typeFilter === 'ALL' || line.expenseType === typeFilter;
+              const lineConsumed = line.committedAmount + line.spentAmount;
+              const linePct = line.allocatedAmount > 0 ? Math.round((lineConsumed / line.allocatedAmount) * 100) : 0;
+              const matchesStatus =
+                statusFilter === 'ALL' ||
+                (statusFilter === 'CRITICAL' && linePct >= 90) ||
+                (statusFilter === 'WARNING' && linePct >= 75 && linePct < 90) ||
+                (statusFilter === 'HEALTHY' && linePct < 75);
+              return matchesQuery && matchesType && matchesStatus;
+            });
+
             return (
               <section key={budget.id} className="card" style={{ padding: '16px', borderRadius: '10px' }}>
                 {/* BUDGET HEADER */}
@@ -350,7 +503,7 @@ export function BudgetsClient({
                       {budget.periodName}
                     </h2>
                     <p style={{ margin: 0, fontSize: '11px', color: 'var(--muted)' }}>
-                      Entity: <strong>{budget.organization.legalName}</strong> · Alert Threshold: {budget.warningThreshold}%
+                      Entity: <strong>{budget.organization.legalName}</strong> · Alert Threshold: {budget.warningThreshold}% · Showing {displayedLines.length} of {budget.lines.length} lines
                     </p>
                   </div>
 
@@ -385,76 +538,82 @@ export function BudgetsClient({
 
                 {/* DEPARTMENT LINES TABLE */}
                 <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--muted)' }}>
-                        <th style={{ padding: '8px 12px' }}>DEPARTMENT</th>
-                        <th style={{ padding: '8px 12px' }}>CATEGORY</th>
-                        <th style={{ padding: '8px 12px' }}>TYPE</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>ALLOCATED</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>COMMITTED</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>DISBURSED</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>REMAINING</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'center' }}>STATUS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {budget.lines.map(line => {
-                        const lineConsumed = line.committedAmount + line.spentAmount;
-                        const lineRem = line.allocatedAmount - lineConsumed;
-                        const linePct = line.allocatedAmount > 0 ? Math.round((lineConsumed / line.allocatedAmount) * 100) : 0;
-                        const lineDanger = linePct >= 90;
-                        const lineWarn = linePct >= 75 && linePct < 90;
+                  {displayedLines.length === 0 ? (
+                    <div style={{ padding: '24px', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', color: '#64748b', fontSize: '12px' }}>
+                      No department spending lines match the selected filters.
+                    </div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--muted)' }}>
+                          <th style={{ padding: '8px 12px' }}>DEPARTMENT</th>
+                          <th style={{ padding: '8px 12px' }}>CATEGORY</th>
+                          <th style={{ padding: '8px 12px' }}>TYPE</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>ALLOCATED</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>COMMITTED</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>DISBURSED</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>REMAINING</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>STATUS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayedLines.map(line => {
+                          const lineConsumed = line.committedAmount + line.spentAmount;
+                          const lineRem = line.allocatedAmount - lineConsumed;
+                          const linePct = line.allocatedAmount > 0 ? Math.round((lineConsumed / line.allocatedAmount) * 100) : 0;
+                          const lineDanger = linePct >= 90;
+                          const lineWarn = linePct >= 75 && linePct < 90;
 
-                        return (
-                          <tr key={line.id} style={{ borderBottom: '1px solid #f0f4f9' }}>
-                            <td style={{ padding: '12px', fontWeight: '700', color: 'var(--navy)' }}>
-                              {line.departmentName}
-                            </td>
-                            <td style={{ padding: '12px', color: 'var(--muted)' }}>
-                              {line.category}
-                            </td>
-                            <td style={{ padding: '12px' }}>
-                              <span style={{
-                                fontSize: '10px',
-                                fontWeight: '800',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                background: line.expenseType === 'CAPEX' ? '#f3e8ff' : '#fff7ed',
-                                color: line.expenseType === 'CAPEX' ? '#6b21a8' : '#ea580c'
-                              }}>
-                                {line.expenseType}
-                              </span>
-                            </td>
-                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '700' }}>
-                              ₦{line.allocatedAmount.toLocaleString()}
-                            </td>
-                            <td style={{ padding: '12px', textAlign: 'right', color: '#d97706' }}>
-                              ₦{line.committedAmount.toLocaleString()}
-                            </td>
-                            <td style={{ padding: '12px', textAlign: 'right', color: '#0d8a70' }}>
-                              ₦{line.spentAmount.toLocaleString()}
-                            </td>
-                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '700', color: lineRem < 0 ? '#b91c1c' : 'var(--navy)' }}>
-                              ₦{lineRem.toLocaleString()}
-                            </td>
-                            <td style={{ padding: '12px', textAlign: 'center' }}>
-                              <span style={{
-                                fontSize: '10px',
-                                fontWeight: '800',
-                                padding: '2px 8px',
-                                borderRadius: '12px',
-                                background: lineDanger ? '#fee2e2' : lineWarn ? '#fef3c7' : '#dcfce7',
-                                color: lineDanger ? '#b91c1c' : lineWarn ? '#b45309' : '#15803d'
-                              }}>
-                                {linePct}% {lineDanger ? 'CRITICAL' : lineWarn ? 'WARNING' : 'HEALTHY'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                          return (
+                            <tr key={line.id} style={{ borderBottom: '1px solid #f0f4f9' }}>
+                              <td style={{ padding: '12px', fontWeight: '700', color: 'var(--navy)' }}>
+                                {line.departmentName}
+                              </td>
+                              <td style={{ padding: '12px', color: 'var(--muted)' }}>
+                                {line.category}
+                              </td>
+                              <td style={{ padding: '12px' }}>
+                                <span style={{
+                                  fontSize: '10px',
+                                  fontWeight: '800',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  background: line.expenseType === 'CAPEX' ? '#f3e8ff' : '#fff7ed',
+                                  color: line.expenseType === 'CAPEX' ? '#6b21a8' : '#ea580c'
+                                }}>
+                                  {line.expenseType}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'right', fontWeight: '700' }}>
+                                ₦{line.allocatedAmount.toLocaleString()}
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'right', color: '#d97706' }}>
+                                ₦{line.committedAmount.toLocaleString()}
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'right', color: '#0d8a70' }}>
+                                ₦{line.spentAmount.toLocaleString()}
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'right', fontWeight: '700', color: lineRem < 0 ? '#b91c1c' : 'var(--navy)' }}>
+                                ₦{lineRem.toLocaleString()}
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'center' }}>
+                                <span style={{
+                                  fontSize: '10px',
+                                  fontWeight: '800',
+                                  padding: '2px 8px',
+                                  borderRadius: '12px',
+                                  background: lineDanger ? '#fee2e2' : lineWarn ? '#fef3c7' : '#dcfce7',
+                                  color: lineDanger ? '#b91c1c' : lineWarn ? '#b45309' : '#15803d'
+                                }}>
+                                  {linePct}% {lineDanger ? 'CRITICAL' : lineWarn ? 'WARNING' : 'HEALTHY'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
 
                 {/* OVER BUDGET POLICY NOTICE */}

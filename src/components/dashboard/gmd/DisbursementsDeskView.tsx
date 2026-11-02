@@ -134,6 +134,41 @@ export function DisbursementsDeskView({
   const [searchQuery, setSearchQuery] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
+  const filteredReadyRequests = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return readyRequests;
+    return readyRequests.filter(req =>
+      req.requestNumber.toLowerCase().includes(q) ||
+      req.title.toLowerCase().includes(q) ||
+      req.subsidiary.legalName.toLowerCase().includes(q) ||
+      (req.vendor?.name && req.vendor.name.toLowerCase().includes(q)) ||
+      (req.requester?.legalName && req.requester.legalName.toLowerCase().includes(q))
+    );
+  }, [readyRequests, searchQuery]);
+
+  const filteredAwaitingConfirmation = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return awaitingConfirmation;
+    return awaitingConfirmation.filter(disb =>
+      disb.externalReference.toLowerCase().includes(q) ||
+      disb.beneficiaryName.toLowerCase().includes(q) ||
+      disb.payerOrg.legalName.toLowerCase().includes(q) ||
+      disb.amountFormatted.toLowerCase().includes(q) ||
+      (disb.request?.requester?.legalName && disb.request.requester.legalName.toLowerCase().includes(q))
+    );
+  }, [awaitingConfirmation, searchQuery]);
+
+  const filteredVerifiedDisbursements = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return verifiedDisbursements;
+    return verifiedDisbursements.filter(disb =>
+      disb.externalReference.toLowerCase().includes(q) ||
+      disb.beneficiaryName.toLowerCase().includes(q) ||
+      disb.payerOrg.legalName.toLowerCase().includes(q) ||
+      disb.amountFormatted.toLowerCase().includes(q)
+    );
+  }, [verifiedDisbursements, searchQuery]);
+
   // Maker Recording Modal State
   const [makerModalOpen, setMakerModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<RequestItem | null>(null);
@@ -563,21 +598,41 @@ export function DisbursementsDeskView({
           </button>
         </div>
 
-        <div style={{ position: 'relative' }}>
-          <Search size={12} style={{ position: 'absolute', left: '8px', top: '7px', color: '#94a3b8' }} />
-          <input
-            type="text"
-            placeholder="Search reference, vendor or amount…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              padding: '5px 10px 5px 26px',
-              borderRadius: '6px',
-              border: '1px solid #cbd5e1',
-              fontSize: '10px',
-              width: '200px'
-            }}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ position: 'relative' }}>
+            <Search size={12} style={{ position: 'absolute', left: '8px', top: '7px', color: '#94a3b8' }} />
+            <input
+              type="text"
+              placeholder="Search reference, vendor or amount…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                padding: '5px 10px 5px 26px',
+                borderRadius: '6px',
+                border: '1px solid #cbd5e1',
+                fontSize: '10px',
+                width: '200px'
+              }}
+            />
+          </div>
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              style={{
+                border: 0,
+                background: '#e2e8f0',
+                color: '#475569',
+                padding: '4px 8px',
+                borderRadius: '5px',
+                fontSize: '10px',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -588,15 +643,15 @@ export function DisbursementsDeskView({
         </div>
       ) : activeTab === 'AWAITING_TRANSFER' ? (
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-          {readyRequests.length === 0 ? (
+          {filteredReadyRequests.length === 0 ? (
             <div style={{ padding: '36px 20px', textAlign: 'center' }}>
               <CheckCircle2 size={24} color="#059669" style={{ margin: '0 auto 8px' }} />
-              <h4 style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>All Approved Payouts Recorded</h4>
-              <p style={{ margin: 0, fontSize: '10px', color: '#64748b' }}>No approved requests are currently waiting for Maker bank transfer recording.</p>
+              <h4 style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>{searchQuery ? 'No matching payouts found' : 'All Approved Payouts Recorded'}</h4>
+              <p style={{ margin: 0, fontSize: '10px', color: '#64748b' }}>{searchQuery ? 'Try clearing your search query.' : 'No approved requests are currently waiting for Maker bank transfer recording.'}</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {readyRequests.map((req) => (
+              {filteredReadyRequests.map((req) => (
                 <div
                   key={req.id}
                   style={{
@@ -671,15 +726,15 @@ export function DisbursementsDeskView({
         </div>
       ) : activeTab === 'AWAITING_CONFIRMATION' ? (
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-          {awaitingConfirmation.length === 0 ? (
+          {filteredAwaitingConfirmation.length === 0 ? (
             <div style={{ padding: '36px 20px', textAlign: 'center' }}>
               <CheckCircle2 size={24} color="#059669" style={{ margin: '0 auto 8px' }} />
-              <h4 style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>No payments awaiting confirmation</h4>
-              <p style={{ margin: 0, fontSize: '10px', color: '#64748b' }}>Requesters will appear here after a payment is recorded.</p>
+              <h4 style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>{searchQuery ? 'No matching confirmations found' : 'No payments awaiting confirmation'}</h4>
+              <p style={{ margin: 0, fontSize: '10px', color: '#64748b' }}>{searchQuery ? 'Try clearing your search query.' : 'Requesters will appear here after a payment is recorded.'}</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {awaitingConfirmation.map((disb) => (
+              {filteredAwaitingConfirmation.map((disb) => (
                 <div
                   key={disb.id}
                   style={{
@@ -750,13 +805,13 @@ export function DisbursementsDeskView({
         </div>
       ) : (
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-          {verifiedDisbursements.length === 0 ? (
+          {filteredVerifiedDisbursements.length === 0 ? (
             <div style={{ padding: '36px 20px', textAlign: 'center' }}>
-              <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>No payments have been confirmed by requesters yet.</p>
+              <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>{searchQuery ? 'No cleared payments match your search.' : 'No payments have been confirmed by requesters yet.'}</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {verifiedDisbursements.map((disb) => (
+              {filteredVerifiedDisbursements.map((disb) => (
                 <div
                   key={disb.id}
                   style={{
