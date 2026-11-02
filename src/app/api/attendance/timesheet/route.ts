@@ -189,6 +189,11 @@ export async function GET(request: Request) {
         },
         days,
         records: records.map(serializeAttendanceRecord),
+        today: recordMap.get(todayStr) || null,
+        calendar: {
+          today: recordMap.get(todayStr) || null,
+          days,
+        },
       });
     }
 

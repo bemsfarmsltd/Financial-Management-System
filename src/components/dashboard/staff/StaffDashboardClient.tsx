@@ -280,8 +280,14 @@ export function StaffDashboardClient({
         }
       }
 
-      if (attRes?.calendar?.today) {
-        setTodayAttendance(attRes.calendar.today);
+      if (attRes) {
+        const todayPrefix = new Date().toISOString().split('T')[0];
+        const match =
+          attRes.today ||
+          attRes.calendar?.today ||
+          (attRes.records && attRes.records.find((r: any) => r.workDate === todayPrefix)) ||
+          (attRes.days && attRes.days.find((d: any) => d.date === todayPrefix && (d.checkInTime || d.status !== 'UPCOMING')));
+        setTodayAttendance(match || null);
       }
     } catch (err) {
       console.error('Failed to load staff data:', err);
@@ -302,7 +308,16 @@ export function StaffDashboardClient({
       const res = await fetch(`/api/attendance/timesheet?employeeId=${user.id}&month=${m}&year=${y}`);
       if (res.ok) {
         const data = await res.json();
-        setAttendanceData(data?.calendar || null);
+        setAttendanceData(data?.calendar || data || null);
+        const todayPrefix = new Date().toISOString().split('T')[0];
+        const match =
+          data.today ||
+          data.calendar?.today ||
+          (data.records && data.records.find((r: any) => r.workDate === todayPrefix)) ||
+          (data.days && data.days.find((d: any) => d.date === todayPrefix && (d.checkInTime || d.status !== 'UPCOMING')));
+        if (match) {
+          setTodayAttendance(match);
+        }
       }
     } catch (err) {
       console.error('Error fetching attendance:', err);
@@ -326,6 +341,33 @@ export function StaffDashboardClient({
 
   // Requisition chart toggle: 'Category' | 'Status'
   const [requisitionChartMetric, setRequisitionChartMetric] = useState<'Category' | 'Status'>('Category');
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    try {
+      setSigningOut(true);
+      if (typeof document !== 'undefined') {
+        document.cookie = 'bems_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Max-Age=0;';
+        document.cookie = 'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Max-Age=0;';
+      }
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+      }
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      if (typeof window !== 'undefined') {
+        window.location.replace('/');
+      }
+    }
+  };
 
   // Active advances requiring accountability (Disbursed advances not yet verified/closed by Finance)
   const activeAdvanceCases = useMemo(() => {
@@ -1052,14 +1094,15 @@ export function StaffDashboardClient({
             </button>
 
             {/* Sign Out */}
-            <Link
-              href="/finance"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all"
+            <button
+              onClick={handleSignOut}
+              disabled={signingOut}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
               title="Sign Out"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Sign Out</span>
-            </Link>
+              <span>{signingOut ? 'Signing Out...' : 'Sign Out'}</span>
+            </button>
           </div>
         </div>
       </header>
@@ -2494,13 +2537,14 @@ export function StaffDashboardClient({
 
               {/* 7. LOGOUT (Exact Flutter Outlined Red Button) */}
               <div className="pt-2">
-                <Link
-                  href="/finance"
-                  className="w-full py-3.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 font-extrabold text-xs rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm"
+                <button
+                  onClick={handleSignOut}
+                  disabled={signingOut}
+                  className="w-full py-3.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 font-extrabold text-xs rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
                 >
                   <LogOut className="w-4 h-4 text-red-600" />
-                  <span>Sign Out of Staff Workspace</span>
-                </Link>
+                  <span>{signingOut ? 'Signing Out...' : 'Sign Out of Staff Workspace'}</span>
+                </button>
               </div>
             </div>
           )}
