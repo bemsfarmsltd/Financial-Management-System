@@ -43,6 +43,13 @@ export default async function StaffPage() {
         employeeNumber: true,
         phone: true,
         avatarUrl: true,
+        gender: true,
+        dateOfBirth: true,
+        residentialAddress: true,
+        cityState: true,
+        jobTitle: true,
+        employmentType: true,
+        resumptionDate: true,
         bankName: true,
         accountNumber: true,
         accountName: true,
@@ -54,6 +61,10 @@ export default async function StaffPage() {
         maritalStatus: true,
         stateOfOrigin: true,
         lga: true,
+        nextOfKinName: true,
+        nextOfKinPhone: true,
+        nextOfKinRelationship: true,
+        nextOfKinAddress: true,
         assignments: {
           where: { status: 'ACTIVE' },
           select: {
@@ -76,7 +87,7 @@ export default async function StaffPage() {
   const primaryAssignment: any = currentStaff?.assignments?.find((a: any) => a.isPrimary) || currentStaff?.assignments?.[0] || assignment;
   const staffSubsidiary = primaryAssignment?.subsidiary?.legalName || businessName;
   const staffDepartment = primaryAssignment?.department?.name || 'General Operations';
-  const staffPosition = primaryAssignment?.positionName || 'Staff Personnel';
+  const staffPosition = primaryAssignment?.positionName || currentStaff?.jobTitle || 'Staff Personnel';
 
   const staffUser = {
     id: actor.id,
@@ -95,8 +106,21 @@ export default async function StaffPage() {
     jobTitle: staffPosition,
     department: staffDepartment,
     subsidiary: staffSubsidiary,
-    workLocation: currentStaff?.workLocation || 'LAGOS_HQ',
-    staffGrade: currentStaff?.staffGrade || 'OFFICER',
+    workLocation: currentStaff?.workLocation || 'Oyo Logistics & Farm Hub',
+    staffGrade: currentStaff?.staffGrade || 'Level 06 - Operational Specialist',
+    employmentType: currentStaff?.employmentType || 'FULL_TIME',
+    resumptionDate: currentStaff?.resumptionDate ? new Date(currentStaff.resumptionDate).toISOString().split('T')[0] : '2026-10-28',
+    gender: currentStaff?.gender || 'FEMALE',
+    dateOfBirth: currentStaff?.dateOfBirth || '2002-05-12',
+    residentialAddress: currentStaff?.residentialAddress || 'Oyo Central Base',
+    cityState: currentStaff?.cityState || 'Oyo State',
+    maritalStatus: currentStaff?.maritalStatus || 'SINGLE',
+    stateOfOrigin: currentStaff?.stateOfOrigin || 'Oyo State',
+    lga: currentStaff?.lga || 'Ibadan North',
+    nextOfKinName: currentStaff?.nextOfKinName || '',
+    nextOfKinPhone: currentStaff?.nextOfKinPhone || '',
+    nextOfKinRelationship: currentStaff?.nextOfKinRelationship || '',
+    nextOfKinAddress: currentStaff?.nextOfKinAddress || '',
   };
 
   return (

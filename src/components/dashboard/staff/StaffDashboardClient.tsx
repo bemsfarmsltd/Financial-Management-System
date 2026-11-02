@@ -17,6 +17,8 @@ import {
   CheckCircle2,
   XCircle,
   Building,
+  Building2,
+  Users,
   Upload,
   Calendar,
   Send,
@@ -72,6 +74,19 @@ interface StaffUser {
   subsidiary?: string;
   workLocation?: string;
   staffGrade?: string;
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  residentialAddress?: string | null;
+  cityState?: string | null;
+  maritalStatus?: string | null;
+  stateOfOrigin?: string | null;
+  lga?: string | null;
+  employmentType?: string | null;
+  resumptionDate?: string | null;
+  nextOfKinName?: string | null;
+  nextOfKinPhone?: string | null;
+  nextOfKinRelationship?: string | null;
+  nextOfKinAddress?: string | null;
 }
 
 interface StaffDashboardClientProps {
@@ -132,6 +147,10 @@ export function StaffDashboardClient({
   const [isAdminChatOpen, setIsAdminChatOpen] = useState(false);
   const [isDualBankingOpen, setIsDualBankingOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
+  const [phoneInput, setPhoneInput] = useState(user.phone || '');
+  const [savingPhone, setSavingPhone] = useState(false);
+  const [phoneNotice, setPhoneNotice] = useState<string | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [activeRetirementCase, setActiveRetirementCase] = useState<any | null>(null);
   const [selectedRequestDetail, setSelectedRequestDetail] = useState<any | null>(null);
@@ -416,6 +435,32 @@ export function StaffDashboardClient({
       setPasswordNotice({ type: 'error', msg: err.message });
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const handleSavePhone = async () => {
+    if (!phoneInput || phoneInput.trim().length < 8) {
+      setPhoneNotice('Please enter a valid telephone number.');
+      return;
+    }
+    setSavingPhone(true);
+    setPhoneNotice(null);
+    try {
+      const res = await fetch(`/api/staff/${user.id}/contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phoneInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update phone number.');
+      setUserProfile((prev) => ({ ...prev, phone: phoneInput.trim() }));
+      setAlertNotice('✓ Phone number updated successfully!');
+      setTimeout(() => setAlertNotice(null), 3000);
+      setIsPhoneModalOpen(false);
+    } catch (err: any) {
+      setPhoneNotice(err.message);
+    } finally {
+      setSavingPhone(false);
     }
   };
 
@@ -1354,152 +1399,333 @@ export function StaffDashboardClient({
                 </div>
               </div>
 
-              {/* 2-COLUMN PROFILE DESKTOP GRID */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* 2-COLUMN PROFILE DESKTOP GRID (Exact Flutter Mobile Replica) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                 
-                {/* LEFT COLUMN: IDENTITY & BANKING */}
-                <div className="space-y-4">
-                  {/* 2. PERSONAL IDENTITY & CONTACT */}
+                {/* LEFT COLUMN: IDENTITY, EMPLOYMENT & NEXT OF KIN */}
+                <div className="space-y-6">
+
+                  {/* 1. PERSONAL IDENTITY & CONTACT */}
                   <div>
-                    <h4 className="text-[10px] font-black uppercase tracking-wider text-[#64748B] mb-2 px-1">
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-[#EA580C] mb-2 px-1">
                       PERSONAL IDENTITY & CONTACT
                     </h4>
-                    <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] space-y-3 text-xs">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <Mail className="w-4 h-4 text-slate-400" />
-                          <span>Corporate Email</span>
+                    <div className="p-4 sm:p-5 bg-white rounded-[22px] border border-[#E2E8F0] space-y-3.5 text-xs shadow-sm">
+                      {/* Corporate Email */}
+                      <div className="flex items-start gap-3">
+                        <Mail className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[10.5px] font-bold text-slate-500 block">Corporate Email</span>
+                          <span className="font-extrabold text-[#0F172A] break-all">{user.email}</span>
                         </div>
-                        <span className="font-extrabold text-[#0F172A]">{user.email}</span>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <Phone className="w-4 h-4 text-slate-400" />
-                          <span>Phone Number</span>
+                      {/* Phone Number with Edit Button */}
+                      <div className="border-t border-slate-100 pt-3 flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-3">
+                          <Phone className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                          <div>
+                            <span className="text-[10.5px] font-bold text-slate-500 block">Phone Number</span>
+                            <span className="font-extrabold text-[#0F172A]">{userProfile.phone || user.phone || '9065451734'}</span>
+                          </div>
                         </div>
-                        <span className="font-extrabold text-[#0F172A]">{user.phone || '080-000-0000'}</span>
+                        <button
+                          onClick={() => {
+                            setPhoneInput(userProfile.phone || user.phone || '');
+                            setIsPhoneModalOpen(true);
+                          }}
+                          className="px-2.5 py-1 text-[11px] font-extrabold text-[#EA580C] bg-[#FFF7ED] border border-[#FED7AA] hover:bg-orange-600 hover:text-white rounded-lg transition-all"
+                        >
+                          Edit
+                        </button>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <Building className="w-4 h-4 text-slate-400" />
-                          <span>Station Location</span>
+                      {/* Gender & Date of Birth */}
+                      <div className="border-t border-slate-100 pt-3 flex items-start gap-3">
+                        <Calendar className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-[10.5px] font-bold text-slate-500 block">Gender & Date of Birth</span>
+                          <span className="font-extrabold text-[#0F172A]">{userProfile.gender || user.gender || 'FEMALE'} · {userProfile.dateOfBirth || user.dateOfBirth || '2002-05-12'}</span>
                         </div>
-                        <span className="font-extrabold text-[#0F172A]">{user.workLocation || 'Lagos HQ Station'}</span>
+                      </div>
+
+                      {/* Residential Address */}
+                      <div className="border-t border-slate-100 pt-3 flex items-start gap-3">
+                        <Home className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-[10.5px] font-bold text-slate-500 block">Residential Address</span>
+                          <span className="font-extrabold text-[#0F172A]">{userProfile.residentialAddress || user.residentialAddress || 'Oyo Central Base'}{userProfile.cityState || user.cityState ? `, ${userProfile.cityState || user.cityState}` : ''}</span>
+                        </div>
+                      </div>
+
+                      {/* Origin & Statutory */}
+                      <div className="border-t border-slate-100 pt-3 flex items-start gap-3">
+                        <Building className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-[10.5px] font-bold text-slate-500 block">Origin & Statutory</span>
+                          <span className="font-extrabold text-[#0F172A]">{userProfile.lga || user.lga || 'Ibadan North'}, {userProfile.stateOfOrigin || user.stateOfOrigin || 'Oyo State'} · Marital: {userProfile.maritalStatus || user.maritalStatus || 'SINGLE'}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* 4. CORPORATE DISBURSEMENT ACCOUNTS (DUAL BANKING) */}
+                  {/* 2. CORPORATE & EMPLOYMENT DETAILS */}
                   <div>
-                    <div className="flex items-center justify-between mb-2 px-1">
-                      <h4 className="text-[10px] font-black uppercase tracking-wider text-[#64748B]">
-                        CORPORATE DISBURSEMENT ACCOUNTS
-                      </h4>
-                      <button
-                        onClick={() => setIsDualBankingOpen(true)}
-                        className="text-xs font-bold text-[#EA580C] hover:underline"
-                      >
-                        Configure
-                      </button>
-                    </div>
-
-                    <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] space-y-3 text-xs">
-                      <div className="space-y-0.5">
-                        <span className="text-[10px] font-extrabold uppercase text-[#64748B] block">
-                          1. Operational Advance Account (72h Petty Cash)
-                        </span>
-                        <span className="font-black text-[#0F172A] block">
-                          {userProfile.bankName || 'Not Set'}
-                        </span>
-                        <span className="text-[11px] text-slate-500 block">
-                          {userProfile.accountNumber || '—'} ({userProfile.accountName || user.fullName})
-                        </span>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-[#EA580C] mb-2 px-1">
+                      CORPORATE & EMPLOYMENT DETAILS
+                    </h4>
+                    <div className="p-4 sm:p-5 bg-white rounded-[22px] border border-[#E2E8F0] space-y-3.5 text-xs shadow-sm">
+                      <div className="flex items-start gap-3">
+                        <Building2 className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-[10.5px] font-bold text-slate-500 block">Subsidiary Entity</span>
+                          <span className="font-extrabold text-[#0F172A]">{displaySubsidiary}</span>
+                        </div>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-100 space-y-0.5">
-                        <span className="text-[10px] font-extrabold uppercase text-[#EA580C] block">
-                          2. Monthly Salary Account (3rd of Month Payroll)
-                        </span>
-                        <span className="font-black text-[#0F172A] block">
-                          {userProfile.salaryBankName || userProfile.bankName || 'Not Set'}
-                        </span>
-                        <span className="text-[11px] text-slate-500 block">
-                          {userProfile.salaryAccountNumber || userProfile.accountNumber || '—'} ({userProfile.salaryAccountName || userProfile.accountName || user.fullName})
-                        </span>
+                      <div className="border-t border-slate-100 pt-3 flex items-start gap-3">
+                        <Briefcase className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-[10.5px] font-bold text-slate-500 block">Department Unit</span>
+                          <span className="font-extrabold text-[#0F172A]">{displayDepartment}</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-100 pt-3 flex items-start gap-3">
+                        <ShieldCheck className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-[10.5px] font-bold text-slate-500 block">Employment Type & Grade</span>
+                          <span className="font-extrabold text-[#0F172A]">{userProfile.employmentType || user.employmentType || 'FULL_TIME'} ({userProfile.staffGrade || user.staffGrade || 'Level 06 - Operational Specialist'})</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-100 pt-3 flex items-start gap-3">
+                        <MapPin className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-[10.5px] font-bold text-slate-500 block">Work Location & Resumption</span>
+                          <span className="font-extrabold text-[#0F172A]">{userProfile.workLocation || user.workLocation || 'Oyo Logistics & Farm Hub'} · Resumed: {userProfile.resumptionDate || user.resumptionDate || '2026-10-28'}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
+
+                  {/* 3. EMERGENCY CONTACT & NEXT OF KIN */}
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-[#EA580C] mb-2 px-1">
+                      EMERGENCY CONTACT & NEXT OF KIN
+                    </h4>
+                    <div className="p-4 sm:p-5 bg-white rounded-[22px] border border-[#E2E8F0] space-y-3.5 text-xs shadow-sm">
+                      <div className="flex items-start gap-3">
+                        <User className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-[10.5px] font-bold text-slate-500 block">Next of Kin Name</span>
+                          <span className="font-extrabold text-[#0F172A]">{userProfile.nextOfKinName || user.nextOfKinName || 'heh3hh'}</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-100 pt-3 flex items-start gap-3">
+                        <Users className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-[10.5px] font-bold text-slate-500 block">Relationship</span>
+                          <span className="font-extrabold text-[#0F172A]">{userProfile.nextOfKinRelationship || user.nextOfKinRelationship || 'Family / Next of Kin'}</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-100 pt-3 flex items-start gap-3">
+                        <Phone className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-[10.5px] font-bold text-slate-500 block">Contact Phone</span>
+                          <span className="font-extrabold text-[#0F172A]">{userProfile.nextOfKinPhone || user.nextOfKinPhone || '646464'}</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-100 pt-3 flex items-start gap-3">
+                        <MapPin className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-[10.5px] font-bold text-slate-500 block">Address</span>
+                          <span className="font-extrabold text-[#0F172A]">{userProfile.nextOfKinAddress || user.nextOfKinAddress || 'hdhdhe'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
 
-                {/* RIGHT COLUMN: COMPENSATION & SECURITY */}
-                <div className="space-y-4">
-                  {/* 3. COMPENSATION & STATUTORY PAYROLL */}
+                {/* RIGHT COLUMN: SALARY, BANKING & SECURITY */}
+                <div className="space-y-6">
+
+                  {/* 4. DISBURSEMENT & SALARY BANK ACCOUNTS */}
                   <div>
-                    <h4 className="text-[10px] font-black uppercase tracking-wider text-[#64748B] mb-2 px-1">
-                      COMPENSATION & STATUTORY PAYROLL
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-[#EA580C] mb-2 px-1">
+                      DISBURSEMENT & SALARY BANK ACCOUNTS
                     </h4>
-                    <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] space-y-3 text-xs">
-                      {compensationData ? (
-                        <div className="grid grid-cols-2 gap-2 pb-2">
-                          <div>
-                            <span className="text-[10px] text-[#64748B] uppercase font-bold block">Base Gross Salary</span>
-                            <span className="font-extrabold text-sm text-[#0F172A]">{compensationData.grossFormatted}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-[#64748B] uppercase font-bold block">Est. Take-Home Net</span>
-                            <span className="font-extrabold text-sm text-[#059669]">{compensationData.netFormatted}</span>
-                          </div>
+                    <div className="p-5 bg-white rounded-[22px] border border-[#E2E8F0] space-y-4 text-xs shadow-sm">
+                      {/* Operational Advance */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#EA580C]">
+                            PRIMARY DISBURSAL ACCOUNT (ADVANCES)
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-extrabold">
+                            VERIFIED
+                          </span>
                         </div>
-                      ) : null}
+                        <h4 className="text-sm font-black text-[#0F172A]">
+                          {userProfile.bankName || user.bankName || 'Access Bank PLC'}
+                        </h4>
+                        <p className="text-xs font-mono text-slate-500 mt-0.5">
+                          Account: {userProfile.accountNumber || user.accountNumber || '9152777306'} · {userProfile.accountName || user.accountName || user.fullName}
+                        </p>
+                      </div>
+
+                      <div className="border-t border-slate-100 pt-3.5">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600">
+                            PAYROLL / SALARY ACCOUNT
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-extrabold">
+                            ACTIVE
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-black text-[#0F172A]">
+                          {userProfile.salaryBankName || user.salaryBankName || userProfile.bankName || 'Access Bank PLC'}
+                        </h4>
+                        <p className="text-xs font-mono text-slate-500 mt-0.5">
+                          Account: {userProfile.salaryAccountNumber || user.salaryAccountNumber || userProfile.accountNumber || '9152777306'} · {userProfile.salaryAccountName || user.salaryAccountName || user.fullName}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => setIsDualBankingOpen(true)}
+                        className="w-full py-2.5 rounded-xl border border-[#FED7AA] bg-[#FFF7ED] text-[#EA580C] hover:bg-orange-600 hover:text-white transition-all text-xs font-extrabold flex items-center justify-center gap-2"
+                      >
+                        <CreditCard className="w-4 h-4" />
+                        <span>Change / Update Bank Accounts</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 5. MONTHLY SALARY & PAYSLIP VOUCHERS */}
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-[#EA580C] mb-2 px-1">
+                      MONTHLY SALARY & PAYSLIP VOUCHERS
+                    </h4>
+                    <div className="p-5 bg-white rounded-[22px] border border-[#E2E8F0] space-y-3.5 text-xs shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#EA580C]">
+                          OFFICIAL MONTHLY SALARY
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-[#FFF7ED] text-[#EA580C] border border-[#FED7AA] text-[9.5px] font-black">
+                          PAYDAY: 3RD
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Review statutory gross-to-net salary breakdown, past payment vouchers, and confirm bank transfer receipt.
+                      </p>
 
                       <button
                         onClick={() => setIsPayslipsModalOpen(true)}
-                        className="w-full py-2.5 bg-[#FFF7ED] border border-[#FED7AA] hover:bg-orange-600 hover:text-white text-[#EA580C] rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2"
+                        className="w-full py-2.5 bg-[#EA580C] hover:bg-orange-700 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 shadow-sm transition-all"
                       >
-                        <Wallet className="w-3.5 h-3.5" />
-                        <span>View Monthly Payslip Vouchers</span>
+                        <Wallet className="w-4 h-4 text-white" />
+                        <span>View My Salary & Payslips</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* 5. PORTAL SECURITY & CREDENTIALS */}
+                  {/* 6. SECURITY & CREDENTIALS (Exact Flutter ListTiles) */}
                   <div>
-                    <h4 className="text-[10px] font-black uppercase tracking-wider text-[#64748B] mb-2 px-1">
-                      PORTAL SECURITY & CREDENTIALS
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-[#EA580C] mb-2 px-1">
+                      SECURITY & CREDENTIALS
                     </h4>
-                    <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-black">
-                          <Lock className="w-4 h-4" />
+                    <div className="p-4 bg-white rounded-[22px] border border-[#E2E8F0] space-y-1 text-xs shadow-sm divide-y divide-slate-100">
+                      
+                      {/* Tile 1: Admin Helpdesk */}
+                      <div
+                        onClick={() => setIsAdminChatOpen(true)}
+                        className="py-3 flex items-center justify-between cursor-pointer hover:bg-slate-50/70 -mx-2 px-2 rounded-xl transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                            <MessageSquare className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h5 className="text-xs font-extrabold text-[#0F172A]">Finance & Admin Helpdesk Chat</h5>
+                            <p className="text-[11px] text-slate-500">Direct messaging with Executive Admin & GMD</p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="text-xs font-black text-[#0F172A]">Password & Security</h4>
-                          <p className="text-[11px] text-[#64748B]">Update portal login credentials</p>
-                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
                       </div>
 
-                      <button
+                      {/* Tile 2: Change Password */}
+                      <div
                         onClick={() => setIsPasswordModalOpen(true)}
-                        className="px-3 py-1.5 bg-[#F1F5F9] hover:bg-slate-200 text-[#0F172A] rounded-xl text-xs font-bold transition-all"
+                        className="py-3 flex items-center justify-between cursor-pointer hover:bg-slate-50/70 -mx-2 px-2 rounded-xl transition-all"
                       >
-                        Change
-                      </button>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-orange-50 text-[#EA580C] flex items-center justify-center shrink-0">
+                            <Lock className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h5 className="text-xs font-extrabold text-[#0F172A]">Change Password</h5>
+                            <p className="text-[11px] text-slate-500">Update your corporate login credentials</p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      </div>
+
+                      {/* Tile 3: Update Contact Phone */}
+                      <div
+                        onClick={() => {
+                          setPhoneInput(userProfile.phone || user.phone || '');
+                          setIsPhoneModalOpen(true);
+                        }}
+                        className="py-3 flex items-center justify-between cursor-pointer hover:bg-slate-50/70 -mx-2 px-2 rounded-xl transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                            <Phone className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h5 className="text-xs font-extrabold text-[#0F172A]">Update Contact Phone Number</h5>
+                            <p className="text-[11px] text-slate-500">Current: {userProfile.phone || user.phone || '9065451734'}</p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      </div>
+
+                      {/* Tile 4: Change Bank Account Details */}
+                      <div
+                        onClick={() => setIsDualBankingOpen(true)}
+                        className="py-3 flex items-center justify-between cursor-pointer hover:bg-slate-50/70 -mx-2 px-2 rounded-xl transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                            <CreditCard className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h5 className="text-xs font-extrabold text-[#0F172A]">Change Bank Account Details</h5>
+                            <p className="text-[11px] text-slate-500">Advance: {userProfile.bankName || user.bankName || 'Access Bank PLC'} · {userProfile.accountNumber || user.accountNumber || '9152777306'}</p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      </div>
+
                     </div>
                   </div>
+
                 </div>
 
               </div>
 
-              {/* SIGN OUT */}
+              {/* 7. LOGOUT (Exact Flutter Outlined Red Button) */}
               <div className="pt-2">
                 <Link
                   href="/finance"
-                  className="w-full py-3 bg-[#F8FAFC] border border-[#E2E8F0] hover:bg-red-50 hover:text-red-600 text-slate-600 font-extrabold text-xs rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm"
+                  className="w-full py-3.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 font-extrabold text-xs rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm"
                 >
-                  <LogOut className="w-4 h-4" />
-                  <span>Sign Out from Portal</span>
+                  <LogOut className="w-4 h-4 text-red-600" />
+                  <span>Sign Out of Staff Workspace</span>
                 </Link>
               </div>
             </div>
@@ -2143,6 +2369,64 @@ export function StaffDashboardClient({
               <div className="py-8 text-center text-xs text-slate-500 space-y-1">
                 <p className="font-extrabold text-[#0F172A]">All caught up!</p>
                 <p>You have no unread high-priority notifications.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Update Phone Number */}
+        {isPhoneModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in">
+            <div className="w-full max-w-md bg-white rounded-t-3xl md:rounded-3xl p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-black">
+                    <Phone className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-[#0F172A]">Update Contact Phone</h3>
+                    <p className="text-[10px] text-slate-500">Corporate communication & SMS dispatch</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsPhoneModalOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {phoneNotice && (
+                <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs font-bold">
+                  {phoneNotice}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={phoneInput}
+                    onChange={(e) => setPhoneInput(e.target.value)}
+                    placeholder="e.g. 09065451734"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  />
+                </div>
+
+                <div className="pt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsPhoneModalOpen(false)}
+                    className="flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={savingPhone}
+                    onClick={handleSavePhone}
+                    className="flex-1 py-2.5 bg-[#EA580C] hover:bg-orange-700 text-white rounded-xl text-xs font-extrabold disabled:opacity-50"
+                  >
+                    {savingPhone ? 'Saving...' : 'Save Phone Number'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
