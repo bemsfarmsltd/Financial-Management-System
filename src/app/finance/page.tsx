@@ -2816,6 +2816,23 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
   const activeScope = isGroupScope ? 'ALL' : ((current as any).code || current.id);
   const activeBrandColor = current.brandColor || current.color || (isGroupScope ? '#ea580c' : '#0d8a70');
   const activeLogoUrl = current.logoUrl || (isGroupScope ? '/bems-group-logo.png?v=20261024' : null);
+
+  // Compute complementary tint and shade for seamless gradient cards across the entire dashboard
+  const brandHex = (activeBrandColor || '#ea580c').replace('#', '');
+  const rVal = parseInt(brandHex.length === 3 ? brandHex[0] + brandHex[0] : brandHex.slice(0, 2), 16) || 234;
+  const gVal = parseInt(brandHex.length === 3 ? brandHex[1] + brandHex[1] : brandHex.slice(2, 4), 16) || 88;
+  const bVal = parseInt(brandHex.length === 3 ? brandHex[2] + brandHex[2] : brandHex.slice(4, 6), 16) || 12;
+
+  const tintR = Math.min(255, Math.round(rVal + (255 - rVal) * 0.28));
+  const tintG = Math.min(255, Math.round(gVal + (255 - gVal) * 0.28));
+  const tintB = Math.min(255, Math.round(bVal + (255 - bVal) * 0.28));
+  const activeTintHex = `#${tintR.toString(16).padStart(2, '0')}${tintG.toString(16).padStart(2, '0')}${tintB.toString(16).padStart(2, '0')}`;
+
+  const shadeR = Math.max(0, Math.round(rVal * 0.76));
+  const shadeG = Math.max(0, Math.round(gVal * 0.76));
+  const shadeB = Math.max(0, Math.round(bVal * 0.76));
+  const activeShadeHex = `#${shadeR.toString(16).padStart(2, '0')}${shadeG.toString(16).padStart(2, '0')}${shadeB.toString(16).padStart(2, '0')}`;
+
   const isAiOnly = (safeUser.role as string) === 'AI_ANALYST';
   const [currentRole, setCurrentRole] = useState<SystemRole>((safeUser.role as SystemRole) || 'GMD');
   const isStaff = (currentRole as string) === 'STAFF' || (safeUser.role as string) === 'STAFF';
@@ -2833,6 +2850,94 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
     return 'Overview';
   });
   const [collapsed, setCollapsed] = useState(false);
+
+  // Real-time DOM theme reconciler: guarantees that any module or modal rendered in .app-shell / body adopts the active subsidiary brand color
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const reconcileSubsidiaryTheme = () => {
+      const container = document.querySelector('.app-shell') || document.body;
+      if (!container) return;
+
+      const elements = container.querySelectorAll<HTMLElement>('*');
+      elements.forEach((el) => {
+        // Skip sidebar brand switch master group icon if in group view
+        if (el.closest('.switch-menu') && el.textContent?.includes('MASTER CONGLOMERATE')) return;
+
+        // Color
+        const color = el.style.color;
+        if (color === 'rgb(234, 88, 12)' || color === '#ea580c' || color === 'rgb(249, 115, 22)' || color === '#f97316' || color === '#c2410c') {
+          el.style.color = activeBrandColor;
+        }
+
+        // Borders
+        const border = el.style.border;
+        const borderColor = el.style.borderColor;
+        const borderBottom = el.style.borderBottom;
+        const borderLeft = el.style.borderLeft;
+
+        if (borderColor === 'rgb(234, 88, 12)' || borderColor === '#ea580c' || borderColor === 'rgb(249, 115, 22)' || borderColor === '#f97316') {
+          el.style.borderColor = activeBrandColor;
+        }
+        if (border && (border.includes('234, 88, 12') || border.includes('#ea580c') || border.includes('249, 115, 22') || border.includes('#f97316'))) {
+          el.style.borderColor = activeBrandColor;
+        }
+        if (borderBottom && (borderBottom.includes('234, 88, 12') || borderBottom.includes('#ea580c') || borderBottom.includes('249, 115, 22') || borderBottom.includes('#f97316'))) {
+          el.style.borderBottomColor = activeBrandColor;
+        }
+        if (borderLeft && (borderLeft.includes('249, 115, 22') || borderLeft.includes('234, 88, 12') || borderLeft.includes('#f97316') || borderLeft.includes('#ea580c'))) {
+          el.style.borderLeftColor = activeBrandColor;
+        }
+
+        // Backgrounds
+        const bg = el.style.background;
+        const bgColor = el.style.backgroundColor;
+
+        if (bg) {
+          if (bg.includes('249, 115, 22') || bg.includes('234, 88, 12') || bg.includes('#f97316') || bg.includes('#ea580c') || bg.includes('linear-gradient(135deg, #f97316')) {
+            el.style.background = `linear-gradient(135deg, ${activeTintHex} 0%, ${activeBrandColor} 100%)`;
+            el.style.boxShadow = `0 4px 16px ${activeBrandColor}35`;
+          } else if (bg.includes('255, 247, 237') || bg.includes('#fff7ed') || bg.includes('#ffedd5') || bg.includes('#fed7aa')) {
+            el.style.background = `${activeBrandColor}14`;
+          }
+        }
+        if (bgColor === 'rgb(234, 88, 12)' || bgColor === '#ea580c' || bgColor === 'rgb(249, 115, 22)' || bgColor === '#f97316') {
+          el.style.backgroundColor = activeBrandColor;
+        } else if (bgColor === 'rgb(255, 247, 237)' || bgColor === '#fff7ed' || bgColor === 'rgb(255, 237, 213)' || bgColor === '#ffedd5' || bgColor === '#fed7aa') {
+          el.style.backgroundColor = `${activeBrandColor}14`;
+        }
+
+        // SVG icons and paths
+        const tag = el.tagName.toLowerCase();
+        if (tag === 'svg' || tag === 'path' || tag === 'circle' || tag === 'line' || tag === 'rect' || tag === 'polygon') {
+          const stroke = el.getAttribute('stroke');
+          const fill = el.getAttribute('fill');
+          const svgColor = el.getAttribute('color');
+          if (stroke === '#ea580c' || stroke === '#f97316' || stroke === 'rgb(234, 88, 12)' || stroke === 'rgb(249, 115, 22)') {
+            el.setAttribute('stroke', activeBrandColor);
+          }
+          if (fill === '#ea580c' || fill === '#f97316' || fill === 'rgb(234, 88, 12)' || fill === 'rgb(249, 115, 22)') {
+            el.setAttribute('fill', activeBrandColor);
+          }
+          if (svgColor === '#ea580c' || svgColor === '#f97316' || svgColor === 'rgb(234, 88, 12)' || svgColor === 'rgb(249, 115, 22)') {
+            el.setAttribute('color', activeBrandColor);
+          }
+        }
+      });
+    };
+
+    reconcileSubsidiaryTheme();
+
+    const observer = new MutationObserver(() => {
+      reconcileSubsidiaryTheme();
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [activeBrandColor, active, activeTintHex]);
   const [allowAiAnalystChat, setAllowAiAnalystChat] = useState(true);
 
   // Live workspace-scoped notifications
@@ -3357,12 +3462,19 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
       }}
     >
       <style>{`
-        :root, .app-shell {
+        :root, .app-shell, body {
           --brand-primary: ${activeBrandColor} !important;
+          --brand-gradient: linear-gradient(135deg, ${activeTintHex} 0%, ${activeBrandColor} 100%) !important;
+          --brand-shadow-color: ${activeBrandColor}40 !important;
+          --brand-soft: ${activeBrandColor}14 !important;
+          --brand-light: ${activeBrandColor}28 !important;
+          --brand-border: ${activeBrandColor}55 !important;
+          --blue: ${activeBrandColor} !important;
+          --purple: ${activeBrandColor} !important;
           --electric: ${activeBrandColor} !important;
           --orange: ${activeBrandColor} !important;
           --orange-dark: ${activeBrandColor} !important;
-          --orange-soft: ${activeBrandColor}18 !important;
+          --orange-soft: ${activeBrandColor}14 !important;
           --orange-light: ${activeBrandColor}28 !important;
         }
         .nav-item.active {
@@ -3370,7 +3482,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
           box-shadow: inset 3px 0 #ffffff, 0 6px 16px ${activeBrandColor}40 !important;
         }
         .primary-button, .continue-button {
-          background: linear-gradient(135deg, ${activeBrandColor}, ${activeBrandColor}dd) !important;
+          background: linear-gradient(135deg, ${activeTintHex} 0%, ${activeBrandColor} 100%) !important;
           box-shadow: 0 8px 18px ${activeBrandColor}33 !important;
         }
         .outline-button {
@@ -3391,6 +3503,23 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
         }
         .brand-sub {
           color: ${activeBrandColor} !important;
+        }
+        .workspace [style*="#ea580c"],
+        .workspace [style*="#f97316"],
+        .workspace [style*="rgb(234, 88, 12)"],
+        .workspace [style*="rgb(249, 115, 22)"] {
+          color: ${activeBrandColor} !important;
+          border-color: ${activeBrandColor} !important;
+        }
+        .workspace [style*="background: #ea580c"],
+        .workspace [style*="background: #f97316"],
+        .workspace [style*="background:#ea580c"],
+        .workspace [style*="background:#f97316"] {
+          background: ${activeBrandColor} !important;
+        }
+        .workspace [style*="linear-gradient(135deg, #f97316"],
+        .workspace [style*="linear-gradient(135deg, #ea580c"] {
+          background: linear-gradient(135deg, ${activeTintHex} 0%, ${activeBrandColor} 100%) !important;
         }
       `}</style>
       <main className={shellClass}>

@@ -123,12 +123,12 @@ export function RequestsInventoryClient({
             padding: '10px 18px',
             borderRadius: 8,
             border: 'none',
-            background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+            background: 'var(--brand-gradient, linear-gradient(135deg, #ea580c 0%, #c2410c 100%))',
             color: '#ffffff',
             fontSize: 13,
             fontWeight: 700,
             cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+            boxShadow: '0 2px 8px var(--brand-shadow-color, rgba(234, 88, 12, 0.25))',
           }}
         >
           <span>＋</span> Submit New Fund Request

@@ -81,17 +81,17 @@ export function FundFlowWorkspace({
         onClick={() => setStage(next)}
         style={{
           display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', width: '100%', minHeight: 76,
-          border: selected ? '2px solid #ea580c' : '1px solid #dbe4ef', borderRadius: 10,
-          background: selected ? '#fff7ed' : '#fff', padding: '12px 14px', cursor: 'pointer',
-          boxShadow: selected ? '0 0 0 2px rgba(234,88,12,.15)' : 'none',
+          border: selected ? '2px solid var(--brand-primary, #0d8a70)' : '1px solid #dbe4ef', borderRadius: 10,
+          background: selected ? 'var(--brand-soft, rgba(13, 138, 112, 0.12))' : '#fff', padding: '12px 14px', cursor: 'pointer',
+          boxShadow: selected ? '0 0 0 2px var(--brand-shadow-color, rgba(13, 138, 112, 0.15))' : 'none',
         }}
       >
-        <span style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', flex: '0 0 auto', borderRadius: 9, background: selected ? '#ea580c' : '#edf2f8', color: selected ? '#fff' : '#506784' }}>{icon}</span>
+        <span style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', flex: '0 0 auto', borderRadius: 9, background: selected ? 'var(--brand-primary, #0d8a70)' : '#edf2f8', color: selected ? '#fff' : '#506784' }}>{icon}</span>
         <span style={{ minWidth: 0, flex: 1 }}>
           <strong style={{ display: 'block', color: '#172b4d', fontSize: 13 }}>{title}</strong>
           <small style={{ display: 'block', color: '#62748b', fontSize: 11, lineHeight: 1.4, marginTop: 3 }}>{description}</small>
         </span>
-        <span style={{ flex: '0 0 auto', color: selected ? '#ea580c' : '#64748b', fontSize: 11, fontWeight: 700 }}>{countText}</span>
+        <span style={{ flex: '0 0 auto', color: selected ? 'var(--brand-primary, #0d8a70)' : '#64748b', fontSize: 11, fontWeight: 700 }}>{countText}</span>
       </button>
     );
   };

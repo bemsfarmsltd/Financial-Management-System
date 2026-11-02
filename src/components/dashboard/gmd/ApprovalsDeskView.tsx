@@ -586,30 +586,30 @@ export function ApprovalsDeskView({
         <div
           onClick={() => setActiveTab('PENDING')}
           style={{
-            background: activeTab === 'PENDING' ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' : '#fff',
+            background: activeTab === 'PENDING' ? 'var(--brand-gradient, var(--brand-primary, #0d8a70))' : '#fff',
             color: activeTab === 'PENDING' ? '#fff' : '#17253d',
-            border: activeTab === 'PENDING' ? '1px solid #ea580c' : '1px solid #e2e8f0',
+            border: activeTab === 'PENDING' ? '1px solid var(--brand-primary, #0d8a70)' : '1px solid #e2e8f0',
             borderRadius: '10px',
             padding: '10px 14px',
             display: 'flex',
             flexDirection: 'column',
             gap: '6px',
-            boxShadow: activeTab === 'PENDING' ? '0 3px 12px rgba(234,88,12,0.25)' : '0 1px 4px rgba(0,0,0,0.02)',
+            boxShadow: activeTab === 'PENDING' ? '0 3px 12px var(--brand-shadow-color, rgba(0,0,0,0.15))' : '0 1px 4px rgba(0,0,0,0.02)',
             cursor: 'pointer',
             transition: 'all 0.15s ease',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.6px', color: activeTab === 'PENDING' ? '#ffedd5' : '#64748b', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.6px', color: activeTab === 'PENDING' ? 'rgba(255, 255, 255, 0.9)' : '#64748b', textTransform: 'uppercase' }}>
               Awaiting GMD Sign-Off
             </span>
-            <Clock size={13} color={activeTab === 'PENDING' ? '#fed7aa' : '#ea580c'} />
+            <Clock size={13} color={activeTab === 'PENDING' ? '#ffffff' : 'var(--brand-primary, #0d8a70)'} />
           </div>
           <div>
             <strong style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2, display: 'block' }}>
               {summary.totalPendingFormatted}
             </strong>
-            <p style={{ margin: '2px 0 0', fontSize: '10px', color: activeTab === 'PENDING' ? '#ffedd5' : '#64748b' }}>
+            <p style={{ margin: '2px 0 0', fontSize: '10px', color: activeTab === 'PENDING' ? 'rgba(255, 255, 255, 0.9)' : '#64748b' }}>
               {summary.totalPendingCount} active requisitions pending review
             </p>
           </div>
@@ -854,8 +854,8 @@ export function ApprovalsDeskView({
                   style={{
                     background: 'none',
                     border: 'none',
-                    borderBottom: isSelected ? '2px solid #ea580c' : '2px solid transparent',
-                    color: isSelected ? '#ea580c' : '#64748b',
+                    borderBottom: isSelected ? '2px solid var(--brand-primary, #0d8a70)' : '2px solid transparent',
+                    color: isSelected ? 'var(--brand-primary, #0d8a70)' : '#64748b',
                     fontWeight: isSelected ? 700 : 500,
                     fontSize: '10px',
                     padding: '6px 10px 8px',
@@ -869,8 +869,8 @@ export function ApprovalsDeskView({
                   <span>{tab.label}</span>
                   <span
                     style={{
-                      background: isSelected ? '#fff7ed' : '#f1f5f9',
-                      color: isSelected ? '#ea580c' : '#64748b',
+                      background: isSelected ? 'var(--brand-soft, rgba(13, 138, 112, 0.12))' : '#f1f5f9',
+                      color: isSelected ? 'var(--brand-primary, #0d8a70)' : '#64748b',
                       fontSize: '8px',
                       fontWeight: 700,
                       padding: '1px 5px',

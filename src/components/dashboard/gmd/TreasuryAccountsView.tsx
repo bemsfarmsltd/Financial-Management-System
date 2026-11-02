@@ -193,7 +193,7 @@ export function TreasuryAccountsView({
               padding: '6px 12px',
               borderRadius: '6px',
               border: 'none',
-              background: '#ea580c',
+              background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
               fontSize: '11px',
               fontWeight: 700,
               color: '#fff',
@@ -201,7 +201,7 @@ export function TreasuryAccountsView({
               alignItems: 'center',
               gap: '5px',
               cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(234, 88, 12, 0.25)'
+              boxShadow: '0 2px 4px var(--brand-shadow-color, rgba(0, 0, 0, 0.15))'
             }}
           >
             <Plus size={13} />
@@ -254,7 +254,7 @@ export function TreasuryAccountsView({
       {/* TOP 4 KPI CARDS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '16px' }}>
         <div style={{
-          background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+          background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
           borderRadius: '10px',
           padding: '12px 14px',
           color: '#fff',
@@ -263,10 +263,10 @@ export function TreasuryAccountsView({
           justifyContent: 'space-between',
           minHeight: '75px',
           boxSizing: 'border-box',
-          boxShadow: '0 8px 20px rgba(234, 88, 12, 0.22)',
+          boxShadow: '0 8px 20px var(--brand-shadow-color, rgba(0, 0, 0, 0.15))',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.8px', color: '#fed7aa', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.8px', color: 'rgba(255, 255, 255, 0.9)', textTransform: 'uppercase' }}>
               TOTAL LIQUID RESERVES
             </span>
             <Landmark size={12} color="#fed7aa" />
@@ -346,7 +346,7 @@ export function TreasuryAccountsView({
             <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.8px', color: '#64748b', textTransform: 'uppercase' }}>
               LIQUIDITY HEALTH
             </span>
-            <ShieldCheck size={12} color="#ea580c" />
+            <ShieldCheck size={12} color="var(--brand-primary, #0d8a70)" />
           </div>
           <div>
             <div style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
@@ -371,8 +371,8 @@ export function TreasuryAccountsView({
             width: '44px',
             height: '44px',
             borderRadius: '50%',
-            background: '#fff7ed',
-            color: '#ea580c',
+            background: 'var(--brand-soft, rgba(13, 138, 112, 0.12))',
+            color: 'var(--brand-primary, #0d8a70)',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -392,7 +392,7 @@ export function TreasuryAccountsView({
               padding: '8px 16px',
               borderRadius: '8px',
               border: 'none',
-              background: '#ea580c',
+              background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
               color: '#fff',
               fontSize: '12px',
               fontWeight: 700,
@@ -482,7 +482,7 @@ export function TreasuryAccountsView({
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#64748b', marginTop: '10px', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
                   <span>Daily Limit: <strong style={{ color: '#0f172a' }}>{acc.dailyLimitFormatted}</strong></span>
-                  <span>Currency: <strong style={{ color: '#ea580c' }}>{acc.currency}</strong></span>
+                  <span>Currency: <strong style={{ color: 'var(--brand-primary, #0d8a70)' }}>{acc.currency}</strong></span>
                 </div>
               </div>
 
@@ -498,7 +498,7 @@ export function TreasuryAccountsView({
                       background: 'none',
                       fontSize: '10px',
                       fontWeight: 700,
-                      color: '#ea580c',
+                      color: 'var(--brand-primary, #0d8a70)',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -531,11 +531,11 @@ export function TreasuryAccountsView({
             width: '28px',
             height: '28px',
             borderRadius: '6px',
-            background: '#fff7ed',
+            background: 'var(--brand-soft, rgba(13, 138, 112, 0.12))',
             display: 'grid',
             placeItems: 'center',
-            color: '#ea580c',
-            border: '1px solid #fed7aa',
+            color: 'var(--brand-primary, #0d8a70)',
+            border: '1px solid var(--brand-border, rgba(13, 138, 112, 0.3))',
             flexShrink: 0
           }}>
             <ShieldCheck size={16} />
@@ -556,9 +556,9 @@ export function TreasuryAccountsView({
             style={{
               padding: '6px 12px',
               borderRadius: '6px',
-              border: '1px solid #ea580c',
-              background: '#fff7ed',
-              color: '#ea580c',
+              border: '1px solid var(--brand-primary, #0d8a70)',
+              background: 'var(--brand-soft, rgba(13, 138, 112, 0.12))',
+              color: 'var(--brand-primary, #0d8a70)',
               fontSize: '10px',
               fontWeight: 700,
               whiteSpace: 'nowrap',
@@ -796,12 +796,12 @@ export function TreasuryAccountsView({
                     padding: '8px 16px',
                     borderRadius: '6px',
                     border: 'none',
-                    background: '#ea580c',
+                    background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
                     color: '#fff',
                     fontSize: '12px',
                     fontWeight: 700,
                     cursor: 'pointer',
-                    boxShadow: '0 2px 4px rgba(234, 88, 12, 0.25)'
+                    boxShadow: '0 2px 4px var(--brand-shadow-color, rgba(0, 0, 0, 0.15))'
                   }}
                 >
                   {submitting ? 'Saving...' : 'Save Bank Account'}

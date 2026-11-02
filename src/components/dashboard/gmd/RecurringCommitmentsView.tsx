@@ -178,7 +178,7 @@ export function RecurringCommitmentsView({ businessName }: { businessName: strin
           label="ACTIVE RUN-RATE COMMITMENTS"
           value={data ? String(data.summary.approvedCount) : '—'}
           detail={`${data?.summary.pendingCount ?? 0} awaiting executive approval`}
-          icon={<Repeat size={16} color="#ea580c" />}
+          icon={<Repeat size={16} color="var(--brand-primary, #ea580c)" />}
         />
         <Metric
           label="PROJECTED ANNUAL RUN-RATE"
@@ -239,7 +239,7 @@ export function RecurringCommitmentsView({ businessName }: { businessName: strin
           </div>
         ) : loading && !data ? (
           <div style={{ padding: '48px 24px', textAlign: 'center', color: '#64748b', fontSize: 12 }}>
-            <RefreshCw size={24} color="#ea580c" className="animate-spin" style={{ margin: '0 auto 10px', display: 'block' }} />
+            <RefreshCw size={24} color="var(--brand-primary, #0d8a70)" className="animate-spin" style={{ margin: '0 auto 10px', display: 'block' }} />
             Loading recurring expenditure commitments...
           </div>
         ) : filtered.length === 0 ? (
@@ -258,8 +258,8 @@ export function RecurringCommitmentsView({ businessName }: { businessName: strin
                 width: 52,
                 height: 52,
                 borderRadius: 14,
-                background: '#ffedd5',
-                color: '#ea580c',
+                background: 'var(--brand-soft, rgba(13, 138, 112, 0.12))',
+                color: 'var(--brand-primary, #0d8a70)',
                 display: 'grid',
                 placeItems: 'center',
                 margin: '0 auto 12px',
@@ -442,7 +442,7 @@ export function RecurringCommitmentsView({ businessName }: { businessName: strin
               }}
             >
               <div>
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', letterSpacing: '.08em' }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--brand-primary, #0d8a70)', letterSpacing: '.08em' }}>
                   {selectedRequest.requestNumber} · {selectedRequest.subsidiary.legalName}
                 </span>
                 <h2 id="recurring-request-title" style={{ margin: '4px 0 2px', color: '#0f172a', fontSize: 20, fontWeight: 900 }}>
@@ -560,7 +560,7 @@ function StepBadge({ step, title, completed, current }: { step: string; title: s
           height: 20,
           borderRadius: 10,
           margin: '0 auto 4px',
-          background: completed ? '#059669' : current ? '#ea580c' : '#94a3b8',
+          background: completed ? '#059669' : current ? 'var(--brand-primary, #0d8a70)' : '#94a3b8',
           color: '#ffffff',
           fontSize: 10,
           fontWeight: 900,
@@ -575,7 +575,7 @@ function StepBadge({ step, title, completed, current }: { step: string; title: s
           display: 'block',
           fontSize: 10,
           fontWeight: 700,
-          color: completed ? '#065f46' : current ? '#ea580c' : '#64748b',
+          color: completed ? '#065f46' : current ? 'var(--brand-primary, #0d8a70)' : '#64748b',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -643,14 +643,14 @@ function StatusBadge({ text, approved }: { text: string; approved: boolean }) {
   );
 }
 
-const eyebrow: React.CSSProperties = { color: '#ea580c', fontSize: 11, fontWeight: 900, letterSpacing: '1.25px', textTransform: 'uppercase' };
+const eyebrow: React.CSSProperties = { color: 'var(--brand-primary, #0d8a70)', fontSize: 11, fontWeight: 900, letterSpacing: '1.25px', textTransform: 'uppercase' };
 const refreshButton: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', color: '#334155', fontSize: 12, fontWeight: 700, cursor: 'pointer' };
-const primaryButton: React.CSSProperties = { padding: '8px 14px', border: '1px solid #ea580c', borderRadius: 8, background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)' };
+const primaryButton: React.CSSProperties = { padding: '8px 14px', border: '1px solid var(--brand-primary, #0d8a70)', borderRadius: 8, background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px var(--brand-shadow-color, rgba(0, 0, 0, 0.15))' };
 const secondaryButton: React.CSSProperties = { padding: '8px 14px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', color: '#334155', fontSize: 12, fontWeight: 700, cursor: 'pointer' };
 const searchInput: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '8px 10px 8px 32px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 12, color: '#0f172a', background: '#fff' };
 const selectStyle: React.CSSProperties = { minWidth: 160, padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', color: '#0f172a', fontSize: 12, fontWeight: 600 };
 const requestTitle: React.CSSProperties = { display: 'grid', gap: 2, padding: 0, border: 0, background: 'transparent', textAlign: 'left', color: '#0f172a', cursor: 'pointer', font: 'inherit' };
-const openButton: React.CSSProperties = { display: 'grid', placeItems: 'center', width: 30, height: 30, border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', color: '#ea580c', cursor: 'pointer' };
+const openButton: React.CSSProperties = { display: 'grid', placeItems: 'center', width: 30, height: 30, border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', color: 'var(--brand-primary, #0d8a70)', cursor: 'pointer' };
 const modalBackdrop: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)' };
 const modalCard: React.CSSProperties = { width: 'min(720px, 100%)', maxHeight: 'min(88vh, 800px)', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 16, background: '#fff', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' };
 const closeButton: React.CSSProperties = { flex: '0 0 auto', display: 'grid', placeItems: 'center', width: 32, height: 32, border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc', color: '#64748b', cursor: 'pointer' };

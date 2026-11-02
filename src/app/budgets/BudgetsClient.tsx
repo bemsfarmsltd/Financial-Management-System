@@ -171,7 +171,7 @@ export function BudgetsClient({
             padding: '6px 12px',
             borderRadius: '6px',
             border: 'none',
-            background: 'linear-gradient(135deg, #f97316, #ea580c)',
+            background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
             color: '#fff',
             fontSize: '10px',
             fontWeight: 700,
@@ -180,7 +180,7 @@ export function BudgetsClient({
             alignItems: 'center',
             gap: '5px',
             cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)'
+            boxShadow: '0 2px 8px var(--brand-shadow-color, rgba(0, 0, 0, 0.15))'
           }}
         >
           <span>＋</span> Create Fiscal Budget
@@ -190,7 +190,7 @@ export function BudgetsClient({
       {/* KPI RIBBON */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '14px' }}>
         <div style={{
-          background: 'linear-gradient(135deg, #f97316, #ea580c)',
+          background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
           borderRadius: '10px',
           padding: '12px 14px',
           color: '#fff',
@@ -199,14 +199,14 @@ export function BudgetsClient({
           justifyContent: 'space-between',
           height: '75px',
           boxSizing: 'border-box',
-          boxShadow: '0 3px 12px rgba(234, 88, 12, 0.25)'
+          boxShadow: '0 3px 12px var(--brand-shadow-color, rgba(0, 0, 0, 0.15))'
         }}>
-          <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.8px', color: '#ffedd5', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.8px', color: 'rgba(255, 255, 255, 0.9)', textTransform: 'uppercase' }}>
             TOTAL BUDGET CAP
           </div>
           <div>
             <div style={{ fontSize: '18px', fontWeight: 700, lineHeight: 1.1 }}>₦{totalAllocated.toLocaleString()}</div>
-            <div style={{ fontSize: '9px', color: '#ffedd5', marginTop: '2px' }}>Approved Envelopes</div>
+            <div style={{ fontSize: '9px', color: 'rgba(255, 255, 255, 0.85)', marginTop: '2px' }}>Approved Envelopes</div>
           </div>
         </div>
 
@@ -265,7 +265,7 @@ export function BudgetsClient({
             HEADROOM AVAILABLE
           </div>
           <div>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#ea580c', lineHeight: 1.1 }}>₦{Math.max(0, totalRemaining).toLocaleString()}</div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand-primary, #0d8a70)', lineHeight: 1.1 }}>₦{Math.max(0, totalRemaining).toLocaleString()}</div>
             <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>{overallUtilization}% Total Consumed</div>
           </div>
         </div>
@@ -277,7 +277,7 @@ export function BudgetsClient({
           onClick={() => setSelectedOrgId('all')}
           style={{
             border: 0,
-            background: selectedOrgId === 'all' ? '#ea580c' : '#f1f5f9',
+            background: selectedOrgId === 'all' ? 'var(--brand-primary, #0d8a70)' : '#f1f5f9',
             color: selectedOrgId === 'all' ? '#fff' : '#475569',
             padding: '5px 12px',
             borderRadius: '6px',
@@ -294,7 +294,7 @@ export function BudgetsClient({
             onClick={() => setSelectedOrgId(org.id)}
             style={{
               border: 0,
-              background: selectedOrgId === org.id ? '#ea580c' : '#f1f5f9',
+              background: selectedOrgId === org.id ? 'var(--brand-primary, #0d8a70)' : '#f1f5f9',
               color: selectedOrgId === org.id ? '#fff' : '#475569',
               padding: '5px 12px',
               borderRadius: '6px',
@@ -467,7 +467,7 @@ export function BudgetsClient({
                   </div>
                   <Link
                     href="/requests"
-                    style={{ fontSize: '11px', color: 'var(--blue)', fontWeight: '700', textDecoration: 'none' }}
+                    style={{ fontSize: '11px', color: 'var(--brand-primary, var(--blue))', fontWeight: '700', textDecoration: 'none' }}
                   >
                     View Requests →
                   </Link>

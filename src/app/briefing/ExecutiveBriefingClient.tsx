@@ -421,8 +421,8 @@ export function ExecutiveBriefingClient({
                 fontSize: '10px',
                 fontWeight: '800',
                 letterSpacing: '0.08em',
-                color: 'var(--blue)',
-                background: 'rgba(16, 94, 232, 0.08)',
+                color: 'var(--brand-primary, var(--blue))',
+                background: 'var(--brand-soft, rgba(16, 94, 232, 0.08))',
                 padding: '3px 8px',
                 borderRadius: '6px',
               }}
@@ -444,7 +444,7 @@ export function ExecutiveBriefingClient({
         {/* Action Buttons & Filter */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#fff', border: '1px solid var(--line)', borderRadius: '9px', padding: '4px 10px' }}>
-            <Building2 size={14} color="var(--blue)" />
+            <Building2 size={14} color="var(--brand-primary, var(--blue))" />
             <select
               aria-label="Filter Company"
               value={selectedSub}
@@ -525,27 +525,27 @@ export function ExecutiveBriefingClient({
         {/* Metric 1: Cash Runway */}
         <article
           style={{
-            background: 'linear-gradient(135deg, #f97316, #ea580c)',
+            background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
             color: '#fff',
             borderRadius: '14px',
             padding: '18px 20px',
-            boxShadow: '0 6px 20px rgba(234, 88, 12, 0.25)',
+            boxShadow: '0 6px 20px var(--brand-shadow-color, rgba(0, 0, 0, 0.15))',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <small style={{ color: '#ffedd5', fontSize: '10px', fontWeight: '800', letterSpacing: '0.08em' }}>
+            <small style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '10px', fontWeight: '800', letterSpacing: '0.08em' }}>
               SAFE CASH CUSHION
             </small>
-            <Clock size={15} color="#fed7aa" />
+            <Clock size={15} color="rgba(255, 255, 255, 0.85)" />
           </div>
           <strong style={{ display: 'block', fontSize: '28px', margin: '6px 0 2px', fontWeight: '800', color: '#fff' }}>
             {runwayMonths} <span style={{ fontSize: '15px', fontWeight: '500' }}>Months</span>
           </strong>
-          <span style={{ fontSize: '11px', color: '#ffedd5' }}>
+          <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.9)' }}>
             {monthlyBurn > 0 ? `At ~₦${(monthlyBurn / 1000000).toFixed(1)}M monthly spend` : 'Safe cash reserve'}
           </span>
           <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: corporateTreasury.totalLiquid > 0 ? '#ffedd5' : 'rgba(255,255,255,0.4)' }} />
+            <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: corporateTreasury.totalLiquid > 0 ? '#ffffff' : 'rgba(255,255,255,0.4)' }} />
             <small style={{ fontSize: '10px', color: '#ffffff', fontWeight: '700' }}>
               {corporateTreasury.totalLiquid > 0 ? 'Safe cash reserve' : 'Awaiting treasury setup'}
             </small>
@@ -680,7 +680,7 @@ export function ExecutiveBriefingClient({
             href="/approvals"
             style={{
               fontSize: '12px',
-              color: 'var(--blue)',
+              color: 'var(--brand-primary, var(--blue))',
               fontWeight: '600',
               textDecoration: 'none',
               display: 'flex',
@@ -715,14 +715,14 @@ export function ExecutiveBriefingClient({
                 key={req.id}
                 style={{
                   background: '#fff',
-                  border: '1px solid #fed7aa',
-                  borderLeft: '4px solid #f97316',
+                  border: '1px solid var(--brand-border, #e2e8f0)',
+                  borderLeft: '4px solid var(--brand-primary, #0d8a70)',
                   borderRadius: '12px',
                   padding: '16px 20px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  boxShadow: '0 2px 8px rgba(249, 115, 22, 0.04)',
+                  boxShadow: '0 2px 8px var(--brand-shadow-color, rgba(0, 0, 0, 0.04))',
                   flexWrap: 'wrap',
                   gap: '12px',
                 }}
@@ -735,8 +735,8 @@ export function ExecutiveBriefingClient({
                         fontWeight: '700',
                         padding: '2px 7px',
                         borderRadius: '5px',
-                        background: '#fff7ed',
-                        color: '#c2410c',
+                        background: 'var(--brand-soft, #f1f5f9)',
+                        color: 'var(--brand-primary, #475569)',
                       }}
                     >
                       {req.requestNumber}
@@ -856,7 +856,7 @@ export function ExecutiveBriefingClient({
             href="/budgets"
             style={{
               fontSize: '12px',
-              color: 'var(--blue)',
+              color: 'var(--brand-primary, var(--blue))',
               fontWeight: '600',
               textDecoration: 'none',
               display: 'flex',
@@ -1000,7 +1000,7 @@ export function ExecutiveBriefingClient({
               background: '#fff',
               fontSize: '11px',
               fontWeight: 700,
-              color: 'var(--orange, #ea580c)',
+              color: 'var(--brand-primary, #0d8a70)',
               cursor: 'pointer'
             }}
           >
@@ -1025,7 +1025,7 @@ export function ExecutiveBriefingClient({
                 padding: '7px 14px',
                 borderRadius: '6px',
                 border: 'none',
-                background: '#ea580c',
+                background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
                 color: '#fff',
                 fontSize: '11px',
                 fontWeight: 700,
@@ -1074,7 +1074,7 @@ export function ExecutiveBriefingClient({
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <small style={{ color: 'var(--muted)', fontSize: '10px' }}>DAILY LIMIT</small>
-                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#ea580c' }}>
+                    <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--brand-primary, #0d8a70)' }}>
                       {acc.dailyLimitFormatted}
                     </div>
                   </div>
@@ -1100,7 +1100,7 @@ export function ExecutiveBriefingClient({
             href="/accountability"
             style={{
               fontSize: '12px',
-              color: 'var(--blue)',
+              color: 'var(--brand-primary, var(--blue))',
               fontWeight: '600',
               textDecoration: 'none',
               display: 'flex',
