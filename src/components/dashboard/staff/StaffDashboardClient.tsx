@@ -510,37 +510,14 @@ export function StaffDashboardClient({
   };
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] text-slate-800 flex justify-center py-0 md:py-6 selection:bg-orange-100 selection:text-orange-900 font-sans">
-      {/* Mobile App Viewport Shell (with Desktop Expander Toggle) */}
-      <div
-        className={`w-full bg-[#F8FAFC] min-h-screen md:min-h-[92vh] flex flex-col relative transition-all duration-300 ${
-          isExpandedView
-            ? 'max-w-5xl shadow-2xl md:rounded-[32px] border border-slate-200 overflow-hidden'
-            : 'max-w-md md:max-w-lg shadow-2xl md:rounded-[36px] border border-slate-200/90 overflow-hidden'
-        }`}
-      >
-        {/* DESKTOP VIEW EXPANDER BAR */}
-        <div className="hidden md:flex items-center justify-between px-5 py-2 bg-slate-900 text-white text-[11px] font-bold border-b border-slate-800">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>BEMS Staff Enterprise Portal · Connected</span>
-          </div>
-          <button
-            onClick={() => setIsExpandedView(!isExpandedView)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-all font-semibold"
-            title="Toggle between Mobile Simulator Frame and Full Desktop Expander"
-          >
-            {isExpandedView ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-            <span>{isExpandedView ? 'Mobile Frame' : 'Expand Desktop View'}</span>
-          </button>
-        </div>
-
-        {/* ========================================================= */}
-        {/* TOP BAR: AVATAR + NAME + SUBSIDIARY + NOTIFICATIONS       */}
-        {/* ========================================================= */}
-        <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-100 px-5 py-3.5 flex items-center justify-between">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col selection:bg-orange-100 selection:text-orange-900 font-sans w-full">
+      {/* ========================================================= */}
+      {/* TOP HEADER: SPANS FROM LEFT TO RIGHT ACROSS ENTIRE SCREEN */}
+      {/* ========================================================= */}
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 py-3.5 shadow-sm w-full">
+        <div className="max-w-[1600px] mx-auto flex items-center justify-between">
+          {/* Left: Avatar + Identity */}
           <div className="flex items-center gap-3">
-            {/* Avatar with Orange Border / Picture */}
             <div className="relative">
               <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-400 text-white font-black text-base flex items-center justify-center shadow-md shadow-orange-500/20 overflow-hidden">
                 {user.avatarUrl && user.avatarUrl.startsWith('http') ? (
@@ -566,6 +543,74 @@ export function StaffDashboardClient({
             </div>
           </div>
 
+          {/* Center: Desktop Navigation Tabs (Spreads Across from Left to Right) */}
+          <nav className="hidden md:flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200">
+            <button
+              onClick={() => setActiveTab('HOME')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                activeTab === 'HOME'
+                  ? 'bg-white text-[#EA580C] shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Home className="w-4 h-4" />
+              <span>Home</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('REQUESTS')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all relative ${
+                activeTab === 'REQUESTS'
+                  ? 'bg-white text-[#EA580C] shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Receipt className="w-4 h-4" />
+              <span>Requisitions</span>
+              {requests.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-black">
+                  {requests.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setIsNewRequestOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-orange-600 to-amber-500 text-white shadow-md shadow-orange-500/25 hover:opacity-95 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Request</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('RETIREMENT')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                activeTab === 'RETIREMENT'
+                  ? 'bg-white text-[#EA580C] shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Timer className="w-4 h-4" />
+              <span>72h SLA</span>
+              {pendingRetirements.length > 0 && (
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('PROFILE')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                activeTab === 'PROFILE'
+                  ? 'bg-white text-[#EA580C] shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <User className="w-4 h-4" />
+              <span>Profile</span>
+            </button>
+          </nav>
+
+          {/* Right: Actions */}
           <div className="flex items-center gap-2">
             {/* Notification Bell */}
             <button
@@ -586,104 +631,46 @@ export function StaffDashboardClient({
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-orange-600' : ''}`} />
             </button>
-          </div>
-        </header>
 
-        {/* Global Toast Alert Notice */}
-        {alertNotice && (
-          <div className="mx-4 mt-3 p-3 bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center justify-between shadow-lg animate-fade-in z-20">
+            {/* Sign Out */}
+            <Link
+              href="/finance"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Global Toast Alert Notice */}
+      {alertNotice && (
+        <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-8 mt-3">
+          <div className="p-3 bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center justify-between shadow-lg animate-fade-in z-20">
             <span>{alertNotice}</span>
             <button onClick={() => setAlertNotice(null)} className="opacity-80 hover:opacity-100">
               <X className="w-4 h-4" />
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ========================================================= */}
-        {/* MAIN BODY AREA                                            */}
-        {/* ========================================================= */}
-        <main className="flex-1 p-4 overflow-y-auto space-y-4 pb-28">
+      {/* ========================================================= */}
+      {/* MAIN BODY AREA: FULL WIDTH ACROSS SCREEN FROM LEFT TO RIGHT */}
+      {/* ========================================================= */}
+      <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-28 md:pb-12">
 
           {/* ========================================================= */}
           {/* TAB 0: HOME SCREEN                                        */}
           {/* ========================================================= */}
           {activeTab === 'HOME' && (
-            <div className="space-y-4 animate-fade-in">
-              
-              {/* CARD 1: DAILY ATTENDANCE & PRESENCE (Exact Flutter Replica) */}
-              <div className="p-4 bg-white rounded-[22px] border border-[#E2E8F0] shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className={`p-2 rounded-xl flex items-center justify-center ${
-                        todayAttendance ? 'bg-[#ECFDF5] text-[#059669]' : 'bg-[#FFF7ED] text-[#EA580C]'
-                      }`}
-                    >
-                      <Clock className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#64748B] block">
-                        DAILY ATTENDANCE & PRESENCE
-                      </span>
-                      <span
-                        className={`text-sm font-black ${
-                          todayAttendance ? 'text-[#059669]' : 'text-[#0F172A]'
-                        }`}
-                      >
-                        {todayAttendance
-                          ? todayAttendance.checkOutTime
-                            ? 'Workday Completed'
-                            : 'Clocked In (ON TIME)'
-                          : 'Not Checked In Today'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <span
-                    className={`text-[10px] font-black px-2 py-0.5 rounded border ${
-                      todayAttendance
-                        ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0]'
-                        : 'bg-[#FFF7ED] text-[#EA580C] border-[#FED7AA]'
-                    }`}
-                  >
-                    {todayAttendance ? 'ON TIME' : 'UNPUNCHED'}
-                  </span>
-                </div>
-
-                {/* Attendance Action Buttons */}
-                <div className="space-y-2 pt-1">
-                  <button
-                    disabled={punching}
-                    onClick={() => handlePunchAttendance(todayAttendance ? 'CHECK_OUT' : 'CHECK_IN')}
-                    className={`w-full py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] ${
-                      todayAttendance
-                        ? 'bg-[#EA580C] hover:bg-orange-700 text-white'
-                        : 'bg-[#059669] hover:bg-emerald-700 text-white'
-                    }`}
-                  >
-                    {punching ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <MapPin className="w-4 h-4" />
-                    )}
-                    <span>
-                      {punching
-                        ? 'Verifying Location...'
-                        : todayAttendance
-                        ? 'CLOCK OUT'
-                        : 'CLOCK IN (GPS + QR)'}
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => setIsTimesheetModalOpen(true)}
-                    className="w-full py-2.5 bg-[#F8FAFC] border border-[#E2E8F0] hover:bg-slate-100 text-[#0F172A] rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
-                  >
-                    <Calendar className="w-3.5 h-3.5 text-[#0F172A]" />
-                    <span>View Monthly Attendance Calendar</span>
-                  </button>
-                </div>
-              </div>
+            <div className="animate-fade-in">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                {/* LEFT & CENTER COLUMN: WIDE DESKTOP CARDS (COLS 1 TO 8) */}
+                <div className="lg:col-span-7 xl:col-span-8 space-y-6">
 
               {/* CARD 2: HERO ADVANCE CARD (DEEP EMERALD GREEN GRADIENT) */}
               <div className="rounded-[26px] bg-gradient-to-br from-[#064E3B] via-[#065F46] to-[#047857] text-white p-5 shadow-xl shadow-[#064E3B]/25 relative overflow-hidden">
@@ -744,29 +731,7 @@ export function StaffDashboardClient({
                 </div>
               </div>
 
-              {/* CARD 3: MONTHLY SALARY & PAYSLIPS QUICK CARD */}
-              <div className="p-4 bg-white rounded-[20px] border border-[#E2E8F0] shadow-sm flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center font-black">
-                    <Wallet className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-extrabold text-[#0F172A] leading-tight">
-                      Monthly Salary & Payslips
-                    </h3>
-                    <p className="text-[11px] font-medium text-[#64748B] mt-0.5">
-                      Scheduled Payday: 3rd · Bank: {userProfile.salaryBankName || userProfile.bankName || 'Corporate NUBAN'}
-                    </p>
-                  </div>
-                </div>
 
-                <button
-                  onClick={() => setIsPayslipsModalOpen(true)}
-                  className="px-3.5 py-2 bg-[#FFF7ED] text-[#EA580C] border border-[#FED7AA] hover:bg-orange-600 hover:text-white rounded-xl text-xs font-black transition-all shadow-sm"
-                >
-                  View Slips
-                </button>
-              </div>
 
               {/* CARD 4: DUAL-KEY MAKER-CHECKER (If disbursements awaiting confirmation) */}
               {disbursementsAwaiting.length > 0 && (
@@ -806,7 +771,7 @@ export function StaffDashboardClient({
                 <h3 className="text-sm font-black text-[#0F172A] mb-3">
                   Quick Actions
                 </h3>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
                   {/* 1. New Request */}
                   <div
                     onClick={() => setIsNewRequestOpen(true)}
@@ -983,7 +948,177 @@ export function StaffDashboardClient({
                 )}
               </div>
             </div>
-          )}
+
+            {/* ========================================================= */}
+            {/* RIGHT COLUMN: ATTENDANCE, PAYROLL & BANKING (COLS 9 TO 12) */}
+            {/* ========================================================= */}
+            <div className="lg:col-span-5 xl:col-span-4 space-y-6">
+
+              {/* CARD 1: DAILY ATTENDANCE & PRESENCE (Exact Flutter Replica) */}
+              <div className="p-5 bg-white rounded-[24px] border border-[#E2E8F0] shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className={`p-2 rounded-xl flex items-center justify-center ${
+                        todayAttendance ? 'bg-[#ECFDF5] text-[#059669]' : 'bg-[#FFF7ED] text-[#EA580C]'
+                      }`}
+                    >
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#64748B] block">
+                        DAILY ATTENDANCE & PRESENCE
+                      </span>
+                      <span
+                        className={`text-sm font-black ${
+                          todayAttendance ? 'text-[#059669]' : 'text-[#0F172A]'
+                        }`}
+                      >
+                        {todayAttendance
+                          ? todayAttendance.checkOutTime
+                            ? 'Workday Completed'
+                            : 'Clocked In (ON TIME)'
+                          : 'Not Checked In Today'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded border ${
+                      todayAttendance
+                        ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0]'
+                        : 'bg-[#FFF7ED] text-[#EA580C] border-[#FED7AA]'
+                    }`}
+                  >
+                    {todayAttendance ? 'ON TIME' : 'UNPUNCHED'}
+                  </span>
+                </div>
+
+                {/* Attendance Action Buttons */}
+                <div className="space-y-2 pt-1">
+                  <button
+                    disabled={punching}
+                    onClick={() => handlePunchAttendance(todayAttendance ? 'CHECK_OUT' : 'CHECK_IN')}
+                    className={`w-full py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] ${
+                      todayAttendance
+                        ? 'bg-[#EA580C] hover:bg-orange-700 text-white'
+                        : 'bg-[#059669] hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    {punching ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <MapPin className="w-4 h-4" />
+                    )}
+                    <span>
+                      {punching
+                        ? 'Verifying Location...'
+                        : todayAttendance
+                        ? 'CLOCK OUT'
+                        : 'CLOCK IN (GPS + QR)'}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsTimesheetModalOpen(true)}
+                    className="w-full py-2.5 bg-[#F8FAFC] border border-[#E2E8F0] hover:bg-slate-100 text-[#0F172A] rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-[#0F172A]" />
+                    <span>View Monthly Attendance Calendar</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* CARD 2: MONTHLY SALARY & PAYSLIPS QUICK CARD */}
+              <div className="p-5 bg-white rounded-[24px] border border-[#E2E8F0] shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center font-black">
+                      <Wallet className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-[#0F172A] leading-tight">
+                        Monthly Salary & Payslips
+                      </h3>
+                      <p className="text-[11px] font-medium text-[#64748B] mt-0.5">
+                        Scheduled Payday: 3rd of Month
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setIsPayslipsModalOpen(true)}
+                    className="px-3.5 py-1.5 bg-[#FFF7ED] text-[#EA580C] border border-[#FED7AA] hover:bg-orange-600 hover:text-white rounded-xl text-xs font-black transition-all shadow-sm"
+                  >
+                    View Slips
+                  </button>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-600 font-medium space-y-1">
+                  <div className="flex justify-between">
+                    <span>Salary NUBAN:</span>
+                    <span className="font-bold text-[#0F172A]">
+                      {userProfile.salaryAccountNumber || userProfile.accountNumber || '—'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Designated Bank:</span>
+                    <span className="font-bold text-[#0F172A]">
+                      {userProfile.salaryBankName || userProfile.bankName || 'Access Bank PLC'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 3: CORPORATE DUAL BANKING CONFIGURE CARD */}
+              <div className="p-5 bg-white rounded-[24px] border border-[#E2E8F0] shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-[#0F172A]">Corporate Dual Banking</h4>
+                      <p className="text-[10px] text-slate-500">Dual separation: Advances vs Salary</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsDualBankingOpen(true)}
+                    className="text-xs font-bold text-purple-700 hover:underline"
+                  >
+                    Configure
+                  </button>
+                </div>
+              </div>
+
+              {/* CARD 4: DIRECT ADMIN HELPDESK BANNER */}
+              <div
+                onClick={() => setIsAdminChatOpen(true)}
+                className="p-5 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-[24px] shadow-md cursor-pointer hover:shadow-lg transition-all space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-extrabold tracking-wide uppercase text-slate-300">Admin Helpdesk</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    Online
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300">
+                  Need disbursement help, SLA extension, or requisition queries? Chat directly with Super Admin.
+                </p>
+                <div className="pt-1 flex items-center gap-1 text-xs font-bold text-emerald-400">
+                  <span>Open Desk Chat</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      )}
 
           {/* ========================================================= */}
           {/* TAB 1: REQUISITIONS DESK                                  */}
@@ -1046,7 +1181,7 @@ export function StaffDashboardClient({
                   No requisitions match your filter.
                 </div>
               ) : (
-                <div className="space-y-2.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                   {filteredRequests.map((r: any) => (
                     <div
                       key={r.id}
@@ -1111,7 +1246,7 @@ export function StaffDashboardClient({
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {pendingRetirements.map((c: any) => {
                     const amount = Number(c.request?.amountMinor || c.amountMinor || 0) / 100;
                     return (
@@ -1219,131 +1354,142 @@ export function StaffDashboardClient({
                 </div>
               </div>
 
-              {/* 2. PERSONAL IDENTITY & CONTACT */}
-              <div>
-                <h4 className="text-[10px] font-black uppercase tracking-wider text-[#64748B] mb-2 px-1">
-                  PERSONAL IDENTITY & CONTACT
-                </h4>
-                <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] space-y-3 text-xs">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <Mail className="w-4 h-4 text-slate-400" />
-                      <span>Corporate Email</span>
-                    </div>
-                    <span className="font-extrabold text-[#0F172A]">{user.email}</span>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <Phone className="w-4 h-4 text-slate-400" />
-                      <span>Phone Number</span>
-                    </div>
-                    <span className="font-extrabold text-[#0F172A]">{user.phone || '080-000-0000'}</span>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <Building className="w-4 h-4 text-slate-400" />
-                      <span>Station Location</span>
-                    </div>
-                    <span className="font-extrabold text-[#0F172A]">{user.workLocation || 'Lagos HQ Station'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 3. COMPENSATION & STATUTORY PAYROLL */}
-              <div>
-                <h4 className="text-[10px] font-black uppercase tracking-wider text-[#64748B] mb-2 px-1">
-                  COMPENSATION & STATUTORY PAYROLL
-                </h4>
-                <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] space-y-3 text-xs">
-                  {compensationData ? (
-                    <div className="grid grid-cols-2 gap-2 pb-2">
-                      <div>
-                        <span className="text-[10px] text-[#64748B] uppercase font-bold block">Base Gross Salary</span>
-                        <span className="font-extrabold text-sm text-[#0F172A]">{compensationData.grossFormatted}</span>
+              {/* 2-COLUMN PROFILE DESKTOP GRID */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                
+                {/* LEFT COLUMN: IDENTITY & BANKING */}
+                <div className="space-y-4">
+                  {/* 2. PERSONAL IDENTITY & CONTACT */}
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-[#64748B] mb-2 px-1">
+                      PERSONAL IDENTITY & CONTACT
+                    </h4>
+                    <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] space-y-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-slate-500">
+                          <Mail className="w-4 h-4 text-slate-400" />
+                          <span>Corporate Email</span>
+                        </div>
+                        <span className="font-extrabold text-[#0F172A]">{user.email}</span>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-[#64748B] uppercase font-bold block">Est. Take-Home Net</span>
-                        <span className="font-extrabold text-sm text-[#059669]">{compensationData.netFormatted}</span>
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-slate-500">
+                          <Phone className="w-4 h-4 text-slate-400" />
+                          <span>Phone Number</span>
+                        </div>
+                        <span className="font-extrabold text-[#0F172A]">{user.phone || '080-000-0000'}</span>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-slate-500">
+                          <Building className="w-4 h-4 text-slate-400" />
+                          <span>Station Location</span>
+                        </div>
+                        <span className="font-extrabold text-[#0F172A]">{user.workLocation || 'Lagos HQ Station'}</span>
                       </div>
                     </div>
-                  ) : null}
-
-                  <button
-                    onClick={() => setIsPayslipsModalOpen(true)}
-                    className="w-full py-2.5 bg-[#FFF7ED] border border-[#FED7AA] hover:bg-orange-600 hover:text-white text-[#EA580C] rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2"
-                  >
-                    <Wallet className="w-3.5 h-3.5" />
-                    <span>View Monthly Payslip Vouchers</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* 4. CORPORATE DISBURSEMENT ACCOUNTS (DUAL BANKING) */}
-              <div>
-                <div className="flex items-center justify-between mb-2 px-1">
-                  <h4 className="text-[10px] font-black uppercase tracking-wider text-[#64748B]">
-                    CORPORATE DISBURSEMENT ACCOUNTS
-                  </h4>
-                  <button
-                    onClick={() => setIsDualBankingOpen(true)}
-                    className="text-xs font-bold text-[#EA580C] hover:underline"
-                  >
-                    Configure
-                  </button>
-                </div>
-
-                <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] space-y-3 text-xs">
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] font-extrabold uppercase text-[#64748B] block">
-                      1. Operational Advance Account (72h Petty Cash)
-                    </span>
-                    <span className="font-black text-[#0F172A] block">
-                      {userProfile.bankName || 'Not Set'}
-                    </span>
-                    <span className="text-[11px] text-slate-500 block">
-                      {userProfile.accountNumber || '—'} ({userProfile.accountName || user.fullName})
-                    </span>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-100 space-y-0.5">
-                    <span className="text-[10px] font-extrabold uppercase text-[#EA580C] block">
-                      2. Monthly Salary Account (3rd of Month Payroll)
-                    </span>
-                    <span className="font-black text-[#0F172A] block">
-                      {userProfile.salaryBankName || userProfile.bankName || 'Not Set'}
-                    </span>
-                    <span className="text-[11px] text-slate-500 block">
-                      {userProfile.salaryAccountNumber || userProfile.accountNumber || '—'} ({userProfile.salaryAccountName || userProfile.accountName || user.fullName})
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 5. PORTAL SECURITY & CREDENTIALS */}
-              <div>
-                <h4 className="text-[10px] font-black uppercase tracking-wider text-[#64748B] mb-2 px-1">
-                  PORTAL SECURITY & CREDENTIALS
-                </h4>
-                <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-black">
-                      <Lock className="w-4 h-4" />
+                  {/* 4. CORPORATE DISBURSEMENT ACCOUNTS (DUAL BANKING) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <h4 className="text-[10px] font-black uppercase tracking-wider text-[#64748B]">
+                        CORPORATE DISBURSEMENT ACCOUNTS
+                      </h4>
+                      <button
+                        onClick={() => setIsDualBankingOpen(true)}
+                        className="text-xs font-bold text-[#EA580C] hover:underline"
+                      >
+                        Configure
+                      </button>
                     </div>
-                    <div>
-                      <h4 className="text-xs font-black text-[#0F172A]">Password & Security</h4>
-                      <p className="text-[11px] text-[#64748B]">Update portal login credentials</p>
+
+                    <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] space-y-3 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-extrabold uppercase text-[#64748B] block">
+                          1. Operational Advance Account (72h Petty Cash)
+                        </span>
+                        <span className="font-black text-[#0F172A] block">
+                          {userProfile.bankName || 'Not Set'}
+                        </span>
+                        <span className="text-[11px] text-slate-500 block">
+                          {userProfile.accountNumber || '—'} ({userProfile.accountName || user.fullName})
+                        </span>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 space-y-0.5">
+                        <span className="text-[10px] font-extrabold uppercase text-[#EA580C] block">
+                          2. Monthly Salary Account (3rd of Month Payroll)
+                        </span>
+                        <span className="font-black text-[#0F172A] block">
+                          {userProfile.salaryBankName || userProfile.bankName || 'Not Set'}
+                        </span>
+                        <span className="text-[11px] text-slate-500 block">
+                          {userProfile.salaryAccountNumber || userProfile.accountNumber || '—'} ({userProfile.salaryAccountName || userProfile.accountName || user.fullName})
+                        </span>
+                      </div>
                     </div>
                   </div>
-
-                  <button
-                    onClick={() => setIsPasswordModalOpen(true)}
-                    className="px-3 py-1.5 bg-[#F1F5F9] hover:bg-slate-200 text-[#0F172A] rounded-xl text-xs font-bold transition-all"
-                  >
-                    Change
-                  </button>
                 </div>
+
+                {/* RIGHT COLUMN: COMPENSATION & SECURITY */}
+                <div className="space-y-4">
+                  {/* 3. COMPENSATION & STATUTORY PAYROLL */}
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-[#64748B] mb-2 px-1">
+                      COMPENSATION & STATUTORY PAYROLL
+                    </h4>
+                    <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] space-y-3 text-xs">
+                      {compensationData ? (
+                        <div className="grid grid-cols-2 gap-2 pb-2">
+                          <div>
+                            <span className="text-[10px] text-[#64748B] uppercase font-bold block">Base Gross Salary</span>
+                            <span className="font-extrabold text-sm text-[#0F172A]">{compensationData.grossFormatted}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-[#64748B] uppercase font-bold block">Est. Take-Home Net</span>
+                            <span className="font-extrabold text-sm text-[#059669]">{compensationData.netFormatted}</span>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <button
+                        onClick={() => setIsPayslipsModalOpen(true)}
+                        className="w-full py-2.5 bg-[#FFF7ED] border border-[#FED7AA] hover:bg-orange-600 hover:text-white text-[#EA580C] rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2"
+                      >
+                        <Wallet className="w-3.5 h-3.5" />
+                        <span>View Monthly Payslip Vouchers</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 5. PORTAL SECURITY & CREDENTIALS */}
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-[#64748B] mb-2 px-1">
+                      PORTAL SECURITY & CREDENTIALS
+                    </h4>
+                    <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-black">
+                          <Lock className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-[#0F172A]">Password & Security</h4>
+                          <p className="text-[11px] text-[#64748B]">Update portal login credentials</p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setIsPasswordModalOpen(true)}
+                        className="px-3 py-1.5 bg-[#F1F5F9] hover:bg-slate-200 text-[#0F172A] rounded-xl text-xs font-bold transition-all"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
               </div>
 
               {/* SIGN OUT */}
@@ -1364,7 +1510,7 @@ export function StaffDashboardClient({
         {/* ========================================================= */}
         {/* BOTTOM NAVIGATION BAR (Exact Flutter Replica)              */}
         {/* ========================================================= */}
-        <nav className="fixed md:absolute bottom-0 left-0 right-0 bg-white border-t border-[#E2E8F0] px-4 py-2 flex items-center justify-around z-40 shadow-lg">
+        <nav className="fixed md:hidden bottom-0 left-0 right-0 bg-white border-t border-[#E2E8F0] px-4 py-2 flex items-center justify-around z-40 shadow-lg">
           {/* Home */}
           <button
             onClick={() => setActiveTab('HOME')}
@@ -2025,6 +2171,5 @@ export function StaffDashboardClient({
           currentStaff={currentStaff}
         />
       </div>
-    </div>
-  );
-}
+    );
+  }
