@@ -1734,11 +1734,19 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                               Column(
                                                 crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
-                                                  const Text('STATUTORY DEDUCTIONS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+                                                  const Text('DEDUCTIONS (LATENESS ONLY)', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
                                                   const SizedBox(height: 2),
                                                   Text(
-                                                    'Pension: ${comp?['employeePensionFormatted'] ?? '₦0'} · PAYE: ${comp?['payeTaxFormatted'] ?? '₦0'}',
-                                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFB91C1C)),
+                                                    comp?['latenessDeductionsFormatted'] != null && comp?['latenessDeductionsFormatted'] != '₦0'
+                                                        ? 'Lateness: ${comp?['latenessDeductionsFormatted']}'
+                                                        : '₦0 (No Tax / Punctual)',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: comp?['latenessDeductionsFormatted'] != null && comp?['latenessDeductionsFormatted'] != '₦0'
+                                                          ? const Color(0xFFB91C1C)
+                                                          : const Color(0xFF059669),
+                                                    ),
                                                   ),
                                                 ],
                                               ),

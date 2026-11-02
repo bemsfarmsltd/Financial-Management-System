@@ -650,9 +650,32 @@ export function StaffDashboardClient({
         throw new Error('Unable to acquire station attendance token. Please contact reception.');
       }
 
-      // 2. Determine GPS coordinates (use current location if close or station GPS coordinates)
-      let lat = scannerGpsCoords?.lat || stationLat;
-      let lng = scannerGpsCoords?.lng || stationLng;
+      // 2. Acquire real live device GPS coordinates
+      let lat: number | null = null;
+      let lng: number | null = null;
+
+      if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 10000,
+            });
+          });
+          lat = pos.coords.latitude;
+          lng = pos.coords.longitude;
+        } catch (geoErr: any) {
+          console.warn('Geolocation acquisition error:', geoErr);
+          throw new Error('Real GPS location is required to verify physical attendance. Please enable location permissions in your browser and ensure GPS is active.');
+        }
+      } else {
+        throw new Error('Geolocation is not supported by your browser. Please use the BEMS Staff Mobile App to scan.');
+      }
+
+      if (lat === null || lng === null) {
+        throw new Error('Real GPS location could not be acquired. Please ensure location permissions are granted.');
+      }
 
       // 3. Post punch request to API
       const res = await fetch('/api/attendance/punch', {

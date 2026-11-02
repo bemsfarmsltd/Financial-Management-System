@@ -179,11 +179,11 @@ export async function POST(req: NextRequest) {
       const comp = agreement?.compensations[0];
       const grossMinor = comp ? comp.grossMinor : BigInt(35000000); // ₦350,000 default fallback
 
-      // Standard Statutory Deductions: 8% Pension + 5% PAYE Tax
+      // Company Policy: Zero Tax / PAYE / Pension Deductions. Only attendance lateness deductions apply.
       const grossNum = Number(grossMinor);
-      const employeeDeductionsNum = Math.round(grossNum * 0.13); // 13% statutory
-      const employerCostNum = Math.round(grossNum * 0.10); // 10% employer pension
-      const netNum = Math.max(0, grossNum - employeeDeductionsNum);
+      const employeeDeductionsNum = 0; // No tax or pension deductions
+      const employerCostNum = 0;
+      const netNum = grossNum;
 
       const item = await prisma.payrollItem.create({
         data: {

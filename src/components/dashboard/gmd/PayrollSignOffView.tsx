@@ -737,7 +737,7 @@ export function PayrollSignOffView({
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.8px', color: '#64748b', textTransform: 'uppercase' }}>
-              DEDUCTIONS RECORDED
+              LATENESS DEDUCTIONS
             </span>
             <PieChart size={12} color="#d97706" />
           </div>
@@ -745,7 +745,7 @@ export function PayrollSignOffView({
             <div style={{ fontSize: '18px', fontWeight: 700, color: '#d97706', lineHeight: 1.1 }}>
               {data?.batch.totalDeductionsFormatted || '—'}
             </div>
-            <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>From the prepared register</div>
+            <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>Zero tax policy · Lateness penalties only</div>
           </div>
         </div>
 
@@ -1058,7 +1058,7 @@ export function PayrollSignOffView({
                   </div>
 
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '9px', color: '#64748b' }}>Deductions</div>
+                    <div style={{ fontSize: '9px', color: '#64748b' }}>Lateness Deductions</div>
                     <div style={{ fontSize: '11px', fontWeight: 600, color: '#d97706' }}>-{item.deductionsFormatted}</div>
                   </div>
 

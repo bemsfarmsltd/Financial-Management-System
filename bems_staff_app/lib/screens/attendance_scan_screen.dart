@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:geolocator/geolocator.dart';
 import '../models/staff_models.dart';
 import '../services/staff_api_service.dart';
 
@@ -67,13 +68,84 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen>
     super.dispose();
   }
 
+  Future<Position?> _getCurrentPosition() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Device GPS is turned off. Please turn on Location in phone settings to clock in.'),
+            backgroundColor: Color(0xFFDC2626),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+      return null;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location permission is required to verify physical presence in office.'),
+              backgroundColor: Color(0xFFDC2626),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+        return null;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location permissions are permanently denied. Please allow location in App Settings.'),
+            backgroundColor: Color(0xFFDC2626),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+      return null;
+    }
+
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+    } catch (e) {
+      try {
+        return await Geolocator.getLastKnownPosition();
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
   Future<void> _verifySecurityGates() async {
     setState(() => _isVerifyingGates = true);
     try {
+      final pos = await _getCurrentPosition();
+      if (pos == null) {
+        if (!mounted) return;
+        setState(() {
+          _isVerifyingGates = false;
+          _isGeofenceVerified = false;
+        });
+        return;
+      }
+
       final check = await StaffApiService.verifyGeofence(
         employeeId: widget.currentUser.id,
-        latitude: 6.4281,
-        longitude: 3.4219,
+        latitude: pos.latitude,
+        longitude: pos.longitude,
         token: widget.currentUser.token,
       );
       if (!mounted) return;
@@ -86,6 +158,7 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen>
       if (!mounted) return;
       setState(() {
         _isVerifyingGates = false;
+        _isGeofenceVerified = false;
       });
     }
   }
@@ -109,11 +182,28 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen>
     setState(() => _isPunching = true);
 
     try {
+      final pos = await _getCurrentPosition();
+      if (pos == null) {
+        if (!mounted) return;
+        setState(() {
+          _isPunching = false;
+          _hasScanned = false; // allow retry
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cannot verify physical location. Please turn on GPS and grant location permission.'),
+            backgroundColor: Color(0xFFDC2626),
+            duration: Duration(seconds: 4),
+          ),
+        );
+        return;
+      }
+
       final res = await StaffApiService.punchAttendance(
         employeeId: widget.currentUser.id,
         qrToken: token,
-        latitude: 6.4281,
-        longitude: 3.4219,
+        latitude: pos.latitude,
+        longitude: pos.longitude,
         type: widget.isCheckIn ? 'CHECK_IN' : 'CHECK_OUT',
         token: widget.currentUser.token,
       );
@@ -132,7 +222,7 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen>
         SnackBar(
           content: Text(e.toString().replaceAll('Exception: ', '')),
           backgroundColor: const Color(0xFFDC2626),
-          duration: const Duration(seconds: 4),
+          duration: const Duration(seconds: 5),
         ),
       );
     }

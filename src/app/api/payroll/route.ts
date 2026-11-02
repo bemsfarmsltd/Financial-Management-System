@@ -132,8 +132,12 @@ export async function GET(req: NextRequest) {
     }
 
     const totalGross = batch.items.reduce((sum, item) => sum + Number(item.grossMinor), 0);
-    const totalNet = batch.items.reduce((sum, item) => sum + Number(item.netMinor), 0);
-    const totalDeductions = batch.items.reduce((sum, item) => sum + Number(item.employeeDeductionsMinor), 0);
+    const totalDeductions = batch.items.reduce((sum, item) => {
+      const attStats = attendanceDeductionByEmployee.get(item.employee.id);
+      if (!attStats || attStats.totalPercent <= 0) return sum;
+      return sum + Math.round(((Number(item.grossMinor) / 22) * attStats.totalPercent) / 100);
+    }, 0);
+    const totalNet = Math.max(0, totalGross - totalDeductions);
     const allocationTotals = new Map<string, { name: string; amount: number; percentage: number }>();
     const subsidiaryIds = [...new Set(batch.items.flatMap(item => item.allocations.map(allocation => allocation.subsidiaryId)))];
     const subsidiaries = subsidiaryIds.length ? await prisma.organization.findMany({ where: { id: { in: subsidiaryIds } }, select: { id: true, legalName: true } }) : [];
@@ -145,6 +149,10 @@ export async function GET(req: NextRequest) {
       const dailyRate = Number(item.grossMinor) / 22;
       const attendancePenaltyMinor = Math.round((dailyRate * attStats.totalPercent) / 100);
 
+      // Company Policy: Zero Tax / PAYE / Pension Deductions. Only attendance lateness deductions apply.
+      const latenessDeductionsMinor = attendancePenaltyMinor;
+      const netPayoutMinor = Math.max(0, Number(item.grossMinor) - latenessDeductionsMinor);
+
       return {
         id: item.id,
         employeeId: item.employee.id,
@@ -153,11 +161,11 @@ export async function GET(req: NextRequest) {
         email: item.employee.workEmail,
         grossMinor: Number(item.grossMinor),
         grossFormatted: formatNaira(item.grossMinor),
-        deductionsMinor: Number(item.employeeDeductionsMinor) + attendancePenaltyMinor,
-        deductionsFormatted: formatNaira(Number(item.employeeDeductionsMinor) + attendancePenaltyMinor),
-        employerPensionFormatted: formatNaira(item.employerCostMinor),
-        netMinor: Math.max(0, Number(item.netMinor) - attendancePenaltyMinor),
-        netFormatted: formatNaira(Math.max(0, Number(item.netMinor) - attendancePenaltyMinor)),
+        deductionsMinor: latenessDeductionsMinor,
+        deductionsFormatted: formatNaira(latenessDeductionsMinor),
+        employerPensionFormatted: formatNaira(0),
+        netMinor: netPayoutMinor,
+        netFormatted: formatNaira(netPayoutMinor),
         attendancePenaltyMinor,
         attendancePenaltyFormatted: formatNaira(attendancePenaltyMinor),
         lateArrivalsCount: attStats.countLate,

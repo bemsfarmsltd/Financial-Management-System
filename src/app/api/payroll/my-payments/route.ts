@@ -55,17 +55,20 @@ export async function GET(request: Request) {
   const activeAgreement = employee.employmentAgreements[0];
   const activeComp = activeAgreement?.compensations[0];
   const grossMinor = activeComp ? Number(activeComp.grossMinor) : 0;
-  const pensionMinor = Math.round(grossMinor * 0.08); // 8% Employee Pension
-  const payeMinor = Math.round(grossMinor * 0.05); // ~5% PAYE
-  const estimatedNetMinor = Math.max(0, grossMinor - pensionMinor - payeMinor);
+  // Company Policy: Zero Tax / PAYE / Pension Deductions. Only attendance lateness deductions apply.
+  const pensionMinor = 0;
+  const payeMinor = 0;
+  const estimatedNetMinor = grossMinor;
 
   const compensationSummary = {
     grossMinor,
     grossFormatted: formatNaira(grossMinor),
-    employeePensionMinor: pensionMinor,
-    employeePensionFormatted: formatNaira(pensionMinor),
-    payeTaxMinor: payeMinor,
-    payeTaxFormatted: formatNaira(payeMinor),
+    employeePensionMinor: 0,
+    employeePensionFormatted: '₦0 (No Tax)',
+    payeTaxMinor: 0,
+    payeTaxFormatted: '₦0 (No Tax)',
+    latenessDeductionsMinor: 0,
+    latenessDeductionsFormatted: '₦0',
     estimatedNetMinor,
     estimatedNetFormatted: formatNaira(estimatedNetMinor),
     currency: activeComp?.currency || 'NGN',
