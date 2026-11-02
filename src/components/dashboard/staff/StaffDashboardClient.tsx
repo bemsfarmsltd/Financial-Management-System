@@ -53,6 +53,11 @@ import {
   CheckCheck,
   ArrowUpRight,
   ArrowDownLeft,
+  Target,
+  Archive,
+  PieChart,
+  BarChart2,
+  Trash2,
 } from 'lucide-react';
 
 interface StaffUser {
@@ -209,12 +214,43 @@ export function StaffDashboardClient({
       setRequests(myReqs);
 
       const rawCases = Array.isArray(caseRes) ? caseRes : caseRes?.cases || [];
+      const myReqIds = new Set(myReqs.map((r: any) => r.id));
       const myCases = rawCases.filter(
         (c: any) =>
           c.ownerUserId === user.id ||
           c.owner?.workEmail?.toLowerCase() === user.email.toLowerCase() ||
-          c.request?.requestedById === user.id
+          c.request?.requestedById === user.id ||
+          (c.requestId && myReqIds.has(c.requestId))
       );
+
+      // Ensure all paid advances have an accountability item in staff workspace
+      for (const r of myReqs) {
+        if (
+          r.paymentStatus === 'PAID' ||
+          r.accountabilityStatus === 'OPEN' ||
+          r.accountabilityStatus === 'EVIDENCE_SUBMITTED' ||
+          r.approvalStatus === 'APPROVED'
+        ) {
+          const alreadyHasCase = myCases.some(
+            (c: any) => c.requestId === r.id || c.request?.requestNumber === r.requestNumber
+          );
+          if (!alreadyHasCase && (r.paymentStatus === 'PAID' || r.accountabilityStatus === 'OPEN')) {
+            myCases.push({
+              id: `case-${r.id}`,
+              requestId: r.id,
+              requestNumber: r.requestNumber,
+              title: r.title,
+              request: r,
+              amountMinor: r.amountMinor,
+              amountNaira: Number(r.amountMinor) / 100,
+              requiredDeliverables: r.deliverable || 'Itemized receipt and proof of delivery',
+              bankReference: r.bankReference || 'BEMS-TRX-AUTO',
+              status: r.accountabilityStatus || 'OPEN',
+              dueAt: r.dueDate || new Date(Date.now() + 72 * 3600 * 1000).toISOString(),
+            });
+          }
+        }
+      }
       setAccountabilityCases(myCases);
 
       setDisbursementsAwaiting(disbRes.awaitingConfirmation || []);
@@ -274,11 +310,63 @@ export function StaffDashboardClient({
   const displayDepartment = user.department || 'Operations';
   const displayEmployeeNumber = user.employeeNumber || 'STAFF';
 
+  // Requisition chart toggle: 'Category' | 'Status'
+  const [requisitionChartMetric, setRequisitionChartMetric] = useState<'Category' | 'Status'>('Category');
+
+  // Pending retirements (Matching mobile app: any advance not yet evidence submitted or closed)
   const pendingRetirements = useMemo(() => {
-    return accountabilityCases.filter(
-      (c) => c.status === 'PENDING' || c.status === 'UNDER_REVIEW' || c.status === 'OVERDUE'
-    );
+    return accountabilityCases.filter((c: any) => {
+      const s = String(c.status || '').toUpperCase();
+      const acc = String(c.request?.accountabilityStatus || '').toUpperCase();
+      return (
+        s !== 'EVIDENCE_SUBMITTED' &&
+        s !== 'CLOSED' &&
+        s !== 'VERIFIED' &&
+        s !== 'CLEARED' &&
+        s !== 'RECONCILED' &&
+        acc !== 'EVIDENCE_SUBMITTED' &&
+        acc !== 'CLOSED' &&
+        acc !== 'VERIFIED'
+      );
+    });
   }, [accountabilityCases]);
+
+  // Cleared / Archived retirements
+  const clearedRetirements = useMemo(() => {
+    const list: any[] = [];
+    for (const c of accountabilityCases) {
+      const s = String(c.status || '').toUpperCase();
+      const acc = String(c.request?.accountabilityStatus || '').toUpperCase();
+      if (
+        s === 'EVIDENCE_SUBMITTED' ||
+        s === 'CLOSED' ||
+        s === 'VERIFIED' ||
+        s === 'CLEARED' ||
+        acc === 'EVIDENCE_SUBMITTED' ||
+        acc === 'CLOSED' ||
+        acc === 'VERIFIED'
+      ) {
+        list.push(c);
+      }
+    }
+    for (const r of requests) {
+      const acc = String(r.accountabilityStatus || '').toUpperCase();
+      if (acc === 'EVIDENCE_SUBMITTED' || acc === 'CLOSED' || acc === 'VERIFIED') {
+        if (!list.some((c: any) => c.request?.requestNumber === r.requestNumber)) {
+          list.push({
+            id: `req-${r.id}`,
+            request: r,
+            amountMinor: r.amountMinor,
+            amountNaira: Number(r.amountMinor) / 100,
+            status: acc,
+            requiredDeliverables: r.deliverable || 'Itemized receipt and proof of delivery',
+            dueAt: r.updatedAt || r.createdAt,
+          });
+        }
+      }
+    }
+    return list;
+  }, [accountabilityCases, requests]);
 
   const activeAdvanceAmount = useMemo(() => {
     return pendingRetirements.reduce((sum, c) => {
@@ -287,10 +375,110 @@ export function StaffDashboardClient({
     }, 0);
   }, [pendingRetirements]);
 
-  const mostUrgentAdvance = useMemo(() => {
+  const nearestAdvanceCase = useMemo(() => {
     if (pendingRetirements.length === 0) return null;
-    return [...pendingRetirements].sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime())[0];
+    return [...pendingRetirements].sort((a: any, b: any) => {
+      const timeA = a.dueAt ? new Date(a.dueAt).getTime() : Infinity;
+      const timeB = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
+      return timeA - timeB;
+    })[0];
   }, [pendingRetirements]);
+
+  const { slaHoursRemaining, slaHoursElapsed, isSlaOverdue } = useMemo(() => {
+    if (!nearestAdvanceCase) return { slaHoursRemaining: 0, slaHoursElapsed: 0, isSlaOverdue: false };
+    const dueTime = nearestAdvanceCase.dueAt
+      ? new Date(nearestAdvanceCase.dueAt).getTime()
+      : Date.now() + 72 * 3600 * 1000;
+    const now = Date.now();
+    const diffHours = Math.round((dueTime - now) / (1000 * 60 * 60));
+    const rem = Math.max(0, diffHours);
+    const elapsed = Math.min(72, Math.max(0, 72 - rem));
+    return {
+      slaHoursRemaining: rem > 0 ? rem : 0,
+      slaHoursElapsed: elapsed,
+      isSlaOverdue: diffHours < 0,
+    };
+  }, [nearestAdvanceCase]);
+
+  const clearedCount = clearedRetirements.length;
+  const inGraceCount = pendingRetirements.filter((c: any) => {
+    const dueTime = c.dueAt ? new Date(c.dueAt).getTime() : Date.now() + 1000;
+    return dueTime > Date.now();
+  }).length;
+  const overdueCount = pendingRetirements.filter((c: any) => {
+    const dueTime = c.dueAt ? new Date(c.dueAt).getTime() : Date.now() + 1000;
+    return dueTime <= Date.now();
+  }).length;
+  const totalSlaCases = clearedCount + inGraceCount + overdueCount;
+  const compliancePct = overdueCount > 0 ? Math.round(((clearedCount + inGraceCount) / totalSlaCases) * 100) : 100;
+
+  // Expenditure Distribution Segments
+  const expenditureSegments = useMemo(() => {
+    if (requests.length === 0) return [];
+    const colorPalette = ['#EA580C', '#3B82F6', '#10B981', '#8B5CF6', '#06B6D4', '#F59E0B', '#64748B'];
+    if (requisitionChartMetric === 'Category') {
+      const catMap: Record<string, { value: number; count: number }> = {};
+      for (const r of requests) {
+        const cat = r.category || 'Office Expense';
+        const amt = Number(r.amountMinor || 0) / 100;
+        if (!catMap[cat]) catMap[cat] = { value: 0, count: 0 };
+        catMap[cat].value += amt;
+        catMap[cat].count += 1;
+      }
+      return Object.entries(catMap)
+        .sort((a, b) => b[1].value - a[1].value)
+        .map(([label, data], idx) => ({
+          label,
+          value: data.value,
+          count: data.count,
+          color: colorPalette[idx % colorPalette.length],
+        }));
+    } else {
+      let inReviewVal = 0, inReviewCount = 0;
+      let approvedVal = 0, approvedCount = 0;
+      let disbursedVal = 0, disbursedCount = 0;
+      let rejectedVal = 0, rejectedCount = 0;
+
+      for (const r of requests) {
+        const amt = Number(r.amountMinor || 0) / 100;
+        if (r.paymentStatus === 'PAID') {
+          disbursedVal += amt;
+          disbursedCount++;
+        } else if (r.approvalStatus === 'APPROVED') {
+          approvedVal += amt;
+          approvedCount++;
+        } else if (r.approvalStatus === 'REJECTED') {
+          rejectedVal += amt;
+          rejectedCount++;
+        } else {
+          inReviewVal += amt;
+          inReviewCount++;
+        }
+      }
+
+      const segs = [];
+      if (inReviewCount > 0) segs.push({ label: 'In Review', value: inReviewVal, count: inReviewCount, color: '#EA580C' });
+      if (approvedCount > 0) segs.push({ label: 'Approved', value: approvedVal, count: approvedCount, color: '#3B82F6' });
+      if (disbursedCount > 0) segs.push({ label: 'Disbursed', value: disbursedVal, count: disbursedCount, color: '#10B981' });
+      if (rejectedCount > 0) segs.push({ label: 'Declined', value: rejectedVal, count: rejectedCount, color: '#EF4444' });
+      return segs;
+    }
+  }, [requests, requisitionChartMetric]);
+
+  const totalExpenditureValue = useMemo(() => {
+    return requests.reduce((sum, r) => sum + Number(r.amountMinor || 0) / 100, 0);
+  }, [requests]);
+
+  const compactExpenditureTotal = useMemo(() => {
+    if (totalExpenditureValue >= 1000000000) {
+      return `₦${(totalExpenditureValue / 1000000).toFixed(1)}M`;
+    } else if (totalExpenditureValue >= 1000000) {
+      return `₦${(totalExpenditureValue / 1000000).toFixed(1)}M`;
+    } else if (totalExpenditureValue >= 1000) {
+      return `₦${(totalExpenditureValue / 1000).toFixed(0)}K`;
+    }
+    return `₦${totalExpenditureValue.toFixed(0)}`;
+  }, [totalExpenditureValue]);
 
   const filteredRequests = useMemo(() => {
     return requests.filter((r) => {
@@ -910,85 +1098,134 @@ export function StaffDashboardClient({
                 </div>
               </div>
 
-              {/* SECTION: DEDICATED PROOF OF UTILIZATION BANNER CARD */}
-              <div
-                onClick={() => {
-                  if (pendingRetirements.length > 0) {
-                    setActiveRetirementCase(pendingRetirements[0]);
-                  } else {
-                    setActiveTab('RETIREMENT');
-                  }
-                }}
-                className="p-4 bg-white rounded-[22px] border-2 border-[#FED7AA] shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#EA580C] flex items-center justify-center font-black">
-                    <Camera className="w-5 h-5" />
+              {/* SECTION: UPLOAD PROOF OF EXPENDITURE BANNER (Exact Mobile Replica) */}
+              <div className="p-5 bg-white rounded-[24px] border border-[#FED7AA] shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#EA580C] flex items-center justify-center font-black">
+                      <Receipt className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-[#0F172A]">Upload Proof of Expenditure</h4>
+                      <p className="text-[11px] text-[#64748B]">Photograph physical receipts or attach vendor invoice PDFs</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-black text-[#0F172A]">Proof of Utilization Card</h4>
-                    <p className="text-[11px] text-[#64748B]">Snap picture or attach invoice document</p>
-                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]">
+                    🛡️ 72H POLICY
+                  </span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
+                <p className="text-[11px] text-[#64748B] leading-relaxed">
+                  Photograph original physical store receipts or attach vendor invoice PDFs to retire outstanding advances and clear your SLA window.
+                </p>
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <button
+                    onClick={() => {
+                      if (pendingRetirements.length > 0) {
+                        setActiveRetirementCase(pendingRetirements[0]);
+                        setActualSpentAmount(Number(pendingRetirements[0].request?.amountMinor || 0) / 100);
+                      } else {
+                        setActiveTab('RETIREMENT');
+                      }
+                    }}
+                    className="py-2.5 px-3 bg-[#EA580C] hover:bg-orange-700 text-white font-black text-xs rounded-xl shadow-md shadow-orange-500/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Snap Picture</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (pendingRetirements.length > 0) {
+                        setActiveRetirementCase(pendingRetirements[0]);
+                        setActualSpentAmount(Number(pendingRetirements[0].request?.amountMinor || 0) / 100);
+                      } else {
+                        setActiveTab('RETIREMENT');
+                      }
+                    }}
+                    className="py-2.5 px-3 bg-[#ECFDF5] hover:bg-emerald-100 border border-[#A7F3D0] text-[#059669] font-black text-xs rounded-xl flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Upload Doc / PDF</span>
+                  </button>
+                </div>
               </div>
 
-              {/* SECTION: RECENT REQUISITIONS */}
-              <div>
-                <div className="flex items-center justify-between mb-2 px-1">
-                  <h3 className="text-sm font-black text-[#0F172A]">Recent Requisitions</h3>
-                  <button
-                    onClick={() => setActiveTab('REQUESTS')}
-                    className="text-xs font-bold text-[#EA580C] hover:underline"
-                  >
-                    See More
-                  </button>
+              {/* SECTION: REQUISITIONS & SPEND ANALYTICS (Exact Mobile Bar Chart Replica) */}
+              <div className="p-5 bg-white rounded-[24px] border border-[#E2E8F0] shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-black text-[#0F172A]">Requisitions & Spend Analytics</h3>
+                    <p className="text-[11px] text-[#64748B]">Dynamic Requisition Volume & Spend Trend</p>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-lg text-[9.5px] font-black bg-[#FFF7ED] text-[#EA580C] border border-[#FED7AA]">
+                    INFOGRAPHIC
+                  </span>
                 </div>
 
                 {requests.length === 0 ? (
-                  <div className="p-8 bg-white rounded-2xl border border-slate-200 text-center text-xs text-slate-400">
-                    No requisitions recorded yet. Tap "+ New Request" to create your first fund request.
+                  <div className="p-8 text-center text-xs text-slate-400">
+                    <BarChart2 className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                    No requisition data recorded yet.
                   </div>
                 ) : (
-                  <div className="space-y-2.5">
-                    {requests.slice(0, 3).map((r: any) => (
-                      <div
-                        key={r.id}
-                        onClick={() => setSelectedRequestDetail(r)}
-                        className="p-3.5 bg-white border border-[#E2E8F0] rounded-2xl hover:border-orange-300 hover:shadow-sm transition-all cursor-pointer flex items-center justify-between"
-                      >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10.5px] font-black text-slate-400">{r.requestNumber}</span>
-                            <span
-                              className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
-                                r.approvalStatus === 'APPROVED'
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : r.paymentStatus === 'PAID'
-                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                  : r.approvalStatus === 'REJECTED'
-                                  ? 'bg-red-50 text-red-700 border border-red-200'
-                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  <div className="space-y-4 pt-2">
+                    {/* Bar Chart */}
+                    <div className="h-40 flex items-end justify-around gap-2 px-2 pb-2 border-b border-slate-100">
+                      {requests.slice(0, 5).reverse().map((r: any, idx: number, arr: any[]) => {
+                        const amt = Number(r.amountMinor || 0) / 100;
+                        const maxVal = Math.max(...arr.map((item) => Number(item.amountMinor || 0) / 100), 1);
+                        const heightPct = Math.max(20, Math.min(100, Math.round((amt / maxVal) * 100)));
+                        const isLast = idx === arr.length - 1;
+                        const labelAmt =
+                          amt >= 1000000
+                            ? `₦${(amt / 1000000).toFixed(1)}M`
+                            : amt >= 1000
+                            ? `₦${Math.round(amt / 1000)}k`
+                            : `₦${amt}`;
+
+                        return (
+                          <div key={r.id || idx} className="flex-1 flex flex-col items-center justify-end h-full">
+                            <span className={`text-[9px] font-black mb-1 truncate max-w-[70px] ${
+                              isLast ? 'text-[#EA580C]' : 'text-slate-400'
+                            }`}>
+                              {labelAmt}
+                            </span>
+                            <div
+                              style={{ height: `${heightPct}%` }}
+                              className={`w-full max-w-[36px] rounded-t-lg transition-all ${
+                                isLast
+                                  ? 'bg-gradient-to-t from-[#EA580C] to-[#FB923C] shadow-md shadow-orange-500/30'
+                                  : 'bg-gradient-to-t from-[#064E3B] to-[#059669]'
                               }`}
-                            >
-                              {r.paymentStatus === 'PAID' ? 'DISBURSED' : r.approvalStatus}
+                            />
+                            <span className={`text-[10px] font-black mt-1.5 truncate max-w-[60px] ${
+                              isLast ? 'text-[#EA580C]' : 'text-slate-500'
+                            }`}>
+                              {r.requestNumber ? r.requestNumber.slice(-4) : `REQ-${idx + 1}`}
                             </span>
                           </div>
-                          <h4 className="text-xs font-extrabold text-[#0F172A] line-clamp-1">{r.title}</h4>
-                          <span className="text-[10px] text-[#64748B] block">
-                            {new Date(r.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-xs font-black text-[#0F172A] block">
-                            {formatNaira(Number(r.amountMinor) / 100)}
-                          </span>
-                          <span className="text-[10px] font-bold text-[#EA580C] flex items-center gap-0.5 justify-end mt-0.5">
-                            Details <ChevronRight className="w-3 h-3" />
-                          </span>
-                        </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Category Distribution Bar */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        <span>Category Distribution</span>
+                        <span className="text-[#0F172A] font-extrabold">{formatNaira(totalExpenditureValue)}</span>
                       </div>
-                    ))}
+                      <div className="h-2.5 rounded-full overflow-hidden flex bg-slate-100">
+                        {expenditureSegments.map((seg, i) => {
+                          const pct = totalExpenditureValue > 0 ? (seg.value / totalExpenditureValue) * 100 : 0;
+                          return (
+                            <div
+                              key={i}
+                              style={{ width: `${pct}%`, backgroundColor: seg.color }}
+                              title={`${seg.label}: ${formatNaira(seg.value)} (${pct.toFixed(0)}%)`}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1166,48 +1403,42 @@ export function StaffDashboardClient({
       )}
 
           {/* ========================================================= */}
-          {/* TAB 1: REQUISITIONS DESK                                  */}
+          {/* TAB 1: REQUISITIONS DESK (Exact Mobile App Replica)        */}
           {/* ========================================================= */}
           {activeTab === 'REQUESTS' && (
-            <div className="space-y-3.5 animate-fade-in">
+            <div className="space-y-4 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-black text-[#0F172A]">Expenditure Requisitions</h2>
+                  <h2 className="text-xl font-black text-[#0F172A] tracking-tight">Expenditure Requisitions</h2>
                   <p className="text-xs text-[#64748B]">Manage & inspect your procurement requests ({requests.length})</p>
                 </div>
                 <button
                   onClick={() => setIsNewRequestOpen(true)}
-                  className="px-3.5 py-2 bg-[#EA580C] text-white rounded-xl text-xs font-black flex items-center gap-1 shadow-md shadow-orange-500/20 hover:bg-orange-700"
+                  className="px-4 py-2 bg-[#EA580C] hover:bg-orange-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-orange-500/20 active:scale-[0.98] transition-all"
                 >
-                  <Plus className="w-3.5 h-3.5" /> New
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>New</span>
                 </button>
               </div>
 
-              {/* Search Bar */}
+              {/* Search Bar (Matching Mobile placeholder: Search by REQ code, vendor, or item...) */}
               <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
                   type="text"
-                  placeholder="Search by code, title, payee..."
+                  placeholder="Search by REQ code, vendor, or item..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-white border border-[#E2E8F0] rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-[#E2E8F0] rounded-2xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 shadow-sm"
                 />
               </div>
 
               {/* Status Filter Chips */}
-              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-                {(['ALL', 'PENDING', 'APPROVED', 'PAID', 'RECURRING'] as const).map((code) => (
-                  <button
-                    key={code}
-                    onClick={() => setStatusFilter(code)}
-                    className={`px-3 py-1 rounded-full text-[11px] font-black whitespace-nowrap transition-all ${
-                      statusFilter === code
-                        ? 'bg-[#0F172A] text-white shadow-sm'
-                        : 'bg-white border border-[#E2E8F0] text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    {code === 'ALL'
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none text-xs">
+                {(['ALL', 'PENDING', 'APPROVED', 'PAID', 'RECURRING'] as const).map((code) => {
+                  const isSelected = statusFilter === code;
+                  const label =
+                    code === 'ALL'
                       ? `All Requests (${requests.length})`
                       : code === 'PENDING'
                       ? 'In Review'
@@ -1215,116 +1446,186 @@ export function StaffDashboardClient({
                       ? 'Approved'
                       : code === 'PAID'
                       ? 'Disbursed'
-                      : '🔁 Recurring'}
-                  </button>
-                ))}
+                      : '🔁 Recurring';
+                  return (
+                    <button
+                      key={code}
+                      onClick={() => setStatusFilter(code)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all ${
+                        isSelected
+                          ? 'bg-[#EA580C] text-white shadow-sm shadow-orange-500/25 border border-[#EA580C]'
+                          : 'bg-white border border-[#E2E8F0] text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Requisitions List */}
-              {filteredRequests.length === 0 ? (
-                <div className="bg-white border border-[#E2E8F0] rounded-2xl p-10 text-center text-xs text-slate-500">
-                  No requisitions match your filter.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                  {filteredRequests.map((r: any) => (
-                    <div
-                      key={r.id}
-                      onClick={() => setSelectedRequestDetail(r)}
-                      className="p-4 bg-white border border-[#E2E8F0] rounded-2xl hover:border-orange-300 hover:shadow-md transition-all cursor-pointer"
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[11px] font-black text-slate-400 tracking-wider">
-                          {r.requestNumber}
-                        </span>
-                        <span
-                          className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
-                            r.approvalStatus === 'APPROVED'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : r.paymentStatus === 'PAID'
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                              : r.approvalStatus === 'REJECTED'
-                              ? 'bg-red-50 text-red-700 border border-red-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+              {/* Expenditure Distribution Donut Card (Exact Mobile Replica) */}
+              {requests.length > 0 && (
+                <div className="p-5 bg-white rounded-3xl border border-[#E2E8F0] shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#EA580C]">
+                        <PieChart className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-[#0F172A]">Expenditure Distribution</h4>
+                        <p className="text-[10px] text-[#64748B]">
+                          Allocation by {requisitionChartMetric.toLowerCase()} ({requests.length} requests total)
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Toggle: [ Category | Status ] */}
+                    <div className="flex p-0.5 bg-slate-100 rounded-xl text-[10.5px]">
+                      {(['Category', 'Status'] as const).map((opt) => (
+                        <button
+                          key={opt}
+                          onClick={() => setRequisitionChartMetric(opt)}
+                          className={`px-3 py-1 rounded-lg font-extrabold transition-all ${
+                            requisitionChartMetric === opt
+                              ? 'bg-white text-[#EA580C] shadow-sm'
+                              : 'text-slate-500 hover:text-slate-800'
                           }`}
                         >
-                          {r.paymentStatus === 'PAID' ? 'DISBURSED' : r.approvalStatus}
-                        </span>
-                      </div>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                      <h3 className="text-sm font-extrabold text-[#0F172A] leading-snug">{r.title}</h3>
-                      <p className="text-xs text-[#64748B] line-clamp-1 mt-0.5">{r.justification || 'No description provided'}</p>
-
-                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
-                        <span className="font-extrabold text-[#0F172A] text-sm">
-                          {formatNaira(Number(r.amountMinor) / 100)}
+                  <div className="flex flex-col sm:flex-row items-center gap-6 pt-2">
+                    {/* Donut Chart */}
+                    <div className="relative w-32 h-32 flex items-center justify-center shrink-0">
+                      <svg className="w-32 h-32 -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="38" fill="transparent" stroke="#F1F5F9" strokeWidth="12" />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="38"
+                          fill="transparent"
+                          stroke="#EA580C"
+                          strokeWidth="12"
+                          strokeDasharray="238.76"
+                          strokeDashoffset={0}
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-1">
+                        <span className="text-xs font-black text-[#0F172A] leading-tight truncate max-w-[80px]">
+                          {compactExpenditureTotal}
                         </span>
-                        <span className="text-[11px] text-[#64748B]">
-                          {new Date(r.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                        <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">
+                          TOTAL VALUE
                         </span>
                       </div>
                     </div>
-                  ))}
+
+                    {/* Legend */}
+                    <div className="space-y-2 flex-1 w-full text-xs">
+                      {expenditureSegments.map((seg, i) => {
+                        const pct = totalExpenditureValue > 0 ? Math.round((seg.value / totalExpenditureValue) * 100) : 0;
+                        return (
+                          <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
+                              <span className="font-bold text-slate-700 text-xs truncate">{seg.label}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="font-extrabold text-[#0F172A] text-xs">{formatNaira(seg.value)}</span>
+                              <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">
+                                {pct}%
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               )}
-            </div>
-          )}
 
-          {/* ========================================================= */}
-          {/* TAB 2: 72H SLA & RETIREMENT DESK                          */}
-          {/* ========================================================= */}
-          {activeTab === 'RETIREMENT' && (
-            <div className="space-y-3.5 animate-fade-in">
-              <div>
-                <h2 className="text-lg font-black text-[#0F172A]">72h SLA & Retirement Desk</h2>
-                <p className="text-xs text-[#64748B]">Active advances and expense proof audit clearance</p>
-              </div>
-
-              {pendingRetirements.length === 0 ? (
-                <div className="bg-[#ECFDF5] border border-[#A7F3D0] rounded-3xl p-8 text-center space-y-2">
-                  <div className="w-12 h-12 rounded-2xl bg-[#059669] text-white flex items-center justify-center mx-auto shadow-md shadow-emerald-500/20 font-black">
-                    <ShieldCheck className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-sm font-black text-[#065F46]">100% Cleared & Compliant</h3>
-                  <p className="text-xs text-[#047857] max-w-xs mx-auto">
-                    You have no outstanding operational cash advances awaiting retirement. Your payroll standing is clear!
-                  </p>
+              {/* Requisitions List (Exact Mobile Card Structure) */}
+              {filteredRequests.length === 0 ? (
+                <div className="bg-white border border-[#E2E8F0] rounded-3xl p-12 text-center text-xs text-slate-500 shadow-sm">
+                  No requisitions match your filter.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {pendingRetirements.map((c: any) => {
-                    const amount = Number(c.request?.amountMinor || c.amountMinor || 0) / 100;
+                <div className="space-y-3">
+                  {filteredRequests.map((r: any) => {
+                    const amt = Number(r.amountMinor || 0) / 100;
+                    const dueDateStr = r.dueDate
+                      ? r.dueDate
+                      : new Date(new Date(r.createdAt).getTime() + 7 * 24 * 3600 * 1000).toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        });
+
                     return (
                       <div
-                        key={c.id}
-                        className="bg-white border-2 border-orange-200 rounded-3xl p-4 shadow-sm hover:border-orange-400 transition-all space-y-3"
+                        key={r.id}
+                        className="p-4 bg-white border border-[#E2E8F0] rounded-2xl hover:border-orange-300 hover:shadow-md transition-all space-y-3"
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200">
-                            {c.request?.requestNumber || 'ADVANCE'}
-                          </span>
-                          <span className="text-[10px] font-extrabold text-[#64748B] flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-orange-500" />
-                            Due: {new Date(c.dueAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                          </span>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center shrink-0">
+                              <User className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="text-sm font-extrabold text-[#0F172A] truncate">{r.title}</h4>
+                              <p className="text-[11px] text-[#64748B] truncate mt-0.5">
+                                {r.requestNumber} · {r.subsidiary?.legalName || user.subsidiary} · Due: {dueDateStr}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {r.isRecurring && (
+                                <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                  🔁 RECURRING
+                                </span>
+                              )}
+                              <span className="font-black text-sm text-[#0F172A]">{formatNaira(amt)}</span>
+                            </div>
+                            <span
+                              className={`text-[10px] font-bold block mt-0.5 ${
+                                r.paymentStatus === 'PAID'
+                                  ? 'text-[#059669]'
+                                  : r.approvalStatus === 'APPROVED'
+                                  ? 'text-[#059669]'
+                                  : r.approvalStatus === 'REJECTED'
+                                  ? 'text-[#DC2626]'
+                                  : 'text-[#EA580C]'
+                              }`}
+                            >
+                              {r.paymentStatus === 'PAID' ? 'Disbursed' : r.approvalStatus === 'APPROVED' ? 'Approved' : r.approvalStatus === 'REJECTED' ? 'Declined' : 'In Review'}
+                            </span>
+                          </div>
                         </div>
 
-                        <div>
-                          <h4 className="text-sm font-black text-[#0F172A]">{c.request?.title || 'Operational Cash Advance'}</h4>
-                          <span className="text-xl font-black text-[#0F172A] block mt-1">{formatNaira(amount)}</span>
-                        </div>
-
-                        <div className="pt-2 border-t border-slate-100 flex gap-2">
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                           <button
-                            onClick={() => {
-                              setActiveRetirementCase(c);
-                              setActualSpentAmount(amount);
-                              setRefundReturnedAmount(0);
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsAdminChatOpen(true);
                             }}
-                            className="w-full py-2.5 bg-[#EA580C] hover:bg-orange-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-orange-500/20 active:scale-[0.98] transition-all"
+                            className="px-3 py-1.5 rounded-lg bg-[#ECFDF5] border border-[#A7F3D0] text-[#047857] text-[11px] font-extrabold flex items-center gap-1.5 hover:bg-emerald-100 transition-all"
                           >
-                            <Upload className="w-3.5 h-3.5" />
-                            Upload Receipts & Liquidate
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>Request Chat</span>
+                          </button>
+
+                          <button
+                            onClick={() => setSelectedRequestDetail(r)}
+                            className="text-xs font-bold text-slate-400 hover:text-[#EA580C] flex items-center gap-1 transition-all"
+                          >
+                            <span>Details & Audit</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -1332,32 +1633,249 @@ export function StaffDashboardClient({
                   })}
                 </div>
               )}
+            </div>
+          )}
 
-              {/* Cleared History */}
-              <div className="pt-2">
-                <h3 className="text-xs font-black tracking-wider uppercase text-slate-400 mb-2 px-1">
-                  Cleared Advances History
-                </h3>
-                {accountabilityCases.filter((c: any) => c.status === 'CLEARED' || c.status === 'APPROVED').length === 0 ? (
-                  <p className="text-xs text-slate-400 italic px-1">No cleared historical certificates yet.</p>
+          {/* ========================================================= */}
+          {/* TAB 2: 72H SLA COMMAND CENTER (Exact Mobile App Replica)   */}
+          {/* ========================================================= */}
+          {activeTab === 'RETIREMENT' && (
+            <div className="space-y-5 animate-fade-in">
+              <div>
+                <h2 className="text-xl font-black text-[#0F172A] tracking-tight">72-Hour SLA Command Center</h2>
+                <p className="text-xs text-[#64748B]">Expense receipt retirement & deliverable compliance tracking</p>
+              </div>
+
+              {/* 1. ACTIVE SLA RADAR CARD */}
+              <div className="bg-white border border-[#E2E8F0] rounded-3xl p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#EA580C]">
+                    ACTIVE SLA RADAR
+                  </span>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-lg text-[9.5px] font-black ${
+                      nearestAdvanceCase
+                        ? isSlaOverdue
+                          ? 'bg-red-50 text-red-600 border border-red-200'
+                          : 'bg-[#ECFDF5] text-[#059669] border border-emerald-200'
+                        : 'bg-[#ECFDF5] text-[#059669] border border-emerald-200'
+                    }`}
+                  >
+                    {nearestAdvanceCase ? (isSlaOverdue ? 'OVERDUE ADVANCE' : 'ACTIVE ADVANCE') : 'POLICY COMPLIANT'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  {/* Radial Ring */}
+                  <div className="relative w-16 h-16 flex items-center justify-center shrink-0">
+                    <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                      <circle cx="32" cy="32" r="26" fill="transparent" stroke="#F1F5F9" strokeWidth="6" />
+                      <circle
+                        cx="32"
+                        cy="32"
+                        r="26"
+                        fill="transparent"
+                        stroke={nearestAdvanceCase ? (isSlaOverdue ? '#EF4444' : '#EA580C') : '#059669'}
+                        strokeWidth="6"
+                        strokeDasharray="163.36"
+                        strokeDashoffset={nearestAdvanceCase ? 163.36 - 163.36 * (slaHoursElapsed / 72) : 0}
+                        strokeLinecap="round"
+                        className="transition-all duration-700 ease-out"
+                      />
+                    </svg>
+                    <span className="absolute text-sm font-black text-[#0F172A]">
+                      {nearestAdvanceCase ? `${slaHoursRemaining}h` : '0h'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1 min-w-0">
+                    <h4 className="text-xs font-black text-[#0F172A] leading-tight">
+                      {nearestAdvanceCase
+                        ? `${slaHoursElapsed} Hours Elapsed · ${slaHoursRemaining} Hours Left`
+                        : '100% Policy Compliant · 0 Advances Due'}
+                    </h4>
+                    <p className="text-[11px] text-[#64748B] leading-relaxed">
+                      {nearestAdvanceCase
+                        ? `Physical receipts for ${nearestAdvanceCase.request?.requestNumber || nearestAdvanceCase.requestNumber || 'advance'} must be photographed and submitted before deadline.`
+                        : 'All operational funds are fully accounted for. Great job maintaining company compliance!'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. 72H SLA COMPLIANCE RADAR (DONUT ANALYTICS CARD) */}
+              <div className="bg-white border border-[#E2E8F0] rounded-3xl p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#EA580C]">
+                      <Target className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-[#0F172A]">72h SLA Compliance Radar</h4>
+                      <p className="text-[10px] text-[#64748B]">Expense retirement compliance & deliverable audit score</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-6 pt-1">
+                  <div className="relative w-28 h-28 flex items-center justify-center shrink-0">
+                    <svg className="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="38" fill="transparent" stroke="#F1F5F9" strokeWidth="12" />
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        fill="transparent"
+                        stroke={overdueCount > 0 ? '#EF4444' : '#EA580C'}
+                        strokeWidth="12"
+                        strokeDasharray="238.76"
+                        strokeDashoffset={0}
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                      <span className="text-base font-black text-[#0F172A]">{compliancePct}%</span>
+                      <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">COMPLIANCE</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 flex-1 w-full text-xs">
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#EA580C] shrink-0" />
+                        <span className="font-bold text-slate-700 text-xs">Active in 72h Grace</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-[#0F172A]">{inGraceCount || (nearestAdvanceCase ? 1 : 0)}</span>
+                        <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">
+                          100%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. ACTIVE ADVANCES REQUIRING PROOF SECTION */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-black text-[#0F172A]">Active Advances Requiring Proof</h3>
+
+                {pendingRetirements.length === 0 ? (
+                  <div className="bg-white border border-[#E2E8F0] rounded-3xl p-8 text-center shadow-sm space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-[#10B981] flex items-center justify-center mx-auto">
+                      <ShieldCheck className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-[#0F172A]">Zero Advance Liabilities</h4>
+                      <p className="text-xs text-[#64748B] max-w-sm mx-auto mt-1 leading-relaxed">
+                        All your past cash advances are 100% reconciled and cleared by Finance.
+                      </p>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="space-y-2">
-                    {accountabilityCases
-                      .filter((c: any) => c.status === 'CLEARED' || c.status === 'APPROVED')
-                      .map((c: any) => (
+                  <div className="space-y-3">
+                    {pendingRetirements.map((c: any) => {
+                      const amount = Number(c.request?.amountMinor || c.amountMinor || 0) / 100;
+                      const reqNum = c.request?.requestNumber || c.requestNumber || 'ADVANCE';
+                      const reqTitle = c.request?.title || c.title || 'Operational Advance';
+                      const deliverables = c.requiredDeliverables || c.request?.deliverable || 'Itemized receipt and proof of delivery.';
+                      const dueTime = c.dueAt ? new Date(c.dueAt).getTime() : Date.now() + 72 * 3600 * 1000;
+                      const remHours = Math.max(0, Math.round((dueTime - Date.now()) / (1000 * 60 * 60)));
+                      const isOver = dueTime <= Date.now();
+
+                      return (
                         <div
                           key={c.id}
-                          className="p-3 bg-white border border-[#E2E8F0] rounded-2xl flex items-center justify-between text-xs"
+                          className="bg-white rounded-3xl p-5 border border-amber-200/80 shadow-sm space-y-3 hover:border-amber-400 transition-all"
                         >
-                          <div>
-                            <span className="font-extrabold text-[#0F172A] block">{c.request?.title || 'Cleared Advance'}</span>
-                            <span className="text-[10px] text-slate-400">{c.request?.requestNumber}</span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#EA580C]">
+                                <Receipt className="w-4 h-4" />
+                              </div>
+                              <span className="text-xs font-black text-[#EA580C]">{reqNum}</span>
+                            </div>
+                            <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black bg-[#FEF3C7] text-[#D97706] border border-amber-200">
+                              {isOver ? '24h Overdue' : `${remHours}h Left`}
+                            </span>
                           </div>
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
-                            ✓ Cleared
+
+                          <div>
+                            <h4 className="text-sm font-black text-[#0F172A]">{reqTitle}</h4>
+                            <p className="text-xs text-[#64748B] mt-0.5">
+                              Disbursed Amount: <span className="font-bold text-[#0F172A]">{formatNaira(amount)}</span> · Ref: {c.bankReference || c.request?.bankReference || ''}
+                            </p>
+                          </div>
+
+                          {/* Required Proof Box */}
+                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-start gap-2 text-xs text-slate-600">
+                            <Receipt className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
+                            <span><strong>Required Proof:</strong> {deliverables}</span>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              setActiveRetirementCase(c);
+                              setActualSpentAmount(amount);
+                              setRefundReturnedAmount(0);
+                            }}
+                            className="w-full py-3 bg-[#EA580C] hover:bg-orange-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 active:scale-[0.98] transition-all"
+                          >
+                            <Camera className="w-4 h-4" />
+                            <span>Upload Physical Receipts & GRN</span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 4. CLEARED RETIREMENT ARCHIVE SECTION */}
+              <div className="space-y-3 pt-2">
+                <h3 className="text-sm font-black text-[#0F172A]">Cleared Retirement Archive</h3>
+
+                {clearedRetirements.length === 0 ? (
+                  <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 flex items-center gap-3 shadow-sm">
+                    <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                      <Archive className="w-4 h-4" />
+                    </div>
+                    <p className="text-xs text-[#64748B] leading-relaxed">
+                      No retired advances archived yet. Completed accountability reconciliations will be archived here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {clearedRetirements.map((c: any) => {
+                      const amt = Number(c.request?.amountMinor || c.amountMinor || 0) / 100;
+                      const reqNum = c.request?.requestNumber || c.requestNumber || 'ADVANCE';
+                      const reqTitle = c.request?.title || c.title || 'Data Center Project';
+                      const dept = c.request?.department || user.department || 'Commercial Growth & Sales';
+
+                      return (
+                        <div
+                          key={c.id}
+                          className="p-4 bg-white border border-[#E2E8F0] rounded-2xl flex items-center justify-between shadow-sm hover:border-slate-300 transition-all"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-[#ECFDF5] text-[#10B981] flex items-center justify-center shrink-0">
+                              <CheckCircle2 className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <h5 className="text-xs font-black text-[#0F172A] truncate">
+                                {reqNum} · {reqTitle}
+                              </h5>
+                              <p className="text-[10px] text-slate-400 truncate">
+                                {formatNaira(amt)} · {dept}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-lg text-[9.5px] font-black bg-[#ECFDF5] text-[#059669] border border-emerald-200 shrink-0">
+                            {c.status || 'EVIDENCE_SUBMITTED'}
                           </span>
                         </div>
-                      ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
