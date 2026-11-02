@@ -284,8 +284,9 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
           color: #ffffff !important;
         }
         .sidebar {
-          background: radial-gradient(circle at 18% 12%, ${activeBrandColor}38, transparent 48%),
-                      linear-gradient(175deg, #070c16 0%, #0e1422 60%, ${activeBrandColor}1c 100%) !important;
+          background-color: #070c16 !important;
+          background: radial-gradient(circle at 18% 10%, ${activeBrandColor}30, transparent 42%),
+                      linear-gradient(180deg, #070c16 0%, #0b111e 50%, #050811 100%) !important;
           position: sticky !important;
           top: 0 !important;
           height: 100vh !important;
@@ -295,7 +296,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
           position: absolute;
           inset: 0;
           pointer-events: none;
-          opacity: 0.55 !important;
+          opacity: 0.38 !important;
           overflow: hidden;
           z-index: 1;
         }
@@ -306,9 +307,9 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
           top: 165px;
           width: 250px;
           height: 250px;
-          border: 1.5px solid ${activeBrandColor}80 !important;
+          border: 1.5px solid ${activeBrandColor}70 !important;
           border-radius: 50%;
-          box-shadow: 0 0 0 35px ${activeBrandColor}18, 0 0 0 85px ${activeBrandColor}08 !important;
+          box-shadow: 0 0 0 35px ${activeBrandColor}12, 0 0 0 85px ${activeBrandColor}05 !important;
         }
         .sidebar-circuit:after {
           content: '';
@@ -317,7 +318,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
           height: 380px;
           right: -120px;
           bottom: 30px;
-          border: 1.5px solid ${activeBrandColor}60 !important;
+          border: 1px solid ${activeBrandColor}35 !important;
           border-radius: 50%;
           transform: rotate(24deg);
         }
@@ -328,7 +329,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
           border: 1.5px solid #ffffff !important;
           background: ${activeBrandColor} !important;
           border-radius: 50%;
-          box-shadow: 0 0 14px ${activeBrandColor}, 0 0 4px #ffffff !important;
+          box-shadow: 0 0 12px ${activeBrandColor}, 0 0 4px #ffffff !important;
         }
       `}</style>
       <main

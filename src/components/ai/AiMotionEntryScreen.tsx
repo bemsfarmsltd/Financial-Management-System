@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { KineticOptikkaTorus } from './KineticOptikkaTorus';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Volume2, VolumeX } from 'lucide-react';
 
 interface Props {
   onComplete: () => void;
@@ -23,6 +23,8 @@ export function AiMotionEntryScreen({
 }: Props) {
   const [financialIndex, setFinancialIndex] = useState(0);
   const [isFadingOut, setIsFadingOut] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   // Dynamic user display name
   const displayName = userName?.trim() || (userRole === 'GMD' ? 'Dr Pastra' : userRole.includes('ADMIN') ? 'Bems system Admin' : 'Executive');
@@ -129,6 +131,68 @@ export function AiMotionEntryScreen({
     return () => clearInterval(timer);
   }, [financialUpdates.length, mode]);
 
+  // Audio / Speech Synthesis methods
+  const stopSpeaking = useCallback(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  }, []);
+
+  const speakGreeting = useCallback(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    window.speechSynthesis.cancel();
+
+    const welcomeGreeting = `Welcome, ${displayName}. ${businessName ? `Welcome to ${businessName}.` : ''} Autonomous ledger governance and expenditure pipeline are active.`;
+    const utterance = new SpeechSynthesisUtterance(welcomeGreeting);
+    utterance.rate = 0.94;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    const assignVoice = () => {
+      const voices = window.speechSynthesis.getVoices();
+      if (!voices || voices.length === 0) return;
+      const naturalVoice = voices.find(
+        (v) =>
+          v.lang.startsWith('en') &&
+          (v.name.includes('Natural') ||
+            v.name.includes('Google') ||
+            v.name.includes('Samantha') ||
+            v.name.includes('Daniel') ||
+            v.name.includes('Karen') ||
+            v.name.includes('Serena') ||
+            v.name.includes('Premium'))
+      ) || voices.find((v) => v.lang.startsWith('en'));
+      if (naturalVoice) utterance.voice = naturalVoice;
+    };
+
+    assignVoice();
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = assignVoice;
+    }
+
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+
+    speechUtteranceRef.current = utterance;
+    window.speechSynthesis.speak(utterance);
+  }, [displayName, businessName]);
+
+  // Attempt auto-speaking on mount in login mode (with graceful fallback if blocked by browser policy)
+  useEffect(() => {
+    if (mode !== 'login') return;
+    const timer = setTimeout(() => {
+      speakGreeting();
+    }, 550);
+
+    return () => {
+      clearTimeout(timer);
+      stopSpeaking();
+    };
+  }, [mode, speakGreeting, stopSpeaking]);
+
   // For reload mode: automatically transition directly to the dashboard after ~2.4 seconds
   useEffect(() => {
     if (mode === 'reload') {
@@ -152,6 +216,7 @@ export function AiMotionEntryScreen({
   }, []);
 
   const handleProceed = () => {
+    stopSpeaking();
     setIsFadingOut(true);
     setTimeout(onComplete, 350);
   };
@@ -244,7 +309,7 @@ export function AiMotionEntryScreen({
         {/* Executive Welcome Header with dynamic user name */}
         <h1
           style={{
-            margin: '0 0 12px 0',
+            margin: '0 0 10px 0',
             fontSize: '44px',
             fontWeight: 850,
             letterSpacing: '-0.035em',
@@ -254,6 +319,55 @@ export function AiMotionEntryScreen({
         >
           Welcome, {displayName}
         </h1>
+
+        {/* Vocalize / Audio Voice Pill */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px' }}>
+          <button
+            type="button"
+            onClick={isSpeaking ? stopSpeaking : speakGreeting}
+            aria-label={isSpeaking ? 'Mute AI voice' : 'Listen to AI voice welcome'}
+            style={{
+              background: isSpeaking ? 'rgba(13, 138, 112, 0.12)' : 'rgba(255, 255, 255, 0.75)',
+              border: `1px solid ${isSpeaking ? (brandColor || '#0d8a70') : 'rgba(0, 0, 0, 0.08)'}`,
+              borderRadius: '999px',
+              padding: '5px 14px',
+              fontSize: '11px',
+              fontWeight: 700,
+              color: isSpeaking ? (brandColor || '#0d8a70') : '#57534e',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backdropFilter: 'blur(10px)',
+              boxShadow: isSpeaking ? `0 0 14px ${brandColor || '#0d8a70'}35` : '0 2px 8px rgba(0, 0, 0, 0.04)',
+              transition: 'all 0.25s ease',
+            }}
+          >
+            {isSpeaking ? (
+              <>
+                <Volume2 size={13} style={{ color: brandColor || '#0d8a70' }} />
+                <span>AI Speaking · Tap to Mute</span>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '2px',
+                    marginLeft: '2px',
+                  }}
+                >
+                  <span className="ai-voice-bar vbar-1" style={{ width: '2.5px', background: brandColor || '#0d8a70', borderRadius: '1px' }} />
+                  <span className="ai-voice-bar vbar-2" style={{ width: '2.5px', background: brandColor || '#0d8a70', borderRadius: '1px' }} />
+                  <span className="ai-voice-bar vbar-3" style={{ width: '2.5px', background: brandColor || '#0d8a70', borderRadius: '1px' }} />
+                </span>
+              </>
+            ) : (
+              <>
+                <Volume2 size={13} />
+                <span>🔊 Hear AI Welcome</span>
+              </>
+            )}
+          </button>
+        </div>
 
         {/* Dynamic Financial Update Ticker */}
         <div
@@ -364,6 +478,36 @@ export function AiMotionEntryScreen({
           to {
             opacity: 1;
             transform: translateY(0);
+          }
+        }
+        .ai-voice-bar {
+          display: inline-block;
+          animation: voiceWave 0.9s ease-in-out infinite alternate;
+        }
+        .vbar-1 {
+          height: 6px;
+          animation-delay: 0s;
+        }
+        .vbar-2 {
+          height: 12px;
+          animation-delay: 0.22s;
+        }
+        .vbar-3 {
+          height: 8px;
+          animation-delay: 0.44s;
+        }
+        @keyframes voiceWave {
+          0% {
+            height: 4px;
+            opacity: 0.5;
+          }
+          50% {
+            height: 13px;
+            opacity: 1;
+          }
+          100% {
+            height: 6px;
+            opacity: 0.7;
           }
         }
       `}</style>
