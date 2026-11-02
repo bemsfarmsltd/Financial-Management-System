@@ -27,6 +27,8 @@ interface Subsidiary {
   industry: string;
   initials: string;
   color: string;
+  brandColor?: string | null;
+  logoUrl?: string | null;
   status: string;
 }
 
@@ -86,7 +88,14 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
       .then(d => {
         if (d && d.organizations && d.organizations.length > 0) {
           setSubsidiaries(d.organizations);
-          setCurrentSubId(d.organizations[0].id);
+          let targetId = d.organizations[0].id;
+          if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem('bems_active_org');
+            if (stored && d.organizations.some((o: any) => o.id === stored)) {
+              targetId = stored;
+            }
+          }
+          setCurrentSubId(targetId);
         } else {
           setSubsidiaries(defaultSubsidiaries);
           setCurrentSubId('bems-group-hq');
@@ -94,6 +103,14 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
       })
       .catch(() => {});
   }, [initialRole]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && currentSubId) {
+      try {
+        localStorage.setItem('bems_active_org', currentSubId);
+      } catch {}
+    }
+  }, [currentSubId]);
 
   const loadNotifications = async () => {
     try {
@@ -233,22 +250,68 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
 
   const isExecutiveAdmin = currentRole === 'GMD' || currentRole === 'SystemAdmin';
   const navGroups = currentRole === 'GMD' ? gmdNav : currentRole === 'SystemAdmin' ? sysAdminNav : staffNav;
+  const isGroupScope = !currentSub || currentSub.id === 'bems-group-hq' || currentSub.code === 'BEMS-GROUP' || currentSub.name?.toLowerCase().includes('bems group');
+  const activeBrandColor = currentSub?.brandColor || currentSub?.color || (isGroupScope ? '#ea580c' : '#0d8a70');
+  const activeLogoUrl = currentSub?.logoUrl || (isGroupScope ? '/bems-group-logo.png?v=20261024' : null);
 
   return (
-    <main className={`app-shell ${currentRole === 'Staff' ? 'staff-view' : 'gmd-view'} ${collapsed ? 'collapsed' : ''}`}>
-      {/* SIDEBAR */}
-      <aside className="sidebar">
-        <div className="sidebar-circuit" aria-hidden="true"><i/><i/><i/><i/><i/><i/></div>
-        <div className="side-brand">
-          <img src="/bems-group-logo.png?v=20261024" alt="BEMS Logo" style={{ width: '30px', height: '30px', objectFit: 'contain' }} />
-          <div className="brand-title-wrap" style={{ display: 'flex', flexDirection: 'row', alignItems: 'baseline', gap: '6px', whiteSpace: 'nowrap' }}>
-            <span className="brand-name" style={{ display: 'inline-block', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif", fontSize: '16px', fontWeight: 850, letterSpacing: '-0.02em', color: '#ffffff', lineHeight: 1 }}>BEMS</span>
-            <span className="brand-sub" style={{ display: 'inline-block', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif", fontSize: '15px', fontWeight: 800, letterSpacing: '0.04em', color: '#f97316', lineHeight: 1 }}>GROUP</span>
+    <>
+      <style jsx global>{`
+        :root {
+          --brand-primary: ${activeBrandColor};
+          --brand-primary-rgb: ${activeBrandColor};
+        }
+        .side-brand span,
+        .side-brand .brand-sub {
+          color: ${activeBrandColor} !important;
+        }
+        .nav-item.active {
+          background: linear-gradient(90deg, ${activeBrandColor}ee, ${activeBrandColor}dd) !important;
+          box-shadow: inset 3px 0 #ffffff, 0 7px 15px ${activeBrandColor}40 !important;
+        }
+        .nav-item:hover {
+          background: ${activeBrandColor}18 !important;
+        }
+        .nav-group > p {
+          color: ${activeBrandColor} !important;
+        }
+        .help-button > span {
+          background: ${activeBrandColor} !important;
+          color: #ffffff !important;
+        }
+      `}</style>
+      <main
+        className={`app-shell ${currentRole === 'Staff' ? 'staff-view' : 'gmd-view'} ${collapsed ? 'collapsed' : ''}`}
+        style={{
+          ['--brand-primary' as any]: activeBrandColor,
+          ['--brand-tint' as any]: `${activeBrandColor}18`,
+        }}
+      >
+        {/* SIDEBAR */}
+        <aside className="sidebar">
+          <div className="sidebar-circuit" aria-hidden="true"><i/><i/><i/><i/><i/><i/></div>
+          <div className="side-brand" style={{ cursor: 'pointer' }} onClick={() => { if (typeof window !== 'undefined') window.location.href = '/finance'; }}>
+            <span style={{ width: 32, height: 32, borderRadius: 7, background: '#ffffff', border: `1.5px solid ${activeBrandColor}50`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 2, flexShrink: 0 }}>
+              {activeLogoUrl ? (
+                <img src={activeLogoUrl} alt={currentSub.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              ) : (
+                <span style={{ fontSize: 12, fontWeight: 900, color: activeBrandColor }}>
+                  {currentSub.initials || currentSub.name.slice(0, 2).toUpperCase()}
+                </span>
+              )}
+            </span>
+            <div className="brand-title-wrap" style={{ display: 'inline-flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0, overflow: 'hidden', gap: '2px', whiteSpace: 'nowrap', margin: 0, padding: 0 }}>
+              <span className="brand-name" style={{ display: 'inline-block', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif", fontSize: '15px', fontWeight: 850, letterSpacing: '-0.02em', color: '#ffffff', lineHeight: 1, margin: 0, padding: 0, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>
+                {isGroupScope ? 'BEMS' : currentSub.name}
+              </span>
+              <span className="brand-sub" style={{ display: 'inline-block', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif", fontSize: '11px', fontWeight: 800, letterSpacing: '0.04em', color: activeBrandColor, lineHeight: 1, margin: 0, padding: 0 }}>
+                {isGroupScope ? 'FINANCE GROUP' : 'FINANCE DESK'}
+              </span>
+            </div>
+            <button aria-label="Toggle navigation" onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed); }}>
+              {collapsed ? '›' : '‹'}
+            </button>
           </div>
-          <button aria-label="Toggle navigation" onClick={() => setCollapsed(!collapsed)}>
-            {collapsed ? '›' : '‹'}
-          </button>
-        </div>
 
         {/* RETURN TO ERP GATEWAY */}
         <div style={{ padding: '4px 16px 12px' }}>
@@ -556,5 +619,6 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
         </nav>
       )}
     </main>
+    </>
   );
 }
