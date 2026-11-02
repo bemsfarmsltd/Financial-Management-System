@@ -245,7 +245,6 @@ const gmdNavGroups = [
       ['Treasury accounts', '🏦'],
       ['Recurring commitments', '◌'],
       ['Hybrid payroll', '⌁'],
-      ['Intercompany notes', '▥'],
       ['Receipt archive', '▣'],
     ]
   },
@@ -4068,18 +4067,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
       if (target === 'Staff profiles') return <LiveStaffProfilesModule scope={activeScope} setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
       if (target === 'Analytics & BI') return <LiveAnalyticsBIPage/>;
       if (target === 'Intercompany notes' || target === 'Intercompany & Audit Hub') {
-        return (
-          <IntercompanyAuditHubView
-            initialTab="notes"
-            businessName={current.name}
-            userName={safeUser.fullName}
-            scope={activeScope}
-            businessId={current.id}
-            businessCode={(current as any).code}
-            onNavigate={setActive}
-            onSelectBusiness={selectBusiness}
-          />
-        );
+        return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice} initialSection="Intercompany & Governance"/>;
       }
       if (target === 'Settings' || target === 'Admin Settings') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
       if (target === 'Mobile App Settings' || target === 'Mobile settings' || target === 'Mobile App Version Control') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice} initialSection="Mobile App Settings"/>;
@@ -4325,7 +4313,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
     if(target==='Follow-up tasks') return <LiveFollowUpTasksModule setNotice={setNotice}/>;
     if(target==='Closure clearances') return <ClosureClearancesModule business={current} setNotice={setNotice}/>;
     if(target==='Hybrid payroll') return <PayrollModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(target==='Intercompany notes'||target==='Intercompany & Audit Hub') return <IntercompanyAuditHubView initialTab="notes" businessName={current.name} userName={safeUser.fullName} scope={activeScope} businessId={current.id} businessCode={(current as any).code} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
+    if(target==='Intercompany notes'||target==='Intercompany & Audit Hub') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice} initialSection="Intercompany & Governance"/>;
     if(target==='Settlement reconciliation') return <SettlementReconciliationModule business={current} setNotice={setNotice}/>;
     if(target==='Vendors & suppliers') return <VendorsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
     if(target==='Price benchmarks') return <PriceBenchmarksModule business={current} setNotice={setNotice}/>;
