@@ -3653,7 +3653,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         label: 'Policy Compliant (Clean)',
         value: 100,
         count: 0,
-        color: Color(0xFF10B981),
+        color: Color(0xFFEA580C),
       ));
     } else {
       if (clearedCount > 0) {
@@ -3661,7 +3661,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           label: 'Cleared & Verified',
           value: clearedCount.toDouble(),
           count: clearedCount,
-          color: const Color(0xFF10B981),
+          color: const Color(0xFFEA580C),
         ));
       }
       if (inGraceCount > 0) {
@@ -4018,9 +4018,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: nearestCase != null && nearestCase.status == 'EVIDENCE_SUBMITTED'
-                          ? const Color(0xFFECFDF5)
-                          : (nearestCase != null ? const Color(0xFFFEF3C7) : const Color(0xFFECFDF5)),
+                          ? const Color(0xFFFFF7ED)
+                          : (nearestCase != null ? const Color(0xFFFEF3C7) : const Color(0xFFFFF7ED)),
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFED7AA)),
                     ),
                     child: Text(
                       nearestCase != null
@@ -4030,8 +4031,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
                         color: nearestCase != null && nearestCase.status == 'EVIDENCE_SUBMITTED'
-                            ? const Color(0xFF059669)
-                            : (nearestCase != null ? const Color(0xFFD97706) : const Color(0xFF059669)),
+                            ? const Color(0xFFEA580C)
+                            : (nearestCase != null ? const Color(0xFFD97706) : const Color(0xFFEA580C)),
                       ),
                     ),
                   ),
@@ -4053,8 +4054,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           backgroundColor: const Color(0xFFF1F5F9),
                           valueColor: AlwaysStoppedAnimation<Color>(
                             nearestCase != null
-                                ? (nearestCase.status == 'EVIDENCE_SUBMITTED' ? const Color(0xFF10B981) : const Color(0xFFEA580C))
-                                : const Color(0xFF059669),
+                                ? (nearestCase.status == 'EVIDENCE_SUBMITTED' ? const Color(0xFFEA580C) : const Color(0xFFEA580C))
+                                : const Color(0xFFEA580C),
                           ),
                         ),
                       ),
@@ -4113,7 +4114,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             child: const Center(
               child: Column(
                 children: [
-                  Icon(Icons.verified_user_rounded, color: Color(0xFF10B981), size: 48),
+                  Icon(Icons.verified_user_rounded, color: Color(0xFFEA580C), size: 48),
                   SizedBox(height: 12),
                   Text('Zero Advance Liabilities', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
                   SizedBox(height: 4),
@@ -4130,11 +4131,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               margin: const EdgeInsets.only(bottom: 14),
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: isSubmitted ? const Color(0xFFF0FDF4) : Colors.white,
+                color: isSubmitted ? const Color(0xFFFFF7ED) : Colors.white,
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
                   color: isSubmitted
-                      ? const Color(0xFF6EE7B7)
+                      ? const Color(0xFFFED7AA)
                       : (c.isOverdue ? const Color(0xFFFCA5A5) : const Color(0xFFFDE68A)),
                 ),
                 boxShadow: [
@@ -4160,29 +4161,29 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                     errorBuilder: (_, __, ___) => Container(
                                       width: 32,
                                       height: 32,
-                                      color: isSubmitted ? const Color(0xFF10B981).withOpacity(0.1) : const Color(0xFFEA580C).withOpacity(0.1),
-                                      child: Icon(Icons.receipt_long_rounded, color: isSubmitted ? const Color(0xFF10B981) : const Color(0xFFEA580C), size: 18),
+                                      color: const Color(0xFFEA580C).withOpacity(0.1),
+                                      child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 18),
                                     ),
                                   )
                                 : Container(
                                     width: 32,
                                     height: 32,
-                                    color: isSubmitted ? const Color(0xFF10B981).withOpacity(0.1) : const Color(0xFFEA580C).withOpacity(0.1),
-                                    child: Icon(Icons.receipt_long_rounded, color: isSubmitted ? const Color(0xFF10B981) : const Color(0xFFEA580C), size: 18),
+                                    color: const Color(0xFFEA580C).withOpacity(0.1),
+                                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 18),
                                   ),
                           ),
                           const SizedBox(width: 8),
-                          Text(c.requestNumber, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: isSubmitted ? const Color(0xFF059669) : const Color(0xFFEA580C))),
+                          Text(c.requestNumber, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
                         ],
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: isSubmitted
-                              ? const Color(0xFFECFDF5)
+                              ? const Color(0xFFFFF7ED)
                               : (c.isOverdue ? const Color(0xFFFEF2F2) : const Color(0xFFFEF3C7)),
                           borderRadius: BorderRadius.circular(8),
-                          border: isSubmitted ? Border.all(color: const Color(0xFFA7F3D0)) : null,
+                          border: isSubmitted ? Border.all(color: const Color(0xFFFED7AA)) : null,
                         ),
                         child: Text(
                           isSubmitted
@@ -4192,7 +4193,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                             color: isSubmitted
-                                ? const Color(0xFF059669)
+                                ? const Color(0xFFEA580C)
                                 : (c.isOverdue ? const Color(0xFFDC2626) : const Color(0xFFD97706)),
                           ),
                         ),
@@ -4209,11 +4210,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     decoration: BoxDecoration(
                       color: isSubmitted ? Colors.white : const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: isSubmitted ? const Color(0xFFA7F3D0) : const Color(0xFFE2E8F0)),
+                      border: Border.all(color: isSubmitted ? const Color(0xFFFED7AA) : const Color(0xFFE2E8F0)),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.receipt_long_rounded, color: isSubmitted ? const Color(0xFF059669) : const Color(0xFFEA580C), size: 16),
+                        const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 16),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -4233,7 +4234,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isSubmitted ? const Color(0xFF059669) : const Color(0xFFEA580C),
+                      backgroundColor: const Color(0xFFEA580C),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -4274,8 +4275,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         Container(
                           width: 36,
                           height: 36,
-                          decoration: const BoxDecoration(color: Color(0xFFECFDF5), shape: BoxShape.circle),
-                          child: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 20),
+                          decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
+                          child: const Icon(Icons.check_circle_rounded, color: Color(0xFFEA580C), size: 20),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -4289,8 +4290,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(8)),
-                          child: Text(r.accountabilityStatus.isNotEmpty ? r.accountabilityStatus : 'CLEARED', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF059669))),
+                          decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFFED7AA))),
+                          child: Text(r.accountabilityStatus.isNotEmpty ? r.accountabilityStatus : 'CLEARED', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
                         ),
                       ],
                     ),

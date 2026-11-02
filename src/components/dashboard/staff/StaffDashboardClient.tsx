@@ -1896,7 +1896,7 @@ export function StaffDashboardClient({
                               e.stopPropagation();
                               setIsAdminChatOpen(true);
                             }}
-                            className="px-3 py-1.5 rounded-lg bg-[#ECFDF5] border border-[#A7F3D0] text-[#047857] text-[11px] font-extrabold flex items-center gap-1.5 hover:bg-emerald-100 transition-all"
+                            className="px-3 py-1.5 rounded-lg bg-[#FFF7ED] border border-[#FED7AA] text-[#EA580C] text-[11px] font-extrabold flex items-center gap-1.5 hover:bg-orange-100 transition-all"
                           >
                             <MessageSquare className="w-3.5 h-3.5" />
                             <span>Request Chat</span>
@@ -1939,8 +1939,8 @@ export function StaffDashboardClient({
                       nearestAdvanceCase
                         ? isSlaOverdue
                           ? 'bg-red-50 text-red-600 border border-red-200'
-                          : 'bg-[#ECFDF5] text-[#059669] border border-emerald-200'
-                        : 'bg-[#ECFDF5] text-[#059669] border border-emerald-200'
+                          : 'bg-orange-50 text-[#EA580C] border border-orange-200'
+                        : 'bg-orange-50 text-[#EA580C] border border-orange-200'
                     }`}
                   >
                     {nearestAdvanceCase ? (isSlaOverdue ? 'OVERDUE ADVANCE' : 'ACTIVE ADVANCE') : 'POLICY COMPLIANT'}
@@ -1957,7 +1957,7 @@ export function StaffDashboardClient({
                         cy="32"
                         r="26"
                         fill="transparent"
-                        stroke={nearestAdvanceCase ? (isSlaOverdue ? '#EF4444' : '#EA580C') : '#059669'}
+                        stroke={nearestAdvanceCase ? (isSlaOverdue ? '#EF4444' : '#EA580C') : '#EA580C'}
                         strokeWidth="6"
                         strokeDasharray="163.36"
                         strokeDashoffset={nearestAdvanceCase ? 163.36 - 163.36 * (slaHoursElapsed / 72) : 0}
@@ -2044,7 +2044,7 @@ export function StaffDashboardClient({
 
                 {activeAdvanceCases.length === 0 ? (
                   <div className="bg-white border border-[#E2E8F0] rounded-3xl p-8 text-center shadow-sm space-y-3">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-[#10B981] flex items-center justify-center mx-auto">
+                    <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-200 text-[#EA580C] flex items-center justify-center mx-auto">
                       <ShieldCheck className="w-6 h-6" />
                     </div>
                     <div>
@@ -2071,24 +2071,20 @@ export function StaffDashboardClient({
                           key={c.id}
                           className={`bg-white rounded-3xl p-5 border shadow-sm space-y-3 transition-all ${
                             isSubmitted
-                              ? 'border-emerald-300 bg-emerald-50/20 hover:border-emerald-400'
+                              ? 'border-orange-300 bg-orange-50/20 hover:border-orange-400'
                               : 'border-amber-200/80 hover:border-amber-400'
                           }`}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className={`w-8 h-8 rounded-xl border flex items-center justify-center ${
-                                isSubmitted
-                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
-                                  : 'bg-orange-50 border-orange-100 text-[#EA580C]'
-                              }`}>
+                              <div className="w-8 h-8 rounded-xl border border-orange-100 bg-orange-50 text-[#EA580C] flex items-center justify-center">
                                 <Receipt className="w-4 h-4" />
                               </div>
-                              <span className={`text-xs font-black ${isSubmitted ? 'text-emerald-700' : 'text-[#EA580C]'}`}>{reqNum}</span>
+                              <span className="text-xs font-black text-[#EA580C]">{reqNum}</span>
                             </div>
                             <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black border ${
                               isSubmitted
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                ? 'bg-orange-50 text-[#EA580C] border-orange-200'
                                 : 'bg-[#FEF3C7] text-[#D97706] border-amber-200'
                             }`}>
                               {isSubmitted ? '● Evidence Submitted (Review)' : isOver ? '24h Overdue' : `${remHours}h Left`}
@@ -2104,7 +2100,7 @@ export function StaffDashboardClient({
 
                           {/* Required Proof Box */}
                           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-start gap-2 text-xs text-slate-600">
-                            <Receipt className={`w-4 h-4 shrink-0 mt-0.5 ${isSubmitted ? 'text-emerald-600' : 'text-[#EA580C]'}`} />
+                            <Receipt className="w-4 h-4 shrink-0 mt-0.5 text-[#EA580C]" />
                             <span><strong>Required Proof:</strong> {deliverables}</span>
                           </div>
 
@@ -2114,11 +2110,7 @@ export function StaffDashboardClient({
                               setActualSpentAmount(amount);
                               setRefundReturnedAmount(0);
                             }}
-                            className={`w-full py-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all ${
-                              isSubmitted
-                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20'
-                                : 'bg-[#EA580C] hover:bg-orange-700 text-white shadow-orange-500/20'
-                            }`}
+                            className="w-full py-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md bg-[#EA580C] hover:bg-orange-700 text-white shadow-orange-500/20 active:scale-[0.98] transition-all"
                           >
                             <Camera className="w-4 h-4" />
                             <span>{isSubmitted ? 'Evidence Submitted (Update Proof)' : 'Upload Physical Receipts & GRN'}</span>
@@ -2157,7 +2149,7 @@ export function StaffDashboardClient({
                           className="p-4 bg-white border border-[#E2E8F0] rounded-2xl flex items-center justify-between shadow-sm hover:border-slate-300 transition-all"
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-full bg-[#ECFDF5] text-[#10B981] flex items-center justify-center shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-[#FFF7ED] text-[#EA580C] flex items-center justify-center shrink-0 border border-orange-200">
                               <CheckCircle2 className="w-4 h-4" />
                             </div>
                             <div className="min-w-0">
@@ -2169,7 +2161,7 @@ export function StaffDashboardClient({
                               </p>
                             </div>
                           </div>
-                          <span className="px-2.5 py-0.5 rounded-lg text-[9.5px] font-black bg-[#ECFDF5] text-[#059669] border border-emerald-200 shrink-0">
+                          <span className="px-2.5 py-0.5 rounded-lg text-[9.5px] font-black bg-[#FFF7ED] text-[#EA580C] border border-orange-200 shrink-0">
                             {c.status || 'EVIDENCE_SUBMITTED'}
                           </span>
                         </div>
