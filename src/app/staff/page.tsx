@@ -2,7 +2,7 @@ import React from 'react';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee } from '@/lib/auth';
-import { StaffDashboardClient } from '@/components/dashboard/staff/StaffDashboardClient';
+import { StaffPortalContainer } from '@/components/dashboard/staff/StaffPortalContainer';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,7 +100,7 @@ export default async function StaffPage() {
   };
 
   return (
-    <StaffDashboardClient
+    <StaffPortalContainer
       user={staffUser}
       businessName={businessName}
       subsidiaries={subsidiaries}
