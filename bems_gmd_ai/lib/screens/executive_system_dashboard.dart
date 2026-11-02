@@ -9,6 +9,14 @@ import '../widgets/charts/subsidiary_burn_bars.dart';
 import '../widgets/charts/accountability_sla_gauge.dart';
 import '../models/workstation_scope.dart';
 import '../widgets/disbursement_transfer_modal.dart';
+import 'disbursements_console_screen.dart';
+import 'accountability_console_screen.dart';
+import 'payroll_signoff_screen.dart';
+import 'vendors_registry_screen.dart';
+import 'intercompany_notes_screen.dart';
+import 'attendance_radar_screen.dart';
+import 'emergency_overrides_screen.dart';
+import 'staff_management_screen.dart';
 
 class ExecutiveSystemDashboard extends StatefulWidget {
   final VoidCallback onOpenDrawer;
@@ -277,10 +285,14 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                     const SizedBox(height: 16),
 
                     // Tab Specific Content
-                    if (_currentTab == 0) ..._buildOverviewTab(currencyFormatter, currentWorkstation),
+                    if (_currentTab == 0) ...[
+                      ..._buildOverviewTab(currencyFormatter, currentWorkstation),
+                      const SizedBox(height: 18),
+                      ..._buildTreasuryTab(currencyFormatter, currentWorkstation),
+                    ],
                     if (_currentTab == 1) ..._buildApprovalsTab(currencyFormatter),
-                    if (_currentTab == 2) ..._buildTreasuryTab(currencyFormatter, currentWorkstation),
-                    if (_currentTab == 3) ..._buildAccountabilityBudgetsTab(currencyFormatter, currentWorkstation),
+                    if (_currentTab == 2) ..._buildStaffAccessTab(),
+                    if (_currentTab == 3) ..._buildOperationsHubTab(currencyFormatter, currentWorkstation),
                   ],
                 ),
               ),
@@ -639,10 +651,10 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
   Widget _buildWorkspaceTabs() {
     final activeCount = _getFilteredRequests().length;
     final tabs = [
-      {'label': 'Overview', 'icon': Icons.insights_rounded, 'badge': ''},
-      {'label': 'Requests to Sign', 'icon': Icons.rule_rounded, 'badge': activeCount > 0 ? '$activeCount' : ''},
-      {'label': 'Bank Accounts', 'icon': Icons.account_balance_rounded, 'badge': '3'},
-      {'label': 'Staff Receipts', 'icon': Icons.verified_outlined, 'badge': '!'},
+      {'label': 'Pulse', 'icon': Icons.insights_rounded, 'badge': ''},
+      {'label': 'Approvals', 'icon': Icons.rule_rounded, 'badge': activeCount > 0 ? '$activeCount' : ''},
+      {'label': 'Staff & Access', 'icon': Icons.people_outline_rounded, 'badge': 'Staff'},
+      {'label': 'Operations', 'icon': Icons.apps_rounded, 'badge': '8'},
     ];
 
     return Container(
@@ -1367,6 +1379,248 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
           ),
         );
       }),
+    ];
+  }
+
+  // TAB 2: STAFF & ACCESS
+  List<Widget> _buildStaffAccessTab() {
+    return [
+      Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF1E293B)]),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: const [BoxShadow(color: Color(0x1A0F172A), blurRadius: 10, offset: Offset(0, 4))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('STAFF ONBOARDING & ACCESS CONTROL', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFFFB923C), letterSpacing: 0.5)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: const Color(0xFFEA580C), borderRadius: BorderRadius.circular(6)),
+                  child: const Text('EXECUTIVE DESK', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Review and approve self-service staff registrations, verify Monnify payout bank accounts, and manage workforce access across operational hubs.',
+              style: TextStyle(fontSize: 12.5, color: Color(0xFFE2E8F0), height: 1.4),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.people_alt_rounded, size: 16, color: Colors.white),
+                label: const Text('Open Staff Onboarding & Directory', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEA580C),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const StaffManagementScreen()),
+                  ).then((_) => _loadData());
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 16),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('AUTHENTIC OPERATIONAL HUBS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.5)),
+            const SizedBox(height: 10),
+            _buildHubRow('Umuahia Ops Hub', 'Abia State · Engineering & Technology'),
+            const Divider(height: 16, color: Color(0xFFF1F5F9)),
+            _buildHubRow('Owerri Ops Hub', 'Imo State · Field Operations & Logistics'),
+            const Divider(height: 16, color: Color(0xFFF1F5F9)),
+            _buildHubRow('Edo Benin Ops Hub', 'Edo State · Agribusiness & Regional Center'),
+            const Divider(height: 16, color: Color(0xFFF1F5F9)),
+            _buildHubRow('BEMS Group HQ', 'Corporate Directorate & Governance'),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  Widget _buildHubRow(String hub, String desc) {
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(8)),
+          child: const Icon(Icons.location_on_rounded, color: Color(0xFFEA580C), size: 16),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(hub, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+              Text(desc, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+            ],
+          ),
+        ),
+        const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 16),
+      ],
+    );
+  }
+
+  // TAB 3: OPERATIONS HUB
+  List<Widget> _buildOperationsHubTab(NumberFormat formatter, WorkstationProfile currentWorkstation) {
+    final modules = [
+      {
+        'title': 'Disbursements Console',
+        'desc': 'Approved payout queue & bank proof',
+        'icon': Icons.receipt_long_rounded,
+        'color': const Color(0xFFEA580C),
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DisbursementsConsoleScreen())),
+      },
+      {
+        'title': 'Accountability & 72h SLA',
+        'desc': 'Mandatory retirement aging & closure',
+        'icon': Icons.shield_rounded,
+        'color': const Color(0xFF059669),
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountabilityConsoleScreen())),
+      },
+      {
+        'title': 'Hybrid Payroll & Splits',
+        'desc': 'Monthly payroll sign-off & taxes',
+        'icon': Icons.groups_rounded,
+        'color': const Color(0xFF2563EB),
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PayrollSignOffScreen())),
+      },
+      {
+        'title': 'Vendors & Rates',
+        'desc': 'Approved supplier registry & TINs',
+        'icon': Icons.storefront_rounded,
+        'color': const Color(0xFF7C3AED),
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VendorsRegistryScreen())),
+      },
+      {
+        'title': 'Intercompany Notes',
+        'desc': 'Cross-entity debit & credit notes',
+        'icon': Icons.swap_horiz_rounded,
+        'color': const Color(0xFF0D9488),
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const IntercompanyNotesScreen())),
+      },
+      {
+        'title': 'Attendance & Kiosks',
+        'desc': 'Live clock-ins across operational hubs',
+        'icon': Icons.punch_clock_rounded,
+        'color': const Color(0xFFD97706),
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceRadarScreen())),
+      },
+      {
+        'title': 'Emergency Overrides',
+        'desc': '₦1,000,000 incident bypass queue',
+        'icon': Icons.bolt_rounded,
+        'color': const Color(0xFFDC2626),
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmergencyOverridesScreen())),
+      },
+      {
+        'title': 'Staff & Access Desk',
+        'desc': 'Onboarding approvals & directory',
+        'icon': Icons.badge_rounded,
+        'color': const Color(0xFF475569),
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StaffManagementScreen())),
+      },
+    ];
+
+    return [
+      _buildSectionHeader(
+        'OPERATIONAL COMMAND DESKS',
+        'Executive consoles with complete parity to the Admin Web Dashboard',
+      ),
+      const SizedBox(height: 12),
+      GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 1.15,
+        ),
+        itemCount: modules.length,
+        itemBuilder: (context, idx) {
+          final m = modules[idx];
+          final color = m['color'] as Color;
+
+          return InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: m['onTap'] as VoidCallback?,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                boxShadow: const [BoxShadow(color: Color(0x060F172A), blurRadius: 8, offset: Offset(0, 2))],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(m['icon'] as IconData, color: color, size: 20),
+                      ),
+                      const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Color(0xFFCBD5E1)),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        m['title'] as String,
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        m['desc'] as String,
+                        style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), height: 1.2),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+      const SizedBox(height: 20),
+      ..._buildAccountabilityBudgetsTab(formatter, currentWorkstation),
     ];
   }
 

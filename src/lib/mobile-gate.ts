@@ -53,10 +53,10 @@ export async function getMobileAppGate(appId: string) {
           appName: 'BEMS GMD AI',
           packageName: 'com.bemsgroup.gmd_ai',
           minimumAllowedVersion: '1.0.2',
-          latestVersionAvailable: '1.0.2',
-          forceUpdate: true,
-          directDownloadUrl: 'https://bemserp.work/download/gmd-app.apk?v=1.0.2',
-          upgradePromptNotes: 'Critical update: Disbursed status indicators, Attendance Scanner alignment, and performance optimizations.',
+          latestVersionAvailable: '1.0.5',
+          forceUpdate: false,
+          directDownloadUrl: 'https://bemserp.work/download/gmd-app.apk?v=1.0.5',
+          upgradePromptNotes: 'Major executive release: Full parity with Admin Web Dashboard including Staff Onboarding, Disbursements, Accountability, Payroll, Vendors, and Intercompany Desks.',
         }
       : {
           appId: 'STAFF_APP',

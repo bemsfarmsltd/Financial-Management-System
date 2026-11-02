@@ -10,7 +10,7 @@ class ApiService {
   static const String fallbackBaseUrl = 'https://pink-horse-318730.hostingersite.com';
   static String _activeBaseUrl = primaryBaseUrl;
 
-  static const String appVersion = '1.0.4';
+  static const String appVersion = '1.0.5';
   static const String appId = 'GMD_APP';
 
   // Active user session attributes
@@ -351,5 +351,258 @@ class ApiService {
         'staff': 0,
       };
     }
+  }
+
+  // --- STAFF ONBOARDING & DIRECTORY ---
+  static Future<Map<String, dynamic>> fetchStaffApprovals() async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(Uri.parse('$host/api/auth/approvals'), headers: authHeaders),
+        timeout: const Duration(seconds: 10),
+      );
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return {'employees': [], 'organizations': [], 'departments': []};
+  }
+
+  static Future<Map<String, dynamic>> decideStaffApproval({
+    required String employeeId,
+    required String decision, // 'APPROVE' or 'REJECT'
+    String? role,
+    String? subsidiaryId,
+    String? departmentId,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/auth/approvals'),
+        headers: authHeaders,
+        body: jsonEncode({
+          'employeeId': employeeId,
+          'decision': decision,
+          if (role != null) 'role': role,
+          if (subsidiaryId != null) 'subsidiaryId': subsidiaryId,
+          if (departmentId != null) 'departmentId': departmentId,
+        }),
+      ),
+      timeout: const Duration(seconds: 12),
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    final err = jsonDecode(res.body);
+    throw Exception(err['error'] ?? 'Failed to action signup (${res.statusCode})');
+  }
+
+  static Future<List<dynamic>> fetchStaffDirectory({String? subsidiaryId}) async {
+    try {
+      final query = subsidiaryId != null ? '?subsidiary=$subsidiaryId' : '';
+      final res = await _executeWithFailover(
+        (host) => http.get(Uri.parse('$host/api/staff$query'), headers: authHeaders),
+        timeout: const Duration(seconds: 10),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return (data['employees'] as List<dynamic>?) ?? [];
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<bool> updateStaffStatus({
+    required String employeeId,
+    required String status, // 'ACTIVE', 'SUSPENDED'
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.patch(
+        Uri.parse('$host/api/admin/employees/$employeeId/status'),
+        headers: authHeaders,
+        body: jsonEncode({'status': status}),
+      ),
+      timeout: const Duration(seconds: 10),
+    );
+    return res.statusCode == 200;
+  }
+
+  // --- DISBURSEMENTS & PROOF OF PAYMENT ---
+  static Future<Map<String, dynamic>> fetchDisbursementsData({String subsidiary = 'ALL'}) async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/disbursements?subsidiary=$subsidiary'),
+          headers: authHeaders,
+        ),
+        timeout: const Duration(seconds: 12),
+      );
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return {'readyForTransfer': [], 'awaitingChecker': [], 'verifiedDisbursements': []};
+  }
+
+  static Future<Map<String, dynamic>> recordDisbursementPayment({
+    required String requestId,
+    required String payerOrgId,
+    required String externalReference,
+    required String bankName,
+    required String amountMinor,
+    String? beneficiaryName,
+    String? beneficiaryBank,
+    String? beneficiaryAccount,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$_activeBaseUrl/api/disbursements'),
+    );
+    authHeaders.forEach((k, v) {
+      if (k != 'Content-Type') request.headers[k] = v;
+    });
+
+    request.fields['requestId'] = requestId;
+    request.fields['payerOrgId'] = payerOrgId;
+    request.fields['externalReference'] = externalReference;
+    request.fields['bankName'] = bankName;
+    request.fields['amountMinor'] = amountMinor;
+    if (beneficiaryName != null) request.fields['beneficiaryName'] = beneficiaryName;
+    if (beneficiaryBank != null) request.fields['beneficiaryBank'] = beneficiaryBank;
+    if (beneficiaryAccount != null) request.fields['beneficiaryAccount'] = beneficiaryAccount;
+
+    final streamedRes = await request.send().timeout(const Duration(seconds: 15));
+    final res = await http.Response.fromStream(streamedRes);
+
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    final err = jsonDecode(res.body);
+    throw Exception(err['error'] ?? 'Failed to record payment');
+  }
+
+  // --- ACCOUNTABILITY & 72h SLA CLOSURE ---
+  static Future<List<dynamic>> fetchAccountabilityList() async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(Uri.parse('$host/api/accountability'), headers: authHeaders),
+        timeout: const Duration(seconds: 12),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return (data['cases'] as List<dynamic>?) ?? [];
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<bool> closeAccountabilityCase({
+    required String caseId,
+    String? notes,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/accountability/close'),
+        headers: authHeaders,
+        body: jsonEncode({
+          'caseId': caseId,
+          'decision': 'CLOSE',
+          'closureNotes': notes ?? 'Deliverables inspected and closed via GMD mobile cockpit',
+        }),
+      ),
+      timeout: const Duration(seconds: 10),
+    );
+    return res.statusCode == 200;
+  }
+
+  // --- HYBRID PAYROLL ---
+  static Future<Map<String, dynamic>> fetchPayrollSummary() async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(Uri.parse('$host/api/payroll/summary'), headers: authHeaders),
+        timeout: const Duration(seconds: 12),
+      );
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return {'subsidiaryPayrolls': []};
+  }
+
+  // --- VENDORS REGISTRY ---
+  static Future<List<dynamic>> fetchVendorsList({String? category, String? search}) async {
+    try {
+      final params = <String>[];
+      if (category != null && category.isNotEmpty) params.add('category=$category');
+      if (search != null && search.isNotEmpty) params.add('search=$search');
+      final query = params.isNotEmpty ? '?${params.join('&')}' : '';
+
+      final res = await _executeWithFailover(
+        (host) => http.get(Uri.parse('$host/api/vendors$query'), headers: authHeaders),
+        timeout: const Duration(seconds: 10),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return (data['vendors'] as List<dynamic>?) ?? [];
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<bool> registerVendor(Map<String, dynamic> body) async {
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/vendors'),
+        headers: authHeaders,
+        body: jsonEncode(body),
+      ),
+      timeout: const Duration(seconds: 12),
+    );
+    return res.statusCode == 200;
+  }
+
+  // --- INTERCOMPANY NOTES ---
+  static Future<List<dynamic>> fetchIntercompanyNotes({String subsidiary = 'ALL'}) async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/intercompany?subsidiary=$subsidiary'),
+          headers: authHeaders,
+        ),
+        timeout: const Duration(seconds: 10),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return (data['notes'] as List<dynamic>?) ?? [];
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // --- ATTENDANCE TIMESHEET ---
+  static Future<Map<String, dynamic>> fetchAttendanceTimesheet() async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(Uri.parse('$host/api/attendance/timesheet'), headers: authHeaders),
+        timeout: const Duration(seconds: 10),
+      );
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return {'timesheets': []};
+  }
+
+  // --- EMERGENCY OVERRIDES ---
+  static Future<List<dynamic>> fetchEmergencyIncidents() async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(Uri.parse('$host/api/emergency'), headers: authHeaders),
+        timeout: const Duration(seconds: 10),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return (data['incidents'] as List<dynamic>?) ?? [];
+      }
+    } catch (_) {}
+    return [];
   }
 }
