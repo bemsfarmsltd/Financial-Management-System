@@ -553,7 +553,7 @@ export function PayrollSignOffView({
               {monthName} Register · Version {data?.batch.version ?? '—'}
             </h3>
             <span style={{ fontSize: '9px', color: '#64748b' }}>
-              Individual gross-to-net amounts and the allocations recorded by HR
+              Individual gross-to-net amounts, attendance deductions, and intercompany allocations
             </span>
           </div>
           <span style={{
