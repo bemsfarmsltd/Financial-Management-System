@@ -446,7 +446,7 @@ export function StaffDashboardClient({
   // Expenditure Distribution Segments
   const expenditureSegments = useMemo(() => {
     if (requests.length === 0) return [];
-    const colorPalette = ['#EA580C', '#3B82F6', '#10B981', '#8B5CF6', '#06B6D4', '#F59E0B', '#64748B'];
+    const colorPalette = ['#064E3B', '#059669', '#10B981', '#334155', '#475569', '#64748B', '#0F172A'];
     if (requisitionChartMetric === 'Category') {
       const catMap: Record<string, { value: number; count: number }> = {};
       for (const r of requests) {
@@ -519,6 +519,26 @@ export function StaffDashboardClient({
     }
     return `₦${totalExpenditureValue.toFixed(0)}`;
   }, [totalExpenditureValue]);
+
+  // Smart Attendance Visibility:
+  // 1. If not checked in today -> SHOW (to clock in)
+  // 2. If checked in today:
+  //    - Before 5:00 PM (17:00) -> HIDE (user already clocked in in the morning)
+  //    - From 5:00 PM (17:00) onwards -> SHOW (to clock out / sign out)
+  // 3. If checked out today -> HIDE (workday completed)
+  const shouldShowAttendanceCard = useMemo(() => {
+    if (!todayAttendance) {
+      return true; // Not checked in yet -> show clock-in card
+    }
+    const hasCheckedOut = !!todayAttendance.checkOutTime;
+    if (hasCheckedOut) {
+      return false; // Workday complete -> hide
+    }
+    // Checked in, but not checked out:
+    // Only show if it's 5:00 PM (17:00) or later
+    const currentHour = new Date().getHours();
+    return currentHour >= 17;
+  }, [todayAttendance]);
 
   const filteredRequests = useMemo(() => {
     return requests.filter((r) => {
@@ -1185,14 +1205,14 @@ export function StaffDashboardClient({
                   {/* 1. New Request */}
                   <div
                     onClick={() => setIsNewRequestOpen(true)}
-                    className="p-4 rounded-[20px] bg-[#FFF7ED] border border-[#FFEDD5] hover:border-orange-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow"
+                    className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-[#EA580C]">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#064E3B]/10 group-hover:border-[#064E3B]/20 text-slate-800 group-hover:text-[#064E3B] transition-all flex items-center justify-center">
                       <Plus className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div>
                       <h4 className="text-xs font-black text-[#0F172A]">New Request</h4>
-                      <p className="text-[10.5px] font-semibold text-[#64748B]">Operational</p>
+                      <p className="text-[10.5px] font-semibold text-slate-500">Operational</p>
                     </div>
                   </div>
 
@@ -1206,80 +1226,80 @@ export function StaffDashboardClient({
                         setTimeout(() => setAlertNotice(null), 3000);
                       }
                     }}
-                    className="p-4 rounded-[20px] bg-[#ECFDF5] border border-[#A7F3D0] hover:border-emerald-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow"
+                    className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-[#059669]">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#064E3B]/10 group-hover:border-[#064E3B]/20 text-slate-800 group-hover:text-[#064E3B] transition-all flex items-center justify-center">
                       <CheckCheck className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div>
                       <h4 className="text-xs font-black text-[#0F172A]">Confirm Funds</h4>
-                      <p className="text-[10.5px] font-semibold text-[#64748B]">Dual-Key Auth</p>
+                      <p className="text-[10.5px] font-semibold text-slate-500">Dual-Key Auth</p>
                     </div>
                   </div>
 
                   {/* 3. 72h Evidence */}
                   <div
                     onClick={() => setActiveTab('RETIREMENT')}
-                    className="p-4 rounded-[20px] bg-[#FFF1F2] border border-[#FECDD3] hover:border-rose-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow"
+                    className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-[#E11D48]">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#064E3B]/10 group-hover:border-[#064E3B]/20 text-slate-800 group-hover:text-[#064E3B] transition-all flex items-center justify-center">
                       <Receipt className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div>
                       <h4 className="text-xs font-black text-[#0F172A]">72h Evidence</h4>
-                      <p className="text-[10.5px] font-semibold text-[#64748B]">Retire Advance</p>
+                      <p className="text-[10.5px] font-semibold text-slate-500">Retire Advance</p>
                     </div>
                   </div>
 
                   {/* 4. My Profile */}
                   <div
                     onClick={() => setActiveTab('PROFILE')}
-                    className="p-4 rounded-[20px] bg-[#EFF6FF] border border-[#BFDBFE] hover:border-blue-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow"
+                    className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-[#2563EB]">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#064E3B]/10 group-hover:border-[#064E3B]/20 text-slate-800 group-hover:text-[#064E3B] transition-all flex items-center justify-center">
                       <User className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div>
                       <h4 className="text-xs font-black text-[#0F172A]">My Profile</h4>
-                      <p className="text-[10.5px] font-semibold text-[#64748B]">Bank Details</p>
+                      <p className="text-[10.5px] font-semibold text-slate-500">Bank Details</p>
                     </div>
                   </div>
 
                   {/* 5. Admin Helpdesk */}
                   <div
                     onClick={() => setIsAdminChatOpen(true)}
-                    className="p-4 rounded-[20px] bg-[#F0FDF4] border border-[#A7F3D0] hover:border-emerald-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow"
+                    className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-[#047857]">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#064E3B]/10 group-hover:border-[#064E3B]/20 text-slate-800 group-hover:text-[#064E3B] transition-all flex items-center justify-center">
                       <MessageSquare className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div>
                       <h4 className="text-xs font-black text-[#0F172A]">Admin Helpdesk</h4>
-                      <p className="text-[10.5px] font-semibold text-[#64748B]">Chat With Admin</p>
+                      <p className="text-[10.5px] font-semibold text-slate-500">Chat With Admin</p>
                     </div>
                   </div>
 
                   {/* 6. Requisitions */}
                   <div
                     onClick={() => setActiveTab('REQUESTS')}
-                    className="p-4 rounded-[20px] bg-[#FFF7ED] border border-[#FED7AA] hover:border-orange-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow"
+                    className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-[#EA580C]">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#064E3B]/10 group-hover:border-[#064E3B]/20 text-slate-800 group-hover:text-[#064E3B] transition-all flex items-center justify-center">
                       <FileText className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div>
                       <h4 className="text-xs font-black text-[#0F172A]">Requisitions</h4>
-                      <p className="text-[10.5px] font-semibold text-[#64748B]">View All & Chat</p>
+                      <p className="text-[10.5px] font-semibold text-slate-500">View All & Chat</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* SECTION: UPLOAD PROOF OF EXPENDITURE BANNER (Exact Mobile Replica) */}
-              <div className="p-5 bg-white rounded-[24px] border border-[#FED7AA] shadow-sm space-y-3">
+              {/* SECTION: UPLOAD PROOF OF EXPENDITURE BANNER */}
+              <div className="p-5 bg-white rounded-[24px] border border-slate-200/90 shadow-sm space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#EA580C] flex items-center justify-center font-black">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 text-[#064E3B] flex items-center justify-center font-black">
                       <Receipt className="w-5 h-5" />
                     </div>
                     <div>
@@ -1287,7 +1307,7 @@ export function StaffDashboardClient({
                       <p className="text-[11px] text-[#64748B]">Photograph physical receipts or attach vendor invoice PDFs</p>
                     </div>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200">
                     🛡️ 72H POLICY
                   </span>
                 </div>
@@ -1304,7 +1324,7 @@ export function StaffDashboardClient({
                         setActiveTab('RETIREMENT');
                       }
                     }}
-                    className="py-2.5 px-3 bg-[#EA580C] hover:bg-orange-700 text-white font-black text-xs rounded-xl shadow-md shadow-orange-500/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                    className="py-2.5 px-3 bg-[#064E3B] hover:bg-[#043e2f] text-white font-black text-xs rounded-xl shadow-md shadow-[#064E3B]/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
                   >
                     <Camera className="w-3.5 h-3.5" />
                     <span>Snap Picture</span>
@@ -1318,7 +1338,7 @@ export function StaffDashboardClient({
                         setActiveTab('RETIREMENT');
                       }
                     }}
-                    className="py-2.5 px-3 bg-[#ECFDF5] hover:bg-emerald-100 border border-[#A7F3D0] text-[#059669] font-black text-xs rounded-xl flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                    className="py-2.5 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
                   >
                     <FileText className="w-3.5 h-3.5" />
                     <span>Upload Doc / PDF</span>
@@ -1333,8 +1353,8 @@ export function StaffDashboardClient({
                     <h3 className="text-sm font-black text-[#0F172A]">Requisitions & Spend Analytics</h3>
                     <p className="text-[11px] text-[#64748B]">Dynamic Requisition Volume & Spend Trend</p>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-lg text-[9.5px] font-black bg-[#FFF7ED] text-[#EA580C] border border-[#FED7AA]">
-                    INFOGRAPHIC
+                  <span className="px-2.5 py-0.5 rounded-lg text-[9.5px] font-black bg-slate-100 text-slate-700 border border-slate-200">
+                    ANALYTICS
                   </span>
                 </div>
 
@@ -1362,7 +1382,7 @@ export function StaffDashboardClient({
                         return (
                           <div key={r.id || idx} className="flex-1 flex flex-col items-center justify-end h-full">
                             <span className={`text-[9px] font-black mb-1 truncate max-w-[70px] ${
-                              isLast ? 'text-[#EA580C]' : 'text-slate-400'
+                              isLast ? 'text-[#064E3B]' : 'text-slate-400'
                             }`}>
                               {labelAmt}
                             </span>
@@ -1370,12 +1390,12 @@ export function StaffDashboardClient({
                               style={{ height: `${heightPct}%` }}
                               className={`w-full max-w-[36px] rounded-t-lg transition-all ${
                                 isLast
-                                  ? 'bg-gradient-to-t from-[#EA580C] to-[#FB923C] shadow-md shadow-orange-500/30'
-                                  : 'bg-gradient-to-t from-[#064E3B] to-[#059669]'
+                                  ? 'bg-gradient-to-t from-[#064E3B] to-[#10B981] shadow-sm shadow-emerald-800/20'
+                                  : 'bg-gradient-to-t from-slate-400 to-slate-300'
                               }`}
                             />
                             <span className={`text-[10px] font-black mt-1.5 truncate max-w-[60px] ${
-                              isLast ? 'text-[#EA580C]' : 'text-slate-500'
+                              isLast ? 'text-[#064E3B]' : 'text-slate-500'
                             }`}>
                               {r.requestNumber ? r.requestNumber.slice(-4) : `REQ-${idx + 1}`}
                             </span>
@@ -1413,90 +1433,88 @@ export function StaffDashboardClient({
             {/* ========================================================= */}
             <div className="lg:col-span-5 xl:col-span-4 space-y-6">
 
-              {/* CARD 1: DAILY ATTENDANCE & PRESENCE (Exact Flutter Replica) */}
-              <div className="p-5 bg-white rounded-[24px] border border-[#E2E8F0] shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className={`p-2 rounded-xl flex items-center justify-center ${
-                        todayAttendance ? 'bg-[#ECFDF5] text-[#059669]' : 'bg-[#FFF7ED] text-[#EA580C]'
-                      }`}
-                    >
-                      <Clock className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#64748B] block">
-                        DAILY ATTENDANCE & PRESENCE
-                      </span>
-                      <span
-                        className={`text-sm font-black ${
-                          todayAttendance ? 'text-[#059669]' : 'text-[#0F172A]'
+              {/* CARD 1: DAILY ATTENDANCE & PRESENCE (Smart Visibility: Hides when punched, reappears at 5PM for clock-out) */}
+              {shouldShowAttendanceCard && (
+                <div className="p-5 bg-white rounded-[24px] border border-slate-200 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className={`p-2 rounded-xl flex items-center justify-center ${
+                          todayAttendance ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'
                         }`}
                       >
-                        {todayAttendance
-                          ? todayAttendance.checkOutTime
-                            ? 'Workday Completed'
-                            : 'Clocked In (ON TIME)'
-                          : 'Not Checked In Today'}
-                      </span>
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#64748B] block">
+                          DAILY ATTENDANCE & PRESENCE
+                        </span>
+                        <span
+                          className={`text-sm font-black ${
+                            todayAttendance ? 'text-emerald-800' : 'text-[#0F172A]'
+                          }`}
+                        >
+                          {todayAttendance
+                            ? todayAttendance.checkOutTime
+                              ? 'Workday Completed'
+                              : 'Ready for Clock Out'
+                            : 'Not Checked In Today'}
+                        </span>
+                      </div>
                     </div>
+
+                    <span
+                      className={`text-[10px] font-black px-2 py-0.5 rounded border ${
+                        todayAttendance
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : 'bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      {todayAttendance ? 'CLOCK-OUT DUE' : 'UNPUNCHED'}
+                    </span>
                   </div>
 
-                  <span
-                    className={`text-[10px] font-black px-2 py-0.5 rounded border ${
-                      todayAttendance
-                        ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0]'
-                        : 'bg-[#FFF7ED] text-[#EA580C] border-[#FED7AA]'
-                    }`}
-                  >
-                    {todayAttendance ? 'ON TIME' : 'UNPUNCHED'}
-                  </span>
-                </div>
+                  {/* Attendance Action Buttons */}
+                  <div className="space-y-2 pt-1">
+                    <button
+                      disabled={punching}
+                      onClick={() => {
+                        setPunchStatusMessage(null);
+                        setScannerPunchSuccessRecord(null);
+                        setIsAttendanceScanModalOpen(true);
+                      }}
+                      className="w-full py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] bg-[#064E3B] hover:bg-emerald-800 text-white"
+                    >
+                      {punching ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <MapPin className="w-4 h-4" />
+                      )}
+                      <span>
+                        {punching
+                          ? 'Verifying Location...'
+                          : todayAttendance
+                          ? 'CLOCK OUT (SCANNER)'
+                          : 'CLOCK IN (GPS + QR)'}
+                      </span>
+                    </button>
 
-                {/* Attendance Action Buttons */}
-                <div className="space-y-2 pt-1">
-                  <button
-                    disabled={punching}
-                    onClick={() => {
-                      setPunchStatusMessage(null);
-                      setScannerPunchSuccessRecord(null);
-                      setIsAttendanceScanModalOpen(true);
-                    }}
-                    className={`w-full py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] ${
-                      todayAttendance
-                        ? 'bg-[#EA580C] hover:bg-orange-700 text-white'
-                        : 'bg-[#059669] hover:bg-emerald-700 text-white'
-                    }`}
-                  >
-                    {punching ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <MapPin className="w-4 h-4" />
-                    )}
-                    <span>
-                      {punching
-                        ? 'Verifying Location...'
-                        : todayAttendance
-                        ? 'CLOCK OUT (SCANNER)'
-                        : 'CLOCK IN (GPS + QR)'}
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => setIsTimesheetModalOpen(true)}
-                    className="w-full py-2.5 bg-[#F8FAFC] border border-[#E2E8F0] hover:bg-slate-100 text-[#0F172A] rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
-                  >
-                    <Calendar className="w-3.5 h-3.5 text-[#0F172A]" />
-                    <span>View Monthly Attendance Calendar</span>
-                  </button>
+                    <button
+                      onClick={() => setIsTimesheetModalOpen(true)}
+                      className="w-full py-2.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[#0F172A] rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      <Calendar className="w-3.5 h-3.5 text-slate-600" />
+                      <span>View Monthly Attendance Calendar</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* CARD 2: MONTHLY SALARY & PAYSLIPS QUICK CARD */}
-              <div className="p-5 bg-white rounded-[24px] border border-[#E2E8F0] shadow-sm space-y-3">
+              <div className="p-5 bg-white rounded-[24px] border border-slate-200 shadow-sm space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center font-black">
+                    <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 text-[#064E3B] flex items-center justify-center font-black">
                       <Wallet className="w-5 h-5" />
                     </div>
                     <div>
@@ -1511,7 +1529,7 @@ export function StaffDashboardClient({
 
                   <button
                     onClick={() => setIsPayslipsModalOpen(true)}
-                    className="px-3.5 py-1.5 bg-[#FFF7ED] text-[#EA580C] border border-[#FED7AA] hover:bg-orange-600 hover:text-white rounded-xl text-xs font-black transition-all shadow-sm"
+                    className="px-3.5 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-bold transition-all shadow-sm"
                   >
                     View Slips
                   </button>
@@ -1534,10 +1552,10 @@ export function StaffDashboardClient({
               </div>
 
               {/* CARD 3: CORPORATE DUAL BANKING CONFIGURE CARD */}
-              <div className="p-5 bg-white rounded-[24px] border border-[#E2E8F0] shadow-sm space-y-3">
+              <div className="p-5 bg-white rounded-[24px] border border-slate-200 shadow-sm space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                    <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
                       <CreditCard className="w-4 h-4" />
                     </div>
                     <div>
@@ -1547,7 +1565,7 @@ export function StaffDashboardClient({
                   </div>
                   <button
                     onClick={() => setIsDualBankingOpen(true)}
-                    className="text-xs font-bold text-purple-700 hover:underline"
+                    className="text-xs font-bold text-[#064E3B] hover:underline"
                   >
                     Configure
                   </button>

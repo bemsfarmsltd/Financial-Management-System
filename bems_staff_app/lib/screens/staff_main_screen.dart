@@ -32,7 +32,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   List<DisbursementItem> _disbursementsAwaiting = [];
   List<AccountabilityCaseItem> _cases = [];
   Map<String, dynamic>? _todayAttendance;
-  bool _isPunching = false;
 
   List<AccountabilityCaseItem> get _activeAdvanceCases => _cases.where((c) {
     final s = c.status.toUpperCase();
@@ -48,6 +47,18 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     final s = c.status.toUpperCase();
     return s == 'EVIDENCE_SUBMITTED';
   }).toList();
+
+  // Smart Attendance Visibility:
+  // 1. If unpunched today -> SHOW (to clock in)
+  // 2. If clocked in, but before 5:00 PM (17:00) -> HIDE (user already clocked in in morning)
+  // 3. If 5:00 PM (17:00) or later and not yet clocked out -> SHOW (to clock out)
+  // 4. Once clocked out today -> HIDE (workday complete)
+  bool get _shouldShowAttendanceCard {
+    if (_todayAttendance == null) return true;
+    final hasCheckedOut = _todayAttendance!['checkOutTime'] != null;
+    if (hasCheckedOut) return false;
+    return DateTime.now().hour >= 17;
+  }
 
   // Search & Filter state for Requisitions
   String _searchQuery = '';
@@ -2194,165 +2205,166 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
           const SizedBox(height: 18),
 
-          // Daily Attendance & Presence Punch Card
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
+          if (_shouldShowAttendanceCard) ...[
+            // Daily Attendance & Presence Punch Card (Smart Visibility: Hides when punched, reappears at 5PM for clock-out)
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _todayAttendance != null ? const Color(0xFFECFDF5) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.access_time_filled_rounded,
+                              color: _todayAttendance != null ? const Color(0xFF064E3B) : const Color(0xFF475569),
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'DAILY ATTENDANCE & PRESENCE',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF64748B),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              Text(
+                                _todayAttendance == null
+                                    ? 'Not Checked In Today'
+                                    : (_todayAttendance!['checkOutTime'] != null
+                                        ? 'Workday Completed'
+                                        : 'Clocked In (${_todayAttendance!['status']})'),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w900,
+                                  color: _todayAttendance != null ? const Color(0xFF064E3B) : const Color(0xFF0F172A),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      if (_todayAttendance != null)
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: _todayAttendance != null ? const Color(0xFFECFDF5) : const Color(0xFFFFF7ED),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            Icons.access_time_filled_rounded,
-                            color: _todayAttendance != null ? const Color(0xFF059669) : const Color(0xFFEA580C),
-                            size: 18,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'DAILY ATTENDANCE & PRESENCE',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF64748B),
-                                letterSpacing: 0.5,
-                              ),
+                            color: _todayAttendance!['status'] == 'LATE' ? const Color(0xFFFFF7ED) : const Color(0xFFECFDF5),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: _todayAttendance!['status'] == 'LATE' ? const Color(0xFFFED7AA) : const Color(0xFFA7F3D0),
                             ),
-                            Text(
-                              _todayAttendance == null
-                                  ? 'Not Checked In Today'
-                                  : (_todayAttendance!['checkOutTime'] != null
-                                      ? 'Workday Completed'
-                                      : 'Clocked In (${_todayAttendance!['status']})'),
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
-                                color: _todayAttendance != null ? const Color(0xFF059669) : const Color(0xFF0F172A),
-                              ),
+                          ),
+                          child: Text(
+                            _todayAttendance!['status'] == 'LATE' ? 'LATE (-5%)' : 'ON TIME',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: _todayAttendance!['status'] == 'LATE' ? const Color(0xFFEA580C) : const Color(0xFF064E3B),
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    if (_todayAttendance != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: _todayAttendance!['status'] == 'LATE' ? const Color(0xFFFFF7ED) : const Color(0xFFECFDF5),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: _todayAttendance!['status'] == 'LATE' ? const Color(0xFFFED7AA) : const Color(0xFFA7F3D0),
                           ),
                         ),
-                        child: Text(
-                          _todayAttendance!['status'] == 'LATE' ? 'LATE (-5%)' : 'ON TIME',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: _todayAttendance!['status'] == 'LATE' ? const Color(0xFFEA580C) : const Color(0xFF059669),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _todayAttendance != null && _todayAttendance!['checkOutTime'] != null
-                            ? null
-                            : () async {
-                                final res = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => AttendanceScanScreen(
-                                      currentUser: _currentUser,
-                                      isCheckIn: _todayAttendance == null,
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _todayAttendance != null && _todayAttendance!['checkOutTime'] != null
+                              ? null
+                              : () async {
+                                  final res = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => AttendanceScanScreen(
+                                        currentUser: _currentUser,
+                                        isCheckIn: _todayAttendance == null,
+                                      ),
                                     ),
-                                  ),
-                                );
-                                if (res == true) {
-                                  _loadData();
-                                }
-                              },
-                        icon: Icon(
-                          _todayAttendance == null ? Icons.qr_code_scanner_rounded : Icons.logout_rounded,
-                          size: 16,
-                        ),
-                        label: Text(
-                          _todayAttendance == null ? 'CLOCK IN (GPS + QR)' : 'CLOCK OUT',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _todayAttendance == null ? const Color(0xFF059669) : const Color(0xFFEA580C),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
+                                  );
+                                  if (res == true) {
+                                    _loadData();
+                                  }
+                                },
+                          icon: Icon(
+                            _todayAttendance == null ? Icons.qr_code_scanner_rounded : Icons.logout_rounded,
+                            size: 16,
+                          ),
+                          label: Text(
+                            _todayAttendance == null ? 'CLOCK IN (GPS + QR)' : 'CLOCK OUT',
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF064E3B),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => AttendanceMonthlyScreen(currentUser: _currentUser),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AttendanceMonthlyScreen(currentUser: _currentUser),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.calendar_month_rounded, size: 16, color: Color(0xFF0F172A)),
+                      label: const Text(
+                        'View Monthly Attendance Calendar',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
                         ),
-                      );
-                    },
-                    icon: const Icon(Icons.calendar_month_rounded, size: 16, color: Color(0xFF0F172A)),
-                    label: const Text(
-                      'View Monthly Attendance Calendar',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF0F172A),
                       ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF8FAFC),
-                      side: const BorderSide(color: Color(0xFFE2E8F0)),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF8FAFC),
+                        side: const BorderSide(color: Color(0xFFE2E8F0)),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
+          ],
 
           // Hero Advance Card - Aligned with BEMS Corporate Brand
           Container(
@@ -2587,10 +2599,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEA580C).withOpacity(0.1),
+                    color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
-                  child: const Icon(Icons.wallet_outlined, color: Color(0xFFEA580C), size: 22),
+                  child: const Icon(Icons.wallet_outlined, color: Color(0xFF064E3B), size: 22),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -2612,10 +2625,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 ElevatedButton(
                   onPressed: _showMyPayslipsModal,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFF7ED),
-                    foregroundColor: const Color(0xFFEA580C),
+                    backgroundColor: const Color(0xFFF8FAFC),
+                    foregroundColor: const Color(0xFF0F172A),
                     elevation: 0,
-                    side: const BorderSide(color: Color(0xFFFED7AA)),
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
@@ -2693,32 +2706,30 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             }),
           ],
 
-          // Quick Action Pastel Grid
+          // Quick Actions Grid (Clean, unified executive cards)
           const Text('Quick Actions', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
           const SizedBox(height: 12),
 
           Row(
             children: [
               Expanded(
-                child: _buildPastelTile(
+                child: _buildActionTile(
                   title: 'New Request',
                   subtitle: 'Operational',
                   icon: Icons.add_shopping_cart_rounded,
-                  bgColor: const Color(0xFFFFF7ED),
-                  borderColor: const Color(0xFFFFEDD5),
-                  iconColor: const Color(0xFFEA580C),
+                  iconColor: const Color(0xFF064E3B),
+                  iconBgColor: const Color(0xFFECFDF5),
                   onTap: _openNewRequestModal,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildPastelTile(
+                child: _buildActionTile(
                   title: 'Confirm Funds',
                   subtitle: 'Dual-Key Auth',
                   icon: Icons.price_check_rounded,
-                  bgColor: const Color(0xFFECFDF5),
-                  borderColor: const Color(0xFFA7F3D0),
-                  iconColor: const Color(0xFF059669),
+                  iconColor: const Color(0xFF064E3B),
+                  iconBgColor: const Color(0xFFF1F5F9),
                   onTap: () {
                     if (_disbursementsAwaiting.isNotEmpty) {
                       _handleConfirmPayment(_disbursementsAwaiting.first);
@@ -2736,25 +2747,23 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildPastelTile(
+                child: _buildActionTile(
                   title: '72h Evidence',
                   subtitle: 'Retire Advance',
                   icon: Icons.receipt_long_rounded,
-                  bgColor: const Color(0xFFFFF1F2),
-                  borderColor: const Color(0xFFFECDD3),
-                  iconColor: const Color(0xFFE11D48),
+                  iconColor: const Color(0xFF0F172A),
+                  iconBgColor: const Color(0xFFF1F5F9),
                   onTap: () => setState(() => _currentIndex = 2),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildPastelTile(
+                child: _buildActionTile(
                   title: 'My Profile',
                   subtitle: 'Bank Details',
                   icon: Icons.person_rounded,
-                  bgColor: const Color(0xFFEFF6FF),
-                  borderColor: const Color(0xFFBFDBFE),
-                  iconColor: const Color(0xFF2563EB),
+                  iconColor: const Color(0xFF0F172A),
+                  iconBgColor: const Color(0xFFF1F5F9),
                   onTap: () => setState(() => _currentIndex = 3),
                 ),
               ),
@@ -2766,13 +2775,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildPastelTile(
+                child: _buildActionTile(
                   title: 'Admin Helpdesk',
                   subtitle: 'Chat With Admin',
                   icon: Icons.support_agent_rounded,
-                  bgColor: const Color(0xFFF0FDF4),
-                  borderColor: const Color(0xFFA7F3D0),
-                  iconColor: const Color(0xFF047857),
+                  iconColor: const Color(0xFF064E3B),
+                  iconBgColor: const Color(0xFFECFDF5),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -2785,13 +2793,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildPastelTile(
+                child: _buildActionTile(
                   title: 'Requisitions',
                   subtitle: 'View All & Chat',
                   icon: Icons.chat_bubble_outline_rounded,
-                  bgColor: const Color(0xFFFFF7ED),
-                  borderColor: const Color(0xFFFED7AA),
-                  iconColor: const Color(0xFFEA580C),
+                  iconColor: const Color(0xFF0F172A),
+                  iconBgColor: const Color(0xFFF1F5F9),
                   onTap: () => setState(() => _currentIndex = 1),
                 ),
               ),
@@ -2815,7 +2822,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               const Text('Recent Requisitions', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
               GestureDetector(
                 onTap: () => setState(() => _currentIndex = 1),
-                child: const Text('See More', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+                child: const Text('See More', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF064E3B))),
               ),
             ],
           ),
@@ -2828,14 +2835,13 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     );
   }
 
-  Widget _buildPastelTile({
+  Widget _buildActionTile({
     required String title,
     required String subtitle,
     required IconData icon,
-    required Color bgColor,
-    required Color borderColor,
-    required Color iconColor,
     required VoidCallback onTap,
+    Color iconColor = const Color(0xFF064E3B),
+    Color iconBgColor = const Color(0xFFF1F5F9),
   }) {
     return InkWell(
       onTap: onTap,
@@ -2843,9 +2849,16 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: bgColor,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: borderColor),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2854,11 +2867,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: iconBgColor,
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(color: iconColor.withOpacity(0.12), blurRadius: 8, offset: const Offset(0, 2)),
-                ],
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: Icon(icon, color: iconColor, size: 20),
             ),
@@ -2879,12 +2890,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFFED7AA), width: 1.5),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFEA580C).withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -2900,11 +2911,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF7ED),
+                      color: const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFFFEDD5)),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
-                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 20),
+                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFF064E3B), size: 20),
                   ),
                   const SizedBox(width: 10),
                   const Text(
@@ -2916,18 +2927,18 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFECFDF5),
+                  color: const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFA7F3D0)),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.verified_user_outlined, size: 11, color: Color(0xFF047857)),
+                    Icon(Icons.verified_user_outlined, size: 11, color: Color(0xFF475569)),
                     SizedBox(width: 3),
                     Text(
                       '72H POLICY',
-                      style: TextStyle(color: Color(0xFF047857), fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                      style: TextStyle(color: Color(0xFF475569), fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
                     ),
                   ],
                 ),
@@ -2959,9 +2970,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   icon: const Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
                   label: const Text('Snap Picture', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEA580C),
-                    elevation: 2,
-                    shadowColor: const Color(0xFFEA580C).withOpacity(0.35),
+                    backgroundColor: const Color(0xFF064E3B),
+                    elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -2982,12 +2992,13 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       );
                     }
                   },
-                  icon: const Icon(Icons.upload_file_rounded, size: 16, color: Color(0xFF064E3B)),
-                  label: const Text('Upload Doc / PDF', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF064E3B))),
+                  icon: const Icon(Icons.upload_file_rounded, size: 16, color: Color(0xFF0F172A)),
+                  label: const Text('Upload Doc / PDF', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF0F172A))),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFECFDF5),
+                    backgroundColor: const Color(0xFFF8FAFC),
+                    foregroundColor: const Color(0xFF0F172A),
                     elevation: 0,
-                    side: const BorderSide(color: Color(0xFFA7F3D0), width: 1.2),
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -3034,11 +3045,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF7ED),
+                    color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFFED7AA)),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
-                  child: const Text('INFOGRAPHIC', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                  child: const Text('ANALYTICS', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFF475569))),
                 ),
               ],
             ),
@@ -3072,12 +3083,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     }
 
     final categoryColors = [
-      const Color(0xFFEA580C),
-      const Color(0xFF4F46E5),
+      const Color(0xFF064E3B),
       const Color(0xFF059669),
-      const Color(0xFFD97706),
-      const Color(0xFF0284C7),
-      const Color(0xFF7C3AED),
+      const Color(0xFF10B981),
+      const Color(0xFF334155),
+      const Color(0xFF475569),
+      const Color(0xFF64748B),
     ];
 
     final sortedCats = categoryTotals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
@@ -3117,11 +3128,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7ED),
+                  color: const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFFED7AA)),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                child: const Text('INFOGRAPHIC', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                child: const Text('ANALYTICS', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFF475569))),
               ),
             ],
           ),
@@ -3150,7 +3161,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           ? '₦${(r.amountNaira / 1000000).toStringAsFixed(1)}M'
                           : '₦${(r.amountNaira / 1000).toInt()}k',
                       style: TextStyle(
-                        color: isLast ? const Color(0xFFEA580C) : const Color(0xFF94A3B8),
+                        color: isLast ? const Color(0xFF064E3B) : const Color(0xFF94A3B8),
                         fontSize: 9,
                         fontWeight: isLast ? FontWeight.w800 : FontWeight.w600,
                       ),
@@ -3162,8 +3173,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: isLast
-                              ? [const Color(0xFFEA580C), const Color(0xFFFB923C)]
-                              : [const Color(0xFF064E3B), const Color(0xFF047857)],
+                              ? [const Color(0xFF064E3B), const Color(0xFF10B981)]
+                              : [const Color(0xFF94A3B8), const Color(0xFFCBD5E1)],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                         ),
