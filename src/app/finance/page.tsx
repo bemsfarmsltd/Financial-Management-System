@@ -3460,11 +3460,11 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
               )}
             </span>
             <div className="brand-title-wrap" style={{display:'inline-flex',flexDirection:'column',justifyContent:'center',minWidth:0,overflow:'hidden',gap:'2px',whiteSpace:'nowrap',margin:0,padding:0}}>
-              <span className="brand-name" style={{display:'inline-block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'15px',fontWeight:850,letterSpacing:'-0.02em',color:'#ffffff',lineHeight:1,margin:0,padding:0,overflow:'hidden',textOverflow:'ellipsis',maxWidth:140}}>
-                {isGroupScope ? 'BEMS' : current.name}
+              <span className="brand-name" title={current.name} style={{display:'block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'14px',fontWeight:850,letterSpacing:'-0.01em',color:'#ffffff',lineHeight:1.15,margin:0,padding:0,overflow:'hidden',textOverflow:'ellipsis',maxWidth:145}}>
+                {current.name}
               </span>
-              <span className="brand-sub" style={{display:'inline-block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'11px',fontWeight:800,letterSpacing:'0.04em',color:activeBrandColor,lineHeight:1,margin:0,padding:0}}>
-                {isGroupScope ? 'FINANCE GROUP' : 'FINANCE DESK'}
+              <span className="brand-sub" title={current.industry || (isGroupScope ? 'Holding & Conglomerate HQ' : 'Operating Subsidiary')} style={{display:'block',fontFamily:"'Outfit', 'Plus Jakarta Sans', sans-serif",fontSize:'9px',fontWeight:750,letterSpacing:'0.08em',color:activeBrandColor,textTransform:'uppercase',lineHeight:1,margin:0,padding:0,overflow:'hidden',textOverflow:'ellipsis',maxWidth:145}}>
+                {current.industry || (isGroupScope ? 'Holding & Conglomerate HQ' : 'Operating Subsidiary')}
               </span>
             </div>
             <button aria-label={collapsed?'Expand navigation':'Collapse navigation'} title={collapsed?'Expand navigation':'Collapse navigation'} onClick={(e)=>{e.stopPropagation();setCollapsed(!collapsed)}}>{collapsed?'›':'‹'}</button>

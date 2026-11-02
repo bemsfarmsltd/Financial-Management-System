@@ -200,38 +200,47 @@
 .app-shell .side-brand .brand-title-wrap,
 .side-brand .brand-title-wrap {
   display: flex !important;
-  flex-direction: row !important;
-  align-items: baseline !important;
-  gap: 6px !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  gap: 2px !important;
   white-space: nowrap !important;
   font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
-  line-height: 1 !important;
+  line-height: 1.2 !important;
 }
 .app-shell .side-brand .brand-name,
 .side-brand .brand-name {
-  display: inline-block !important;
-  font-size: 16px !important;
+  display: block !important;
+  font-size: 14px !important;
   font-weight: 850 !important;
   letter-spacing: -0.01em !important;
   color: #ffffff !important;
-  text-transform: uppercase !important;
-  line-height: 1 !important;
+  line-height: 1.15 !important;
   margin: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 150px !important;
 }
 .app-shell .side-brand .brand-sub,
 .side-brand .brand-sub {
-  display: inline-block !important;
-  font-size: 15px !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.04em !important;
+  display: block !important;
+  font-size: 9px !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.08em !important;
   color: var(--brand-primary, #0d8a70) !important;
   text-transform: uppercase !important;
   line-height: 1 !important;
   margin: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 150px !important;
 }
 .app-shell .side-brand .brand-title-wrap span,
 .side-brand .brand-title-wrap span {
-  display: inline-block !important;
+  display: block !important;
   margin: 0 !important;
 }
 .app-shell .side-brand > button {

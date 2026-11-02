@@ -301,11 +301,11 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
               )}
             </span>
             <div className="brand-title-wrap" style={{ display: 'inline-flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0, overflow: 'hidden', gap: '2px', whiteSpace: 'nowrap', margin: 0, padding: 0 }}>
-              <span className="brand-name" style={{ display: 'inline-block', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif", fontSize: '15px', fontWeight: 850, letterSpacing: '-0.02em', color: '#ffffff', lineHeight: 1, margin: 0, padding: 0, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>
-                {isGroupScope ? 'BEMS' : currentSub.name}
+              <span className="brand-name" title={currentSub.name} style={{ display: 'block', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif", fontSize: '14px', fontWeight: 850, letterSpacing: '-0.01em', color: '#ffffff', lineHeight: 1.15, margin: 0, padding: 0, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 145 }}>
+                {currentSub.name}
               </span>
-              <span className="brand-sub" style={{ display: 'inline-block', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif", fontSize: '11px', fontWeight: 800, letterSpacing: '0.04em', color: activeBrandColor, lineHeight: 1, margin: 0, padding: 0 }}>
-                {isGroupScope ? 'FINANCE GROUP' : 'FINANCE DESK'}
+              <span className="brand-sub" title={currentSub.industry || (isGroupScope ? 'Holding & Conglomerate HQ' : 'Operating Subsidiary')} style={{ display: 'block', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif", fontSize: '9px', fontWeight: 750, letterSpacing: '0.08em', color: activeBrandColor, textTransform: 'uppercase', lineHeight: 1, margin: 0, padding: 0, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 145 }}>
+                {currentSub.industry || (isGroupScope ? 'Holding & Conglomerate HQ' : 'Operating Subsidiary')}
               </span>
             </div>
             <button aria-label="Toggle navigation" onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed); }}>
