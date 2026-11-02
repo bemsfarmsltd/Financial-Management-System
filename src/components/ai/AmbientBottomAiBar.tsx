@@ -95,7 +95,7 @@ export function AmbientBottomAiBar({
       className="ambient-bottom-ai-wrapper"
       style={{
         position: 'fixed',
-        bottom: '18px',
+        bottom: '14px',
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 9950,
@@ -378,14 +378,14 @@ export function AmbientBottomAiBar({
           width: '100%',
           display: 'flex',
           alignItems: 'center',
-          gap: '10px',
-          padding: '7px 10px 7px 12px',
-          background: 'rgba(255, 255, 255, 0.55)',
+          gap: '6px',
+          padding: '3px 8px 3px 10px',
+          background: 'rgba(255, 255, 255, 0.65)',
           backdropFilter: 'blur(32px) saturate(200%)',
           WebkitBackdropFilter: 'blur(32px) saturate(200%)',
-          border: '1px solid rgba(255, 255, 255, 0.80)',
+          border: '1px solid rgba(255, 255, 255, 0.85)',
           borderRadius: '999px',
-          boxShadow: '0 16px 45px rgba(15, 23, 42, 0.14), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), 0 0 32px var(--brand-shadow-color, rgba(13, 138, 112, 0.10))',
+          boxShadow: '0 12px 36px rgba(15, 23, 42, 0.12), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), 0 0 24px var(--brand-shadow-color, rgba(13, 138, 112, 0.10))',
           transition: 'all 0.2s ease',
         }}
       >
@@ -394,7 +394,7 @@ export function AmbientBottomAiBar({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
+            gap: '6px',
             flexShrink: 0,
             cursor: 'pointer',
           }}
@@ -411,17 +411,17 @@ export function AmbientBottomAiBar({
         >
           <KineticAiOrb size="compact" isTyping={isTyping || isTelemetryTyping} />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '4px',
-                padding: '2px 7px',
-                borderRadius: '6px',
-                fontSize: '9.5px',
+                gap: '3px',
+                padding: '1.5px 6px',
+                borderRadius: '5px',
+                fontSize: '8.5px',
                 fontWeight: 800,
-                letterSpacing: '0.05em',
+                letterSpacing: '0.04em',
                 background: badgeColors.bg,
                 color: badgeColors.text,
                 border: `1px solid ${badgeColors.border}`,
@@ -431,8 +431,8 @@ export function AmbientBottomAiBar({
             >
               <span
                 style={{
-                  width: '5px',
-                  height: '5px',
+                  width: '4px',
+                  height: '4px',
                   borderRadius: '50%',
                   background: badgeColors.dot,
                   display: 'inline-block',
@@ -440,7 +440,7 @@ export function AmbientBottomAiBar({
               />
               {telemetry.badge}
             </span>
-            <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: '9.5px', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>
               · {currentPage}
             </span>
           </div>
@@ -460,13 +460,13 @@ export function AmbientBottomAiBar({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '5px',
-              padding: '4px 10px',
+              gap: '4px',
+              padding: '2.5px 8px',
               borderRadius: '999px',
               background: 'var(--brand-tint, rgba(37, 99, 235, 0.12))',
               border: '1px solid var(--brand-border, rgba(37, 99, 235, 0.35))',
               color: 'var(--brand-primary, #2563eb)',
-              fontSize: '10.5px',
+              fontSize: '9.5px',
               fontWeight: 800,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
@@ -488,24 +488,24 @@ export function AmbientBottomAiBar({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '5px',
-              padding: '4px 10px',
+              gap: '4px',
+              padding: '2.5px 8px',
               borderRadius: '999px',
               background: isInspectMode
                 ? 'var(--brand-gradient, linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%))'
                 : 'rgba(255, 255, 255, 0.75)',
               border: isInspectMode ? '1px solid var(--brand-primary, #2563eb)' : '1px solid rgba(226, 232, 240, 0.9)',
               color: isInspectMode ? '#ffffff' : '#334155',
-              fontSize: '10.5px',
+              fontSize: '9.5px',
               fontWeight: 700,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               flexShrink: 0,
-              boxShadow: isInspectMode ? '0 0 12px var(--brand-shadow-color, rgba(37, 99, 235, 0.45))' : '0 1px 2px rgba(0,0,0,0.03)',
+              boxShadow: isInspectMode ? '0 0 10px var(--brand-shadow-color, rgba(37, 99, 235, 0.40))' : '0 1px 2px rgba(0,0,0,0.03)',
               transition: 'all 0.15s ease',
             }}
           >
-            <Target size={12} />
+            <Target size={11} />
             <span>{isInspectMode ? 'Click Anything to Ask' : 'Point & Ask'}</span>
           </button>
         )}
@@ -517,7 +517,7 @@ export function AmbientBottomAiBar({
             flex: 1,
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
+            gap: '6px',
             minWidth: 0,
           }}
         >
@@ -538,8 +538,9 @@ export function AmbientBottomAiBar({
               background: 'rgba(255, 255, 255, 0.55)',
               border: '1px solid rgba(255, 255, 255, 0.75)',
               borderRadius: '999px',
-              padding: '7px 14px',
-              fontSize: '12px',
+              padding: '3px 12px',
+              height: '26px',
+              fontSize: '11px',
               color: '#0f172a',
               outline: 'none',
               backdropFilter: 'blur(10px)',
@@ -556,8 +557,8 @@ export function AmbientBottomAiBar({
               color: inputText.trim() && !isTyping ? '#ffffff' : '#94a3b8',
               border: '1px solid rgba(255, 255, 255, 0.60)',
               borderRadius: '50%',
-              width: '30px',
-              height: '30px',
+              width: '24px',
+              height: '24px',
               display: 'grid',
               placeItems: 'center',
               cursor: inputText.trim() && !isTyping ? 'pointer' : 'default',
@@ -565,12 +566,12 @@ export function AmbientBottomAiBar({
               transition: 'all 0.15s ease',
             }}
           >
-            <Send size={12} />
+            <Send size={10} />
           </button>
         </form>
 
         {/* Toggle Deck / Expand Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
           <button
             type="button"
             onClick={() => {
@@ -582,15 +583,17 @@ export function AmbientBottomAiBar({
               background: 'rgba(255, 255, 255, 0.50)',
               border: '1px solid rgba(255, 255, 255, 0.70)',
               color: '#334155',
-              borderRadius: '8px',
-              padding: '6px 8px',
+              borderRadius: '7px',
+              width: '24px',
+              height: '24px',
+              padding: 0,
               cursor: 'pointer',
               display: 'grid',
               placeItems: 'center',
               fontSize: '11px',
             }}
           >
-            {isDeckOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            {isDeckOpen ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
           </button>
 
           <button
@@ -601,17 +604,18 @@ export function AmbientBottomAiBar({
               background: 'rgba(255, 255, 255, 0.50)',
               border: '1px solid rgba(255, 255, 255, 0.70)',
               color: '#334155',
-              borderRadius: '8px',
-              padding: '6px 8px',
+              borderRadius: '7px',
+              height: '24px',
+              padding: '0 6px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px',
-              fontSize: '10.5px',
+              gap: '3px',
+              fontSize: '9.5px',
               fontWeight: 700,
             }}
           >
-            <kbd style={{ fontSize: '9px', opacity: 0.8 }}>⌘J</kbd>
+            <kbd style={{ fontSize: '8.5px', opacity: 0.85 }}>⌘J</kbd>
           </button>
         </div>
       </div>

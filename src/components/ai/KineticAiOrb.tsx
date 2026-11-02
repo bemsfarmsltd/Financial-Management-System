@@ -32,7 +32,7 @@ export function KineticAiOrb({ size = 'hud', isTyping = false, onClick, brandCol
   const mouseRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
   const [currentBrand, setCurrentBrand] = useState<string>(brandColor || '#0d8a70');
 
-  const px = size === 'compact' ? 32 : size === 'hud' ? 44 : 110;
+  const px = size === 'compact' ? 24 : size === 'hud' ? 44 : 110;
 
   useEffect(() => {
     if (brandColor) {
