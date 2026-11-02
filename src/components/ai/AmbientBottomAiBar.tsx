@@ -370,25 +370,52 @@ export function AmbientBottomAiBar({
         </div>
       )}
 
-      {/* 2. THE BOTTOM COMMAND & CHAT BAR */}
+      {/* 2. THE BOTTOM COMMAND & CHAT BAR WITH ORBITING SUBSIDIARY BRAND LIGHT */}
       <div
-        className="ambient-bottom-ai-bar"
+        className="bemi-orbit-wrapper"
         style={{
-          pointerEvents: 'auto',
+          position: 'relative',
           width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: '3px 8px 3px 10px',
-          background: 'rgba(255, 255, 255, 0.65)',
-          backdropFilter: 'blur(32px) saturate(200%)',
-          WebkitBackdropFilter: 'blur(32px) saturate(200%)',
-          border: '1px solid rgba(255, 255, 255, 0.85)',
           borderRadius: '999px',
-          boxShadow: '0 12px 36px rgba(15, 23, 42, 0.12), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), 0 0 24px var(--brand-shadow-color, rgba(13, 138, 112, 0.10))',
-          transition: 'all 0.2s ease',
+          padding: '1.5px',
+          overflow: 'hidden',
+          boxShadow: '0 12px 36px rgba(15, 23, 42, 0.12), 0 0 24px var(--brand-shadow-color, rgba(13, 138, 112, 0.18))',
+          pointerEvents: 'auto',
         }}
       >
+        {/* Circling Subsidiary Light Comet (Revolving perimeter light beam) */}
+        <div
+          aria-hidden="true"
+          className="bemi-orbit-comet"
+          style={{
+            position: 'absolute',
+            inset: '-120%',
+            background: 'conic-gradient(from 0deg, transparent 0deg, transparent 270deg, var(--brand-primary, #0d8a70) 325deg, #ffffff 352deg, var(--brand-primary, #0d8a70) 360deg)',
+            animation: 'bemiOrbitSpin 3.8s linear infinite',
+            zIndex: 0,
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* The actual Bar Content */}
+        <div
+          className="ambient-bottom-ai-bar"
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            pointerEvents: 'auto',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '3px 8px 3px 10px',
+            background: 'rgba(255, 255, 255, 0.88)',
+            backdropFilter: 'blur(32px) saturate(200%)',
+            WebkitBackdropFilter: 'blur(32px) saturate(200%)',
+            borderRadius: '999px',
+            transition: 'all 0.2s ease',
+          }}
+        >
         {/* Kinetic Orb + Telemetry Badge */}
         <div
           style={{
@@ -618,6 +645,7 @@ export function AmbientBottomAiBar({
             <kbd style={{ fontSize: '8.5px', opacity: 0.85 }}>⌘J</kbd>
           </button>
         </div>
+        </div>
       </div>
 
       <style jsx>{`
@@ -631,10 +659,12 @@ export function AmbientBottomAiBar({
             transform: translateY(0) scale(1);
           }
         }
+        @keyframes bemiOrbitSpin {
+          0% {
+            transform: rotate(0deg);
           }
-          to {
-            opacity: 1;
-            transform: scale(1);
+          100% {
+            transform: rotate(360deg);
           }
         }
       `}</style>

@@ -144,27 +144,55 @@ export function AiMotionEntryScreen({
 
     window.speechSynthesis.cancel();
 
-    const welcomeGreeting = `Welcome, ${displayName}. ${businessName ? `Welcome to ${businessName}.` : ''} Autonomous ledger governance and expenditure pipeline are active.`;
+    // Check user preferences in localStorage
+    let voiceSettings = { enabled: true, voiceURI: '', rate: 0.94, pitch: 1.05 };
+    try {
+      const saved = localStorage.getItem('bemi_voice_settings');
+      if (saved) {
+        voiceSettings = { ...voiceSettings, ...JSON.parse(saved) };
+      }
+    } catch {}
+
+    if (!voiceSettings.enabled) return;
+
+    const welcomeGreeting = `Welcome ${displayName}. My name is BEMi, your Executive Assistant. This is the ${businessName} workspace. Click on continue to dashboard to proceed and view your intelligence and expenditure insights for today.`;
     const utterance = new SpeechSynthesisUtterance(welcomeGreeting);
-    utterance.rate = 0.94;
-    utterance.pitch = 1.0;
+    utterance.rate = voiceSettings.rate || 0.94;
+    utterance.pitch = voiceSettings.pitch || 1.05;
     utterance.volume = 1.0;
 
     const assignVoice = () => {
       const voices = window.speechSynthesis.getVoices();
       if (!voices || voices.length === 0) return;
-      const naturalVoice = voices.find(
-        (v) =>
-          v.lang.startsWith('en') &&
-          (v.name.includes('Natural') ||
-            v.name.includes('Google') ||
-            v.name.includes('Samantha') ||
-            v.name.includes('Daniel') ||
-            v.name.includes('Karen') ||
-            v.name.includes('Serena') ||
-            v.name.includes('Premium'))
-      ) || voices.find((v) => v.lang.startsWith('en'));
-      if (naturalVoice) utterance.voice = naturalVoice;
+
+      let selectedVoice = null;
+      if (voiceSettings.voiceURI) {
+        selectedVoice = voices.find((v) => v.voiceURI === voiceSettings.voiceURI);
+      }
+
+      // Default to female natural executive voice
+      if (!selectedVoice) {
+        selectedVoice = voices.find(
+          (v) =>
+            v.lang.startsWith('en') &&
+            (v.name.includes('Samantha') ||
+              v.name.includes('Karen') ||
+              v.name.includes('Serena') ||
+              v.name.includes('Google UK English Female') ||
+              v.name.includes('Victoria') ||
+              v.name.includes('Zira') ||
+              v.name.includes('Jenny') ||
+              v.name.toLowerCase().includes('female'))
+        ) || voices.find(
+          (v) =>
+            v.lang.startsWith('en') &&
+            (v.name.includes('Natural') ||
+              v.name.includes('Google') ||
+              v.name.includes('Premium'))
+        ) || voices.find((v) => v.lang.startsWith('en'));
+      }
+
+      if (selectedVoice) utterance.voice = selectedVoice;
     };
 
     assignVoice();
@@ -309,7 +337,7 @@ export function AiMotionEntryScreen({
         {/* Executive Welcome Header with dynamic user name */}
         <h1
           style={{
-            margin: '0 0 10px 0',
+            margin: '0 0 18px 0',
             fontSize: '44px',
             fontWeight: 850,
             letterSpacing: '-0.035em',
@@ -319,55 +347,6 @@ export function AiMotionEntryScreen({
         >
           Welcome, {displayName}
         </h1>
-
-        {/* Vocalize / Audio Voice Pill */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px' }}>
-          <button
-            type="button"
-            onClick={isSpeaking ? stopSpeaking : speakGreeting}
-            aria-label={isSpeaking ? 'Mute AI voice' : 'Listen to AI voice welcome'}
-            style={{
-              background: isSpeaking ? 'rgba(13, 138, 112, 0.12)' : 'rgba(255, 255, 255, 0.75)',
-              border: `1px solid ${isSpeaking ? (brandColor || '#0d8a70') : 'rgba(0, 0, 0, 0.08)'}`,
-              borderRadius: '999px',
-              padding: '5px 14px',
-              fontSize: '11px',
-              fontWeight: 700,
-              color: isSpeaking ? (brandColor || '#0d8a70') : '#57534e',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              backdropFilter: 'blur(10px)',
-              boxShadow: isSpeaking ? `0 0 14px ${brandColor || '#0d8a70'}35` : '0 2px 8px rgba(0, 0, 0, 0.04)',
-              transition: 'all 0.25s ease',
-            }}
-          >
-            {isSpeaking ? (
-              <>
-                <Volume2 size={13} style={{ color: brandColor || '#0d8a70' }} />
-                <span>AI Speaking · Tap to Mute</span>
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '2px',
-                    marginLeft: '2px',
-                  }}
-                >
-                  <span className="ai-voice-bar vbar-1" style={{ width: '2.5px', background: brandColor || '#0d8a70', borderRadius: '1px' }} />
-                  <span className="ai-voice-bar vbar-2" style={{ width: '2.5px', background: brandColor || '#0d8a70', borderRadius: '1px' }} />
-                  <span className="ai-voice-bar vbar-3" style={{ width: '2.5px', background: brandColor || '#0d8a70', borderRadius: '1px' }} />
-                </span>
-              </>
-            ) : (
-              <>
-                <Volume2 size={13} />
-                <span>🔊 Hear AI Welcome</span>
-              </>
-            )}
-          </button>
-        </div>
 
         {/* Dynamic Financial Update Ticker */}
         <div

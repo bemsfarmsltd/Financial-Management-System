@@ -3182,6 +3182,75 @@ export function WorkspaceSettingsModule({ businessName, setNotice, initialSectio
   const [uploadingGmd, setUploadingGmd] = useState(false);
   const [uploadingStaff, setUploadingStaff] = useState(false);
 
+  // BEMi Voice Governance States
+  const [bemiVoiceList, setBemiVoiceList] = useState<SpeechSynthesisVoice[]>([]);
+  const [bemiVoiceSettings, setBemiVoiceSettings] = useState({
+    enabled: true,
+    voiceURI: '',
+    rate: 0.94,
+    pitch: 1.05,
+  });
+  const [isTestingVoice, setIsTestingVoice] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const updateVoices = () => {
+      const all = window.speechSynthesis.getVoices();
+      setBemiVoiceList(all || []);
+    };
+    updateVoices();
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = updateVoices;
+    }
+    try {
+      const saved = localStorage.getItem('bemi_voice_settings');
+      if (saved) setBemiVoiceSettings((prev) => ({ ...prev, ...JSON.parse(saved) }));
+    } catch {}
+  }, []);
+
+  const updateBemiVoiceSetting = (patch: Partial<typeof bemiVoiceSettings>) => {
+    setBemiVoiceSettings((prev) => {
+      const next = { ...prev, ...patch };
+      try {
+        localStorage.setItem('bemi_voice_settings', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const testBemiVoice = () => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    if (isTestingVoice) {
+      setIsTestingVoice(false);
+      return;
+    }
+    const testText = `Welcome Dr Pastra. My name is BEMi, your Executive Assistant. This is the ${businessName} workspace. Click on continue to dashboard to proceed and view your intelligence and expenditure insights for today.`;
+    const utterance = new SpeechSynthesisUtterance(testText);
+    utterance.rate = bemiVoiceSettings.rate;
+    utterance.pitch = bemiVoiceSettings.pitch;
+    if (bemiVoiceSettings.voiceURI) {
+      const match = bemiVoiceList.find((v) => v.voiceURI === bemiVoiceSettings.voiceURI);
+      if (match) utterance.voice = match;
+    } else {
+      const defaultFemale = bemiVoiceList.find(
+        (v) =>
+          v.lang.startsWith('en') &&
+          (v.name.includes('Samantha') ||
+            v.name.includes('Karen') ||
+            v.name.includes('Serena') ||
+            v.name.includes('Google UK English Female') ||
+            v.name.includes('Victoria') ||
+            v.name.toLowerCase().includes('female'))
+      );
+      if (defaultFemale) utterance.voice = defaultFemale;
+    }
+    utterance.onstart = () => setIsTestingVoice(true);
+    utterance.onend = () => setIsTestingVoice(false);
+    utterance.onerror = () => setIsTestingVoice(false);
+    window.speechSynthesis.speak(utterance);
+  };
+
   useEffect(() => {
     if (initialSection) {
       setSection(initialSection === 'Mobile App Version Control' ? 'Mobile App Settings' : initialSection);
@@ -3289,7 +3358,80 @@ export function WorkspaceSettingsModule({ businessName, setNotice, initialSectio
   const titles=['Organization','Approval controls','AI & Copilot Access','Notifications','Data & retention','Mobile App Settings'];
   const isMobileSection = section === 'Mobile App Settings' || section === 'Mobile App Version Control';
 
-  return <><PageHeading eyebrow="GROUP ADMINISTRATION" title="Settings" description="Manage saved company profiles, approval controls, AI copilot access, notifications, and mobile app version gates."/><section style={{...card,display:'grid',gridTemplateColumns:'220px 1fr',gap:22,minHeight:450}}><nav style={{display:'grid',alignContent:'start',gap:6}}>{titles.map(t=><button key={t} style={(section===t || (t==='Mobile App Settings' && isMobileSection))?{...primary,textAlign:'left'}:{...secondary,textAlign:'left'}} onClick={()=>setSection(t)}>{t}</button>)}</nav><div>{loading?<p>Loading settings…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:<><div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap',marginBottom:16}}><div><small style={{color:'#7788a0',fontWeight:800}}>{section.toUpperCase()}</small><h2 style={{margin:'5px 0 0',fontSize:22,color:'#0f172a'}}>{isMobileSection ? 'Mobile App Settings & Version Control' : `${section} settings`}</h2></div>{!isMobileSection&&<select style={{...input,width:'auto',minWidth:260}} value={organizationId} onChange={e=>void switchOrg(e.target.value)}>{organizations.map(o=><option value={o.id} key={o.id}>{o.name}</option>)}</select>}</div>{section==='Organization'?<div style={{display:'grid',gap:12,maxWidth:650}}><label>Legal name<input style={{...input,display:'block',marginTop:4}} value={profile.name} onChange={e=>setProfile(p=>({...p,name:e.target.value}))}/></label><label>Default currency<select style={{...input,display:'block',marginTop:4}} value={profile.currency} onChange={e=>setProfile(p=>({...p,currency:e.target.value}))}><option value="NGN">NGN — Nigerian naira</option><option value="USD">USD — US dollar</option><option value="GBP">GBP — British pound</option></select></label><label>Timezone<select style={{...input,display:'block',marginTop:4}} value={profile.timezone} onChange={e=>setProfile(p=>({...p,timezone:e.target.value}))}>{['Africa/Lagos','UTC','Europe/London','America/New_York'].map(x=><option key={x}>{x}</option>)}</select></label></div>:section==='Approval controls'?<div style={{display:'grid',gap:12}}><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.requireDecisionReason)} onChange={()=>toggle('requireDecisionReason')}/>Require a reason for declines and clarification</label><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.requireAssignedDisbursementOwner)} onChange={()=>toggle('requireAssignedDisbursementOwner')}/>Require the GMD to assign a payment recorder at final approval</label><p style={{color:'#70819b'}}>Duplicate receipt detection and staff salary-change notices stay enforced for financial control.</p></div>:section==='AI & Copilot Access'?<div style={{display:'grid',gap:16,maxWidth:680}}><label style={{display:'flex',gap:14,alignItems:'flex-start',padding:16,background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,cursor:'pointer'}}><input type="checkbox" style={{marginTop:3,width:18,height:18,accentColor:'#7c3aed'}} checked={current.allowAiAnalystChat!==false} onChange={()=>toggle('allowAiAnalystChat')}/><div><b style={{display:'block',fontSize:14,color:'#0f172a'}}>Enable AI Copilot & Chat for AI Analyst Role</b><span style={{display:'block',marginTop:4,fontSize:13,color:'#64748b',lineHeight:1.5}}>When enabled, users assigned the dedicated <strong>AI Analyst</strong> role can interactively converse with the AI Copilot, analyze live ledger requisitions, query balances, and ask financial questions in <strong>strict read-only mode</strong>. They cannot execute or stage ledger actions. When disabled, their chat access is paused.</span></div></label><div style={{padding:12,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:8,color:'#1e40af',fontSize:12.5}}>🔒 <strong>Read-Only Safeguard:</strong> The AI Analyst role is strictly restricted to informational inquiry, analytics, and queries. Executive approvals, payment executions, and ledger writes are exclusively reserved for GMD and System Admin accounts.</div><div style={{padding:12,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,color:'#166534',fontSize:12.5}}>✦ Note: GMD & System Admin accounts always retain full AI Copilot conversational capabilities.</div></div>:section==='Notifications'?<div style={{display:'grid',gap:12}}><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.taskAssignmentAlerts)} onChange={()=>toggle('taskAssignmentAlerts')}/>Notify the assignee when a follow-up task is assigned</label><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.reviewEvidenceAlerts)} onChange={()=>toggle('reviewEvidenceAlerts')}/>Notify reviewers when staff upload evidence</label><p style={{color:'#70819b'}}>Payment confirmation and salary-change notifications remain mandatory. Salary notices include the exact reason recorded by the GMD.</p></div>:section==='Data & retention'?<div style={{display:'grid',gap:12,maxWidth:480}}><label>Audit history retention<select style={{...input,display:'block',marginTop:4}} value={String(current.auditYears||7)} onChange={e=>setSettings(p=>({...p,'data.retention':{...p['data.retention'],auditYears:Number(e.target.value)}}))}>{[3,5,7,10].map(n=><option key={n} value={n}>{n} years</option>)}</select></label><label>Receipt evidence retention<select style={{...input,display:'block',marginTop:4}} value={String(current.receiptYears||7)} onChange={e=>setSettings(p=>({...p,'data.retention':{...p['data.retention'],receiptYears:Number(e.target.value)}}))}>{[3,5,7,10].map(n=><option key={n} value={n}>{n} years</option>)}</select></label><p style={{color:'#7b8aa1',fontSize:13}}>Records remain available for audit during this period. Retention settings do not automatically delete financial records.</p></div>:/* Mobile App Settings Embedded Console */<div style={{display:'grid',gap:20,maxWidth:880}}>
+  return <><PageHeading eyebrow="GROUP ADMINISTRATION" title="Settings" description="Manage saved company profiles, approval controls, AI copilot access, notifications, and mobile app version gates."/><section style={{...card,display:'grid',gridTemplateColumns:'220px 1fr',gap:22,minHeight:450}}><nav style={{display:'grid',alignContent:'start',gap:6}}>{titles.map(t=><button key={t} style={(section===t || (t==='Mobile App Settings' && isMobileSection))?{...primary,textAlign:'left'}:{...secondary,textAlign:'left'}} onClick={()=>setSection(t)}>{t}</button>)}</nav><div>{loading?<p>Loading settings…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:<><div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap',marginBottom:16}}><div><small style={{color:'#7788a0',fontWeight:800}}>{section.toUpperCase()}</small><h2 style={{margin:'5px 0 0',fontSize:22,color:'#0f172a'}}>{isMobileSection ? 'Mobile App Settings & Version Control' : `${section} settings`}</h2></div>{!isMobileSection&&<select style={{...input,width:'auto',minWidth:260}} value={organizationId} onChange={e=>void switchOrg(e.target.value)}>{organizations.map(o=><option value={o.id} key={o.id}>{o.name}</option>)}</select>}</div>{section==='Organization'?<div style={{display:'grid',gap:12,maxWidth:650}}><label>Legal name<input style={{...input,display:'block',marginTop:4}} value={profile.name} onChange={e=>setProfile(p=>({...p,name:e.target.value}))}/></label><label>Default currency<select style={{...input,display:'block',marginTop:4}} value={profile.currency} onChange={e=>setProfile(p=>({...p,currency:e.target.value}))}><option value="NGN">NGN — Nigerian naira</option><option value="USD">USD — US dollar</option><option value="GBP">GBP — British pound</option></select></label><label>Timezone<select style={{...input,display:'block',marginTop:4}} value={profile.timezone} onChange={e=>setProfile(p=>({...p,timezone:e.target.value}))}>{['Africa/Lagos','UTC','Europe/London','America/New_York'].map(x=><option key={x}>{x}</option>)}</select></label></div>:section==='Approval controls'?<div style={{display:'grid',gap:12}}><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.requireDecisionReason)} onChange={()=>toggle('requireDecisionReason')}/>Require a reason for declines and clarification</label><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.requireAssignedDisbursementOwner)} onChange={()=>toggle('requireAssignedDisbursementOwner')}/>Require the GMD to assign a payment recorder at final approval</label><p style={{color:'#70819b'}}>Duplicate receipt detection and staff salary-change notices stay enforced for financial control.</p></div>:section==='AI & Copilot Access'?<div style={{display:'grid',gap:16,maxWidth:680}}><label style={{display:'flex',gap:14,alignItems:'flex-start',padding:16,background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,cursor:'pointer'}}><input type="checkbox" style={{marginTop:3,width:18,height:18,accentColor:'#7c3aed'}} checked={current.allowAiAnalystChat!==false} onChange={()=>toggle('allowAiAnalystChat')}/><div><b style={{display:'block',fontSize:14,color:'#0f172a'}}>Enable AI Copilot & Chat for AI Analyst Role</b><span style={{display:'block',marginTop:4,fontSize:13,color:'#64748b',lineHeight:1.5}}>When enabled, users assigned the dedicated <strong>AI Analyst</strong> role can interactively converse with the AI Copilot, analyze live ledger requisitions, query balances, and ask financial questions in <strong>strict read-only mode</strong>. They cannot execute or stage ledger actions. When disabled, their chat access is paused.</span></div></label><div style={{padding:12,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:8,color:'#1e40af',fontSize:12.5}}>🔒 <strong>Read-Only Safeguard:</strong> The AI Analyst role is strictly restricted to informational inquiry, analytics, and queries. Executive approvals, payment executions, and ledger writes are exclusively reserved for GMD and System Admin accounts.</div><div style={{padding:12,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,color:'#166534',fontSize:12.5}}>✦ Note: GMD & System Admin accounts always retain full AI Copilot conversational capabilities.</div>
+
+      {/* BEMi Executive Voice Governance & Audio Welcome Card */}
+      <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 18, display: 'grid', gap: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18 }}>🔊</span>
+            <div>
+              <b style={{ fontSize: 14, color: '#0f172a', display: 'block' }}>BEMi Executive Voice Governance &amp; Welcome Audio</b>
+              <span style={{ fontSize: 12, color: '#64748b' }}>Configure speech voice persona, vocal welcome greeting, and audio playback</span>
+            </div>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={bemiVoiceSettings.enabled}
+              onChange={(e) => updateBemiVoiceSetting({ enabled: e.target.checked })}
+              style={{ width: 16, height: 16, accentColor: 'var(--brand-primary, #0d8a70)' }}
+            />
+            Enable Voice Welcome
+          </label>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 12, alignItems: 'center' }}>
+          <div>
+            <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>
+              Executive AI Voice Selection (Defaults to Natural Female Voice)
+            </label>
+            <select
+              style={{ ...input, width: '100%', fontSize: 12.5 }}
+              value={bemiVoiceSettings.voiceURI}
+              onChange={(e) => updateBemiVoiceSetting({ voiceURI: e.target.value })}
+            >
+              <option value="">Default Recommended (Samantha / Karen / UK English Female)</option>
+              {bemiVoiceList
+                .filter((v) => v.lang.startsWith('en'))
+                .map((v) => (
+                  <option key={v.voiceURI} value={v.voiceURI}>
+                    {v.name} ({v.lang}) {v.name.includes('Samantha') || v.name.includes('Karen') || v.name.includes('Serena') || v.name.toLowerCase().includes('female') ? '✦ Female Recommended' : ''}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={testBemiVoice}
+            style={{
+              marginTop: 18,
+              padding: '9px 16px',
+              borderRadius: 8,
+              background: isTestingVoice ? '#fef2f2' : 'var(--brand-primary, #0d8a70)',
+              color: isTestingVoice ? '#dc2626' : '#ffffff',
+              border: isTestingVoice ? '1px solid #fecaca' : 'none',
+              fontWeight: 750,
+              fontSize: 12,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: isTestingVoice ? 'none' : '0 2px 8px rgba(13, 138, 112, 0.25)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span>{isTestingVoice ? '⏹ Stop Audio' : '🔊 Test BEMi Welcome Greeting'}</span>
+          </button>
+        </div>
+
+        <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 11.5, color: '#475569', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>💡</span>
+          <span>Spoken on entry: <em>&ldquo;Welcome [User], my name is BEMi, your Executive Assistant. This is the [Subsidiary] workspace...&rdquo;</em></span>
+        </div>
+      </div>
+    </div>:section==='Notifications'?<div style={{display:'grid',gap:12}}><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.taskAssignmentAlerts)} onChange={()=>toggle('taskAssignmentAlerts')}/>Notify the assignee when a follow-up task is assigned</label><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.reviewEvidenceAlerts)} onChange={()=>toggle('reviewEvidenceAlerts')}/>Notify reviewers when staff upload evidence</label><p style={{color:'#70819b'}}>Payment confirmation and salary-change notifications remain mandatory. Salary notices include the exact reason recorded by the GMD.</p></div>:section==='Data & retention'?<div style={{display:'grid',gap:12,maxWidth:480}}><label>Audit history retention<select style={{...input,display:'block',marginTop:4}} value={String(current.auditYears||7)} onChange={e=>setSettings(p=>({...p,'data.retention':{...p['data.retention'],auditYears:Number(e.target.value)}}))}>{[3,5,7,10].map(n=><option key={n} value={n}>{n} years</option>)}</select></label><label>Receipt evidence retention<select style={{...input,display:'block',marginTop:4}} value={String(current.receiptYears||7)} onChange={e=>setSettings(p=>({...p,'data.retention':{...p['data.retention'],receiptYears:Number(e.target.value)}}))}>{[3,5,7,10].map(n=><option key={n} value={n}>{n} years</option>)}</select></label><p style={{color:'#7b8aa1',fontSize:13}}>Records remain available for audit during this period. Retention settings do not automatically delete financial records.</p></div>:/* Mobile App Settings Embedded Console */<div style={{display:'grid',gap:20,maxWidth:880}}>
   {/* Status & Save Banner */}
   <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'14px 18px',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}>
     <div>
