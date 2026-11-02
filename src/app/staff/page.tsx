@@ -19,20 +19,11 @@ export default async function StaffPage() {
     redirect('/');
   }
 
-  const staffUser = {
-    id: actor.id,
-    fullName: actor.legalName,
-    email: actor.workEmail,
-    role: actor.role,
-    employeeNumber: actor.employeeNumber,
-    phone: actor.phone,
-  };
-
   let businessName = 'BEMS Group';
   const [assignment, subsidiaries, vendors, currentStaff] = await Promise.all([
     prisma.employeeAssignment.findFirst({
       where: { employeeId: actor.id },
-      include: { subsidiary: true },
+      include: { subsidiary: true, department: true },
     }),
     prisma.organization.findMany({
       where: { status: 'ACTIVE' },
@@ -50,9 +41,19 @@ export default async function StaffPage() {
         legalName: true,
         workEmail: true,
         employeeNumber: true,
+        phone: true,
+        avatarUrl: true,
         bankName: true,
         accountNumber: true,
         accountName: true,
+        salaryBankName: true,
+        salaryAccountNumber: true,
+        salaryAccountName: true,
+        workLocation: true,
+        staffGrade: true,
+        maritalStatus: true,
+        stateOfOrigin: true,
+        lga: true,
         assignments: {
           where: { status: 'ACTIVE' },
           select: {
@@ -71,6 +72,32 @@ export default async function StaffPage() {
   if (assignment?.subsidiary) {
     businessName = assignment.subsidiary.legalName;
   }
+
+  const primaryAssignment: any = currentStaff?.assignments?.find((a: any) => a.isPrimary) || currentStaff?.assignments?.[0] || assignment;
+  const staffSubsidiary = primaryAssignment?.subsidiary?.legalName || businessName;
+  const staffDepartment = primaryAssignment?.department?.name || 'General Operations';
+  const staffPosition = primaryAssignment?.positionName || 'Staff Personnel';
+
+  const staffUser = {
+    id: actor.id,
+    fullName: actor.legalName,
+    email: actor.workEmail,
+    role: actor.role,
+    employeeNumber: actor.employeeNumber,
+    phone: actor.phone || currentStaff?.phone || '',
+    avatarUrl: actor.avatarUrl || currentStaff?.avatarUrl || '',
+    bankName: currentStaff?.bankName || '',
+    accountNumber: currentStaff?.accountNumber || '',
+    accountName: currentStaff?.accountName || actor.legalName,
+    salaryBankName: currentStaff?.salaryBankName || currentStaff?.bankName || '',
+    salaryAccountNumber: currentStaff?.salaryAccountNumber || currentStaff?.accountNumber || '',
+    salaryAccountName: currentStaff?.salaryAccountName || actor.legalName,
+    jobTitle: staffPosition,
+    department: staffDepartment,
+    subsidiary: staffSubsidiary,
+    workLocation: currentStaff?.workLocation || 'LAGOS_HQ',
+    staffGrade: currentStaff?.staffGrade || 'OFFICER',
+  };
 
   return (
     <StaffDashboardClient
