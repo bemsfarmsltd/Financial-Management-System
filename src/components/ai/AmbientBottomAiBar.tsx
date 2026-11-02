@@ -370,28 +370,46 @@ export function AmbientBottomAiBar({
         </div>
       )}
 
-      {/* 2. THE BOTTOM COMMAND & CHAT BAR WITH ORBITING SUBSIDIARY BRAND LIGHT */}
+      {/* 2. THE BOTTOM COMMAND & CHAT BAR WITH HYPER-BRIGHT ORBITING SUBSIDIARY BRAND LIGHT */}
       <div
         className="bemi-orbit-wrapper"
         style={{
           position: 'relative',
           width: '100%',
           borderRadius: '999px',
-          padding: '1.5px',
+          padding: '2.5px',
           overflow: 'hidden',
-          boxShadow: '0 12px 36px rgba(15, 23, 42, 0.12), 0 0 24px var(--brand-shadow-color, rgba(13, 138, 112, 0.18))',
+          boxShadow: '0 12px 36px rgba(15, 23, 42, 0.14), 0 0 28px var(--brand-shadow-color, rgba(13, 138, 112, 0.38)), 0 0 10px var(--brand-primary, #0d8a70)',
+          animation: 'bemiAttentionPulse 3.5s ease-in-out infinite',
           pointerEvents: 'auto',
         }}
       >
-        {/* Circling Subsidiary Light Comet (Revolving perimeter light beam) */}
+        {/* Layer 1: Diffused Luminous Outer Halo / Volumetric Bloom Orbit */}
+        <div
+          aria-hidden="true"
+          className="bemi-orbit-bloom"
+          style={{
+            position: 'absolute',
+            inset: '-100%',
+            background: 'conic-gradient(from 0deg, transparent 0deg, transparent 180deg, var(--brand-primary, #0d8a70) 250deg, #38bdf8 300deg, #ffffff 345deg, var(--brand-primary, #0d8a70) 360deg)',
+            filter: 'blur(8px)',
+            opacity: 0.9,
+            animation: 'bemiOrbitSpin 3s linear infinite',
+            zIndex: 0,
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* Layer 2: Core Ultra-Bright Laser Comet (Pure Incandescent White Hot Beam + Vivid Brand Trail) */}
         <div
           aria-hidden="true"
           className="bemi-orbit-comet"
           style={{
             position: 'absolute',
             inset: '-120%',
-            background: 'conic-gradient(from 0deg, transparent 0deg, transparent 270deg, var(--brand-primary, #0d8a70) 325deg, #ffffff 352deg, var(--brand-primary, #0d8a70) 360deg)',
-            animation: 'bemiOrbitSpin 3.8s linear infinite',
+            background: 'conic-gradient(from 0deg, transparent 0deg, transparent 200deg, var(--brand-primary, #0d8a70) 265deg, #38bdf8 310deg, #ffffff 345deg, #ffffff 355deg, var(--brand-primary, #0d8a70) 360deg)',
+            filter: 'drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 16px var(--brand-primary, #0d8a70))',
+            animation: 'bemiOrbitSpin 3s linear infinite',
             zIndex: 0,
             pointerEvents: 'none',
           }}
@@ -665,6 +683,29 @@ export function AmbientBottomAiBar({
           }
           100% {
             transform: rotate(360deg);
+          }
+        }
+        @keyframes bemiAttentionPulse {
+          0%, 100% {
+            box-shadow: 0 12px 36px rgba(15, 23, 42, 0.14), 0 0 24px var(--brand-shadow-color, rgba(13, 138, 112, 0.35)), 0 0 8px var(--brand-primary, #0d8a70);
+          }
+          50% {
+            box-shadow: 0 16px 42px rgba(15, 23, 42, 0.18), 0 0 42px var(--brand-shadow-color, rgba(13, 138, 112, 0.70)), 0 0 18px var(--brand-primary, #0d8a70), 0 0 24px #ffffff;
+          }
+        }
+      `}</style>
+      {/* Global CSS fallback for non-styled-jsx environments */}
+      <style>{`
+        @keyframes bemiOrbitSpin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes bemiAttentionPulse {
+          0%, 100% {
+            box-shadow: 0 12px 36px rgba(15, 23, 42, 0.14), 0 0 24px var(--brand-shadow-color, rgba(13, 138, 112, 0.35)), 0 0 8px var(--brand-primary, #0d8a70);
+          }
+          50% {
+            box-shadow: 0 16px 42px rgba(15, 23, 42, 0.18), 0 0 42px var(--brand-shadow-color, rgba(13, 138, 112, 0.70)), 0 0 18px var(--brand-primary, #0d8a70), 0 0 24px #ffffff;
           }
         }
       `}</style>
