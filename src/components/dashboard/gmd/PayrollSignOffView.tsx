@@ -15,6 +15,8 @@ import {
   UploadCloud,
   Search,
   Filter,
+  Download,
+  Calendar,
 } from 'lucide-react';
 
 interface PayrollItem {
@@ -36,6 +38,14 @@ interface PayrollItem {
   paymentReceiptName: string | null;
   paymentReceiptUrl: string | null;
   recipientDecision: string | null;
+  bankName?: string;
+  accountNumber?: string;
+  accountName?: string;
+  primarySubsidiary?: string;
+  attendancePenaltyMinor?: number;
+  attendancePenaltyFormatted?: string;
+  lateArrivalsCount?: number;
+  unexcusedAbsenceCount?: number;
   allocations: Array<{
     subsidiaryId: string;
     subsidiaryName: string;
@@ -77,6 +87,25 @@ interface StaffDetail {
   permissions: { canEditSalary: boolean };
 }
 
+interface PayrollPeriodOption {
+  id: string;
+  year: number;
+  month: number;
+  periodName: string;
+  lockStatus: string;
+  batchStatus: string;
+  batchVersion: number;
+}
+
+interface PaydayRadarInfo {
+  paydayDay: number;
+  targetPayday: string;
+  daysRemaining: number;
+  isRadarActive: boolean;
+  periodName: string;
+  batchStatus: string | null;
+}
+
 interface PayrollBatchData {
   period: {
     id: string;
@@ -107,6 +136,8 @@ interface PayrollBatchData {
     payrollCostFormatted: string;
   };
   items: PayrollItem[];
+  availablePeriods?: PayrollPeriodOption[];
+  radar?: PaydayRadarInfo | null;
   permissions: { canApprove: boolean; canRecordPayments: boolean };
 }
 
@@ -222,26 +253,97 @@ export function PayrollSignOffView({
     }
   };
 
-  const fetchPayroll = async () => {
+  const [selectedPeriodKey, setSelectedPeriodKey] = useState<string>('');
+
+  const fetchPayroll = async (year?: number, month?: number) => {
     try {
       setLoading(true);
-      const res = await fetch('/api/payroll', { credentials: 'include', cache: 'no-store' });
+      const params = year && month ? `?year=${year}&month=${month}` : '';
+      const res = await fetch(`/api/payroll${params}`, { credentials: 'include', cache: 'no-store' });
       const json = await res.json();
       if (json && !json.error) {
         setData(json);
+        if (json.period) {
+          setSelectedPeriodKey(`${json.period.year}-${json.period.month}`);
+        }
       } else {
+        if (json?.availablePeriods) {
+          setData((prev) => ({
+            ...(prev || {}),
+            availablePeriods: json.availablePeriods,
+            radar: json.radar,
+            period: json.period || null,
+            batch: null as any,
+            items: [],
+            permissions: { canApprove: false, canRecordPayments: false },
+          } as any));
+        }
         if (res.status === 403) {
           const mine = await fetch('/api/payroll/my-payments', { credentials: 'include', cache: 'no-store' });
           const mineJson = await mine.json();
-          if (mine.ok) setStaffPayments(mineJson.payments || []);
+          if (mineJson.payments) setStaffPayments(mineJson.payments);
           else setNotice(mineJson.error || json.error || 'Could not load payroll payments.');
-        } else setNotice(json.error || 'Failed to load payroll data.');
+        } else {
+          setNotice(json.error || 'Failed to load payroll data.');
+        }
       }
     } catch (e: any) {
       setNotice('Error loading payroll data.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDownloadCSV = () => {
+    if (!data || !filteredItems || filteredItems.length === 0) {
+      setNotice('No items available in the current register to download.');
+      return;
+    }
+    const headers = [
+      'Staff ID',
+      'Legal Name',
+      'Email',
+      'Role',
+      'Primary Subsidiary',
+      'Gross Salary (NGN)',
+      'Statutory Deductions (NGN)',
+      'Attendance Deductions (NGN)',
+      'Net Take-Home (NGN)',
+      'Salary Bank',
+      'Account Number',
+      'Account Name',
+      'Payment Status',
+      'Recipient Decision',
+    ];
+
+    const rows = filteredItems.map((item) => [
+      `"${item.employeeId}"`,
+      `"${(item.employeeName || '').replace(/"/g, '""')}"`,
+      `"${item.email || ''}"`,
+      `"${item.role || ''}"`,
+      `"${(item.primarySubsidiary || 'BEMS Group').replace(/"/g, '""')}"`,
+      (item.grossMinor / 100).toFixed(2),
+      (item.deductionsMinor / 100).toFixed(2),
+      ((item.attendancePenaltyMinor || 0) / 100).toFixed(2),
+      (item.netMinor / 100).toFixed(2),
+      `"${item.bankName || ''}"`,
+      `"${item.accountNumber || ''}"`,
+      `"${(item.accountName || item.employeeName || '').replace(/"/g, '""')}"`,
+      item.paymentStatus,
+      item.recipientDecision || 'PENDING',
+    ]);
+
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    const periodLabel = data.period ? `${data.period.year}_${String(data.period.month).padStart(2, '0')}` : 'payroll';
+    link.setAttribute('download', `BEMS_Payroll_Register_${periodLabel}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handlePrepareBatch = async () => {
@@ -368,9 +470,49 @@ export function PayrollSignOffView({
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Historical Period Archive Selector */}
+          {data?.availablePeriods && data.availablePeriods.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '2px 8px' }}>
+              <Calendar size={12} style={{ color: '#ea580c' }} />
+              <select
+                aria-label="Select Historical Payroll Period"
+                value={selectedPeriodKey || (data.period ? `${data.period.year}-${data.period.month}` : '')}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedPeriodKey(val);
+                  const [y, m] = val.split('-').map(Number);
+                  if (y && m) fetchPayroll(y, m);
+                }}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: '#0f172a',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  padding: '4px 2px',
+                }}
+              >
+                {data.availablePeriods.map((p) => (
+                  <option key={p.id} value={`${p.year}-${p.month}`}>
+                    {p.periodName} ({p.batchStatus === 'APPROVED' ? 'Approved' : p.batchStatus === 'PAID' ? 'Disbursed' : p.batchStatus === 'SUBMITTED' ? 'Submitted' : 'Not Prepared'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <button
-            onClick={fetchPayroll}
+            onClick={() => {
+              if (selectedPeriodKey) {
+                const [y, m] = selectedPeriodKey.split('-').map(Number);
+                fetchPayroll(y, m);
+              } else {
+                fetchPayroll();
+              }
+            }}
             style={{
               padding: '6px 10px',
               borderRadius: '6px',
@@ -413,7 +555,7 @@ export function PayrollSignOffView({
             </button>
           )}
 
-          {data?.batch.status === 'SUBMITTED' && data.permissions.canApprove ? (
+          {data?.batch?.status === 'SUBMITTED' && data.permissions.canApprove ? (
             <button
               onClick={async () => {
                 setSignOffModalOpen(true);
@@ -502,6 +644,55 @@ export function PayrollSignOffView({
           <button onClick={() => setNotice(null)} style={{ border: 0, background: 'none', color: '#64748b', cursor: 'pointer' }}>
             <X size={14} />
           </button>
+        </div>
+      )}
+
+      {/* 7-DAY PAYDAY RADAR ALERT BANNER */}
+      {data?.radar?.isRadarActive && (
+        <div style={{
+          marginBottom: '14px',
+          padding: '12px 16px',
+          borderRadius: '10px',
+          background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+          border: '1px solid #fdba74',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 34,
+              height: 34,
+              borderRadius: 8,
+              background: '#ea580c',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 800,
+              fontSize: 13,
+              boxShadow: '0 2px 6px rgba(234, 88, 12, 0.3)',
+            }}>
+              3rd
+            </div>
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: '#9a3412' }}>
+                {data.radar.daysRemaining === 0
+                  ? '🚨 Payday is Today! (3rd of the Month)'
+                  : `Upcoming Payday in ${data.radar.daysRemaining} Day${data.radar.daysRemaining === 1 ? '' : 's'} (Scheduled for the 3rd)`}
+              </div>
+              <div style={{ fontSize: 11, color: '#7c2d12', marginTop: 2 }}>
+                Group policy schedules salary disbursement on the 3rd of each calendar month. Complete GMD sign-off for {data.radar.periodName} so payment execution can proceed on time.
+              </div>
+            </div>
+          </div>
+          {data.batch?.status === 'SUBMITTED' && (
+            <span style={{ fontSize: 11, fontWeight: 750, color: '#ea580c', background: '#fff', padding: '5px 12px', borderRadius: 6, border: '1px solid #fed7aa', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+              ⚡ Ready for GMD Sign-off
+            </span>
+          )}
         </div>
       )}
 
@@ -744,28 +935,54 @@ export function PayrollSignOffView({
             </select>
           </div>
 
-          {(searchQuery || subsidiaryCostFilter !== 'ALL' || paymentFilter !== 'ALL') && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setSubsidiaryCostFilter('ALL');
-                setPaymentFilter('ALL');
-              }}
-              style={{
-                border: 0,
-                background: '#e2e8f0',
-                color: '#475569',
-                padding: '4px 10px',
-                borderRadius: 6,
-                fontSize: 10,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Reset Filters
-            </button>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {filteredItems.length > 0 && (
+              <button
+                type="button"
+                onClick={handleDownloadCSV}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#0f172a',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                }}
+              >
+                <Download size={12} style={{ color: '#0d8a70' }} />
+                <span>Download Register (CSV)</span>
+              </button>
+            )}
+
+            {(searchQuery || subsidiaryCostFilter !== 'ALL' || paymentFilter !== 'ALL') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSubsidiaryCostFilter('ALL');
+                  setPaymentFilter('ALL');
+                }}
+                style={{
+                  border: 0,
+                  background: '#e2e8f0',
+                  color: '#475569',
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Reset Filters
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (

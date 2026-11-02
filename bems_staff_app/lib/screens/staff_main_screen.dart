@@ -1600,6 +1600,357 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     );
   }
 
+  // 6. MY SALARY & PAYSLIPS MODAL
+  void _showMyPayslipsModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.88,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: StatefulBuilder(
+                builder: (context, setModalState) {
+                  return FutureBuilder<Map<String, dynamic>>(
+                    future: StaffApiService.fetchMyPayslips(employeeId: _currentUser.id),
+                    builder: (context, snapshot) {
+                      return ListView(
+                        controller: scrollController,
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                        children: [
+                          Center(
+                            child: Container(
+                              width: 44,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFCBD5E1),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Text(
+                                        'My Salary & Payslips',
+                                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFFF7ED),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: const Color(0xFFFED7AA)),
+                                        ),
+                                        child: const Text('PAYDAY: 3RD', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text('Monthly vouchers, statutory deductions, & receipt confirmations', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                                ],
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8)),
+                                onPressed: () => Navigator.pop(ctx),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          if (snapshot.connectionState == ConnectionState.waiting) ...[
+                            const SizedBox(height: 60),
+                            const Center(child: CircularProgressIndicator(color: Color(0xFFEA580C))),
+                            const SizedBox(height: 12),
+                            const Center(child: Text('Loading salary agreement & payslips...', style: TextStyle(fontSize: 12, color: Color(0xFF64748B)))),
+                          ] else if (snapshot.hasError) ...[
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(16)),
+                              child: Text('Could not load salary records: ${snapshot.error}', style: const TextStyle(color: Color(0xFFB91C1C), fontSize: 12)),
+                            ),
+                          ] else if (snapshot.hasData) ...[
+                            Builder(
+                              builder: (context) {
+                                final data = snapshot.data!;
+                                final comp = data['compensation'] as Map<String, dynamic>?;
+                                final payslips = (data['payslips'] as List<dynamic>?) ?? [];
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Compensation Summary Card
+                                    Container(
+                                      padding: const EdgeInsets.all(18),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(color: const Color(0xFFFED7AA)),
+                                        boxShadow: [
+                                          BoxShadow(color: const Color(0xFFEA580C).withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 4)),
+                                        ],
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text('ACTIVE COMPENSATION AGREEMENT', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFFEA580C), letterSpacing: 0.8)),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            comp?['grossFormatted'] ?? '₦0',
+                                            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -0.5),
+                                          ),
+                                          Text(
+                                            'Gross Monthly Pay · ${comp?['primarySubsidiary'] ?? 'BEMS Group'}',
+                                            style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                                          ),
+                                          const Divider(color: Color(0xFFF1F5F9), height: 20),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  const Text('STATUTORY DEDUCTIONS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    'Pension: ${comp?['employeePensionFormatted'] ?? '₦0'} · PAYE: ${comp?['payeTaxFormatted'] ?? '₦0'}',
+                                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFB91C1C)),
+                                                  ),
+                                                ],
+                                              ),
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.end,
+                                                children: [
+                                                  const Text('ESTIMATED TAKE-HOME', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF059669))),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    comp?['estimatedNetFormatted'] ?? '₦0',
+                                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF059669)),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                            decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10)),
+                                            child: Row(
+                                              children: [
+                                                const Icon(Icons.account_balance_rounded, size: 13, color: Color(0xFF64748B)),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    'Salary Destination: ${comp?['salaryBankName']} (${comp?['salaryAccountNumber']})',
+                                                    style: const TextStyle(fontSize: 10.5, color: Color(0xFF334155), fontWeight: FontWeight.w700),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    const Text('MONTHLY PAYSLIPS & DISBURSEMENTS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF475569), letterSpacing: 0.8)),
+                                    const SizedBox(height: 8),
+                                    if (payslips.isEmpty)
+                                      Container(
+                                        padding: const EdgeInsets.all(24),
+                                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFE2E8F0))),
+                                        child: const Center(
+                                          child: Text('No monthly payslips compiled yet.\nBatches are prepared ahead of the 3rd of each month.',
+                                            textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4)),
+                                        ),
+                                      )
+                                    else
+                                      ...payslips.map((p) {
+                                        final isPaid = p['paymentStatus'] == 'PAID';
+                                        final conf = p['confirmation'] as Map<String, dynamic>?;
+                                        final disbId = p['disbursementId']?.toString();
+
+                                        return Container(
+                                          margin: const EdgeInsets.only(bottom: 12),
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(18),
+                                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                children: [
+                                                  Text(p['periodName'] ?? 'Payroll', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                    decoration: BoxDecoration(
+                                                      color: isPaid ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                                                      borderRadius: BorderRadius.circular(6),
+                                                      border: Border.all(color: isPaid ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A)),
+                                                    ),
+                                                    child: Text(
+                                                      isPaid ? 'PAID & CREDITED' : p['batchStatus'] == 'APPROVED' ? 'APPROVED FOR PAYMENT' : 'PREPARED',
+                                                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: isPaid ? const Color(0xFF059669) : const Color(0xFFB45309)),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Row(
+                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                children: [
+                                                  Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text('Gross: ${p['grossFormatted']} · Ded: -${p['deductionsFormatted']}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                                                      const SizedBox(height: 2),
+                                                      Text('Net Take-Home: ${p['netFormatted']}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF059669))),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                              if (p['reference'] != null) ...[
+                                                const SizedBox(height: 6),
+                                                Text('Bank Reference: ${p['reference']}', style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B), fontFamily: 'monospace')),
+                                              ],
+                                              const SizedBox(height: 12),
+                                              if (conf != null) ...[
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                  decoration: BoxDecoration(
+                                                    color: conf['decision'] == 'RECEIVED' ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(color: conf['decision'] == 'RECEIVED' ? const Color(0xFFBBF7D0) : const Color(0xFFFECACA)),
+                                                  ),
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(conf['decision'] == 'RECEIVED' ? Icons.check_circle_rounded : Icons.report_problem_rounded,
+                                                        size: 14, color: conf['decision'] == 'RECEIVED' ? const Color(0xFF059669) : const Color(0xFFDC2626)),
+                                                      const SizedBox(width: 6),
+                                                      Expanded(
+                                                        child: Text(
+                                                          conf['decision'] == 'RECEIVED' ? 'Receipt Confirmed by Staff' : 'Issue Reported: ${conf['note'] ?? 'Discrepancy'}',
+                                                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: conf['decision'] == 'RECEIVED' ? const Color(0xFF059669) : const Color(0xFFDC2626)),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ] else if (isPaid && disbId != null) ...[
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: ElevatedButton.icon(
+                                                        onPressed: () async {
+                                                          try {
+                                                            await StaffApiService.confirmPayslipDisbursement(
+                                                              disbursementId: disbId,
+                                                              decision: 'RECEIVED',
+                                                              employeeId: _currentUser.id,
+                                                            );
+                                                            if (!mounted) return;
+                                                            ScaffoldMessenger.of(context).showSnackBar(
+                                                              const SnackBar(content: Text('✓ Salary receipt confirmed!'), backgroundColor: Color(0xFF059669)),
+                                                            );
+                                                            setModalState(() {});
+                                                          } catch (e) {
+                                                            if (!mounted) return;
+                                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                                                          }
+                                                        },
+                                                        icon: const Icon(Icons.check_circle_outline_rounded, size: 14),
+                                                        label: const Text('Confirm Received', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: const Color(0xFF059669),
+                                                          foregroundColor: Colors.white,
+                                                          elevation: 0,
+                                                          padding: const EdgeInsets.symmetric(vertical: 8),
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    OutlinedButton(
+                                                      onPressed: () async {
+                                                        final noteController = TextEditingController();
+                                                        final reported = await showDialog<bool>(
+                                                          context: context,
+                                                          builder: (dCtx) => AlertDialog(
+                                                            title: const Text('Report Salary Issue', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                                                            content: TextField(
+                                                              controller: noteController,
+                                                              decoration: const InputDecoration(labelText: 'Explain issue (e.g. alert not received)', border: OutlineInputBorder()),
+                                                            ),
+                                                            actions: [
+                                                              TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Cancel')),
+                                                              ElevatedButton(onPressed: () => Navigator.pop(dCtx, true), child: const Text('Submit Issue')),
+                                                            ],
+                                                          ),
+                                                        );
+                                                        if (reported == true && noteController.text.trim().isNotEmpty) {
+                                                          await StaffApiService.confirmPayslipDisbursement(
+                                                            disbursementId: disbId,
+                                                            decision: 'NOT_RECEIVED',
+                                                            note: noteController.text.trim(),
+                                                            employeeId: _currentUser.id,
+                                                          );
+                                                          if (!mounted) return;
+                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                            const SnackBar(content: Text('Salary issue reported to Finance.')),
+                                                          );
+                                                          setModalState(() {});
+                                                        }
+                                                      },
+                                                      style: OutlinedButton.styleFrom(
+                                                        foregroundColor: const Color(0xFFB91C1C),
+                                                        side: const BorderSide(color: Color(0xFFFECACA)),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                                      ),
+                                                      child: const Text('Report Issue', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11)),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        );
+                                      }),
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _openNewRequestModal() {
     Navigator.push(
       context,
@@ -2166,7 +2517,64 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          // Monthly Salary & Payslips Quick Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 3)),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEA580C).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.wallet_outlined, color: Color(0xFFEA580C), size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Monthly Salary & Payslips',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Scheduled Payday: 3rd · Bank: ${_currentUser.salaryBankName.isNotEmpty ? _currentUser.salaryBankName : _currentUser.bankName}',
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: _showMyPayslipsModal,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFF7ED),
+                    foregroundColor: const Color(0xFFEA580C),
+                    elevation: 0,
+                    side: const BorderSide(color: Color(0xFFFED7AA)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('View Slips', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
 
           // Dual-Key Maker Checker
           if (_disbursementsAwaiting.isNotEmpty) ...[
@@ -3968,6 +4376,55 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               _buildDataRow(label: 'Employment Type & Grade', value: '${_currentUser.employmentType} (${_currentUser.staffGrade})', icon: Icons.badge_outlined),
               const Divider(color: Color(0xFFF1F5F9), height: 16),
               _buildDataRow(label: 'Work Location & Resumption', value: '${_currentUser.workLocation} · Resumed: ${_currentUser.resumptionDate}', icon: Icons.pin_drop_outlined),
+            ],
+          ),
+        ),
+
+        // Monthly Salary & Payslips Section
+        _buildProfileSectionHeader('MONTHLY SALARY & PAYSLIP VOUCHERS'),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 3)),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('OFFICIAL MONTHLY SALARY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFFEA580C), letterSpacing: 0.8)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(6), border: Border.all(color: const Color(0xFFFED7AA))),
+                    child: const Text('PAYDAY: 3RD', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Text('Review statutory gross-to-net salary breakdown, past payment vouchers, and confirm bank transfer receipt.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4)),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _showMyPayslipsModal,
+                  icon: const Icon(Icons.wallet_outlined, size: 17, color: Colors.white),
+                  label: const Text('View My Salary & Payslips', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEA580C),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    elevation: 0,
+                  ),
+                ),
+              ),
             ],
           ),
         ),

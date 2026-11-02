@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { createHash } from 'node:crypto';
+import { evaluatePaydayRadar } from '@/lib/payroll-radar';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,38 @@ export async function GET(req: NextRequest) {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view payroll.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive access is required to view payroll.' }, { status: 403 });
+
+    // Run payday radar check (evaluates 7-day pre-payday window and triggers GMD notification if needed)
+    const radar = await evaluatePaydayRadar().catch(err => {
+      console.warn('Payroll radar evaluation notice:', err);
+      return null;
+    });
+
+    // Fetch all available historical periods for the archive selector
+    const allPeriods = await prisma.payrollPeriod.findMany({
+      orderBy: [{ year: 'desc' }, { month: 'desc' }],
+      include: {
+        batches: {
+          orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
+          take: 1,
+          select: { id: true, version: true, status: true, totalNetMinor: true }
+        }
+      }
+    });
+
+    const availablePeriods = allPeriods.map(p => {
+      const b = p.batches[0];
+      return {
+        id: p.id,
+        year: p.year,
+        month: p.month,
+        periodName: `${new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(p.year, p.month - 1, 1))} ${p.year}`,
+        lockStatus: p.lockStatus,
+        batchStatus: b?.status || 'NOT_PREPARED',
+        batchVersion: b?.version || 1,
+      };
+    });
+
     const requestedYear = req.nextUrl.searchParams.get('year');
     const requestedMonth = req.nextUrl.searchParams.get('month');
     const year = requestedYear ? Number(requestedYear) : null;
@@ -34,7 +67,25 @@ export async function GET(req: NextRequest) {
           include: {
             items: {
               include: {
-                employee: { select: { id: true, legalName: true, role: true, workEmail: true } },
+                employee: {
+                  select: {
+                    id: true,
+                    legalName: true,
+                    role: true,
+                    workEmail: true,
+                    bankName: true,
+                    accountNumber: true,
+                    accountName: true,
+                    salaryBankName: true,
+                    salaryAccountNumber: true,
+                    salaryAccountName: true,
+                    assignments: {
+                      where: { isPrimary: true },
+                      take: 1,
+                      include: { subsidiary: { select: { legalName: true } } }
+                    }
+                  }
+                },
                 allocations: true,
                 disbursement: { include: { receipt: true, recipientConfirmation: true } }
               }
@@ -45,7 +96,20 @@ export async function GET(req: NextRequest) {
     });
 
     if (!period || period.batches.length === 0) {
-      return NextResponse.json({ error: 'No payroll batch has been prepared for this period.' }, { status: 404 });
+      return NextResponse.json({
+        error: 'No payroll batch has been prepared for this period.',
+        availablePeriods,
+        radar,
+        period: period ? {
+          id: period.id,
+          year: period.year,
+          month: period.month,
+          periodName: `${new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(period.year, period.month - 1, 1))} ${period.year}`,
+          startsOn: period.startsOn.toISOString(),
+          endsOn: period.endsOn.toISOString(),
+          lockStatus: period.lockStatus
+        } : null
+      }, { status: 404 });
     }
 
     const batch = period.batches[0];
@@ -104,6 +168,10 @@ export async function GET(req: NextRequest) {
         paymentReceiptName: item.disbursement?.receipt?.fileName || null,
         paymentReceiptUrl: item.disbursement?.receipt?.fileUrl || null,
         recipientDecision: item.disbursement?.recipientConfirmation?.decision || null,
+        bankName: item.employee.salaryBankName || item.employee.bankName || 'GTBank',
+        accountNumber: item.employee.salaryAccountNumber || item.employee.accountNumber || '—',
+        accountName: item.employee.salaryAccountName || item.employee.accountName || item.employee.legalName,
+        primarySubsidiary: item.employee.assignments[0]?.subsidiary?.legalName || 'BEMS Group',
         allocations: item.allocations.map(a => {
           const amount = Number(a.allocableCostMinor);
           const subsidiaryName = subsidiaryNames.get(a.subsidiaryId) || 'Unknown subsidiary';
@@ -158,6 +226,8 @@ export async function GET(req: NextRequest) {
         payrollCostFormatted: formatNaira(batch.items.reduce((sum, item) => sum + Number(item.grossMinor) + Number(item.employerCostMinor), 0))
       },
       items: safeItems,
+      availablePeriods,
+      radar,
       permissions: {
         canApprove: hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD']),
         canRecordPayments: hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD']) || batch.disbursementAssigneeId === actor.id

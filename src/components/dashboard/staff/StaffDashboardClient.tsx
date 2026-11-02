@@ -29,6 +29,8 @@ import {
   QrCode,
   Send,
   Zap,
+  Wallet,
+  RefreshCw,
 } from 'lucide-react';
 
 interface StaffUser {
@@ -133,8 +135,50 @@ export function StaffDashboardClient({
   const [searchTerm, setSearchTerm] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
-  // View Mode: 'OVERVIEW' | 'ATTENDANCE'
-  const [viewMode, setViewMode] = useState<'OVERVIEW' | 'ATTENDANCE'>('OVERVIEW');
+  // View Mode: 'OVERVIEW' | 'ATTENDANCE' | 'PAYSLIPS'
+  const [viewMode, setViewMode] = useState<'OVERVIEW' | 'ATTENDANCE' | 'PAYSLIPS'>('OVERVIEW');
+
+  // Salary & Payslip state
+  const [compensationData, setCompensationData] = useState<any>(null);
+  const [myPayslips, setMyPayslips] = useState<any[]>([]);
+  const [loadingPayslips, setLoadingPayslips] = useState(false);
+
+  const loadPayslips = async () => {
+    try {
+      setLoadingPayslips(true);
+      const res = await fetch('/api/payroll/my-payments', { credentials: 'include', cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        setCompensationData(json.compensation || null);
+        setMyPayslips(json.payslips || []);
+      }
+    } catch (err) {
+      console.error('Error fetching payslips:', err);
+    } finally {
+      setLoadingPayslips(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPayslips();
+  }, []);
+
+  const handleConfirmPayslip = async (disbursementId: string, decision: 'RECEIVED' | 'NOT_RECEIVED', note?: string) => {
+    try {
+      const res = await fetch('/api/disbursements/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ disbursementId, decision, note }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save confirmation.');
+      setNotice(decision === 'RECEIVED' ? '✓ Salary receipt confirmed successfully!' : 'Payment issue reported to Finance.');
+      await loadPayslips();
+    } catch (e: any) {
+      setNotice(e?.message || 'Error saving confirmation.');
+    }
+  };
 
   // Attendance state
   const [attendanceMonth, setAttendanceMonth] = useState<number>(new Date().getMonth() + 1);
@@ -167,6 +211,8 @@ export function StaffDashboardClient({
       const params = new URLSearchParams(window.location.search);
       if (params.get('tab') === 'attendance') {
         setViewMode('ATTENDANCE');
+      } else if (params.get('tab') === 'payroll' || params.get('tab') === 'salary' || params.get('tab') === 'payslips') {
+        setViewMode('PAYSLIPS');
       }
     }
   }, []);
@@ -607,6 +653,34 @@ export function StaffDashboardClient({
               </span>
             )}
           </button>
+
+          <button
+            type="button"
+            onClick={() => setViewMode('PAYSLIPS')}
+            style={{
+              padding: '9px 18px',
+              borderRadius: '10px',
+              border: viewMode === 'PAYSLIPS' ? '1.5px solid #ea580c' : '1px solid rgba(255, 255, 255, 0.15)',
+              background: viewMode === 'PAYSLIPS' ? '#ea580c' : 'rgba(255, 255, 255, 0.06)',
+              color: '#ffffff',
+              fontSize: '13px',
+              fontWeight: '750',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Wallet size={15} />
+            <span>My Salary &amp; Payslips</span>
+            {myPayslips.length > 0 && (
+              <span style={{ background: 'rgba(0,0,0,0.2)', padding: '2px 7px', borderRadius: '12px', fontSize: '11px' }}>
+                {myPayslips.length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -1036,7 +1110,6 @@ export function StaffDashboardClient({
         </div>
       </div>
 
-      {/* Main Grid: Requisitions Table (Left) & Support / Channels (Right) */}
       {viewMode === 'OVERVIEW' ? (
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) minmax(320px, 1fr)', gap: '20px' }}>
         {/* Left Column: Requisitions Explorer */}
@@ -1380,7 +1453,7 @@ export function StaffDashboardClient({
           </div>
         </div>
       </div>
-      ) : (
+      ) : viewMode === 'ATTENDANCE' ? (
         /* Attendance & Monthly Calendar Portal */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Today's Shift & Clock-In Status Bar */}
@@ -1858,6 +1931,284 @@ export function StaffDashboardClient({
                   ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Top 4 KPI Cards for Compensation */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+            {/* Card 1: Monthly Gross Salary */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: '20px',
+              border: '1px solid #fed7aa',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+            }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#ea580c', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                AGREED MONTHLY GROSS
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 850, color: '#0f172a', margin: '8px 0 4px' }}>
+                {compensationData?.grossFormatted || '—'}
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b' }}>
+                {compensationData?.recurrence || 'MONTHLY'} · {compensationData?.primarySubsidiary || 'BEMS Conglomerate'}
+              </div>
+            </div>
+
+            {/* Card 2: Statutory Deductions */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: '20px',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+            }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                STATUTORY DEDUCTIONS
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 850, color: '#b91c1c', margin: '8px 0 4px' }}>
+                {compensationData?.grossMinor
+                  ? `-₦${Math.round((compensationData.employeePensionMinor + compensationData.payeTaxMinor) / 100).toLocaleString()}`
+                  : '—'}
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b' }}>
+                Pension (8%): {compensationData?.employeePensionFormatted || '₦0'} · PAYE: {compensationData?.payeTaxFormatted || '₦0'}
+              </div>
+            </div>
+
+            {/* Card 3: Estimated Net Take-Home */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: '20px',
+              border: '1px solid #bbf7d0',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+            }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#16a34a', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                ESTIMATED NET SALARY
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 850, color: '#15803d', margin: '8px 0 4px' }}>
+                {compensationData?.estimatedNetFormatted || '—'}
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b' }}>
+                Scheduled Payday: 3rd of each calendar month
+              </div>
+            </div>
+
+            {/* Card 4: Salary Account */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: '20px',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+            }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                SALARY BANK ACCOUNT
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '8px 0 2px' }}>
+                {compensationData?.salaryBankName || 'Not Set'}
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>
+                {compensationData?.salaryAccountNumber || '—'}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                Beneficiary: {compensationData?.salaryAccountName || user.fullName}
+              </div>
+            </div>
+          </div>
+
+          {/* Monthly Payslips History Table */}
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '20px',
+            padding: '24px',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 850, color: '#0f172a', margin: 0 }}>
+                  Monthly Salary Payslips &amp; Payment Vouchers
+                </h3>
+                <p style={{ fontSize: '12.5px', color: '#64748b', margin: '2px 0 0 0' }}>
+                  Review statutory gross-to-net breakdown and confirm receipt once your bank account is credited.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={loadPayslips}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#475569',
+                  fontSize: '12px',
+                  fontWeight: 650,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}
+              >
+                <RefreshCw size={12} className={loadingPayslips ? 'animate-spin' : ''} />
+                Refresh
+              </button>
+            </div>
+
+            {loadingPayslips ? (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+                Loading payslip records...
+              </div>
+            ) : myPayslips.length === 0 ? (
+              <div style={{ padding: '40px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <Wallet size={32} style={{ color: '#94a3b8', margin: '0 auto 10px auto' }} />
+                <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>No payslips compiled yet</h4>
+                <p style={{ margin: 0, fontSize: '12.5px', color: '#64748b' }}>
+                  Your monthly salary register is generated ahead of the 3rd of each month. Check back as payday approaches.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {myPayslips.map((p) => (
+                  <div
+                    key={p.id}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '14px',
+                      padding: '18px 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 16,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <strong style={{ fontSize: '15px', color: '#0f172a' }}>{p.periodName}</strong>
+                        <span style={{
+                          fontSize: '10.5px',
+                          fontWeight: 750,
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          background: p.paymentStatus === 'PAID' ? '#ecfdf5' : p.batchStatus === 'APPROVED' ? '#eff6ff' : '#fffbeb',
+                          color: p.paymentStatus === 'PAID' ? '#059669' : p.batchStatus === 'APPROVED' ? '#1d4ed8' : '#b45309',
+                        }}>
+                          {p.paymentStatus === 'PAID' ? 'PAID &amp; DISBURSED' : p.batchStatus === 'APPROVED' ? 'APPROVED FOR PAYMENT' : 'PREPARED'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: 4 }}>
+                        Gross: <strong>{p.grossFormatted}</strong> · Deductions: <strong style={{ color: '#b91c1c' }}>-{p.deductionsFormatted}</strong> · Net Take-Home: <strong style={{ color: '#15803d' }}>{p.netFormatted}</strong>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: 3 }}>
+                        {p.bankName} {p.reference ? `· Ref: ${p.reference}` : ''} {p.paidAt ? `· Paid: ${new Date(p.paidAt).toLocaleDateString()}` : ''}
+                      </div>
+                      {p.receipt && (
+                        <div style={{ marginTop: 6 }}>
+                          <a
+                            href={p.receipt.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              color: '#ea580c',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <Receipt size={12} />
+                            View Bank Transfer Advice ({p.receipt.fileName}) ↗
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {p.confirmation ? (
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: p.confirmation.decision === 'RECEIVED' ? '#f0fdf4' : '#fef2f2',
+                          border: p.confirmation.decision === 'RECEIVED' ? '1px solid #bbf7d0' : '1px solid #fecaca',
+                          borderRadius: '8px',
+                          padding: '6px 12px',
+                          fontSize: '11.5px',
+                          fontWeight: 750,
+                          color: p.confirmation.decision === 'RECEIVED' ? '#15803d' : '#b91c1c'
+                        }}>
+                          {p.confirmation.decision === 'RECEIVED' ? (
+                            <>
+                              <CheckCircle2 size={13} />
+                              <span>Receipt Confirmed ({new Date(p.confirmation.confirmedAt).toLocaleDateString()})</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertTriangle size={13} />
+                              <span>Issue Reported: {p.confirmation.note || 'Discrepancy'}</span>
+                            </>
+                          )}
+                        </div>
+                      ) : p.disbursementId ? (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmPayslip(p.disbursementId, 'RECEIVED')}
+                            style={{
+                              padding: '8px 14px',
+                              borderRadius: '8px',
+                              background: '#059669',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontSize: '12px',
+                              fontWeight: 750,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              boxShadow: '0 2px 6px rgba(5, 150, 105, 0.2)'
+                            }}
+                          >
+                            <CheckCircle2 size={13} />
+                            Confirm Received
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const note = prompt('Please describe the salary credit discrepancy (e.g., amount mismatch or payment not seen):');
+                              if (note) handleConfirmPayslip(p.disbursementId, 'NOT_RECEIVED', note);
+                            }}
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: '8px',
+                              background: '#ffffff',
+                              color: '#b91c1c',
+                              border: '1px solid #fecaca',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Report Issue
+                          </button>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: '11.5px', color: '#64748b', fontStyle: 'italic' }}>
+                          Awaiting bank disbursement
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

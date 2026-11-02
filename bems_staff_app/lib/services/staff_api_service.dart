@@ -988,4 +988,48 @@ class StaffApiService {
     }
     throw Exception(data['error']?.toString() ?? 'Failed to load timesheet.');
   }
+
+  /// Fetch staff member's salary compensation agreement and monthly payslip vouchers
+  static Future<Map<String, dynamic>> fetchMyPayslips({
+    required String employeeId,
+    String? token,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.get(
+        Uri.parse('$host/api/payroll/my-payments'),
+        headers: _headers(token: token, employeeId: employeeId),
+      ),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return data as Map<String, dynamic>;
+    }
+    throw Exception(data['error']?.toString() ?? 'Failed to load payslips.');
+  }
+
+  /// Confirm salary voucher disbursement (I Received It vs Report Issue)
+  static Future<bool> confirmPayslipDisbursement({
+    required String disbursementId,
+    required String decision,
+    String? note,
+    String? employeeId,
+    String? token,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/disbursements/confirm'),
+        headers: _headers(token: token, employeeId: employeeId),
+        body: jsonEncode({
+          'disbursementId': disbursementId,
+          'decision': decision,
+          'note': note,
+        }),
+      ),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return true;
+    }
+    throw Exception(data['error']?.toString() ?? 'Failed to confirm salary payment.');
+  }
 }
