@@ -143,6 +143,7 @@ export function PayrollSignOffView({
   const [salaryChangeAmount, setSalaryChangeAmount] = useState('');
   const [salaryChangeReason, setSalaryChangeReason] = useState('');
   const [savingSalaryChange, setSavingSalaryChange] = useState(false);
+  const [preparingBatch, setPreparingBatch] = useState(false);
 
   // Table filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -240,6 +241,29 @@ export function PayrollSignOffView({
       setNotice('Error loading payroll data.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePrepareBatch = async () => {
+    try {
+      setPreparingBatch(true);
+      setNotice(null);
+      const res = await fetch('/api/payroll/prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setNotice(`✓ ${json.message || 'Payroll batch prepared successfully.'}`);
+        await fetchPayroll();
+      } else {
+        setNotice(json.error || 'Could not prepare payroll batch.');
+      }
+    } catch (e: any) {
+      setNotice(e?.message || 'Error preparing payroll batch.');
+    } finally {
+      setPreparingBatch(false);
     }
   };
 
@@ -365,6 +389,30 @@ export function PayrollSignOffView({
             Refresh
           </button>
 
+          {!data && (
+            <button
+              onClick={handlePrepareBatch}
+              disabled={preparingBatch}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                border: '1px solid #ea580c',
+                background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                color: '#fff',
+                fontSize: '11px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: preparingBatch ? 'wait' : 'pointer',
+                boxShadow: '0 2px 8px rgba(234, 88, 12, 0.3)',
+              }}
+            >
+              <UploadCloud size={13} className={preparingBatch ? 'animate-spin' : ''} />
+              {preparingBatch ? 'Generating Register...' : 'Prepare Monthly Payroll Batch ⚡'}
+            </button>
+          )}
+
           {data?.batch.status === 'SUBMITTED' && data.permissions.canApprove ? (
             <button
               onClick={async () => {
@@ -418,21 +466,41 @@ export function PayrollSignOffView({
 
       {notice && (
         <div style={{
-          padding: '8px 12px',
-          borderRadius: '6px',
-          background: '#f0fdf4',
-          border: '1px solid #bbf7d0',
-          color: '#15803d',
-          fontSize: '11px',
+          padding: '10px 14px',
+          borderRadius: '8px',
+          background: notice.includes('No payroll batch') ? '#fffbeb' : '#f0fdf4',
+          border: notice.includes('No payroll batch') ? '1px solid #fde68a' : '1px solid #bbf7d0',
+          color: notice.includes('No payroll batch') ? '#92400e' : '#15803d',
+          fontSize: '12px',
           fontWeight: 600,
-          marginBottom: '14px',
+          marginBottom: '16px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <span>{notice}</span>
-          <button onClick={() => setNotice(null)} style={{ border: 0, background: 'none', color: '#15803d', cursor: 'pointer' }}>
-            <X size={12} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>{notice}</span>
+            {notice.includes('No payroll batch') && !data && (
+              <button
+                onClick={handlePrepareBatch}
+                disabled={preparingBatch}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '5px',
+                  border: 'none',
+                  background: '#ea580c',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {preparingBatch ? 'Generating...' : 'Click to Prepare Batch Now ⚡'}
+              </button>
+            )}
+          </div>
+          <button onClick={() => setNotice(null)} style={{ border: 0, background: 'none', color: '#64748b', cursor: 'pointer' }}>
+            <X size={14} />
           </button>
         </div>
       )}
