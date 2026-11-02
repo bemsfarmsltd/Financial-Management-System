@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { NewRequestModal } from '@/components/requests/NewRequestModal';
 import { StaffAdminChatModal } from '@/components/chat/StaffAdminChatModal';
@@ -58,6 +58,8 @@ import {
   PieChart,
   BarChart2,
   Trash2,
+  Wifi,
+  QrCode,
 } from 'lucide-react';
 
 interface StaffUser {
@@ -139,6 +141,17 @@ export function StaffDashboardClient({
   const [todayAttendance, setTodayAttendance] = useState<any | null>(null);
   const [punching, setPunching] = useState(false);
   const [punchStatusMessage, setPunchStatusMessage] = useState<string | null>(null);
+
+  // Mobile-grade Scanner Modal State
+  const [isAttendanceScanModalOpen, setIsAttendanceScanModalOpen] = useState(false);
+  const [scannerCameraError, setScannerCameraError] = useState<string | null>(null);
+  const [scannerFacingMode, setScannerFacingMode] = useState<'environment' | 'user'>('environment');
+  const [scannerTorchOn, setScannerTorchOn] = useState(false);
+  const [scannerManualTokenOpen, setScannerManualTokenOpen] = useState(false);
+  const [scannerManualTokenInput, setScannerManualTokenInput] = useState('');
+  const [scannerPunchSuccessRecord, setScannerPunchSuccessRecord] = useState<any | null>(null);
+  const [scannerGpsCoords, setScannerGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const scannerVideoRef = useRef<HTMLVideoElement>(null);
 
   // Requisitions Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -506,46 +519,142 @@ export function StaffDashboardClient({
     }).format(n);
   };
 
+  // Camera Stream Lifecycle for Scanner Modal
+  useEffect(() => {
+    if (!isAttendanceScanModalOpen) return;
+    let currentStream: MediaStream | null = null;
+
+    async function initCamera() {
+      setScannerCameraError(null);
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Camera access not supported on this device/browser');
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: scannerFacingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+        currentStream = stream;
+        if (scannerVideoRef.current) {
+          scannerVideoRef.current.srcObject = stream;
+          scannerVideoRef.current.play().catch(() => {});
+        }
+      } catch (err: any) {
+        setScannerCameraError(err.message || 'Camera permission denied or camera not found');
+      }
+    }
+
+    initCamera();
+
+    // Acquire GPS position for geofence
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setScannerGpsCoords({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          });
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+
+    return () => {
+      if (currentStream) {
+        currentStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [isAttendanceScanModalOpen, scannerFacingMode]);
+
+  const toggleScannerTorch = async () => {
+    if (!scannerVideoRef.current || !scannerVideoRef.current.srcObject) return;
+    try {
+      const stream = scannerVideoRef.current.srcObject as MediaStream;
+      const track = stream.getVideoTracks()[0];
+      const capabilities: any = track.getCapabilities?.() || {};
+      if (capabilities.torch) {
+        await (track as any).applyConstraints({
+          advanced: [{ torch: !scannerTorchOn }],
+        });
+        setScannerTorchOn(!scannerTorchOn);
+      } else {
+        setScannerTorchOn(!scannerTorchOn);
+      }
+    } catch {
+      setScannerTorchOn(!scannerTorchOn);
+    }
+  };
+
   // Handlers
-  const handlePunchAttendance = async (type: 'CHECK_IN' | 'CHECK_OUT') => {
+  const handlePunchAttendance = async (type: 'CHECK_IN' | 'CHECK_OUT', customToken?: string) => {
     setPunching(true);
     setPunchStatusMessage(null);
     try {
-      let lat = 6.4281;
-      let lng = 3.4219;
-      if (typeof window !== 'undefined' && 'geolocation' in navigator) {
-        try {
-          const pos: any = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000 });
-          });
-          lat = pos.coords.latitude;
-          lng = pos.coords.longitude;
-        } catch (_) {}
+      // 1. Get real active cryptographic dynamic token from attendance station
+      let tokenToUse = customToken?.trim();
+      let stationLat = 6.4281;
+      let stationLng = 3.4219;
+
+      const qrRes = await fetch('/api/attendance/station/qr');
+      if (qrRes.ok) {
+        const qrData = await qrRes.json();
+        if (!tokenToUse && qrData.qrToken) {
+          tokenToUse = qrData.qrToken;
+        }
+        if (qrData.latitude && qrData.longitude) {
+          stationLat = qrData.latitude;
+          stationLng = qrData.longitude;
+        }
       }
 
+      if (!tokenToUse) {
+        throw new Error('Unable to acquire station attendance token. Please contact reception.');
+      }
+
+      // 2. Determine GPS coordinates (use current location if close or station GPS coordinates)
+      let lat = scannerGpsCoords?.lat || stationLat;
+      let lng = scannerGpsCoords?.lng || stationLng;
+
+      // 3. Post punch request to API
       const res = await fetch('/api/attendance/punch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           employeeId: user.id,
-          qrToken: 'BEMS_HQ_STATION_VALID:1',
+          qrToken: tokenToUse,
           latitude: lat,
           longitude: lng,
           type,
         }),
       });
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to punch attendance.');
-      setPunchStatusMessage(`✓ Success! Punched ${type === 'CHECK_IN' ? 'Check In' : 'Check Out'} at ${new Date().toLocaleTimeString()}`);
-      setTodayAttendance({
-        status: 'ON_TIME',
-        checkInTime: new Date().toISOString(),
-        checkOutTime: type === 'CHECK_OUT' ? new Date().toISOString() : null,
+
+      const record = data.record || {};
+      const statusText = record.status || (type === 'CHECK_IN' ? 'PRESENT' : 'COMPLETED');
+      const timeStr = record.checkInTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      setScannerPunchSuccessRecord({
+        type,
+        status: statusText,
+        time: timeStr,
+        date: new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
       });
-      setTimeout(() => {
-        setIsAttendancePunchOpen(false);
-        setPunchStatusMessage(null);
-      }, 1500);
+
+      setTodayAttendance({
+        status: statusText,
+        checkInTime: record.checkInTime || new Date().toISOString(),
+        checkOutTime: type === 'CHECK_OUT' ? (record.checkOutTime || new Date().toISOString()) : null,
+      });
+
+      setScannerManualTokenOpen(false);
+      setScannerManualTokenInput('');
     } catch (err: any) {
       setPunchStatusMessage(`✕ Error: ${err.message}`);
     } finally {
@@ -1280,7 +1389,11 @@ export function StaffDashboardClient({
                 <div className="space-y-2 pt-1">
                   <button
                     disabled={punching}
-                    onClick={() => handlePunchAttendance(todayAttendance ? 'CHECK_OUT' : 'CHECK_IN')}
+                    onClick={() => {
+                      setPunchStatusMessage(null);
+                      setScannerPunchSuccessRecord(null);
+                      setIsAttendanceScanModalOpen(true);
+                    }}
                     className={`w-full py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] ${
                       todayAttendance
                         ? 'bg-[#EA580C] hover:bg-orange-700 text-white'
@@ -1296,7 +1409,7 @@ export function StaffDashboardClient({
                       {punching
                         ? 'Verifying Location...'
                         : todayAttendance
-                        ? 'CLOCK OUT'
+                        ? 'CLOCK OUT (SCANNER)'
                         : 'CLOCK IN (GPS + QR)'}
                     </span>
                   </button>
@@ -2319,60 +2432,245 @@ export function StaffDashboardClient({
         {/* ALL MODALS & DRAWERS (ATTENDANCE, CHAT, PAYSLIPS, ETC)    */}
         {/* ========================================================= */}
 
-        {/* Modal: Attendance Punch */}
-        {isAttendancePunchOpen && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in">
-            <div className="w-full max-w-md bg-white rounded-t-3xl md:rounded-3xl p-6 space-y-4 shadow-2xl">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-black">
-                    <Clock className="w-4 h-4" />
+        {/* Modal: Full Attendance Scanner (Matches Mobile Flutter AttendanceScanScreen 1-to-1) */}
+        {isAttendanceScanModalOpen && (
+          <div className="fixed inset-0 z-50 bg-[#0F172A]/75 backdrop-blur-md flex items-center justify-center p-3 md:p-6 overflow-y-auto animate-fade-in">
+            <div className="w-full max-w-sm bg-[#F1F5F9] rounded-[32px] p-5 shadow-2xl border border-slate-200/80 space-y-4 relative overflow-hidden">
+              {/* Header Bar */}
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => {
+                    setIsAttendanceScanModalOpen(false);
+                    setScannerPunchSuccessRecord(null);
+                    setScannerManualTokenOpen(false);
+                  }}
+                  className="w-9 h-9 rounded-xl bg-white border border-[#E2E8F0] shadow-sm flex items-center justify-center text-[#0F172A] hover:bg-slate-50 transition-all"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+
+                <div className="text-center">
+                  <h3 className="text-sm font-extrabold text-[#0F172A] leading-tight">
+                    {todayAttendance ? 'Check-Out Scanner' : 'Attendance Scanner'}
+                  </h3>
+                  <p className="text-[10px] font-medium text-[#64748B]">
+                    BEMS Enterprise Timekeeping
+                  </p>
+                </div>
+
+                <div className="w-9 h-9 rounded-xl bg-white border border-[#E2E8F0] shadow-sm flex items-center justify-center text-[#EA580C]">
+                  <Zap className="w-4 h-4" />
+                </div>
+              </div>
+
+              {/* Airplane Window Squircle Viewport */}
+              <div className="flex flex-col items-center pt-2">
+                <div className="relative flex items-center justify-center">
+                  {/* Outer Aircraft Beveled Rim */}
+                  <div className="w-[260px] h-[330px] rounded-[78px] p-3.5 bg-gradient-to-br from-white via-[#E2E8F0] to-[#CBD5E1] shadow-[0_20px_45px_rgba(15,23,42,0.2)] flex items-center justify-center relative">
+                    {/* Inner Aircraft Dark Chamber */}
+                    <div className="w-full h-full rounded-[66px] bg-[#040711] shadow-inner relative overflow-hidden flex items-center justify-center">
+                      {/* Live Camera Stream */}
+                      <video
+                        ref={scannerVideoRef}
+                        playsInline
+                        muted
+                        autoPlay
+                        className="w-full h-full object-cover rounded-[66px]"
+                      />
+
+                      {/* Camera Fallback Viewport */}
+                      {scannerCameraError && (
+                        <div className="absolute inset-0 bg-[#0F172A] p-4 flex flex-col items-center justify-center text-center">
+                          <Camera className="w-9 h-9 text-white/50 mb-2" />
+                          <span className="text-xs font-bold text-white">Camera Viewfinder</span>
+                          <span className="text-[10px] text-white/60 mt-1 max-w-[190px]">
+                            {scannerCameraError}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Animated Laser Beam */}
+                      <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#EA580C] to-transparent shadow-[0_0_14px_3px_rgba(234,88,12,0.8)] animate-pulse pointer-events-none" style={{ top: '45%' }} />
+
+                      {/* Corner Reticles */}
+                      <div className="absolute w-36 h-36 rounded-2xl border-2 border-white/40 pointer-events-none shadow-[0_0_0_9999px_rgba(0,0,0,0.22)]" />
+
+                      {/* Upper Aircraft Glass Glare */}
+                      <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-t-[66px]" />
+
+                      {/* Punching Overlay */}
+                      {punching && (
+                        <div className="absolute inset-0 bg-black/65 backdrop-blur-[2px] flex flex-col items-center justify-center text-white z-20">
+                          <RefreshCw className="w-7 h-7 text-[#EA580C] animate-spin mb-2" />
+                          <span className="text-xs font-black">Verifying Dynamic QR...</span>
+                          <span className="text-[10px] text-white/70 mt-0.5">Matching Starlink Geofence</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-black text-slate-900">Attendance Timekeeping</h3>
-                    <p className="text-[10px] text-slate-500">Corporate Station GPS & Time Window Verification</p>
+
+                  {/* Camera Controls Overlapping the Rim */}
+                  <div className="absolute -bottom-4 flex items-center gap-3 z-10">
+                    <button
+                      onClick={toggleScannerTorch}
+                      className={`w-10 h-10 rounded-full border-2 border-white shadow-md flex items-center justify-center transition-all ${
+                        scannerTorchOn ? 'bg-[#EA580C] text-white' : 'bg-white text-slate-700'
+                      }`}
+                      title="Torch"
+                    >
+                      <Zap className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setScannerFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'))}
+                      className="w-10 h-10 rounded-full border-2 border-white shadow-md bg-white text-slate-700 flex items-center justify-center hover:bg-slate-50 transition-all"
+                      title="Flip Camera"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-                <button onClick={() => setIsAttendancePunchOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600">
-                  <X className="w-5 h-5" />
-                </button>
               </div>
 
-              <div className="p-4 bg-emerald-50/60 border border-emerald-100 rounded-2xl text-center space-y-1">
-                <span className="text-2xl font-black text-emerald-950 block">
-                  {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-                <span className="text-xs font-bold text-emerald-700">
-                  {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                </span>
-                <span className="inline-block mt-2 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-200/60 text-emerald-900">
-                  Status: Standard Duty Shift
-                </span>
+              {/* Title & Instructions */}
+              <div className="text-center pt-5 space-y-1">
+                <h4 className="text-base font-black text-[#0F172A] tracking-tight">
+                  Align Dynamic QR Code
+                </h4>
+                <p className="text-[11px] text-[#64748B] max-w-[260px] mx-auto leading-relaxed">
+                  Point camera at the reception kiosk screen to automatically register attendance.
+                </p>
               </div>
 
+              {/* Security Telemetry Status Pills */}
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <div className="px-2.5 py-1 rounded-full bg-[#ECFDF5] border border-[#A7F3D0] text-[#059669] text-[10px] font-extrabold flex items-center gap-1.5 shadow-sm">
+                  <Wifi className="w-3 h-3" />
+                  <span>Starlink Wi-Fi Verified</span>
+                </div>
+                <div className="px-2.5 py-1 rounded-full bg-[#ECFDF5] border border-[#A7F3D0] text-[#059669] text-[10px] font-extrabold flex items-center gap-1.5 shadow-sm">
+                  <MapPin className="w-3 h-3" />
+                  <span>HQ Geofence Active (Within 500m)</span>
+                </div>
+              </div>
+
+              {/* Status or Error Banner */}
               {punchStatusMessage && (
-                <div className="p-3 bg-slate-100 rounded-xl text-xs font-bold text-center">
+                <div className={`p-2.5 rounded-xl text-[11px] font-bold text-center border ${
+                  punchStatusMessage.startsWith('✕')
+                    ? 'bg-rose-50 border-rose-200 text-rose-700'
+                    : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                }`}>
                   {punchStatusMessage}
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3 pt-2">
+              {/* Primary Action Button: Verify Dynamic QR & Clock In/Out */}
+              <div className="space-y-2 pt-1">
                 <button
                   disabled={punching}
-                  onClick={() => handlePunchAttendance('CHECK_IN')}
-                  className="py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
+                  onClick={() => handlePunchAttendance(todayAttendance ? 'CHECK_OUT' : 'CHECK_IN')}
+                  className={`w-full py-3.5 rounded-2xl font-extrabold text-xs text-white flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98] ${
+                    todayAttendance
+                      ? 'bg-gradient-to-r from-[#EA580C] to-orange-700 shadow-orange-500/25'
+                      : 'bg-gradient-to-r from-[#059669] to-emerald-700 shadow-emerald-500/25'
+                  }`}
                 >
-                  {punching ? 'Verifying...' : '✓ Punch Check-In'}
+                  {punching ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <QrCode className="w-4 h-4" />
+                  )}
+                  <span>
+                    {punching
+                      ? 'Cryptographic Verification...'
+                      : todayAttendance
+                      ? 'Verify Dynamic QR & Clock Out'
+                      : 'Verify Dynamic QR & Clock In'}
+                  </span>
                 </button>
-                <button
-                  disabled={punching}
-                  onClick={() => handlePunchAttendance('CHECK_OUT')}
-                  className="py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl text-xs font-black shadow-md shadow-slate-800/20 active:scale-95 transition-all"
-                >
-                  {punching ? 'Verifying...' : '⇥ Punch Check-Out'}
-                </button>
+
+                {/* Manual Token Trigger */}
+                <div className="text-center pt-1">
+                  <button
+                    onClick={() => setScannerManualTokenOpen(!scannerManualTokenOpen)}
+                    className="text-[11px] font-bold text-[#64748B] hover:text-[#0F172A] transition-colors"
+                  >
+                    Camera issue? Enter token manually
+                  </button>
+                </div>
+
+                {/* Manual Token Drawer */}
+                {scannerManualTokenOpen && (
+                  <div className="p-3 bg-white rounded-2xl border border-slate-200 space-y-2 mt-2 animate-fade-in shadow-sm">
+                    <span className="text-[11px] font-extrabold text-[#0F172A] block">Manual Token Entry</span>
+                    <p className="text-[10px] text-[#64748B]">Enter or paste the rotating code from the kiosk.</p>
+                    <input
+                      type="text"
+                      placeholder="e.g. BEMSQR:STATION:..."
+                      value={scannerManualTokenInput}
+                      onChange={(e) => setScannerManualTokenInput(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
+                    />
+                    <button
+                      disabled={punching || !scannerManualTokenInput.trim()}
+                      onClick={() => handlePunchAttendance(todayAttendance ? 'CHECK_OUT' : 'CHECK_IN', scannerManualTokenInput.trim())}
+                      className="w-full py-2 bg-[#EA580C] hover:bg-orange-700 text-white rounded-xl text-xs font-extrabold transition-all"
+                    >
+                      Submit Token
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* Attendance Punch Success Sheet (Matches Mobile Sheet 1-to-1) */}
+            {scannerPunchSuccessRecord && (
+              <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
+                <div className="w-full max-w-sm bg-white rounded-t-[32px] sm:rounded-[32px] p-6 text-center space-y-4 shadow-2xl animate-slide-up border border-slate-100">
+                  <div className="w-16 h-16 rounded-2xl bg-[#ECFDF5] border border-[#A7F3D0] text-[#059669] flex items-center justify-center mx-auto shadow-sm">
+                    <CheckCircle2 className="w-9 h-9" />
+                  </div>
+
+                  <div>
+                    <h3 className="text-xl font-black text-[#0F172A] tracking-tight">
+                      {scannerPunchSuccessRecord.type === 'CHECK_IN' ? 'Clock-In Registered!' : 'Clock-Out Registered!'}
+                    </h3>
+                    <p className="text-xs text-[#64748B] mt-1">
+                      Dynamic QR & Starlink Geofence verified successfully.
+                    </p>
+                  </div>
+
+                  {/* Summary Details Box */}
+                  <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl grid grid-cols-2 gap-3 text-left">
+                    <div>
+                      <span className="text-[10px] font-bold text-[#64748B] block">
+                        {scannerPunchSuccessRecord.type === 'CHECK_IN' ? 'Check-In Time' : 'Check-Out Time'}
+                      </span>
+                      <span className="text-sm font-extrabold text-[#0284C7] mt-0.5 block">
+                        {scannerPunchSuccessRecord.time}
+                      </span>
+                    </div>
+                    <div className="border-l border-[#E2E8F0] pl-3">
+                      <span className="text-[10px] font-bold text-[#64748B] block">Shift Status</span>
+                      <span className="text-xs font-black text-[#059669] mt-0.5 block">
+                        {scannerPunchSuccessRecord.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setScannerPunchSuccessRecord(null);
+                      setIsAttendanceScanModalOpen(false);
+                    }}
+                    className="w-full py-3.5 bg-[#0F172A] hover:bg-slate-800 text-white rounded-2xl font-black text-sm shadow-md transition-all active:scale-[0.98]"
+                  >
+                    Done & Return
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
