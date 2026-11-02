@@ -299,7 +299,9 @@ export function StaffDashboardClient({
   const approvedRequests = requests.filter(
     (r) => r.approvalStatus === 'APPROVED' && r.paymentStatus !== 'PAID'
   );
-  const activeUnretiredCases = cases.filter((c) => c.status !== 'CLOSED');
+  const activeUnretiredCases = cases.filter(
+    (c) => c.status !== 'CLOSED' && c.status !== 'VERIFIED' && c.status !== 'EVIDENCE_SUBMITTED'
+  );
 
   // Compute 72h SLA nearest deadline
   const nearestAdvance = useMemo(() => {

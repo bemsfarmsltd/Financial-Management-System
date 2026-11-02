@@ -34,6 +34,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   Map<String, dynamic>? _todayAttendance;
   bool _isPunching = false;
 
+  List<AccountabilityCaseItem> get _pendingRetirementCases => _cases.where((c) {
+    final s = c.status.toUpperCase();
+    return s != 'EVIDENCE_SUBMITTED' && s != 'CLOSED' && s != 'VERIFIED';
+  }).toList();
+
   // Search & Filter state for Requisitions
   String _searchQuery = '';
   String _selectedStatusFilter = 'ALL';
@@ -1718,7 +1723,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               icon: Stack(
                 children: [
                   const Icon(Icons.timer_outlined),
-                  if (_cases.isNotEmpty)
+                  if (_pendingRetirementCases.isNotEmpty)
                     Positioned(
                       right: 0,
                       top: 0,
@@ -1746,7 +1751,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
   // TAB 0: HOME WORKSPACE
   Widget _buildHomeTab(NumberFormat formatter) {
-    final activeAdvanceAmount = _cases.fold<double>(0, (sum, c) => sum + c.amountNaira);
+    final activeAdvanceAmount = _pendingRetirementCases.fold<double>(0, (sum, c) => sum + c.amountNaira);
 
     return RefreshIndicator(
       onRefresh: _loadData,
@@ -2131,8 +2136,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                             Expanded(
                               child: ElevatedButton.icon(
                                 onPressed: () {
-                                  if (_cases.isNotEmpty) {
-                                    _showRetirementEvidenceDialog(_cases.first);
+                                  if (_pendingRetirementCases.isNotEmpty) {
+                                    _showRetirementEvidenceDialog(_pendingRetirementCases.first);
                                   } else {
                                     setState(() => _currentIndex = 2);
                                   }
@@ -2481,8 +2486,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    if (_cases.isNotEmpty) {
-                      _showRetirementEvidenceDialog(_cases.first);
+                    if (_pendingRetirementCases.isNotEmpty) {
+                      _showRetirementEvidenceDialog(_pendingRetirementCases.first);
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -2507,8 +2512,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    if (_cases.isNotEmpty) {
-                      _showRetirementEvidenceDialog(_cases.first);
+                    if (_pendingRetirementCases.isNotEmpty) {
+                      _showRetirementEvidenceDialog(_pendingRetirementCases.first);
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -3082,9 +3087,18 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   }
 
   Widget _buildSlaAnalyticsCard(NumberFormat formatter) {
-    int clearedCount = _cases.where((c) => c.status == 'CLOSED' || c.status == 'VERIFIED').length;
-    int inGraceCount = _cases.where((c) => !c.isOverdue && c.status != 'CLOSED').length;
-    int overdueCount = _cases.where((c) => c.isOverdue).length;
+    int clearedCount = _cases.where((c) {
+      final s = c.status.toUpperCase();
+      return s == 'CLOSED' || s == 'VERIFIED' || s == 'EVIDENCE_SUBMITTED';
+    }).length;
+    int inGraceCount = _cases.where((c) {
+      final s = c.status.toUpperCase();
+      return !c.isOverdue && s != 'CLOSED' && s != 'VERIFIED' && s != 'EVIDENCE_SUBMITTED';
+    }).length;
+    int overdueCount = _cases.where((c) {
+      final s = c.status.toUpperCase();
+      return c.isOverdue && s != 'CLOSED' && s != 'VERIFIED' && s != 'EVIDENCE_SUBMITTED';
+    }).length;
 
     List<PieChartSegment> segments = [];
     if (clearedCount == 0 && inGraceCount == 0 && overdueCount == 0) {
@@ -3338,7 +3352,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   ],
                 ),
 
-                if (req.paymentStatus == 'PAID')
+                if (req.paymentStatus == 'PAID' && req.accountabilityStatus != 'EVIDENCE_SUBMITTED' && req.accountabilityStatus != 'CLOSED' && req.accountabilityStatus != 'VERIFIED')
                   InkWell(
                     onTap: () {
                       final target = _cases.firstWhere(
@@ -3394,7 +3408,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
   // TAB 2: 72H SLA EVIDENCE RETIREMENT (DEEP IMPLEMENTATION)
   Widget _buildRetirementTab(NumberFormat formatter) {
-    final nearestCase = _cases.isNotEmpty ? _cases.first : null;
+    final nearestCase = _pendingRetirementCases.isNotEmpty ? _pendingRetirementCases.first : null;
     final hoursRemaining = nearestCase != null ? nearestCase.hoursRemaining : 72;
     final hoursElapsed = (72 - hoursRemaining).clamp(0, 72);
     final progress = nearestCase != null ? (hoursElapsed / 72.0).clamp(0.0, 1.0) : 1.0;
@@ -3503,7 +3517,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         const Text('Active Advances Requiring Proof', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
         const SizedBox(height: 12),
 
-        if (_cases.isEmpty)
+        if (_pendingRetirementCases.isEmpty)
           Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
@@ -3524,7 +3538,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             ),
           )
         else
-          ..._cases.map((c) {
+          ..._pendingRetirementCases.map((c) {
             return Container(
               margin: const EdgeInsets.only(bottom: 14),
               padding: const EdgeInsets.all(18),
@@ -3638,7 +3652,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
         Builder(
           builder: (context) {
-            final clearedRequests = _requests.where((r) => r.paymentStatus.toUpperCase() == 'PAID' || r.accountabilityStatus.toUpperCase() == 'EVIDENCE_SUBMITTED' || r.accountabilityStatus.toUpperCase() == 'CLOSED').toList();
+            final clearedRequests = _requests.where((r) {
+              final acc = r.accountabilityStatus.toUpperCase();
+              return acc == 'EVIDENCE_SUBMITTED' || acc == 'CLOSED' || acc == 'VERIFIED';
+            }).toList();
 
             if (clearedRequests.isNotEmpty) {
               return Column(
