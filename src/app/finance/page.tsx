@@ -3441,6 +3441,25 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
         .brand-sub {
           color: ${activeBrandColor} !important;
         }
+        .app-shell .workspace > .topbar .avatar,
+        .topbar .avatar,
+        .avatar {
+          background: ${activeBrandColor}18 !important;
+          color: ${activeBrandColor} !important;
+          border-color: ${activeBrandColor}45 !important;
+        }
+        .topbar .top-icon:hover {
+          border-color: ${activeBrandColor}60 !important;
+          color: ${activeBrandColor} !important;
+        }
+        .account-panel > div > span {
+          background: ${activeBrandColor}20 !important;
+          color: ${activeBrandColor} !important;
+        }
+        .account-panel button:hover {
+          background: ${activeBrandColor}12 !important;
+          color: ${activeBrandColor} !important;
+        }
         .ambient-bottom-ai-wrapper button[style*="linear-gradient(135deg, rgb(234, 88, 12)"],
         .ambient-bottom-ai-wrapper button[style*="linear-gradient(135deg, #ea580c"],
         .ambient-bottom-ai-wrapper [style*="color: #ea580c"],
@@ -3654,7 +3673,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
                   onClick={() => {
                     if (typeof window !== 'undefined') window.location.href = '/requests/new';
                   }}
-                  style={{ background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)', color: '#fff', border: 'none' }}
+                  style={{ background: `linear-gradient(135deg, ${activeTintHex} 0%, ${activeBrandColor} 100%)`, color: '#fff', border: 'none' }}
                 >
                   <span>＋</span>
                   <div>
@@ -3756,7 +3775,36 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
                   </div>
                 )}
               </div>
-              <div className="top-popover-wrap"><button className="avatar" aria-label="Account menu" aria-expanded={topPanel==='account'} onClick={()=>setTopPanel(topPanel==='account'?null:'account')}>{initialsOf(safeUser.fullName)}</button>{topPanel==='account'&&<div className="top-popover account-panel"><div><span>{initialsOf(safeUser.fullName)}</span><strong>{safeUser.fullName}</strong><small>{safeUser.email}</small></div><button onClick={()=>{setActive('Settings');setTopPanel(null)}}>Account & business settings</button><button onClick={()=>{setActive('Team & access');setTopPanel(null)}}>Team and access</button><button onClick={()=>{setNotice('Help centre opened.');setTopPanel(null)}}>Help centre</button><button onClick={onSignOut}>Sign out</button></div>}</div>
+              <div className="top-popover-wrap">
+                <button
+                  className="avatar"
+                  aria-label="Account menu"
+                  aria-expanded={topPanel==='account'}
+                  onClick={()=>setTopPanel(topPanel==='account'?null:'account')}
+                  style={{
+                    background: `${activeBrandColor}18`,
+                    color: activeBrandColor,
+                    borderColor: `${activeBrandColor}45`,
+                  }}
+                >
+                  {initialsOf(safeUser.fullName)}
+                </button>
+                {topPanel==='account' && (
+                  <div className="top-popover account-panel">
+                    <div>
+                      <span style={{ background: `${activeBrandColor}20`, color: activeBrandColor }}>
+                        {initialsOf(safeUser.fullName)}
+                      </span>
+                      <strong>{safeUser.fullName}</strong>
+                      <small>{safeUser.email}</small>
+                    </div>
+                    <button onClick={()=>{setActive('Settings');setTopPanel(null)}}>Account & business settings</button>
+                    <button onClick={()=>{setActive('Team & access');setTopPanel(null)}}>Team and access</button>
+                    <button onClick={()=>{setNotice('Help centre opened.');setTopPanel(null)}}>Help centre</button>
+                    <button onClick={onSignOut}>Sign out</button>
+                  </div>
+                )}
+              </div>
             </div>
           </header>
           <div className="content">

@@ -66,6 +66,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
   const [unreadCount, setUnreadCount] = useState(0);
 
   const currentSub = subsidiaries.find(s => s.id === currentSubId) || subsidiaries[0];
+  const activeBrand = currentSub?.brandColor || currentSub?.color || (currentSub?.id === 'bems-group-hq' ? '#ea580c' : '#0d8a70');
 
   useEffect(() => {
     if (!initialRole) {
@@ -474,7 +475,17 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
                   outline: 'none',
                 }}
               >
-                <div className="avatar" title="Account Menu">HN</div>
+                <div
+                  className="avatar"
+                  title="Account Menu"
+                  style={{
+                    background: `${activeBrand}18`,
+                    color: activeBrand,
+                    borderColor: `${activeBrand}45`,
+                  }}
+                >
+                  HN
+                </div>
               </button>
               {profileOpen && (
                 <div
