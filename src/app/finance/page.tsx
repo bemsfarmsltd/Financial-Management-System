@@ -3484,7 +3484,6 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
                 {current.name}
               </span>
             </div>
-            <button aria-label={collapsed?'Expand navigation':'Collapse navigation'} title={collapsed?'Expand navigation':'Collapse navigation'} onClick={(e)=>{e.stopPropagation();setCollapsed(!collapsed)}}>{collapsed?'›':'‹'}</button>
           </div>
           <nav aria-label="Product navigation">{navigation.map(group=><div className="nav-group" key={group.label}><p>{group.label}</p>{group.items.map(([name,icon])=>{const locked=isLocked(name);return <button type="button" title={locked?`${name} — locked`:collapsed?name:undefined} aria-current={active===name?'page':undefined} className={`${active===name?'nav-item active':'nav-item'}${locked?' locked':''}`} onClick={()=>{openModule(name);setTopPanel(null);setSwitcher(false)}} key={name}><span>{icon}</span><b>{name}</b>{locked?<em>⌾</em>:name==='Inbox'&&<small>3</small>}</button>})}</div>)}</nav>
           <button type="button" className="help-button" onClick={()=>setNotice('Help centre opened. Guides and support are available here.')}><span>?</span><div><strong>Need help?</strong><small>Guides and support</small></div></button>
@@ -3493,18 +3492,11 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
           <header className="topbar">
             <div className="business-switch-wrap">
               <button className="business-switch" onClick={()=>{setSwitcher(!switcher);setTopPanel(null)}}>
-                <span style={{background:'#ffffff',border:`1.5px solid ${activeBrandColor}45`,borderRadius:'8px',padding:'2px',display:'inline-flex',alignItems:'center',justifyContent:'center',overflow:'hidden',width:36,height:36,flexShrink:0}}>
-                  {activeLogoUrl ? (
-                    <img src={activeLogoUrl} alt={current.name} style={{width:'100%',height:'100%',objectFit:'contain'}}/>
-                  ) : (
-                    <span style={{fontSize:12,fontWeight:900,color:activeBrandColor}}>{current.initials || current.name.slice(0, 2).toUpperCase()}</span>
-                  )}
-                </span>
                 <div style={{ textAlign: 'left' }}>
                   <strong style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'block', lineHeight: 1.25 }}>{current.name}</strong>
                   <small style={{ fontSize: 10.5, color: '#64748b', display: 'block', marginTop: 2 }}>{current.industry || 'Workspace'}</small>
                 </div>
-                <b style={{ color: '#94a3b8', fontSize: 12, marginLeft: 2 }}>⌄</b>
+                <b style={{ color: '#94a3b8', fontSize: 12, marginLeft: 6 }}>⌄</b>
               </button>
               {switcher && (
                 <div

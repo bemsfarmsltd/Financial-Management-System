@@ -308,9 +308,6 @@ export function ConnectAppShell({ children, initialRole }: { children: React.Rea
                 {currentSub.name}
               </span>
             </div>
-            <button aria-label="Toggle navigation" onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed); }}>
-              {collapsed ? '›' : '‹'}
-            </button>
           </div>
 
         {/* RETURN TO ERP GATEWAY */}
