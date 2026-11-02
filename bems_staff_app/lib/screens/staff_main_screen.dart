@@ -12,6 +12,7 @@ import 'staff_admin_chat_screen.dart';
 import 'attendance_scan_screen.dart';
 import 'attendance_monthly_screen.dart';
 import '../widgets/bems_pie_chart.dart';
+import '../services/staff_biometric_service.dart';
 
 class StaffMainScreen extends StatefulWidget {
   final StaffUser user;
@@ -64,12 +65,72 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   String _searchQuery = '';
   String _selectedStatusFilter = 'ALL';
   String _requisitionChartMetric = 'Category';
+  bool _isBiometricConfigured = false;
+  bool _isBiometricEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _currentUser = widget.user;
     _loadData();
+    _loadBiometricSettings();
+  }
+
+  Future<void> _loadBiometricSettings() async {
+    final configured = await StaffStorageService.isBiometricConfigured();
+    final enabled = await StaffStorageService.isBiometricEnabled();
+    if (mounted) {
+      setState(() {
+        _isBiometricConfigured = configured;
+        _isBiometricEnabled = enabled;
+      });
+    }
+  }
+
+  Future<void> _toggleBiometric(bool value) async {
+    if (value) {
+      final hasHardware = await StaffBiometricService.isHardwareAvailable();
+      if (!hasHardware) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Biometric hardware is not available on this device.'),
+            backgroundColor: Color(0xFFDC2626),
+          ),
+        );
+        return;
+      }
+      final authenticated = await StaffBiometricService.authenticateWithPhoneFingerprint(
+        reason: 'Verify your fingerprint to enable biometric unlock',
+      );
+      if (authenticated) {
+        await StaffStorageService.setBiometricConfigured(true);
+        await StaffStorageService.setBiometricEnabled(true);
+        if (mounted) {
+          setState(() {
+            _isBiometricConfigured = true;
+            _isBiometricEnabled = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Fingerprint unlock enabled for this device.'),
+              backgroundColor: Color(0xFF047857),
+            ),
+          );
+        }
+      }
+    } else {
+      await StaffStorageService.setBiometricEnabled(false);
+      if (mounted) {
+        setState(() => _isBiometricEnabled = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Fingerprint unlock disabled.'),
+            backgroundColor: Color(0xFF475569),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _loadData() async {
@@ -4667,6 +4728,28 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ),
           child: Column(
             children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                secondary: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(color: Color(0xFFF0FDF4), shape: BoxShape.circle),
+                  child: const Icon(Icons.fingerprint_rounded, color: Color(0xFF064E3B), size: 20),
+                ),
+                title: const Text('Fingerprint & Biometric Sign-In', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                subtitle: Text(
+                  _isBiometricEnabled
+                      ? 'Active · Fingerprint required to unlock'
+                      : (_isBiometricConfigured
+                          ? 'Temporarily paused · Tap to reactivate'
+                          : 'Not configured · Tap switch to enroll'),
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                ),
+                activeColor: const Color(0xFF064E3B),
+                value: _isBiometricEnabled,
+                onChanged: _toggleBiometric,
+              ),
+              const Divider(color: Color(0xFFF1F5F9)),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Container(

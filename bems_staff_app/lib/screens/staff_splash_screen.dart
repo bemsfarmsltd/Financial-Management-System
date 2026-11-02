@@ -4,6 +4,7 @@ import '../services/staff_storage_service.dart';
 import '../widgets/kinetic_torus_iris.dart';
 import 'staff_login_screen.dart';
 import 'staff_main_screen.dart';
+import 'staff_biometric_auth_screen.dart';
 import 'app_upgrade_screen.dart';
 
 class StaffSplashScreen extends StatefulWidget {
@@ -24,6 +25,9 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
     final startTime = DateTime.now();
     final gateFuture = StaffApiService.checkVersionGate();
     final user = await StaffStorageService.getUser();
+    final isBioConfigured = await StaffStorageService.isBiometricConfigured();
+    final isBioEnabled = await StaffStorageService.isBiometricEnabled();
+
     bool isSessionValid = false;
     if (user != null) {
       if (user.token.isNotEmpty) {
@@ -38,7 +42,7 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
     final gateInfo = await gateFuture;
 
     final elapsed = DateTime.now().difference(startTime);
-    final remaining = const Duration(milliseconds: 3000) - elapsed;
+    final remaining = const Duration(milliseconds: 3200) - elapsed;
     if (remaining > Duration.zero) {
       await Future.delayed(remaining);
     }
@@ -55,6 +59,8 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
       );
     } else if (user == null || !isSessionValid) {
       nextScreen = const StaffLoginScreen();
+    } else if (isBioConfigured && isBioEnabled) {
+      nextScreen = StaffBiometricAuthScreen(user: user);
     } else {
       nextScreen = StaffMainScreen(user: user);
     }
@@ -62,7 +68,7 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 600),
+        transitionDuration: const Duration(milliseconds: 700),
         pageBuilder: (context, animation, secondaryAnimation) => nextScreen,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
@@ -73,34 +79,13 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final irisSize = MediaQuery.of(context).size.width * 0.72;
+    final irisSize = MediaQuery.of(context).size.width * 0.76;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F5),
+      backgroundColor: const Color(0xFFFBF9F5), // Warm ivory matching kinetic iris aesthetic
       body: SafeArea(
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              KineticTorusIris(size: irisSize.clamp(240.0, 320.0)),
-              const SizedBox(height: 28),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24),
-                child: Text(
-                  'BEMS Staff · Operational Ledger Workspace',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.6,
-                    color: Color(0xFFEA580C),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          child: KineticTorusIris(size: irisSize.clamp(260.0, 360.0)),
         ),
       ),
     );

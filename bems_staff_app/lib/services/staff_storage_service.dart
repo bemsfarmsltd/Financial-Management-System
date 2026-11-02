@@ -4,6 +4,11 @@ import '../models/staff_models.dart';
 
 class StaffStorageService {
   static const _keyUser = 'bems_staff_user';
+  static const _keyBioConfigured = 'bems_staff_biometric_configured';
+  static const _keyBioEnabled = 'bems_staff_biometric_enabled';
+  static const _keyBioEnrolledAt = 'bems_staff_biometric_enrolled_at';
+  static const _keySavedEmail = 'bems_staff_saved_email';
+  static const _keySavedPassword = 'bems_staff_saved_password';
 
   static Future<void> saveUser(StaffUser user) async {
     final prefs = await SharedPreferences.getInstance();
@@ -24,5 +29,70 @@ class StaffStorageService {
   static Future<void> clearUser() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyUser);
+  }
+
+  // --- Biometric Authentication Settings ---
+  static Future<bool> isBiometricConfigured() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyBioConfigured) ?? false;
+  }
+
+  static Future<void> setBiometricConfigured(bool configured) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyBioConfigured, configured);
+    if (configured) {
+      await prefs.setBool(_keyBioEnabled, true);
+      if (prefs.getString(_keyBioEnrolledAt) == null) {
+        await prefs.setString(_keyBioEnrolledAt, DateTime.now().toIso8601String());
+      }
+    }
+  }
+
+  static Future<bool> isBiometricEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    final configured = prefs.getBool(_keyBioConfigured) ?? false;
+    if (!configured) return false;
+    return prefs.getBool(_keyBioEnabled) ?? true;
+  }
+
+  static Future<void> setBiometricEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyBioEnabled, enabled);
+  }
+
+  static Future<String?> getBiometricEnrolledAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyBioEnrolledAt);
+  }
+
+  static Future<void> saveCredentials({required String email, required String password}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySavedEmail, email);
+    await prefs.setString(_keySavedPassword, password);
+  }
+
+  static Future<Map<String, String>?> getSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final email = prefs.getString(_keySavedEmail);
+    final password = prefs.getString(_keySavedPassword);
+    if (email != null && password != null && email.isNotEmpty && password.isNotEmpty) {
+      return {'email': email, 'password': password};
+    }
+    return null;
+  }
+
+  static Future<void> clearCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keySavedEmail);
+    await prefs.remove(_keySavedPassword);
+  }
+
+  static Future<void> resetBiometrics() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyBioConfigured);
+    await prefs.remove(_keyBioEnabled);
+    await prefs.remove(_keyBioEnrolledAt);
+    await prefs.remove(_keySavedEmail);
+    await prefs.remove(_keySavedPassword);
   }
 }

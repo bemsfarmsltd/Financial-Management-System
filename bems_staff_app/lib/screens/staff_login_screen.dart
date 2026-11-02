@@ -5,6 +5,9 @@ import 'staff_main_screen.dart';
 import 'staff_register_screen.dart';
 import 'staff_forgot_password_screen.dart';
 
+import '../models/staff_models.dart';
+import '../services/staff_biometric_service.dart';
+
 class StaffLoginScreen extends StatefulWidget {
   const StaffLoginScreen({super.key});
 
@@ -26,9 +29,9 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
     super.dispose();
   }
 
-  Future<void> _handleLogin({String? overrideEmail}) async {
+  Future<void> _handleLogin({String? overrideEmail, String? overridePassword}) async {
     final email = (overrideEmail ?? _emailController.text).trim();
-    final password = _passwordController.text.trim();
+    final password = (overridePassword ?? _passwordController.text).trim();
 
     if (email.isEmpty) {
       setState(() => _errorMessage = 'Please enter your corporate email address.');
@@ -49,10 +52,26 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
       await StaffStorageService.saveUser(user);
 
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => StaffMainScreen(user: user)),
-      );
+
+      // Check if biometric is supported and not yet configured
+      final hasHardware = await StaffBiometricService.isHardwareAvailable();
+      final isConfigured = await StaffStorageService.isBiometricConfigured();
+
+      if (hasHardware && !isConfigured) {
+        if (mounted) {
+          await _promptEnableBiometrics(user, email, password);
+        }
+      } else if (hasHardware && isConfigured) {
+        // Keep saved credentials fresh for biometric quick sign in
+        await StaffStorageService.saveCredentials(email: email, password: password);
+        if (mounted) {
+          _navigateToMain(user);
+        }
+      } else {
+        if (mounted) {
+          _navigateToMain(user);
+        }
+      }
     } catch (e) {
       final raw = e.toString().replaceAll('Exception: ', '');
       final friendly = raw.contains('SocketException') ||
@@ -67,67 +86,138 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
     }
   }
 
-  void _handleBiometricAuth() {
-    showModalBottomSheet(
+  void _navigateToMain(StaffUser user) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => StaffMainScreen(user: user)),
+    );
+  }
+
+  Future<void> _promptEnableBiometrics(StaffUser user, String email, String password) async {
+    await showDialog(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: Column(
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 44,
-              height: 4,
-              decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(2)),
-            ),
-            const SizedBox(height: 24),
             Container(
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
+                color: const Color(0xFFF0FDF4),
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFFED7AA)),
+                border: Border.all(color: const Color(0xFFA7F3D0)),
               ),
-              child: const Icon(Icons.fingerprint_rounded, size: 44, color: Color(0xFFEA580C)),
+              child: const Icon(Icons.fingerprint_rounded, size: 44, color: Color(0xFF064E3B)),
             ),
             const SizedBox(height: 16),
             const Text(
-              'Biometric Authentication',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+              'Enable Fingerprint Login?',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             const Text(
-              'Confirm Touch ID / Face ID to verify your corporate identity and unlock the staff workspace.',
+              'Use your phone\'s fingerprint or Face ID to quickly unlock your BEMS Staff Workspace without typing your password each time.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4),
+              style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B), height: 1.4),
             ),
             const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _handleLogin();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEA580C),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _navigateToMain(user);
+                    },
+                    child: const Text('Not Now', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w700)),
+                  ),
                 ),
-                child: const Text('Verify Biometrics', style: TextStyle(fontWeight: FontWeight.w800)),
-              ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      final success = await StaffBiometricService.authenticateWithPhoneFingerprint(
+                        reason: 'Verify your fingerprint to enroll biometric sign-in',
+                      );
+                      if (success) {
+                        await StaffStorageService.saveCredentials(email: email, password: password);
+                        await StaffStorageService.setBiometricConfigured(true);
+                        await StaffStorageService.setBiometricEnabled(true);
+                      }
+                      _navigateToMain(user);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF064E3B),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Enable', style: TextStyle(fontWeight: FontWeight.w800)),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _handleBiometricAuth() async {
+    final hasHardware = await StaffBiometricService.isHardwareAvailable();
+    if (!hasHardware) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Biometric hardware sensor is not supported on this device.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    final isConfigured = await StaffStorageService.isBiometricConfigured();
+    final savedCreds = await StaffStorageService.getSavedCredentials();
+
+    if (!isConfigured || savedCreds == null) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Fingerprint Not Enrolled', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+          content: const Text(
+            'Please sign in with your corporate email and password once. You will then be prompted to enable fingerprint sign-in on this device.',
+            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Understood', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF064E3B))),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final verified = await StaffBiometricService.authenticateWithPhoneFingerprint(
+      reason: 'Touch your fingerprint sensor to sign in to BEMS Staff Portal',
+    );
+
+    if (verified && mounted) {
+      await _handleLogin(
+        overrideEmail: savedCreds['email'],
+        overridePassword: savedCreds['password'],
+      );
+    }
   }
 
   @override
