@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { NewRequestModal } from '@/components/requests/NewRequestModal';
+import { StaffNewFundRequestModal } from '@/components/requests/StaffNewFundRequestModal';
 import { StaffAdminChatModal } from '@/components/chat/StaffAdminChatModal';
 import {
   Home,
@@ -3315,16 +3315,21 @@ export function StaffDashboardClient({
           />
         )}
 
-        {/* Modal: New Fund Requisition Modal */}
-        <NewRequestModal
+        {/* Modal: New Fund Requisition Modal (Mobile-Identical) */}
+        <StaffNewFundRequestModal
           isOpen={isNewRequestOpen}
           onClose={() => {
             setIsNewRequestOpen(false);
             loadData(true);
           }}
+          user={user}
           subsidiaries={subsidiaries}
           vendors={vendors}
           currentStaff={currentStaff}
+          onSubmitted={() => {
+            setIsNewRequestOpen(false);
+            loadData(true);
+          }}
         />
       </div>
     );
