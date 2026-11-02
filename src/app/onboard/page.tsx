@@ -51,9 +51,79 @@ function OnboardingContent() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  // Monnify Verification State
+  const [banksList, setBanksList] = useState<string[]>([
+    'Access Bank',
+    'Zenith Bank',
+    'Guaranty Trust Bank (GTBank)',
+    'First Bank of Nigeria',
+    'United Bank for Africa (UBA)',
+    'Stanbic IBTC Bank',
+    'Fidelity Bank',
+    'Moniepoint MFB',
+    'OPay Digital Services',
+    'PalmPay',
+    'Kuda Bank',
+    'First City Monument Bank (FCMB)',
+    'Union Bank of Nigeria',
+    'Sterling Bank',
+    'Wema Bank / ALAT',
+    'Polaris Bank',
+    'Providus Bank',
+  ]);
+  const [isVerifyingBank, setIsVerifyingBank] = useState(false);
+  const [verifiedAccountName, setVerifiedAccountName] = useState<string | null>(null);
+  const [bankVerifyError, setBankVerifyError] = useState<string | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/banking/banks')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.banks && Array.isArray(data.banks)) {
+          const names = data.banks.map((b: any) => b.name);
+          if (names.length > 0) {
+            setBanksList(names);
+            if (!bankName) setBankName(names[0]);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const clean = accountNumber.trim().replace(/\D/g, '');
+    if (clean.length === 10 && bankName) {
+      setIsVerifyingBank(true);
+      setBankVerifyError(null);
+      fetch('/api/banking/verify-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountNumber: clean, bankName }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.isValid && data.accountName) {
+            setVerifiedAccountName(data.accountName);
+            setAccountName(data.accountName);
+          } else {
+            setVerifiedAccountName(null);
+            setBankVerifyError(data.message || 'Could not verify account.');
+          }
+        })
+        .catch(() => {
+          setVerifiedAccountName(null);
+          setBankVerifyError('Verification failed. Check network connectivity.');
+        })
+        .finally(() => setIsVerifyingBank(false));
+    } else {
+      setVerifiedAccountName(null);
+      setBankVerifyError(null);
+    }
+  }, [accountNumber, bankName]);
 
   // Validate invitation token on mount
   useEffect(() => {
@@ -376,13 +446,17 @@ function OnboardingContent() {
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
                     Bank Name
                   </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Access Bank"
+                  <select
                     value={bankName}
                     onChange={(e) => setBankName(e.target.value)}
                     style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box', background: '#ffffff' }}
-                  />
+                  >
+                    {banksList.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
@@ -399,6 +473,27 @@ function OnboardingContent() {
                 </div>
               </div>
 
+              {isVerifyingBank && (
+                <div style={{ padding: '8px 12px', borderRadius: 6, background: '#fff7ed', border: '1px solid #fed7aa', marginBottom: 10, fontSize: 12, color: '#c2410c', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 14, height: 14, border: '2px solid #fed7aa', borderTopColor: '#ea580c', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  <span>Verifying account with Monnify &amp; NIBSS...</span>
+                </div>
+              )}
+
+              {verifiedAccountName && (
+                <div style={{ padding: '8px 12px', borderRadius: 6, background: '#ecfdf5', border: '1px solid #a7f3d0', marginBottom: 10, fontSize: 12, color: '#065f46', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+                  <CheckCircle2 size={16} color="#059669" />
+                  <span>✓ Monnify Verified: {verifiedAccountName}</span>
+                </div>
+              )}
+
+              {bankVerifyError && (
+                <div style={{ padding: '8px 12px', borderRadius: 6, background: '#fef2f2', border: '1px solid #fecaca', marginBottom: 10, fontSize: 12, color: '#991b1b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AlertCircle size={16} color="#dc2626" />
+                  <span>{bankVerifyError}</span>
+                </div>
+              )}
+
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
                   Account Holder Name
@@ -408,7 +503,7 @@ function OnboardingContent() {
                   placeholder="As verified on your bank record"
                   value={accountName}
                   onChange={(e) => setAccountName(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box', background: '#ffffff' }}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box', background: verifiedAccountName ? '#f8fafc' : '#ffffff' }}
                 />
               </div>
             </div>

@@ -183,6 +183,76 @@ export function StaffDashboardClient({
   const [savingBanking, setSavingBanking] = useState(false);
   const [bankingNotice, setBankingNotice] = useState<string | null>(null);
 
+  // Monnify Real-Time Verification State
+  const [isVerifyingAdvance, setIsVerifyingAdvance] = useState(false);
+  const [advanceVerifiedName, setAdvanceVerifiedName] = useState<string | null>(null);
+  const [advanceVerifyError, setAdvanceVerifyError] = useState<string | null>(null);
+  const [isVerifyingSalary, setIsVerifyingSalary] = useState(false);
+  const [salaryVerifiedName, setSalaryVerifiedName] = useState<string | null>(null);
+  const [salaryVerifyError, setSalaryVerifyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const clean = accountNumber.trim().replace(/\D/g, '');
+    if (clean.length === 10 && bankName) {
+      setIsVerifyingAdvance(true);
+      setAdvanceVerifyError(null);
+      fetch('/api/banking/verify-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountNumber: clean, bankName }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.isValid && d.accountName) {
+            setAdvanceVerifiedName(d.accountName);
+            setAccountName(d.accountName);
+          } else {
+            setAdvanceVerifiedName(null);
+            setAdvanceVerifyError(d.message || 'Could not verify account.');
+          }
+        })
+        .catch(() => {
+          setAdvanceVerifiedName(null);
+          setAdvanceVerifyError('Verification failed. Check network.');
+        })
+        .finally(() => setIsVerifyingAdvance(false));
+    } else {
+      setAdvanceVerifiedName(null);
+      setAdvanceVerifyError(null);
+    }
+  }, [accountNumber, bankName]);
+
+  useEffect(() => {
+    const clean = salaryAccountNumber.trim().replace(/\D/g, '');
+    if (clean.length === 10 && salaryBankName) {
+      setIsVerifyingSalary(true);
+      setSalaryVerifyError(null);
+      fetch('/api/banking/verify-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountNumber: clean, bankName: salaryBankName }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.isValid && d.accountName) {
+            setSalaryVerifiedName(d.accountName);
+            setSalaryAccountName(d.accountName);
+          } else {
+            setSalaryVerifiedName(null);
+            setSalaryVerifyError(d.message || 'Could not verify salary account.');
+          }
+        })
+        .catch(() => {
+          setSalaryVerifiedName(null);
+          setSalaryVerifyError('Salary verification failed. Check network.');
+        })
+        .finally(() => setIsVerifyingSalary(false));
+    } else {
+      setSalaryVerifiedName(null);
+      setSalaryVerifyError(null);
+    }
+  }, [salaryAccountNumber, salaryBankName]);
+
   // Password Change State
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -2975,9 +3045,27 @@ export function StaffDashboardClient({
                     value={accountNumber}
                     onChange={(e) => setAccountNumber(e.target.value)}
                     placeholder="0123456789"
-                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold font-mono"
                   />
                 </div>
+                {isVerifyingAdvance && (
+                  <div className="p-2 bg-orange-50 text-[#EA580C] border border-orange-200 rounded-lg text-[11px] font-semibold flex items-center gap-2">
+                    <div className="w-3.5 h-3.5 border-2 border-orange-300 border-t-orange-600 rounded-full animate-spin" />
+                    <span>Verifying account with Monnify &amp; NIBSS...</span>
+                  </div>
+                )}
+                {advanceVerifiedName && (
+                  <div className="p-2 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[11px] font-bold flex items-center gap-1.5">
+                    <CheckCircle2 size={14} className="text-emerald-600" />
+                    <span>✓ Monnify Verified: {advanceVerifiedName}</span>
+                  </div>
+                )}
+                {advanceVerifyError && (
+                  <div className="p-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-[11px] font-medium flex items-center gap-1.5">
+                    <AlertCircle size={14} className="text-red-500" />
+                    <span>{advanceVerifyError}</span>
+                  </div>
+                )}
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Beneficiary Name</label>
                   <input
@@ -2985,7 +3073,7 @@ export function StaffDashboardClient({
                     value={accountName}
                     onChange={(e) => setAccountName(e.target.value)}
                     placeholder={user.fullName}
-                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
+                    className={`w-full p-2 border border-slate-200 rounded-lg text-xs font-semibold ${advanceVerifiedName ? 'bg-slate-50 text-slate-700' : 'bg-white'}`}
                   />
                 </div>
               </div>
@@ -3013,9 +3101,27 @@ export function StaffDashboardClient({
                     value={salaryAccountNumber}
                     onChange={(e) => setSalaryAccountNumber(e.target.value)}
                     placeholder="0123456789"
-                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold font-mono"
                   />
                 </div>
+                {isVerifyingSalary && (
+                  <div className="p-2 bg-orange-50 text-[#EA580C] border border-orange-200 rounded-lg text-[11px] font-semibold flex items-center gap-2">
+                    <div className="w-3.5 h-3.5 border-2 border-orange-300 border-t-orange-600 rounded-full animate-spin" />
+                    <span>Verifying salary account with Monnify &amp; NIBSS...</span>
+                  </div>
+                )}
+                {salaryVerifiedName && (
+                  <div className="p-2 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[11px] font-bold flex items-center gap-1.5">
+                    <CheckCircle2 size={14} className="text-emerald-600" />
+                    <span>✓ Monnify Verified: {salaryVerifiedName}</span>
+                  </div>
+                )}
+                {salaryVerifyError && (
+                  <div className="p-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-[11px] font-medium flex items-center gap-1.5">
+                    <AlertCircle size={14} className="text-red-500" />
+                    <span>{salaryVerifyError}</span>
+                  </div>
+                )}
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Salary Account Name</label>
                   <input
@@ -3023,7 +3129,7 @@ export function StaffDashboardClient({
                     value={salaryAccountName}
                     onChange={(e) => setSalaryAccountName(e.target.value)}
                     placeholder={user.fullName}
-                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
+                    className={`w-full p-2 border border-slate-200 rounded-lg text-xs font-semibold ${salaryVerifiedName ? 'bg-slate-50 text-slate-700' : 'bg-white'}`}
                   />
                 </div>
               </div>

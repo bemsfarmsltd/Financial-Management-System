@@ -453,7 +453,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
     jobTitle: '',
     employmentType: 'FULL_TIME',
     staffGrade: 'OFFICER',
-    workLocation: 'LAGOS_HQ',
+    workLocation: 'UMUAHIA_OPS_HUB',
     resumptionDate: '',
     bankName: 'Access Bank Plc',
     accountNumber: '',
@@ -531,7 +531,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
             bankName: prev.bankName || (d.banks?.[0] || 'Access Bank Plc'),
             salaryBankName: prev.salaryBankName || (d.banks?.[0] || 'Access Bank Plc'),
             staffGrade: prev.staffGrade || (d.staffGrades?.[2]?.value || 'OFFICER'),
-            workLocation: prev.workLocation || (d.workLocations?.[0]?.value || 'LAGOS_HQ'),
+            workLocation: prev.workLocation || (d.workLocations?.[0]?.value || 'UMUAHIA_OPS_HUB'),
             maritalStatus: prev.maritalStatus || (d.maritalStatuses?.[0]?.value || 'SINGLE'),
             highestEducation: prev.highestEducation || (d.educationLevels?.[0]?.value || 'BSC'),
           }));
@@ -1002,11 +1002,10 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                     onChange={e => setSignupForm(old => ({ ...old, workLocation: e.target.value }))}
                   >
                     {(options.workLocations.length > 0 ? options.workLocations : [
-                      { value: 'LAGOS_HQ', label: 'Lagos Corporate HQ (Victoria Island / Lekki)' },
-                      { value: 'BENIN_OPS_HUB', label: 'Benin Regional Operations & Logistics Hub' },
-                      { value: 'ABUJA_OFFICE', label: 'Abuja Regional Liaison Hub' },
-                      { value: 'PORT_HARCOURT', label: 'Port Harcourt Operations Office' },
-                      { value: 'FIELD_REMOTE', label: 'Field Operations / Remote Station' },
+                      { value: 'UMUAHIA_OPS_HUB', label: 'Umuahia Operations Center (Abia State)' },
+                      { value: 'OWERRI_OPS_HUB', label: 'Owerri Operations Center (Imo State)' },
+                      { value: 'EDO_BENIN_OPS_HUB', label: 'Benin City / Edo State Operations Hub' },
+                      { value: 'BEMS_GROUP_HQ', label: 'BEMS Corporate Headquarters (Executive Center)' },
                     ]).map(loc => (
                       <option key={loc.value} value={loc.value}>{loc.label}</option>
                     ))}
@@ -1060,15 +1059,6 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                     value={signupForm.accountName}
                     onChange={e => setSignupForm(old => ({ ...old, accountName: e.target.value }))}
                     placeholder="Must match your official name"
-                  />
-                </label>
-                <label className="full">
-                  Bank Verification Number (BVN)
-                  <input
-                    maxLength={11}
-                    value={signupForm.bvn}
-                    onChange={e => setSignupForm(old => ({ ...old, bvn: e.target.value.replace(/\D/g, '') }))}
-                    placeholder="11-digit BVN for automated financial compliance"
                   />
                 </label>
               </div>
@@ -1165,7 +1155,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
               </div>
 
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px', marginTop: 14, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
-                ℹ️ <strong>Direct Bank Disbursement:</strong> Finance disburses all advances and expense reimbursements directly to your commercial NUBAN account. Your BVN assists in automated identity verification for disbursement clearance.
+                ℹ️ <strong>Direct Bank Disbursement:</strong> Finance disburses all advances and expense reimbursements directly to your verified commercial NUBAN account. Real-time bank account validation is powered by Monnify.
               </div>
             </>
           )}

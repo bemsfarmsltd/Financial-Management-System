@@ -9,7 +9,7 @@ class StaffApiService {
   static const String fallbackBaseUrl = 'https://pink-horse-318730.hostingersite.com';
   static String _activeBaseUrl = primaryBaseUrl;
 
-  static const String appVersion = '1.0.4';
+  static const String appVersion = '1.0.5';
   static const String appId = 'STAFF_APP';
 
   // Global callbacks for app-level interception
@@ -1031,5 +1031,50 @@ class StaffApiService {
       return true;
     }
     throw Exception(data['error']?.toString() ?? 'Failed to confirm salary payment.');
+  }
+
+  /// Real-time Monnify Bank Account Verification API
+  static Future<Map<String, dynamic>> verifyBankAccount({
+    required String accountNumber,
+    required String bankName,
+    String? bankCode,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/banking/verify-account'),
+        headers: _headers(),
+        body: jsonEncode({
+          'accountNumber': accountNumber,
+          'bankName': bankName,
+          if (bankCode != null && bankCode.isNotEmpty) 'bankCode': bankCode,
+        }),
+      ),
+      timeout: const Duration(seconds: 12),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300 && data['isValid'] == true) {
+      return data as Map<String, dynamic>;
+    }
+    throw Exception(data['message']?.toString() ?? 'Account verification failed.');
+  }
+
+  /// Fetch supported Nigerian commercial banks & fintechs
+  static Future<List<Map<String, dynamic>>> fetchSupportedBanks() async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/banking/banks'),
+          headers: _headers(),
+        ),
+        timeout: const Duration(seconds: 8),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['banks'] is List) {
+          return List<Map<String, dynamic>>.from(data['banks']);
+        }
+      }
+    } catch (_) {}
+    return [];
   }
 }

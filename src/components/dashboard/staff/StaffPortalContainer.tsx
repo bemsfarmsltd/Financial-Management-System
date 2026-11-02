@@ -42,7 +42,7 @@ export function StaffPortalContainer({
           subsidiary: user.subsidiary || businessName || 'BEMS Group',
           department: user.department || 'General Operations',
           jobTitle: user.jobTitle || 'Staff Personnel',
-          workLocation: user.workLocation || 'LAGOS_HQ',
+          workLocation: user.workLocation || 'UMUAHIA_OPS_HUB',
           staffGrade: user.staffGrade || 'OFFICER',
           bankName: user.bankName || '',
           accountNumber: user.accountNumber || '',

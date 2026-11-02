@@ -1,28 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { STANDARD_NIGERIAN_BANKS } from '@/lib/monnify';
 
 export const dynamic = 'force-dynamic';
 
-const STANDARD_BANKS = [
-  'Access Bank Plc',
-  'Zenith Bank Plc',
-  'Guaranty Trust Bank (GTBank)',
-  'First Bank of Nigeria',
-  'United Bank for Africa (UBA)',
-  'Stanbic IBTC Bank',
-  'Fidelity Bank Plc',
-  'Union Bank of Nigeria',
-  'Sterling Bank Plc',
-  'FCMB',
-  'Wema Bank Plc',
-  'Polaris Bank',
-  'Keystone Bank',
-  'Kuda Microfinance Bank',
-  'Moniepoint Microfinance Bank',
-  'OPay Digital Services',
-  'PalmPay',
-  'Jaiz Bank',
-  'TAJ Bank',
+const WORK_LOCATIONS = [
+  { value: 'UMUAHIA_OPS_HUB', label: 'Umuahia Operations Center (Abia State)' },
+  { value: 'OWERRI_OPS_HUB', label: 'Owerri Operations Center (Imo State)' },
+  { value: 'EDO_BENIN_OPS_HUB', label: 'Benin City / Edo State Operations Hub' },
+  { value: 'BEMS_GROUP_HQ', label: 'BEMS Corporate Headquarters (Executive Center)' },
 ];
 
 const EMPLOYMENT_TYPES = [
@@ -40,14 +26,7 @@ const STAFF_GRADES = [
   { value: 'SENIOR_OFFICER', label: 'Senior Officer / Senior Specialist (Level 3)' },
   { value: 'TEAM_LEAD', label: 'Team Lead / Unit Supervisor (Level 4)' },
   { value: 'MANAGER', label: 'Department Manager / Head of Section (Level 5)' },
-];
-
-const WORK_LOCATIONS = [
-  { value: 'LAGOS_HQ', label: 'Lagos Corporate HQ (Victoria Island / Lekki)' },
-  { value: 'BENIN_OPS_HUB', label: 'Benin Regional Operations & Logistics Hub' },
-  { value: 'ABUJA_OFFICE', label: 'Abuja Regional Liaison Hub' },
-  { value: 'PORT_HARCOURT', label: 'Port Harcourt Operations Office' },
-  { value: 'FIELD_REMOTE', label: 'Field Operations / Remote Station' },
+  { value: 'DIRECTOR', label: 'Director / Executive Level (Level 6)' },
 ];
 
 const MARITAL_STATUSES = [
@@ -80,51 +59,12 @@ export async function GET() {
       }),
     ]);
 
-    const safeOrgs = organizations.length > 0 ? organizations : [
-      { id: 'bems-group-hq', legalName: 'BEMS Group Holdings Ltd (HQ)', code: 'BEMS-HQ' },
-      { id: 'bems-operations', legalName: 'BEMS Operations Limited', code: 'BEMS-BO' },
-      { id: 'bems-softhub', legalName: 'BEMS SoftHub Limited', code: 'BEMS-BS' },
-      { id: 'bems-logistics', legalName: 'BEMS Logistics Limited', code: 'BEMS-BL' },
-    ];
-
-    // Ensure every organization has real, operational departments available
-    let safeDepartments = [...departments];
-    if (safeDepartments.length === 0) {
-      safeDepartments = safeOrgs.flatMap(org => {
-        const baseDepts = [
-          { id: `${org.id}-exec`, name: 'Executive & Corporate Strategy', code: 'EXEC', organizationId: org.id },
-          { id: `${org.id}-fin`, name: 'Finance, Treasury & Accounts', code: 'FIN', organizationId: org.id },
-          { id: `${org.id}-hr`, name: 'People Operations & Human Resources', code: 'HR', organizationId: org.id },
-          { id: `${org.id}-audit`, name: 'Internal Audit, Risk & Compliance', code: 'AUDIT', organizationId: org.id },
-          { id: `${org.id}-proc`, name: 'Procurement & Vendor Relations', code: 'PROC', organizationId: org.id },
-          { id: `${org.id}-it`, name: 'Information Technology & Systems', code: 'IT', organizationId: org.id },
-        ];
-        if (org.code.includes('OPS') || org.code.includes('BO')) {
-          baseDepts.push(
-            { id: `${org.id}-ops`, name: 'Supply Chain & Field Operations', code: 'OPS-FIELD', organizationId: org.id },
-            { id: `${org.id}-facilities`, name: 'Facilities & Asset Maintenance', code: 'FACIL', organizationId: org.id },
-            { id: `${org.id}-quality`, name: 'Quality Assurance & Standards Unit', code: 'QA-STD', organizationId: org.id }
-          );
-        }
-        if (org.code.includes('SOFT') || org.code.includes('BS')) {
-          baseDepts.push(
-            { id: `${org.id}-dev`, name: 'Software Engineering & Cloud Architecture', code: 'DEV', organizationId: org.id },
-            { id: `${org.id}-qa`, name: 'Product Quality Assurance & DevOps', code: 'QA', organizationId: org.id }
-          );
-        }
-        if (org.code.includes('LOG') || org.code.includes('BL')) {
-          baseDepts.push(
-            { id: `${org.id}-fleet`, name: 'Haulage, Fleet & Dispatch Operations', code: 'FLEET', organizationId: org.id }
-          );
-        }
-        return baseDepts;
-      });
-    }
+    const bankList = STANDARD_NIGERIAN_BANKS.map((b) => b.name);
 
     return NextResponse.json({
-      organizations: safeOrgs,
-      departments: safeDepartments,
-      banks: STANDARD_BANKS,
+      organizations,
+      departments,
+      banks: bankList,
       employmentTypes: EMPLOYMENT_TYPES,
       staffGrades: STAFF_GRADES,
       workLocations: WORK_LOCATIONS,
@@ -133,19 +73,18 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Failed to load signup options:', error);
-    return NextResponse.json({
-      organizations: [
-        { id: 'bems-group-hq', legalName: 'BEMS Group Holdings HQ', code: 'BEMS-HQ' },
-        { id: 'bems-operations', legalName: 'BEMS Operations Limited', code: 'BEMS-BO' },
-        { id: 'bems-softhub', legalName: 'BEMS SoftHub Limited', code: 'BEMS-BS' },
-      ],
-      departments: [],
-      banks: STANDARD_BANKS,
-      employmentTypes: EMPLOYMENT_TYPES,
-      staffGrades: STAFF_GRADES,
-      workLocations: WORK_LOCATIONS,
-      maritalStatuses: MARITAL_STATUSES,
-      educationLevels: EDUCATION_LEVELS,
-    });
+    return NextResponse.json(
+      {
+        organizations: [],
+        departments: [],
+        banks: STANDARD_NIGERIAN_BANKS.map((b) => b.name),
+        employmentTypes: EMPLOYMENT_TYPES,
+        staffGrades: STAFF_GRADES,
+        workLocations: WORK_LOCATIONS,
+        maritalStatuses: MARITAL_STATUSES,
+        educationLevels: EDUCATION_LEVELS,
+      },
+      { status: 500 }
+    );
   }
 }

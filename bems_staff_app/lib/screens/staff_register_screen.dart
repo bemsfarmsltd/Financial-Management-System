@@ -154,14 +154,14 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   bool _obscureConfirmPassword = true;
 
   // Step 2: Corporate Placement
-  String _subsidiary = 'Bems Logistics & Distribution Ltd';
-  String _department = 'Logistics & Supply Chain Operations';
+  String _subsidiary = 'BEMS Group';
+  String _department = 'Executive Leadership & Strategic Planning';
   final _jobTitleController = TextEditingController();
   String _staffGrade = 'Level 06 - Operational Specialist';
-  String _workLocation = 'Oyo Logistics & Operations Hub';
+  String _workLocation = 'Umuahia Operations Center (Abia State)';
   final _resumptionDateController = TextEditingController();
 
-  // Step 3: Dual Banking Accounts
+  // Step 3: Dual Banking Accounts & Live Monnify Verification
   String _bankName = 'Access Bank PLC';
   final _accountNumberController = TextEditingController();
   final _accountNameController = TextEditingController();
@@ -170,9 +170,16 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   final _salaryAccountNumberController = TextEditingController();
   final _salaryAccountNameController = TextEditingController();
 
+  // Live Monnify Verification State
+  bool _isVerifyingAdvanceAccount = false;
+  String? _verifiedAdvanceAccountName;
+  String? _advanceVerificationError;
+  bool _isVerifyingSalaryAccount = false;
+  String? _verifiedSalaryAccountName;
+  String? _salaryVerificationError;
+
   // Step 4: Statutory & Emergency
   final _ninController = TextEditingController();
-  final _bvnController = TextEditingController();
   final _stateOfOriginController = TextEditingController();
   final _lgaController = TextEditingController();
   final _residentialAddressController = TextEditingController();
@@ -183,15 +190,22 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
 
   List<Map<String, dynamic>> _organizations = [];
   List<String> _subsidiaries = [
-    'Bems Logistics & Distribution Ltd',
+    'BEMS Group',
     'BemsSoft Hub Ltd',
-    'BEMS Group Holdings Ltd (HQ)',
+    'SmartAIRS Gov Technologies Ltd',
+    'Studio Arella Ltd',
+    'Bems Institute Of Technology and Vocational Skills',
   ];
 
   List<String> _departments = [
-    'Logistics & Supply Chain Operations',
-    'Engineering & Cloud Infrastructure',
-    'Corporate Services & Administration',
+    'Executive Leadership & Strategic Planning',
+    'Group Finance, Treasury & Accounts',
+    'Internal Audit, Risk & Compliance',
+    'Legal Affairs & Corporate Governance',
+    'People Operations, Culture & HR',
+    'Corporate Communications & Public Relations',
+    'Enterprise Procurement & Vendor Management',
+    'Security, Protocol & Facilities Management',
   ];
 
   final List<String> _staffGrades = [
@@ -203,27 +217,153 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   ];
 
   final List<String> _workLocations = [
-    'Oyo Logistics & Operations Hub',
-    'Lagos Corporate Headquarters',
-    'Lagos Technology Center',
-    'Ilorin Storage & Distribution Depot',
+    'Umuahia Operations Center (Abia State)',
+    'Owerri Operations Center (Imo State)',
+    'Benin City / Edo State Operations Hub',
+    'BEMS Corporate Headquarters (Executive Center)',
   ];
 
-  final List<String> _bankOptions = [
+  List<String> _bankOptions = [
     'Access Bank PLC',
     'Zenith Bank PLC',
-    'First Bank of Nigeria',
     'Guaranty Trust Bank (GTBank)',
+    'First Bank of Nigeria',
     'United Bank for Africa (UBA)',
     'Stanbic IBTC Bank',
     'Fidelity Bank PLC',
+    'Moniepoint MFB',
+    'OPay Digital Services',
+    'PalmPay',
+    'Kuda Bank',
+    'First City Monument Bank (FCMB)',
+    'Union Bank of Nigeria',
+    'Sterling Bank',
+    'Wema Bank / ALAT',
+    'Polaris Bank',
+    'Providus Bank',
+    'Keystone Bank',
+    'Jaiz Bank',
+    'TAJ Bank',
   ];
 
   @override
   void initState() {
     super.initState();
     _loadLiveOrganizationStructure();
+    _loadSupportedBanks();
+
+    _accountNumberController.addListener(() {
+      final clean = _accountNumberController.text.trim().replaceAll(RegExp(r'\D'), '');
+      if (clean.length == 10 && clean != _verifiedAdvanceAccountName && !_isVerifyingAdvanceAccount) {
+        _verifyAdvanceAccount();
+      }
+    });
+
+    _salaryAccountNumberController.addListener(() {
+      final clean = _salaryAccountNumberController.text.trim().replaceAll(RegExp(r'\D'), '');
+      if (clean.length == 10 && clean != _verifiedSalaryAccountName && !_isVerifyingSalaryAccount) {
+        _verifySalaryAccount();
+      }
+    });
   }
+
+  Future<void> _loadSupportedBanks() async {
+    try {
+      final liveBanks = await StaffApiService.fetchSupportedBanks();
+      if (!mounted || liveBanks.isEmpty) return;
+      final names = liveBanks.map((b) => (b['name'] ?? '').toString()).where((n) => n.isNotEmpty).toList();
+      if (names.isNotEmpty) {
+        setState(() {
+          _bankOptions = names;
+          if (!_bankOptions.contains(_bankName)) {
+            _bankName = _bankOptions.first;
+          }
+          if (!_bankOptions.contains(_salaryBankName)) {
+            _salaryBankName = _bankOptions.first;
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _verifyAdvanceAccount() async {
+    final cleanAcct = _accountNumberController.text.trim().replaceAll(RegExp(r'\D'), '');
+    if (cleanAcct.length != 10) return;
+
+    setState(() {
+      _isVerifyingAdvanceAccount = true;
+      _advanceVerificationError = null;
+    });
+
+    try {
+      final res = await StaffApiService.verifyBankAccount(
+        accountNumber: cleanAcct,
+        bankName: _bankName,
+      );
+      if (!mounted) return;
+      final accName = (res['accountName'] ?? '').toString();
+      setState(() {
+        _isVerifyingAdvanceAccount = false;
+        _verifiedAdvanceAccountName = accName;
+        _accountNameController.text = accName;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✓ Monnify verified: $accName'),
+          backgroundColor: const Color(0xFF059669),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().replaceAll('Exception: ', '');
+      setState(() {
+        _isVerifyingAdvanceAccount = false;
+        _verifiedAdvanceAccountName = null;
+        _advanceVerificationError = msg;
+      });
+    }
+  }
+
+  Future<void> _verifySalaryAccount() async {
+    final cleanAcct = _salaryAccountNumberController.text.trim().replaceAll(RegExp(r'\D'), '');
+    if (cleanAcct.length != 10) return;
+
+    setState(() {
+      _isVerifyingSalaryAccount = true;
+      _salaryVerificationError = null;
+    });
+
+    try {
+      final res = await StaffApiService.verifyBankAccount(
+        accountNumber: cleanAcct,
+        bankName: _salaryBankName,
+      );
+      if (!mounted) return;
+      final accName = (res['accountName'] ?? '').toString();
+      setState(() {
+        _isVerifyingSalaryAccount = false;
+        _verifiedSalaryAccountName = accName;
+        _salaryAccountNameController.text = accName;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✓ Monnify salary verified: $accName'),
+          backgroundColor: const Color(0xFF059669),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().replaceAll('Exception: ', '');
+      setState(() {
+        _isVerifyingSalaryAccount = false;
+        _verifiedSalaryAccountName = null;
+        _salaryVerificationError = msg;
+      });
+    }
+  }
+
 
   Future<void> _loadLiveOrganizationStructure() async {
     try {
@@ -285,7 +425,6 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
     _salaryAccountNumberController.dispose();
     _salaryAccountNameController.dispose();
     _ninController.dispose();
-    _bvnController.dispose();
     _stateOfOriginController.dispose();
     _lgaController.dispose();
     _residentialAddressController.dispose();
@@ -382,7 +521,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         salaryAccountNumber: _useSameAccountForSalary ? _accountNumberController.text.trim() : _salaryAccountNumberController.text.trim(),
         salaryAccountName: _useSameAccountForSalary ? _accountNameController.text.trim() : _salaryAccountNameController.text.trim(),
         nin: _ninController.text.trim(),
-        bvn: _bvnController.text.trim(),
+        bvn: '',
         stateOfOrigin: _stateOfOriginController.text.trim(),
         lga: _lgaController.text.trim(),
         residentialAddress: _residentialAddressController.text.trim(),
@@ -1036,6 +1175,76 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
           const SizedBox(height: 14),
 
           _buildTextField(label: '10-DIGIT ACCOUNT NUMBER', controller: _accountNumberController, hint: '0123456789', icon: Icons.credit_card_rounded, keyboardType: TextInputType.number),
+          if (_isVerifyingAdvanceAccount) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFED7AA)),
+              ),
+              child: const Row(
+                children: [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFEA580C)),
+                  ),
+                  SizedBox(width: 8),
+                  Text('Verifying account with Monnify & NIBSS...', style: TextStyle(fontSize: 11, color: Color(0xFFC2410C), fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          ] else if (_verifiedAdvanceAccountName != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFA7F3D0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.verified_rounded, size: 16, color: Color(0xFF059669)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '✓ Monnify Verified: $_verifiedAdvanceAccountName',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF065F46), fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (_advanceVerificationError != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded, size: 16, color: Color(0xFFDC2626)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _advanceVerificationError!,
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF991B1B), fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: _verifyAdvanceAccount,
+                    child: const Text(' Retry', style: TextStyle(fontSize: 11, color: Color(0xFFDC2626), fontWeight: FontWeight.w800, decoration: TextDecoration.underline)),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           _buildTextField(label: 'ACCOUNT BENEFICIARY NAME', controller: _accountNameController, hint: 'Exact name registered with bank', icon: Icons.badge_outlined),
           const SizedBox(height: 20),
@@ -1087,6 +1296,76 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
             ),
             const SizedBox(height: 14),
             _buildTextField(label: 'SALARY ACCOUNT NUMBER', controller: _salaryAccountNumberController, hint: '10-digit NUBAN', icon: Icons.credit_card_rounded, keyboardType: TextInputType.number),
+            if (_isVerifyingSalaryAccount) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFED7AA)),
+                ),
+                child: const Row(
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFEA580C)),
+                    ),
+                    SizedBox(width: 8),
+                    Text('Verifying salary account with Monnify & NIBSS...', style: TextStyle(fontSize: 11, color: Color(0xFFC2410C), fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ] else if (_verifiedSalaryAccountName != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFA7F3D0)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.verified_rounded, size: 16, color: Color(0xFF059669)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '✓ Monnify Verified: $_verifiedSalaryAccountName',
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF065F46), fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (_salaryVerificationError != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline_rounded, size: 16, color: Color(0xFFDC2626)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _salaryVerificationError!,
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF991B1B), fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: _verifySalaryAccount,
+                      child: const Text(' Retry', style: TextStyle(fontSize: 11, color: Color(0xFFDC2626), fontWeight: FontWeight.w800, decoration: TextDecoration.underline)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             _buildTextField(label: 'SALARY ACCOUNT NAME', controller: _salaryAccountNameController, hint: 'Registered payroll name', icon: Icons.badge_outlined),
           ],
@@ -1102,17 +1381,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         _buildSectionHeader('Statutory & Next-of-Kin', 'Required compliance data for national identification and emergency records.'),
         const SizedBox(height: 16),
         _buildInputCard([
-          Row(
-            children: [
-              Expanded(
-                child: _buildTextField(label: 'NATIONAL NIN', controller: _ninController, hint: '11 digits', icon: Icons.fingerprint_rounded, keyboardType: TextInputType.number),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildTextField(label: 'BANK BVN', controller: _bvnController, hint: '11 digits', icon: Icons.verified_user_outlined, keyboardType: TextInputType.number),
-              ),
-            ],
-          ),
+          _buildTextField(label: 'NATIONAL NIN (NIMC IDENTIFICATION)', controller: _ninController, hint: '11-digit national identity number', icon: Icons.fingerprint_rounded, keyboardType: TextInputType.number),
           const SizedBox(height: 14),
           Row(
             children: [

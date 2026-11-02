@@ -129,7 +129,7 @@ export async function POST(request: Request) {
     const lga = typeof body.lga === 'string' ? body.lga.trim() : null;
     const nin = typeof body.nin === 'string' ? body.nin.trim() : null;
     const bvn = typeof body.bvn === 'string' ? body.bvn.trim() : null;
-    const workLocation = typeof body.workLocation === 'string' ? body.workLocation.trim() : 'LAGOS_HQ';
+    const workLocation = typeof body.workLocation === 'string' ? body.workLocation.trim() : 'UMUAHIA_OPS_HUB';
     const staffGrade = typeof body.staffGrade === 'string' ? body.staffGrade.trim() : 'OFFICER';
     const highestEducation = typeof body.highestEducation === 'string' ? body.highestEducation.trim() : null;
 
