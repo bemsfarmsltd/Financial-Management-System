@@ -45,7 +45,16 @@ export function AmbientBottomAiBar({
 }: Props) {
   const [inputText, setInputText] = useState('');
   const [isDeckOpen, setIsDeckOpen] = useState(false);
+  const [isOrbitActive, setIsOrbitActive] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-stop attention-grabbing orbit 1 minute (60 seconds) after entering the dashboard
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsOrbitActive(false);
+    }, 60000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const { telemetry, displayText, isTyping: isTelemetryTyping } = useAmbientTelemetry({
     currentPage,
@@ -370,50 +379,60 @@ export function AmbientBottomAiBar({
         </div>
       )}
 
-      {/* 2. THE BOTTOM COMMAND & CHAT BAR WITH HYPER-BRIGHT ORBITING SUBSIDIARY BRAND LIGHT */}
+      {/* 2. THE BOTTOM COMMAND & CHAT BAR WITH HYPER-BRIGHT ORBITING SUBSIDIARY BRAND LIGHT (STOPS AFTER 1 MIN) */}
       <div
         className="bemi-orbit-wrapper"
         style={{
           position: 'relative',
           width: '100%',
           borderRadius: '999px',
-          padding: '2.5px',
+          padding: isOrbitActive ? '2.5px' : '1px',
           overflow: 'hidden',
-          boxShadow: '0 12px 36px rgba(15, 23, 42, 0.14), 0 0 28px var(--brand-shadow-color, rgba(13, 138, 112, 0.38)), 0 0 10px var(--brand-primary, #0d8a70)',
-          animation: 'bemiAttentionPulse 3.5s ease-in-out infinite',
+          boxShadow: isOrbitActive
+            ? '0 12px 36px rgba(15, 23, 42, 0.14), 0 0 28px var(--brand-shadow-color, rgba(13, 138, 112, 0.38)), 0 0 10px var(--brand-primary, #0d8a70)'
+            : '0 8px 24px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)',
+          border: isOrbitActive ? 'none' : '1px solid rgba(226, 232, 240, 0.85)',
+          animation: isOrbitActive ? 'bemiAttentionPulse 3.5s ease-in-out infinite' : 'none',
+          transition: 'all 0.8s ease',
           pointerEvents: 'auto',
         }}
       >
         {/* Layer 1: Diffused Luminous Outer Halo / Volumetric Bloom Orbit */}
-        <div
-          aria-hidden="true"
-          className="bemi-orbit-bloom"
-          style={{
-            position: 'absolute',
-            inset: '-100%',
-            background: 'conic-gradient(from 0deg, transparent 0deg, transparent 180deg, var(--brand-primary, #0d8a70) 250deg, #38bdf8 300deg, #ffffff 345deg, var(--brand-primary, #0d8a70) 360deg)',
-            filter: 'blur(8px)',
-            opacity: 0.9,
-            animation: 'bemiOrbitSpin 3s linear infinite',
-            zIndex: 0,
-            pointerEvents: 'none',
-          }}
-        />
+        {isOrbitActive && (
+          <div
+            aria-hidden="true"
+            className="bemi-orbit-bloom"
+            style={{
+              position: 'absolute',
+              inset: '-100%',
+              background: 'conic-gradient(from 0deg, transparent 0deg, transparent 180deg, var(--brand-primary, #0d8a70) 250deg, #38bdf8 300deg, #ffffff 345deg, var(--brand-primary, #0d8a70) 360deg)',
+              filter: 'blur(8px)',
+              opacity: 0.9,
+              animation: 'bemiOrbitSpin 3s linear infinite',
+              zIndex: 0,
+              pointerEvents: 'none',
+              transition: 'opacity 0.8s ease',
+            }}
+          />
+        )}
 
         {/* Layer 2: Core Ultra-Bright Laser Comet (Pure Incandescent White Hot Beam + Vivid Brand Trail) */}
-        <div
-          aria-hidden="true"
-          className="bemi-orbit-comet"
-          style={{
-            position: 'absolute',
-            inset: '-120%',
-            background: 'conic-gradient(from 0deg, transparent 0deg, transparent 200deg, var(--brand-primary, #0d8a70) 265deg, #38bdf8 310deg, #ffffff 345deg, #ffffff 355deg, var(--brand-primary, #0d8a70) 360deg)',
-            filter: 'drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 16px var(--brand-primary, #0d8a70))',
-            animation: 'bemiOrbitSpin 3s linear infinite',
-            zIndex: 0,
-            pointerEvents: 'none',
-          }}
-        />
+        {isOrbitActive && (
+          <div
+            aria-hidden="true"
+            className="bemi-orbit-comet"
+            style={{
+              position: 'absolute',
+              inset: '-120%',
+              background: 'conic-gradient(from 0deg, transparent 0deg, transparent 200deg, var(--brand-primary, #0d8a70) 265deg, #38bdf8 310deg, #ffffff 345deg, #ffffff 355deg, var(--brand-primary, #0d8a70) 360deg)',
+              filter: 'drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 16px var(--brand-primary, #0d8a70))',
+              animation: 'bemiOrbitSpin 3s linear infinite',
+              zIndex: 0,
+              pointerEvents: 'none',
+              transition: 'opacity 0.8s ease',
+            }}
+          />
+        )}
 
         {/* The actual Bar Content */}
         <div
