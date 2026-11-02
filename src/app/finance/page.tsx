@@ -2851,93 +2851,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
   });
   const [collapsed, setCollapsed] = useState(false);
 
-  // Real-time DOM theme reconciler: guarantees that any module or modal rendered in .app-shell / body adopts the active subsidiary brand color
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
 
-    const reconcileSubsidiaryTheme = () => {
-      const container = document.querySelector('.app-shell') || document.body;
-      if (!container) return;
-
-      const elements = container.querySelectorAll<HTMLElement>('*');
-      elements.forEach((el) => {
-        // Skip sidebar brand switch master group icon if in group view
-        if (el.closest('.switch-menu') && el.textContent?.includes('MASTER CONGLOMERATE')) return;
-
-        // Color
-        const color = el.style.color;
-        if (color === 'rgb(234, 88, 12)' || color === '#ea580c' || color === 'rgb(249, 115, 22)' || color === '#f97316' || color === '#c2410c') {
-          el.style.color = activeBrandColor;
-        }
-
-        // Borders
-        const border = el.style.border;
-        const borderColor = el.style.borderColor;
-        const borderBottom = el.style.borderBottom;
-        const borderLeft = el.style.borderLeft;
-
-        if (borderColor === 'rgb(234, 88, 12)' || borderColor === '#ea580c' || borderColor === 'rgb(249, 115, 22)' || borderColor === '#f97316') {
-          el.style.borderColor = activeBrandColor;
-        }
-        if (border && (border.includes('234, 88, 12') || border.includes('#ea580c') || border.includes('249, 115, 22') || border.includes('#f97316'))) {
-          el.style.borderColor = activeBrandColor;
-        }
-        if (borderBottom && (borderBottom.includes('234, 88, 12') || borderBottom.includes('#ea580c') || borderBottom.includes('249, 115, 22') || borderBottom.includes('#f97316'))) {
-          el.style.borderBottomColor = activeBrandColor;
-        }
-        if (borderLeft && (borderLeft.includes('249, 115, 22') || borderLeft.includes('234, 88, 12') || borderLeft.includes('#f97316') || borderLeft.includes('#ea580c'))) {
-          el.style.borderLeftColor = activeBrandColor;
-        }
-
-        // Backgrounds
-        const bg = el.style.background;
-        const bgColor = el.style.backgroundColor;
-
-        if (bg) {
-          if (bg.includes('249, 115, 22') || bg.includes('234, 88, 12') || bg.includes('#f97316') || bg.includes('#ea580c') || bg.includes('linear-gradient(135deg, #f97316')) {
-            el.style.background = `linear-gradient(135deg, ${activeTintHex} 0%, ${activeBrandColor} 100%)`;
-            el.style.boxShadow = `0 4px 16px ${activeBrandColor}35`;
-          } else if (bg.includes('255, 247, 237') || bg.includes('#fff7ed') || bg.includes('#ffedd5') || bg.includes('#fed7aa')) {
-            el.style.background = `${activeBrandColor}14`;
-          }
-        }
-        if (bgColor === 'rgb(234, 88, 12)' || bgColor === '#ea580c' || bgColor === 'rgb(249, 115, 22)' || bgColor === '#f97316') {
-          el.style.backgroundColor = activeBrandColor;
-        } else if (bgColor === 'rgb(255, 247, 237)' || bgColor === '#fff7ed' || bgColor === 'rgb(255, 237, 213)' || bgColor === '#ffedd5' || bgColor === '#fed7aa') {
-          el.style.backgroundColor = `${activeBrandColor}14`;
-        }
-
-        // SVG icons and paths
-        const tag = el.tagName.toLowerCase();
-        if (tag === 'svg' || tag === 'path' || tag === 'circle' || tag === 'line' || tag === 'rect' || tag === 'polygon') {
-          const stroke = el.getAttribute('stroke');
-          const fill = el.getAttribute('fill');
-          const svgColor = el.getAttribute('color');
-          if (stroke === '#ea580c' || stroke === '#f97316' || stroke === 'rgb(234, 88, 12)' || stroke === 'rgb(249, 115, 22)') {
-            el.setAttribute('stroke', activeBrandColor);
-          }
-          if (fill === '#ea580c' || fill === '#f97316' || fill === 'rgb(234, 88, 12)' || fill === 'rgb(249, 115, 22)') {
-            el.setAttribute('fill', activeBrandColor);
-          }
-          if (svgColor === '#ea580c' || svgColor === '#f97316' || svgColor === 'rgb(234, 88, 12)' || svgColor === 'rgb(249, 115, 22)') {
-            el.setAttribute('color', activeBrandColor);
-          }
-        }
-      });
-    };
-
-    reconcileSubsidiaryTheme();
-
-    const observer = new MutationObserver(() => {
-      reconcileSubsidiaryTheme();
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [activeBrandColor, active, activeTintHex]);
   const [allowAiAnalystChat, setAllowAiAnalystChat] = useState(true);
 
   // Live workspace-scoped notifications
@@ -3183,8 +3097,20 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
       if (target === 'Attendance & Timekeeping' || target === 'Attendance') return <AttendanceDeskPage />;
       if (target === 'Staff profiles') return <LiveStaffProfilesModule scope={activeScope} setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
       if (target === 'Analytics & BI') return <LiveAnalyticsBIPage/>;
-      if (target === 'Audit logs') return <LiveAuditLogsModule scope={activeScope} setNotice={setNotice}/>;
-      if (target === 'Intercompany notes') return <LiveIntercompanyModule scope={activeScope} setNotice={setNotice}/>;
+      if (target === 'Intercompany notes' || target === 'Intercompany & Audit Hub') {
+        return (
+          <IntercompanyAuditHubView
+            initialTab="notes"
+            businessName={current.name}
+            userName={safeUser.fullName}
+            scope={activeScope}
+            businessId={current.id}
+            businessCode={(current as any).code}
+            onNavigate={setActive}
+            onSelectBusiness={selectBusiness}
+          />
+        );
+      }
       if (target === 'Settings' || target === 'Admin Settings') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
       if (target === 'Mobile App Settings' || target === 'Mobile settings' || target === 'Mobile App Version Control') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice} initialSection="Mobile App Settings"/>;
       if (target === 'Overview') {
@@ -3429,8 +3355,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
     if(target==='Follow-up tasks') return <LiveFollowUpTasksModule setNotice={setNotice}/>;
     if(target==='Closure clearances') return <ClosureClearancesModule business={current} setNotice={setNotice}/>;
     if(target==='Hybrid payroll') return <PayrollModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
-    if(target==='Cost allocation rules') return <CostAllocationModule business={current} setNotice={setNotice}/>;
-    if(target==='Intercompany notes') return <LiveIntercompanyModule scope={activeScope} setNotice={setNotice}/>;
+    if(target==='Intercompany notes'||target==='Intercompany & Audit Hub') return <IntercompanyAuditHubView initialTab="notes" businessName={current.name} userName={safeUser.fullName} scope={activeScope} businessId={current.id} businessCode={(current as any).code} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='Settlement reconciliation') return <SettlementReconciliationModule business={current} setNotice={setNotice}/>;
     if(target==='Vendors & suppliers') return <VendorsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
     if(target==='Price benchmarks') return <PriceBenchmarksModule business={current} setNotice={setNotice}/>;

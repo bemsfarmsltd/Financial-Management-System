@@ -2241,19 +2241,21 @@ export function IntercompanyModule({ setNotice, scope }: { setNotice: (message: 
     try {
       const param = scope && scope !== 'ALL' ? `?subsidiary=${encodeURIComponent(scope)}` : '';
       const [n, o] = await Promise.all([
-        api<{ notes: IntercompanyNote[] }>(`/api/intercompany${param}`),
-        api<{ organizations: OrganizationOption[] }>('/api/organizations'),
+        api<{ notes: IntercompanyNote[] }>(`/api/intercompany${param}`).catch(() => ({ notes: [] })),
+        api<{ organizations: OrganizationOption[] }>('/api/organizations').catch(() => ({ organizations: [] })),
       ]);
-      setNotes(n.notes || []);
-      setOrganizations(o.organizations || []);
-      if (!source && o.organizations[0]) setSource(o.organizations[0].id);
-      if (!target && o.organizations[1]) setTarget(o.organizations[1].id);
+      const noteList = Array.isArray(n?.notes) ? n.notes : [];
+      const orgList = Array.isArray(o?.organizations) ? o.organizations : [];
+      setNotes(noteList);
+      setOrganizations(orgList);
+      setSource((prev) => prev || orgList[0]?.id || '');
+      setTarget((prev) => prev || orgList[1]?.id || orgList[0]?.id || '');
     } catch (e) {
       setError(errorText(e));
     } finally {
       setLoading(false);
     }
-  }, [scope, source, target]);
+  }, [scope]);
 
   useEffect(() => {
     void load();
