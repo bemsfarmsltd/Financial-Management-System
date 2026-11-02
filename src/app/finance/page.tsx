@@ -2459,17 +2459,31 @@ function NotificationBridgeModule({business,setNotice}:{business:Business;setNot
 
 type GmdRequest = RequestDossier;
 
-function FundRequestsModule({business,setNotice,onNavigate,canCreate=true}:{business:Business;setNotice:(x:string)=>void;onNavigate:(p:string)=>void;canCreate?:boolean}) {
-  const [requests,setRequests]=useState<GmdRequest[]>([]);
-  const [loadState,setLoadState]=useState<'loading'|'ready'|'error'>('loading');
-  const [query,setQuery]=useState('');
-  const [statusFilter,setStatusFilter]=useState('ALL');
-  const [paymentFilter,setPaymentFilter]=useState('ALL');
-  const [accountabilityFilter,setAccountabilityFilter]=useState('ALL');
-  const [selectedRequest,setSelectedRequest]=useState<GmdRequest|null>(null);
+function FundRequestsModule({
+  business,
+  setNotice,
+  onNavigate,
+  canCreate = true,
+}: {
+  business: Business;
+  setNotice: (x: string) => void;
+  onNavigate: (p: string) => void;
+  canCreate?: boolean;
+}) {
+  const [requests, setRequests] = useState<GmdRequest[]>([]);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [query, setQuery] = useState('');
+  const [tabFilter, setTabFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'DISBURSED' | 'EVIDENCE'>('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [tierFilter, setTierFilter] = useState('ALL');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [previewMode, setPreviewMode] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<GmdRequest | null>(null);
 
   const isGroup = business.code === 'BEMS-GROUP' || (business as any).type === 'GROUP' || business.id === 'bems-group-hq' || business.id === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30';
   const activeScope = isGroup ? 'ALL' : (business.code || business.id);
+  const brandColor = business.brandColor || business.color || (isGroup ? '#ea580c' : '#0d8a70');
+  const brandLogo = business.logoUrl || (isGroup ? '/bems-group-logo.png?v=20261024' : null);
 
   const loadRequests = () => {
     setLoadState('loading');
@@ -2507,8 +2521,8 @@ function FundRequestsModule({business,setNotice,onNavigate,canCreate=true}:{busi
                   isRecurring: Boolean(r.isRecurring),
                   recurringInterval: r.recurringInterval || null,
                   createdAt: r.createdAt || new Date().toISOString(),
-                  subsidiary: { id: '', code: '', name: r.subsidiaryName || 'BEMS Group' },
-                  requester: { id: '', name: 'Requester', role: 'STAFF', employeeNumber: '', department: r.departmentName || 'Operations' },
+                  subsidiary: { id: '', code: '', name: r.subsidiaryName || business.name },
+                  requester: { id: '', name: 'Staff Requester', role: 'STAFF', employeeNumber: '', department: r.departmentName || 'Operations' },
                   vendor: r.vendor || null,
                   threeWayMatch: { poMatched: true, quoteAttached: false, scopeVerified: true, status: '2-WAY MATCHED' },
                   budgetImpact: { totalBudget: 25000000, spentSoFar: 0, remainingBefore: 25000000, remainingAfter: 25000000, percentOfBudget: 0 },
@@ -2525,19 +2539,126 @@ function FundRequestsModule({business,setNotice,onNavigate,canCreate=true}:{busi
           .catch(() => setLoadState('error'));
       });
   };
+
   useEffect(() => { loadRequests(); }, [activeScope]);
-  const pending = requests.filter((r) => ['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(r.approvalStatus));
-  const approved = requests.filter((r) => r.approvalStatus === 'APPROVED');
-  const totalValue = requests.reduce((sum, r) => sum + r.amount, 0);
-  const visible = requests.filter((r) => {
-    const matchesStatus = statusFilter === 'ALL' || r.approvalStatus === statusFilter;
-    const matchesPayment = paymentFilter === 'ALL' || r.paymentStatus === paymentFilter;
-    const matchesAccountability = accountabilityFilter === 'ALL' || r.accountabilityStatus === accountabilityFilter;
-    const text = `${r.requestNumber || ''} ${r.title || ''} ${r.requester?.name || ''} ${r.subsidiary?.name || ''} ${r.category || ''}`.toLowerCase();
-    return matchesStatus && matchesPayment && matchesAccountability && text.includes(query.toLowerCase());
+
+  // High-fidelity realistic preview items if empty and preview toggled
+  const sampleRequisitions: GmdRequest[] = useMemo(() => [
+    {
+      id: 'demo-req-1',
+      systemId: 'REQ-DEMO-001',
+      requestNumber: 'REQ-2026-081',
+      title: 'Biometric Enrolment Terminal Upgrade & Dual Licensing',
+      amount: 2850000,
+      amountFormatted: '₦2,850,000',
+      currency: 'NGN',
+      category: 'HARDWARE & LICENSING',
+      justification: 'Hardware overhaul and firmware cryptographic certificates for 12 local government tax collection desks.',
+      deliverable: '12 Rugged Field Terminals + Signed Firmware License Certificates',
+      neededBy: new Date(Date.now() + 86400000 * 2).toISOString(),
+      tierLevel: 3,
+      tierLabel: 'Tier 3 (GMD Escalation)',
+      approvalStatus: 'IN_REVIEW',
+      paymentStatus: 'UNPAID',
+      accountabilityStatus: 'PENDING_SUBMISSION',
+      isRecurring: false,
+      recurringInterval: null,
+      createdAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+      subsidiary: { id: business.id, code: business.code || 'SUB', name: business.name },
+      requester: { id: 'req-1', name: 'Engr. Dapo Alabi', role: 'STAFF', employeeNumber: 'BEMS-084', department: 'Field Operations' },
+      vendor: { id: 'vnd-01', code: 'VND-01', name: 'VeriCore Biometrics Ltd', category: 'HARDWARE', taxId: 'TIN-928174', bankName: 'Access Bank', accountNumber: '0129482819', accountName: 'VeriCore Biometrics Ltd', rating: 4.8 },
+      threeWayMatch: { poMatched: true, quoteAttached: true, scopeVerified: true, status: '3-WAY MATCHED' },
+      budgetImpact: { totalBudget: 15000000, spentSoFar: 4200000, remainingBefore: 10800000, remainingAfter: 7950000, percentOfBudget: 19 },
+      approvalSteps: [],
+      recentMessages: [],
+    },
+    {
+      id: 'demo-req-2',
+      systemId: 'REQ-DEMO-002',
+      requestNumber: 'REQ-2026-079',
+      title: 'State Internal Revenue Service Core API Gateway Maintenance',
+      amount: 850000,
+      amountFormatted: '₦850,000',
+      currency: 'NGN',
+      category: 'CLOUD & INFRASTRUCTURE',
+      justification: 'Dedicated high-throughput VPN tunnel encryption and failover instances for state tax transmission.',
+      deliverable: 'Mainframe Gateway Uptime SLA report + verified SSL pinning certificates',
+      neededBy: new Date(Date.now() + 86400000 * 4).toISOString(),
+      tierLevel: 2,
+      tierLabel: 'Tier 2 (Executive Approval)',
+      approvalStatus: 'APPROVED',
+      paymentStatus: 'PAID',
+      accountabilityStatus: 'PENDING_SUBMISSION',
+      isRecurring: true,
+      recurringInterval: 'MONTHLY',
+      createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+      subsidiary: { id: business.id, code: business.code || 'SUB', name: business.name },
+      requester: { id: 'req-2', name: 'Amina Bello', role: 'STAFF', employeeNumber: 'BEMS-112', department: 'Enterprise Systems' },
+      vendor: { id: 'vnd-02', code: 'VND-02', name: 'CloudNet West Africa Ltd', category: 'INFRASTRUCTURE', taxId: 'TIN-109284', bankName: 'Zenith Bank', accountNumber: '1092847291', accountName: 'CloudNet West Africa Ltd', rating: 4.9 },
+      threeWayMatch: { poMatched: true, quoteAttached: true, scopeVerified: true, status: '3-WAY MATCHED' },
+      budgetImpact: { totalBudget: 8000000, spentSoFar: 2100000, remainingBefore: 5900000, remainingAfter: 5050000, percentOfBudget: 10.6 },
+      approvalSteps: [],
+      recentMessages: [],
+    },
+    {
+      id: 'demo-req-3',
+      systemId: 'REQ-DEMO-003',
+      requestNumber: 'REQ-2026-072',
+      title: 'Audit & Compliance Field Team Transportation Advance',
+      amount: 320000,
+      amountFormatted: '₦320,000',
+      currency: 'NGN',
+      category: 'LOGISTICS & OPERATIONS',
+      justification: 'Fuel, toll gates, and secure vehicle charter for state-wide revenue inspection team.',
+      deliverable: 'Logistics manifestation sheets + fuel vendor receipts within 72 hours',
+      neededBy: new Date(Date.now() + 86400000 * 1).toISOString(),
+      tierLevel: 1,
+      tierLabel: 'Tier 1 (HOD Direct)',
+      approvalStatus: 'APPROVED',
+      paymentStatus: 'PAID',
+      accountabilityStatus: 'SUBMITTED',
+      isRecurring: false,
+      recurringInterval: null,
+      createdAt: new Date(Date.now() - 86400000 * 4).toISOString(),
+      subsidiary: { id: business.id, code: business.code || 'SUB', name: business.name },
+      requester: { id: 'req-3', name: 'Kelechi Nwosu', role: 'STAFF', employeeNumber: 'BEMS-059', department: 'Field Operations' },
+      vendor: { id: 'vnd-03', code: 'VND-03', name: 'Direct Field Advance (Staff Account)', category: 'LOGISTICS', taxId: null, bankName: 'GTBank', accountNumber: '2049182740', accountName: 'Kelechi Nwosu', rating: 5.0 },
+      threeWayMatch: { poMatched: true, quoteAttached: false, scopeVerified: true, status: '2-WAY MATCHED' },
+      budgetImpact: { totalBudget: 3000000, spentSoFar: 950000, remainingBefore: 2050000, remainingAfter: 1730000, percentOfBudget: 10.6 },
+      approvalSteps: [],
+      recentMessages: [],
+    },
+  ], [business]);
+
+  const activeDataset = (previewMode && requests.length === 0) ? sampleRequisitions : requests;
+
+  // Telemetry KPIs
+  const pending = activeDataset.filter((r) => ['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(r.approvalStatus));
+  const approved = activeDataset.filter((r) => r.approvalStatus === 'APPROVED' && r.paymentStatus !== 'PAID');
+  const disbursed = activeDataset.filter((r) => r.paymentStatus === 'PAID' || r.paymentStatus === 'SETTLED');
+  const evidencePending = activeDataset.filter((r) => r.accountabilityStatus === 'PENDING_SUBMISSION' || r.accountabilityStatus === 'SUBMITTED');
+  const totalValue = activeDataset.reduce((sum, r) => sum + r.amount, 0);
+
+  // Tab Filtering
+  const tabFiltered = activeDataset.filter((r) => {
+    if (tabFilter === 'PENDING') return ['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(r.approvalStatus);
+    if (tabFilter === 'APPROVED') return r.approvalStatus === 'APPROVED' && r.paymentStatus !== 'PAID';
+    if (tabFilter === 'DISBURSED') return r.paymentStatus === 'PAID' || r.paymentStatus === 'SETTLED';
+    if (tabFilter === 'EVIDENCE') return r.accountabilityStatus === 'PENDING_SUBMISSION' || r.accountabilityStatus === 'SUBMITTED';
+    return true;
   });
+
+  // Query & Sub-filter matching
+  const visible = tabFiltered.filter((r) => {
+    const matchesStatus = statusFilter === 'ALL' || r.approvalStatus === statusFilter;
+    const matchesTier = tierFilter === 'ALL' || String(r.tierLevel) === tierFilter;
+    const matchesCategory = categoryFilter === 'ALL' || r.category === categoryFilter;
+    const text = `${r.requestNumber || ''} ${r.title || ''} ${r.requester?.name || ''} ${r.subsidiary?.name || ''} ${r.category || ''} ${r.requester?.department || ''}`.toLowerCase();
+    return matchesStatus && matchesTier && matchesCategory && text.includes(query.toLowerCase());
+  });
+
   const exportRequests = () => {
-    const columns = ['Request number', 'Title', 'Subsidiary', 'Department', 'Amount', 'Approval status', 'Payment status', 'Accountability status', 'Requester', 'Category'];
+    const columns = ['Request number', 'Title', 'Subsidiary', 'Department', 'Amount', 'Approval status', 'Payment status', 'Accountability status', 'Requester', 'Category', 'Tier'];
     const rows = visible.map((r) => [
       r.requestNumber,
       r.title,
@@ -2549,50 +2670,895 @@ function FundRequestsModule({business,setNotice,onNavigate,canCreate=true}:{busi
       r.accountabilityStatus,
       r.requester?.name || '',
       r.category,
+      r.tierLabel,
     ]);
     const csv = '\uFEFF' + [columns, ...rows].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\r\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    const link = document.createElement('a'); link.href = url; link.download = 'fund-requests.csv'; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `fund-requests-${business.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.csv`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
-  return <>
-    <SectionHeader eyebrow="EXPENDITURE INVENTORY" title={`Fund Requests — ${business.name}`} text="Review submitted requests across the group, open their private channels, and follow their approval and payment status." action={canCreate ? "New Fund Request" : undefined} onAction={()=>onNavigate('/requests/new')}/>
-    <div className="customer-summary">
-      <article><small>TOTAL REQUESTS</small><strong>{loadState==='ready'?requests.length:'—'}</strong><span>Across the group</span></article>
-      <article><small>AWAITING DECISION</small><strong>{loadState==='ready'?pending.length:'—'}</strong><span>In the approval pipeline</span></article>
-      <article><small>APPROVED</small><strong>{loadState==='ready'?approved.length:'—'}</strong><span>Payment may still be outstanding</span></article>
-      <article><small>TOTAL REQUEST VALUE</small><strong>{loadState==='ready'?`₦${totalValue.toLocaleString('en-NG')}`:'—'}</strong><span>Current request records</span></article>
-    </div>
-    <section className="card data-register fund-request-inventory">
-      <div className="table-tools">
-        <input aria-label="Search fund requests" placeholder="Search reference, title, staff or subsidiary" value={query} onChange={e=>setQuery(e.target.value)} />
-        <select aria-label="Filter by approval status" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
-          <option value="ALL">All statuses</option><option value="SUBMITTED">Submitted</option><option value="IN_REVIEW">In review</option><option value="CLARIFICATION_REQUESTED">Clarification</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option>
-        </select>
-        <select aria-label="Filter by payment status" value={paymentFilter} onChange={e=>setPaymentFilter(e.target.value)}>
-          <option value="ALL">All payment statuses</option>{Array.from(new Set(requests.map(r=>r.paymentStatus))).filter(Boolean).map(status=><option key={status} value={status}>{status.replaceAll('_',' ')}</option>)}
-        </select>
-        <select aria-label="Filter by accountability status" value={accountabilityFilter} onChange={e=>setAccountabilityFilter(e.target.value)}>
-          <option value="ALL">All accountability statuses</option>{Array.from(new Set(requests.map(r=>r.accountabilityStatus))).filter(Boolean).map(status=><option key={status} value={status}>{status.replaceAll('_',' ')}</option>)}
-        </select>
-        <button onClick={exportRequests}>Export CSV</button>
-        <span className="request-result-count" aria-live="polite">{visible.length} of {requests.length} requests</span>
+
+  const categories = Array.from(new Set(activeDataset.map((r) => r.category))).filter(Boolean);
+
+  return (
+    <div className="fund-requests-container" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* 1. EXECUTIVE TELEMETRY MASTHEAD */}
+      <section
+        style={{
+          borderRadius: 20,
+          background: `radial-gradient(circle at 88% 20%, ${brandColor}24, transparent 42%), linear-gradient(135deg, #070c16 0%, #0e1422 65%, ${brandColor}18 100%)`,
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 16px 36px rgba(0, 0, 0, 0.16)',
+          color: '#ffffff',
+          padding: '24px 28px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 20,
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ maxWidth: 660, position: 'relative', zIndex: 2 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 10px', borderRadius: 20, background: `${brandColor}22`, border: `1px solid ${brandColor}50`, marginBottom: 10 }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: brandColor, boxShadow: `0 0 10px ${brandColor}` }} />
+            <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#ffffff' }}>
+              EXPENDITURE INVENTORY · {business.name}
+            </span>
+          </div>
+          <h2 style={{ fontSize: 'clamp(22px, 2.5vw, 28px)', fontWeight: 850, letterSpacing: '-0.03em', margin: '4px 0 8px', color: '#ffffff' }}>
+            Fund Requests & Requisition Pipeline
+          </h2>
+          <p style={{ fontSize: 13, color: '#cbd5e1', margin: 0, lineHeight: 1.55 }}>
+            Deterministic multi-threshold governance, automated 3-way matching (Quote + PO + Scope), dual maker-checker bank disbursements, and 72-hour accountability close-outs.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', position: 'relative', zIndex: 2 }}>
+          {canCreate && (
+            <button
+              type="button"
+              onClick={() => onNavigate('/requests/new')}
+              style={{
+                border: 0,
+                background: `linear-gradient(135deg, ${brandColor}, #ea580c)`,
+                color: '#ffffff',
+                padding: '11px 18px',
+                borderRadius: 11,
+                fontSize: 12,
+                fontWeight: 800,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                boxShadow: `0 8px 20px ${brandColor}40`,
+                cursor: 'pointer',
+                transition: 'transform 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+            >
+              <span style={{ fontSize: 14 }}>＋</span> New Fund Request
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={exportRequests}
+            disabled={visible.length === 0}
+            style={{
+              border: '1px solid rgba(255, 255, 255, 0.16)',
+              background: 'rgba(255, 255, 255, 0.06)',
+              color: '#ffffff',
+              padding: '10px 15px',
+              borderRadius: 10,
+              fontSize: 11.5,
+              fontWeight: 750,
+              cursor: visible.length === 0 ? 'not-allowed' : 'pointer',
+              opacity: visible.length === 0 ? 0.5 : 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span>📥</span> Export CSV
+          </button>
+
+          <button
+            type="button"
+            onClick={loadRequests}
+            title="Refresh Requisitions"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              border: '1px solid rgba(255, 255, 255, 0.16)',
+              background: 'rgba(255, 255, 255, 0.06)',
+              color: '#ffffff',
+              display: 'grid',
+              placeItems: 'center',
+              cursor: 'pointer',
+              fontSize: 14,
+            }}
+          >
+            ↻
+          </button>
+        </div>
+      </section>
+
+      {/* 2. ELEVATED TELEMETRY KPI CARDS (5-CARD MATRIX) */}
+      <section
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 14,
+        }}
+      >
+        <article
+          style={{
+            background: '#ffffff',
+            border: '1px solid var(--line)',
+            borderRadius: 16,
+            padding: '18px 20px',
+            boxShadow: '0 4px 16px rgba(15, 23, 42, 0.03)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            minHeight: 112,
+            transition: 'transform 0.2s ease, border-color 0.2s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <small style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: '#64748b', textTransform: 'uppercase' }}>
+              TOTAL REQUISITIONS
+            </small>
+            <span style={{ fontSize: 12, opacity: 0.7 }}>📋</span>
+          </div>
+          <strong style={{ fontSize: 26, fontWeight: 850, color: '#0f172a', margin: '4px 0 2px' }}>
+            {loadState === 'ready' ? activeDataset.length : '—'}
+          </strong>
+          <span style={{ fontSize: 11, color: '#64748b' }}>Across subsidiary ledger</span>
+        </article>
+
+        <article
+          style={{
+            background: '#ffffff',
+            border: '1px solid var(--line)',
+            borderRadius: 16,
+            padding: '18px 20px',
+            boxShadow: '0 4px 16px rgba(15, 23, 42, 0.03)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            minHeight: 112,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <small style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: '#d97706', textTransform: 'uppercase' }}>
+              AWAITING DECISION
+            </small>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 8px #f59e0b' }} />
+          </div>
+          <strong style={{ fontSize: 26, fontWeight: 850, color: '#b45309', margin: '4px 0 2px' }}>
+            {loadState === 'ready' ? pending.length : '—'}
+          </strong>
+          <span style={{ fontSize: 11, color: '#92400e' }}>SLA &lt; 24h review ladder</span>
+        </article>
+
+        <article
+          style={{
+            background: '#ffffff',
+            border: '1px solid var(--line)',
+            borderRadius: 16,
+            padding: '18px 20px',
+            boxShadow: '0 4px 16px rgba(15, 23, 42, 0.03)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            minHeight: 112,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <small style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: '#059669', textTransform: 'uppercase' }}>
+              APPROVED FOR PAYOUT
+            </small>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+          </div>
+          <strong style={{ fontSize: 26, fontWeight: 850, color: '#047857', margin: '4px 0 2px' }}>
+            {loadState === 'ready' ? approved.length : '—'}
+          </strong>
+          <span style={{ fontSize: 11, color: '#065f46' }}>Ready for bank disbursement</span>
+        </article>
+
+        <article
+          style={{
+            background: '#ffffff',
+            border: '1px solid var(--line)',
+            borderRadius: 16,
+            padding: '18px 20px',
+            boxShadow: '0 4px 16px rgba(15, 23, 42, 0.03)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            minHeight: 112,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <small style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: '#7c3aed', textTransform: 'uppercase' }}>
+              72H EVIDENCE WATCHDOG
+            </small>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#8b5cf6', boxShadow: '0 0 8px #8b5cf6' }} />
+          </div>
+          <strong style={{ fontSize: 26, fontWeight: 850, color: '#6d28d9', margin: '4px 0 2px' }}>
+            {loadState === 'ready' ? evidencePending.length : '—'}
+          </strong>
+          <span style={{ fontSize: 11, color: '#5b21b6' }}>Advances requiring receipts</span>
+        </article>
+
+        <article
+          style={{
+            background: '#ffffff',
+            border: `1.5px solid ${brandColor}40`,
+            borderRadius: 16,
+            padding: '18px 20px',
+            boxShadow: `0 4px 18px ${brandColor}12`,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            minHeight: 112,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <small style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: brandColor, textTransform: 'uppercase' }}>
+              COMMITTED VALUE
+            </small>
+            <span style={{ fontSize: 12 }}>💳</span>
+          </div>
+          <strong style={{ fontSize: 22, fontWeight: 850, color: brandColor, margin: '4px 0 2px' }}>
+            {loadState === 'ready' ? `₦${totalValue.toLocaleString('en-NG')}` : '—'}
+          </strong>
+          <span style={{ fontSize: 11, color: '#64748b' }}>Active expenditure records</span>
+        </article>
+      </section>
+
+      {/* 3. SEGMENTED QUICK TABS */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: 6,
+          background: '#f1f5f9',
+          borderRadius: 14,
+          overflowX: 'auto',
+          width: '100%',
+        }}
+      >
+        {[
+          { key: 'ALL', label: 'All Requisitions', count: activeDataset.length },
+          { key: 'PENDING', label: 'Pending Approval', count: pending.length },
+          { key: 'APPROVED', label: 'Approved for Payout', count: approved.length },
+          { key: 'DISBURSED', label: 'Disbursed & Active', count: disbursed.length },
+          { key: 'EVIDENCE', label: '72h Evidence Needed', count: evidencePending.length },
+        ].map((tab) => {
+          const isActive = tabFilter === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setTabFilter(tab.key as any)}
+              style={{
+                border: 0,
+                background: isActive ? '#ffffff' : 'transparent',
+                color: isActive ? '#0f172a' : '#64748b',
+                boxShadow: isActive ? '0 2px 8px rgba(15, 23, 42, 0.08)' : 'none',
+                padding: '8px 14px',
+                borderRadius: 10,
+                fontSize: 12,
+                fontWeight: isActive ? 800 : 650,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>{tab.label}</span>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  padding: '2px 7px',
+                  borderRadius: 8,
+                  background: isActive ? brandColor : 'rgba(100, 116, 139, 0.14)',
+                  color: isActive ? '#ffffff' : '#475569',
+                }}
+              >
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
+
+        {requests.length === 0 && (
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setPreviewMode(!previewMode)}
+              style={{
+                border: `1px solid ${brandColor}60`,
+                background: previewMode ? brandColor : `${brandColor}12`,
+                color: previewMode ? '#ffffff' : brandColor,
+                borderRadius: 9,
+                padding: '6px 12px',
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span>⚡</span> {previewMode ? 'Exit Demo Preview' : 'Preview Live Pipeline'}
+            </button>
+          </div>
+        )}
       </div>
-      {loadState==='loading'&&<div className="inline-status">Loading group requests…</div>}
-      {loadState==='error'&&<div className="inline-status error">Could not load fund requests.<button onClick={loadRequests}>Retry</button></div>}
-      {loadState==='ready'&&<>
-        <div className="register-head"><span>Request & title</span><span>Subsidiary</span><span>Department</span><span>Amount</span><span>Approval</span><span>Requester</span><span/></div>
-        {visible.map(r=><button type="button" className="register-row" key={r.id} onClick={()=>setSelectedRequest(r)} aria-label={`View details for ${r.requestNumber}`}>
-          <span><i>▱</i><strong>{r.title}</strong><small>{r.requestNumber} · {r.category}</small></span>
-          <span>{r.subsidiary.name.replace('Ltd','').trim()}</span><span>{r.requester.department}</span>
-          <strong style={{color:'var(--navy)',fontSize:'14px'}}>{r.amountFormatted}</strong>
-          <b className={r.approvalStatus==='APPROVED'?'good':r.approvalStatus==='REJECTED'?'expired':'review'}>{r.approvalStatus.replaceAll('_',' ')}</b>
-          <span>{r.requester.name}</span><em>View details →</em>
-        </button>)}
-        {!visible.length&&<div className="inline-status">No requests match those filters.</div>}
-      </>}
-    </section>
-    {selectedRequest&&<RequestDossierModal request={selectedRequest} onClose={()=>setSelectedRequest(null)}/>}
-  </>;
+
+      {/* 4. SEARCH & FILTER COMMAND BAR */}
+      <section
+        style={{
+          background: '#ffffff',
+          border: '1px solid var(--line)',
+          borderRadius: 16,
+          padding: '14px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          flexWrap: 'wrap',
+          boxShadow: '0 2px 10px rgba(15, 23, 42, 0.02)',
+        }}
+      >
+        <div style={{ position: 'relative', flex: '1 1 280px' }}>
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 13 }}>
+            🔍
+          </span>
+          <input
+            aria-label="Search fund requests"
+            placeholder="Search by reference, title, staff, or department..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              padding: '0 12px 0 34px',
+              border: '1px solid #d8e0eb',
+              borderRadius: 10,
+              fontSize: 12,
+              color: '#0f172a',
+              outline: 'none',
+              background: '#f8fafc',
+            }}
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 0, background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: 14 }}
+            >
+              ×
+            </button>
+          )}
+        </div>
+
+        <select
+          aria-label="Filter by approval status"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          style={{ height: 40, border: '1px solid #d8e0eb', borderRadius: 10, padding: '0 12px', fontSize: 11.5, background: '#ffffff', color: '#334155', fontWeight: 650 }}
+        >
+          <option value="ALL">All Statuses</option>
+          <option value="SUBMITTED">Submitted</option>
+          <option value="IN_REVIEW">In Review</option>
+          <option value="CLARIFICATION_REQUESTED">Clarification</option>
+          <option value="APPROVED">Approved</option>
+          <option value="REJECTED">Rejected</option>
+        </select>
+
+        <select
+          aria-label="Filter by governance tier"
+          value={tierFilter}
+          onChange={(e) => setTierFilter(e.target.value)}
+          style={{ height: 40, border: '1px solid #d8e0eb', borderRadius: 10, padding: '0 12px', fontSize: 11.5, background: '#ffffff', color: '#334155', fontWeight: 650 }}
+        >
+          <option value="ALL">All Tiers</option>
+          <option value="1">Tier 1 (&lt; ₦500k)</option>
+          <option value="2">Tier 2 (₦500k – ₦2M)</option>
+          <option value="3">Tier 3 (&gt; ₦2M GMD)</option>
+        </select>
+
+        {categories.length > 0 && (
+          <select
+            aria-label="Filter by category"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            style={{ height: 40, border: '1px solid #d8e0eb', borderRadius: 10, padding: '0 12px', fontSize: 11.5, background: '#ffffff', color: '#334155', fontWeight: 650 }}
+          >
+            <option value="ALL">All Categories</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        )}
+
+        <div style={{ marginLeft: 'auto', fontSize: 11.5, color: '#64748b', fontWeight: 700, whiteSpace: 'nowrap' }}>
+          {visible.length} of {activeDataset.length} requests
+        </div>
+      </section>
+
+      {/* 5. MAIN CONTENT AREA: GUIDED EMPTY STATE OR RICH INTERACTIVE TABLE */}
+      {loadState === 'loading' && (
+        <div style={{ padding: 40, background: '#ffffff', borderRadius: 16, border: '1px solid var(--line)', textAlign: 'center', color: '#64748b' }}>
+          <div style={{ fontSize: 24, marginBottom: 8, animation: 'spin 1s linear infinite' }}>↻</div>
+          <strong>Synchronizing expenditure ledger for {business.name}…</strong>
+        </div>
+      )}
+
+      {loadState === 'error' && (
+        <div className="inline-status error" style={{ padding: 18, borderRadius: 14 }}>
+          <span>Failed to retrieve live fund requests from governance database.</span>
+          <button type="button" onClick={loadRequests} style={{ marginLeft: 'auto' }}>
+            Retry Sync
+          </button>
+        </div>
+      )}
+
+      {loadState === 'ready' && activeDataset.length === 0 && (
+        /* GUIDED ENTERPRISE EMPTY STATE — ELIMINATES THE SAD WHITE VOID */
+        <section
+          style={{
+            padding: '48px 36px',
+            background: '#ffffff',
+            border: '1px solid var(--line)',
+            borderRadius: 20,
+            textAlign: 'center',
+            boxShadow: '0 6px 24px rgba(15, 23, 42, 0.03)',
+          }}
+        >
+          {/* Central Holographic Icon */}
+          <div
+            style={{
+              width: 76,
+              height: 76,
+              margin: '0 auto 18px',
+              borderRadius: 24,
+              background: `radial-gradient(circle, ${brandColor}22 0%, #ffffff 80%)`,
+              border: `2px solid ${brandColor}40`,
+              boxShadow: `0 0 0 14px ${brandColor}10, 0 0 0 30px ${brandColor}06`,
+              display: 'grid',
+              placeItems: 'center',
+            }}
+          >
+            {brandLogo ? (
+              <img src={brandLogo} alt="" style={{ width: 44, height: 44, objectFit: 'contain' }} />
+            ) : (
+              <span style={{ fontSize: 28, color: brandColor, fontWeight: 900 }}>
+                {business.initials || business.name.slice(0, 2).toUpperCase()}
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px', borderRadius: 20, background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', fontSize: 10, fontWeight: 800, marginBottom: 12 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />
+            UNIFIED REQUISITION LEDGER ACTIVE
+          </div>
+
+          <h3 style={{ fontSize: 24, fontWeight: 850, color: '#0f172a', margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+            No Active Fund Requests for {business.name}
+          </h3>
+
+          <p style={{ fontSize: 13.5, color: '#64748b', maxWidth: 640, margin: '0 auto 32px', lineHeight: 1.6 }}>
+            Official expenditure ledger for {business.name}. Requisitions submitted by staff will stream here automatically for 3-way quote matching, multi-tier executive approval, and dual maker-checker disbursement.
+          </p>
+
+          {/* 3 Process Guidance Cards */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+              gap: 16,
+              textAlign: 'left',
+              maxWidth: 960,
+              margin: '0 auto 34px',
+            }}
+          >
+            <div
+              style={{
+                border: '1px solid #e2e8f0',
+                borderRadius: 14,
+                padding: '20px 18px',
+                background: '#f8fafc',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <span style={{ fontSize: 24, display: 'block', marginBottom: 10 }}>📝</span>
+                <h4 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
+                  1. Staff Requisitions
+                </h4>
+                <p style={{ margin: 0, fontSize: 12, color: '#64748b', lineHeight: 1.55 }}>
+                  Staff initiate expenditure requests via the self-service BEMS Staff Portal or Mobile APK with itemized pro-forma quotes.
+                </p>
+              </div>
+              <div style={{ marginTop: 14, fontSize: 10, fontWeight: 800, color: brandColor }}>
+                ✓ Self-Service Channel Enforced
+              </div>
+            </div>
+
+            <div
+              style={{
+                border: '1px solid #e2e8f0',
+                borderRadius: 14,
+                padding: '20px 18px',
+                background: '#f8fafc',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <span style={{ fontSize: 24, display: 'block', marginBottom: 10 }}>⚖️</span>
+                <h4 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
+                  2. 3-Tier Governance
+                </h4>
+                <p style={{ margin: 0, fontSize: 12, color: '#64748b', lineHeight: 1.55 }}>
+                  Automatic threshold routing: &lt;₦500k to HOD direct, &lt;₦2M to Executive, and &gt;₦2M escalates to The Group Managing Director.
+                </p>
+              </div>
+              <div style={{ marginTop: 14, fontSize: 10, fontWeight: 800, color: '#059669' }}>
+                ✓ 3-Way Match Verification
+              </div>
+            </div>
+
+            <div
+              style={{
+                border: '1px solid #e2e8f0',
+                borderRadius: 14,
+                padding: '20px 18px',
+                background: '#f8fafc',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <span style={{ fontSize: 24, display: 'block', marginBottom: 10 }}>🏦</span>
+                <h4 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
+                  3. Maker-Checker Payout
+                </h4>
+                <p style={{ margin: 0, fontSize: 12, color: '#64748b', lineHeight: 1.55 }}>
+                  Treasury records off-platform bank transfers with SHA-256 duplicate detection, followed by 72-hour receipt accountability.
+                </p>
+              </div>
+              <div style={{ marginTop: 14, fontSize: 10, fontWeight: 800, color: '#7c3aed' }}>
+                ✓ 72-Hour Evidence Compliance
+              </div>
+            </div>
+          </div>
+
+          {/* Action Row */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+            {canCreate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('/requests/new')}
+                style={{
+                  border: 0,
+                  background: `linear-gradient(135deg, ${brandColor}, #ea580c)`,
+                  color: '#ffffff',
+                  padding: '12px 22px',
+                  borderRadius: 11,
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: `0 8px 20px ${brandColor}33`,
+                }}
+              >
+                ＋ Submit First Fund Request
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setPreviewMode(true)}
+              style={{
+                border: `1.5px solid ${brandColor}`,
+                background: '#ffffff',
+                color: brandColor,
+                padding: '11px 20px',
+                borderRadius: 11,
+                fontSize: 12.5,
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <span>⚡</span> Preview Sample Requisitions
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setNotice('Opening Delegation of Authority policy limits and thresholds.')}
+              style={{
+                border: '1px solid #d8e0eb',
+                background: '#f8fafc',
+                color: '#475569',
+                padding: '11px 18px',
+                borderRadius: 11,
+                fontSize: 12,
+                fontWeight: 750,
+                cursor: 'pointer',
+              }}
+            >
+              📑 View Authority Matrix
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* 6. RICH REQUISITION TABLE (WHEN DATA OR PREVIEW IS ACTIVE) */}
+      {loadState === 'ready' && activeDataset.length > 0 && (
+        <section
+          style={{
+            background: '#ffffff',
+            border: '1px solid var(--line)',
+            borderRadius: 18,
+            overflow: 'hidden',
+            boxShadow: '0 4px 20px rgba(15, 23, 42, 0.03)',
+          }}
+        >
+          {previewMode && requests.length === 0 && (
+            <div
+              style={{
+                background: `linear-gradient(90deg, ${brandColor}18, #ffffff)`,
+                borderBottom: `1px solid ${brandColor}40`,
+                padding: '10px 18px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontSize: 12,
+                color: '#0f172a',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 14 }}>⚡</span>
+                <strong>Interactive Demo Preview:</strong> Displaying realistic {business.name} expenditure items to preview 3-way matching, tier routing, and payout status.
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewMode(false)}
+                style={{
+                  border: `1px solid ${brandColor}`,
+                  background: '#ffffff',
+                  color: brandColor,
+                  borderRadius: 7,
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                Exit Preview
+              </button>
+            </div>
+          )}
+
+          {/* Table Header */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1.4fr 1.1fr 1fr 1.1fr 1fr 120px',
+              gap: 14,
+              padding: '14px 20px',
+              background: '#f8fafc',
+              borderBottom: '1px solid var(--line)',
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: '#64748b',
+            }}
+          >
+            <span>Requisition & Justification</span>
+            <span>Category & 3-Way Match</span>
+            <span>Requester & Department</span>
+            <span>Amount & Governance Tier</span>
+            <span>Status</span>
+            <span style={{ textAlign: 'right' }}>Action</span>
+          </div>
+
+          {/* Table Rows */}
+          {visible.map((r) => {
+            const isApproved = r.approvalStatus === 'APPROVED';
+            const isRejected = r.approvalStatus === 'REJECTED';
+            const isPaid = r.paymentStatus === 'PAID' || r.paymentStatus === 'SETTLED';
+
+            return (
+              <div
+                key={r.id}
+                onClick={() => setSelectedRequest(r)}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1.4fr 1.1fr 1fr 1.1fr 1fr 120px',
+                  gap: 14,
+                  alignItems: 'center',
+                  padding: '16px 20px',
+                  borderBottom: '1px solid #f1f5f9',
+                  background: '#ffffff',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.15s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#ffffff')}
+              >
+                {/* 1. Requisition & Title */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: brandColor, background: `${brandColor}14`, padding: '2px 6px', borderRadius: 5 }}>
+                      {r.requestNumber}
+                    </span>
+                    {Boolean((r as any).isUrgent) && (
+                      <span style={{ fontSize: 9, fontWeight: 800, background: '#fef2f2', color: '#dc2626', padding: '2px 5px', borderRadius: 5, border: '1px solid #fecaca' }}>
+                        URGENT
+                      </span>
+                    )}
+                  </div>
+                  <strong style={{ fontSize: 13, color: '#0f172a', display: 'block', lineHeight: 1.35 }}>
+                    {r.title}
+                  </strong>
+                  <p style={{ margin: '3px 0 0', fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
+                    {r.justification || 'Standard departmental procurement'}
+                  </p>
+                </div>
+
+                {/* 2. Category & 3-Way Match */}
+                <div>
+                  <span style={{ fontSize: 10, fontWeight: 800, background: '#f1f5f9', color: '#475569', padding: '3px 7px', borderRadius: 6, display: 'inline-block', marginBottom: 5 }}>
+                    {r.category.replaceAll('_', ' ')}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: r.threeWayMatch?.status === '3-WAY MATCHED' ? '#10b981' : '#f59e0b' }} />
+                    <span style={{ fontSize: 10.5, fontWeight: 750, color: r.threeWayMatch?.status === '3-WAY MATCHED' ? '#047857' : '#b45309' }}>
+                      {r.threeWayMatch?.status || '2-WAY MATCHED'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Requester & Department */}
+                <div>
+                  <strong style={{ fontSize: 12.5, color: '#1e293b', display: 'block' }}>
+                    {r.requester?.name || 'Staff Member'}
+                  </strong>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>
+                    {r.requester?.department || 'Operations'}
+                  </span>
+                </div>
+
+                {/* 4. Amount & Governance Tier */}
+                <div>
+                  <strong style={{ fontSize: 15, fontWeight: 850, color: '#0f172a', display: 'block' }}>
+                    {r.amountFormatted}
+                  </strong>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      color: r.tierLevel === 3 ? '#b45309' : r.tierLevel === 2 ? '#4338ca' : '#047857',
+                      background: r.tierLevel === 3 ? '#fffbeb' : r.tierLevel === 2 ? '#eef2ff' : '#ecfdf5',
+                      padding: '2px 6px',
+                      borderRadius: 5,
+                      display: 'inline-block',
+                      marginTop: 2,
+                    }}
+                  >
+                    {r.tierLabel}
+                  </span>
+                </div>
+
+                {/* 5. Status */}
+                <div>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      padding: '4px 9px',
+                      borderRadius: 20,
+                      background: isApproved ? '#ecfdf5' : isRejected ? '#fef2f2' : '#fffbeb',
+                      color: isApproved ? '#047857' : isRejected ? '#b91c1c' : '#b45309',
+                      border: `1px solid ${isApproved ? '#a7f3d0' : isRejected ? '#fecaca' : '#fde68a'}`,
+                    }}
+                  >
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: isApproved ? '#10b981' : isRejected ? '#ef4444' : '#f59e0b' }} />
+                    {r.approvalStatus.replaceAll('_', ' ')}
+                  </span>
+                  {isPaid && (
+                    <span style={{ display: 'block', fontSize: 9.5, color: '#059669', fontWeight: 750, marginTop: 3 }}>
+                      ✓ Bank Disbursed
+                    </span>
+                  )}
+                </div>
+
+                {/* 6. Action */}
+                <div style={{ textAlign: 'right' }}>
+                  <span
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 800,
+                      color: brandColor,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    Dossier →
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+
+          {!visible.length && (
+            <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+              <p style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 700 }}>
+                No requisitions match the selected filters.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  setTabFilter('ALL');
+                  setStatusFilter('ALL');
+                  setTierFilter('ALL');
+                  setCategoryFilter('ALL');
+                }}
+                style={{
+                  border: '1px solid #d8e0eb',
+                  background: '#f8fafc',
+                  color: brandColor,
+                  borderRadius: 8,
+                  padding: '7px 14px',
+                  fontSize: 11.5,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                Reset All Filters
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {selectedRequest && (
+        <RequestDossierModal
+          request={selectedRequest}
+          onClose={() => setSelectedRequest(null)}
+        />
+      )}
+    </div>
+  );
 }
 
 function ApprovalsModule({business,setNotice,onNavigate}:{business:Business;setNotice:(x:string)=>void;onNavigate:(p:string)=>void}) {
