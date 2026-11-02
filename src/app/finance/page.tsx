@@ -2292,7 +2292,7 @@ function RequestChannelsModule({business,setNotice,onNavigate}:{business:Busines
       <RequestChatModal
         requestNumber={selectedChat.requestNumber}
         title={selectedChat.title}
-        initialMessages={selectedChat.recentMessages}
+        initialMessages={selectedChat.recentMessages || []}
         onClose={() => { setSelectedChat(null); loadChannels(); }}
       />
     )}
