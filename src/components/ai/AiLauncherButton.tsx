@@ -18,24 +18,24 @@ export function AiHeaderLauncher({ onClick, pendingCount = 1 }: HeaderLauncherPr
         display: 'inline-flex',
         alignItems: 'center',
         gap: '8px',
-        background: 'linear-gradient(135deg, rgba(234, 88, 12, 0.15) 0%, rgba(249, 115, 22, 0.25) 100%)',
-        border: '1px solid rgba(249, 115, 22, 0.5)',
+        background: 'var(--brand-tint, rgba(13, 138, 112, 0.15))',
+        border: '1px solid var(--brand-primary, #0d8a70)',
         borderRadius: '20px',
         padding: '6px 12px',
         color: '#ffffff',
         cursor: 'pointer',
         fontSize: '12px',
         fontWeight: 750,
-        boxShadow: '0 0 12px rgba(249, 115, 22, 0.25)',
+        boxShadow: '0 0 12px var(--brand-shadow-color, rgba(13, 138, 112, 0.25))',
         transition: 'all 0.2s ease',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(-1px)';
-        e.currentTarget.style.boxShadow = '0 0 18px rgba(249, 115, 22, 0.45)';
+        e.currentTarget.style.boxShadow = '0 0 18px var(--brand-shadow-color, rgba(13, 138, 112, 0.45))';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = '0 0 12px rgba(249, 115, 22, 0.25)';
+        e.currentTarget.style.boxShadow = '0 0 12px var(--brand-shadow-color, rgba(13, 138, 112, 0.25))';
       }}
     >
       <div
@@ -95,8 +95,8 @@ export function AiFloatingLauncher({ onClick, pendingCount = 1 }: FloatingLaunch
           height: '54px',
           borderRadius: '50%',
           background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-          border: '2px solid #f97316',
-          boxShadow: '0 8px 24px rgba(234, 88, 12, 0.4), 0 0 12px rgba(249, 115, 22, 0.25)',
+          border: '2px solid var(--brand-primary, #0d8a70)',
+          boxShadow: '0 8px 24px var(--brand-shadow-color, rgba(13, 138, 112, 0.4)), 0 0 12px var(--brand-shadow-color, rgba(13, 138, 112, 0.25))',
           display: 'grid',
           placeItems: 'center',
           cursor: 'pointer',
@@ -105,7 +105,7 @@ export function AiFloatingLauncher({ onClick, pendingCount = 1 }: FloatingLaunch
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.08)';
-          e.currentTarget.style.boxShadow = '0 12px 30px rgba(234, 88, 12, 0.6)';
+          e.currentTarget.style.boxShadow = '0 12px 30px var(--brand-shadow-color, rgba(13, 138, 112, 0.6))';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.transform = 'scale(1)';

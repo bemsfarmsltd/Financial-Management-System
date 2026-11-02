@@ -3493,160 +3493,119 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
           <header className="topbar">
             <div className="business-switch-wrap">
               <button className="business-switch" onClick={()=>{setSwitcher(!switcher);setTopPanel(null)}}>
-                <span style={{background:'#ffffff',border:`1.5px solid ${activeBrandColor}50`,borderRadius:'8px',padding:'2px',display:'inline-flex',alignItems:'center',justifyContent:'center',overflow:'hidden',width:36,height:36,flexShrink:0}}>
+                <span style={{background:'#ffffff',border:`1.5px solid ${activeBrandColor}45`,borderRadius:'8px',padding:'2px',display:'inline-flex',alignItems:'center',justifyContent:'center',overflow:'hidden',width:36,height:36,flexShrink:0}}>
                   {activeLogoUrl ? (
                     <img src={activeLogoUrl} alt={current.name} style={{width:'100%',height:'100%',objectFit:'contain'}}/>
                   ) : (
                     <span style={{fontSize:12,fontWeight:900,color:activeBrandColor}}>{current.initials || current.name.slice(0, 2).toUpperCase()}</span>
                   )}
                 </span>
-                <div>
-                  <div style={{display:'flex',alignItems:'center',gap:6}}>
-                    <strong>{current.name}</strong>
-                    {isGroupScope && (
-                      <span style={{fontSize:8,fontWeight:800,padding:'1px 5px',borderRadius:6,background:`${activeBrandColor}20`,color:activeBrandColor,border:`1px solid ${activeBrandColor}40`}}>
-                        GROUP VIEW
-                      </span>
-                    )}
-                  </div>
-                  <small>{isGroupScope ? 'Consolidated Master View · All Companies' : current.industry}</small>
+                <div style={{ textAlign: 'left' }}>
+                  <strong style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'block', lineHeight: 1.25 }}>{current.name}</strong>
+                  <small style={{ fontSize: 10.5, color: '#64748b', display: 'block', marginTop: 2 }}>{current.industry || 'Workspace'}</small>
                 </div>
-                <b>⌄</b>
+                <b style={{ color: '#94a3b8', fontSize: 12, marginLeft: 2 }}>⌄</b>
               </button>
               {switcher && (
-                <div className="switch-menu" style={{ width: 340, padding: 12, borderRadius: 16, boxShadow: '0 20px 60px rgba(15, 23, 42, 0.22)', border: '1px solid #e2e8f0' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px 10px', borderBottom: '1px solid #f1f5f9' }}>
-                    <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', color: '#64748b', textTransform: 'uppercase' }}>
-                      SWITCH WORKSPACE
+                <div
+                  className="switch-menu"
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    width: 290,
+                    padding: 8,
+                    borderRadius: 14,
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 16px 40px -8px rgba(15, 23, 42, 0.16), 0 0 1px 1px rgba(15, 23, 42, 0.04)',
+                    zIndex: 60,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: 10, fontWeight: 750, letterSpacing: '0.08em', color: '#64748b', textTransform: 'uppercase' }}>
+                      Select Workspace
                     </span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: activeBrandColor, background: `${activeBrandColor}14`, padding: '2px 8px', borderRadius: 12 }}>
-                      {businesses.length} {businesses.length === 1 ? 'Entity' : 'Entities'}
+                    <span style={{ fontSize: 10, fontWeight: 650, color: '#94a3b8' }}>
+                      {businesses.length} {businesses.length === 1 ? 'entity' : 'entities'}
                     </span>
                   </div>
 
-                  {/* MASTER CONGLOMERATE VIEW */}
-                  {(() => {
-                    const groupEntity = businesses.find(b => b.type === 'GROUP' || b.id === 'bems-group-hq' || b.code === 'BEMS-GROUP');
-                    const isGroupSelected = groupEntity ? groupEntity.id === current.id : isGroupScope;
-                    if (!groupEntity) return null;
-                    return (
-                      <div style={{ marginTop: 10, marginBottom: 8 }}>
-                        <div style={{ fontSize: 9, fontWeight: 800, color: '#ea580c', letterSpacing: '0.08em', padding: '0 6px 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span>🏛</span> MASTER CONGLOMERATE VIEW
-                        </div>
+                  <div style={{ maxHeight: 260, overflowY: 'auto', padding: '6px 0', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {businesses.map((b) => {
+                      const isSelected = b.id === current.id;
+                      const subColor = b.brandColor || b.color || '#0d8a70';
+                      const subLogo = b.logoUrl;
+                      return (
                         <button
                           type="button"
-                          className={isGroupSelected ? 'selected' : ''}
-                          onClick={() => selectBusiness(groupEntity.id)}
+                          key={b.id}
+                          onClick={() => selectBusiness(b.id)}
                           style={{
                             width: '100%',
                             display: 'flex',
                             alignItems: 'center',
                             gap: 10,
-                            padding: '10px',
-                            borderRadius: 10,
-                            background: isGroupSelected ? '#fff7ed' : '#ffffff',
-                            border: isGroupSelected ? '1.5px solid #fdba74' : '1px solid #e2e8f0',
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                            background: isSelected ? `${subColor}12` : 'transparent',
+                            border: isSelected ? `1px solid ${subColor}35` : '1px solid transparent',
                             textAlign: 'left',
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
                           }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = '#f8fafc';
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = 'transparent';
+                          }}
                         >
-                          <span style={{ width: 34, height: 34, borderRadius: 8, background: '#0b1220', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 2, flexShrink: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
-                            <img src="/bems-group-logo.png?v=20261024" alt="BEMS Group" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                          <span
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 7,
+                              background: '#ffffff',
+                              border: `1px solid ${isSelected ? subColor : '#e2e8f0'}`,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              overflow: 'hidden',
+                              padding: 2,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {subLogo ? (
+                              <img src={subLogo} alt={b.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                            ) : (
+                              <span style={{ fontSize: 11, fontWeight: 800, color: subColor }}>
+                                {b.initials || b.code?.slice(0, 2) || b.name.slice(0, 2).toUpperCase()}
+                              </span>
+                            )}
                           </span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <strong style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>{groupEntity.name}</strong>
-                              <span style={{ fontSize: 8, fontWeight: 800, background: '#ea580c', color: '#fff', padding: '1px 5px', borderRadius: 4 }}>
-                                CONSOLIDATED
-                              </span>
-                            </div>
-                            <small style={{ fontSize: 10, color: '#64748b', display: 'block', marginTop: 2 }}>
-                              Aggregates all company data across all pages
-                            </small>
-                          </div>
-                          {isGroupSelected && <b style={{ color: '#ea580c', fontSize: 14 }}>✓</b>}
-                        </button>
-                      </div>
-                    );
-                  })()}
 
-                  {/* OPERATING SUBSIDIARIES */}
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: '#64748b', letterSpacing: '0.08em', padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span>🏢</span> OPERATING SUBSIDIARIES
-                    </div>
-                    <div style={{ maxHeight: 200, overflowY: 'auto', display: 'grid', gap: 4 }}>
-                      {businesses
-                        .filter(b => b.type !== 'GROUP' && b.id !== 'bems-group-hq' && b.code !== 'BEMS-GROUP')
-                        .map(b => {
-                          const isSelected = b.id === current.id;
-                          const subColor = b.brandColor || b.color || '#0d8a70';
-                          const subLogo = b.logoUrl;
-                          return (
-                            <button
-                              type="button"
-                              className={isSelected ? 'selected' : ''}
-                              key={b.id}
-                              onClick={() => selectBusiness(b.id)}
-                              style={{
-                                width: '100%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 10,
-                                padding: '8px 10px',
-                                borderRadius: 9,
-                                background: isSelected ? `${subColor}12` : 'transparent',
-                                border: isSelected ? `1.5px solid ${subColor}60` : '1px solid transparent',
-                                textAlign: 'left',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                              }}
-                            >
-                              <span
-                                style={{
-                                  width: 32,
-                                  height: 32,
-                                  borderRadius: 7,
-                                  background: '#ffffff',
-                                  border: `1.5px solid ${subColor}50`,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  overflow: 'hidden',
-                                  padding: 2,
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {subLogo ? (
-                                  <img src={subLogo} alt={b.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                                ) : (
-                                  <span style={{ fontSize: 11, fontWeight: 900, color: subColor }}>
-                                    {b.initials || b.code?.slice(0, 2) || b.name.slice(0, 2).toUpperCase()}
-                                  </span>
-                                )}
-                              </span>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                  <strong style={{ fontSize: 11, fontWeight: 750, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {b.name}
-                                  </strong>
-                                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: subColor, flexShrink: 0 }} />
-                                </div>
-                                <small style={{ fontSize: 10, color: '#64748b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {b.industry || 'Subsidiary'}
-                                </small>
-                              </div>
-                              {isSelected && <b style={{ color: subColor, fontSize: 13 }}>✓</b>}
-                            </button>
-                          );
-                        })}
-                    </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: isSelected ? 750 : 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {b.name}
+                            </div>
+                            <div style={{ fontSize: 10, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {b.industry || (b.type === 'GROUP' ? 'Holding Company' : 'Subsidiary')}
+                            </div>
+                          </div>
+
+                          {isSelected && (
+                            <span style={{ color: subColor, fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* ACTIONS FOOTER */}
-                  <div style={{ borderTop: '1px solid #f1f5f9', marginTop: 8, paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {/* SIMPLE MINIMAL FOOTER */}
+                  <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 4, paddingRight: 4 }}>
                     <button
                       type="button"
                       onClick={() => {
@@ -3654,44 +3613,39 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
                         onAddBusiness();
                       }}
                       style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 6,
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        background: `linear-gradient(135deg, ${activeBrandColor}, ${activeBrandColor}ee)`,
-                        color: '#ffffff',
+                        background: 'transparent',
                         border: 'none',
+                        color: activeBrandColor,
                         fontSize: 11,
-                        fontWeight: 800,
+                        fontWeight: 700,
                         cursor: 'pointer',
-                        boxShadow: `0 4px 12px ${activeBrandColor}33`,
+                        padding: '6px 8px',
+                        borderRadius: 6,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
                       }}
                     >
-                      <span>＋</span> Add New Subsidiary
+                      <span>＋</span> Add Subsidiary
                     </button>
                     <button
                       type="button"
-                      className="switch-add"
                       onClick={() => {
                         setSwitcher(false);
                         setActive('Subsidiary portfolio');
                       }}
                       style={{
-                        width: '100%',
-                        padding: '7px 8px',
-                        color: '#64748b',
-                        fontSize: 10,
-                        fontWeight: 700,
                         background: 'transparent',
                         border: 'none',
-                        textAlign: 'center',
+                        color: '#64748b',
+                        fontSize: 10.5,
+                        fontWeight: 600,
                         cursor: 'pointer',
+                        padding: '6px 8px',
+                        borderRadius: 6,
                       }}
                     >
-                      ⚙ Manage Subsidiaries & Portfolios
+                      Settings
                     </button>
                   </div>
                 </div>
@@ -3816,7 +3770,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
         </section>
         {isAiAuthorized && (
           <>
-            <AiScreenEdgeGlow isActive={true} isProcessing={aiManager.isTyping} />
+            <AiScreenEdgeGlow isActive={true} isProcessing={aiManager.isTyping} brandColor={activeBrandColor} />
             <AmbientBottomAiBar
               currentPage={active}
               businessName={current.name}

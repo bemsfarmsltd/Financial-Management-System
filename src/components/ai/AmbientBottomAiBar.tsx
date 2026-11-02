@@ -385,7 +385,7 @@ export function AmbientBottomAiBar({
           WebkitBackdropFilter: 'blur(32px) saturate(200%)',
           border: '1px solid rgba(255, 255, 255, 0.80)',
           borderRadius: '999px',
-          boxShadow: '0 16px 45px rgba(15, 23, 42, 0.14), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), 0 0 32px rgba(249, 115, 22, 0.10)',
+          boxShadow: '0 16px 45px rgba(15, 23, 42, 0.14), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), 0 0 32px var(--brand-shadow-color, rgba(13, 138, 112, 0.10))',
           transition: 'all 0.2s ease',
         }}
       >

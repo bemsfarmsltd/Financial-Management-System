@@ -151,7 +151,7 @@ export function AiFinancialManagerDrawer({
           WebkitBackdropFilter: 'blur(28px) saturate(190%)',
           border: '1px solid rgba(255, 255, 255, 0.75)',
           borderRadius: '24px',
-          boxShadow: '0 30px 90px rgba(0, 0, 0, 0.22), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), 0 0 50px rgba(249, 115, 22, 0.10)',
+          boxShadow: '0 30px 90px rgba(0, 0, 0, 0.22), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), 0 0 50px var(--brand-shadow-color, rgba(13, 138, 112, 0.10))',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -308,7 +308,7 @@ export function AiFinancialManagerDrawer({
 
                 <div
                   style={{
-                    background: isUser ? 'linear-gradient(135deg, rgba(234, 88, 12, 0.95) 0%, rgba(249, 115, 22, 0.95) 100%)' : 'rgba(255, 255, 255, 0.88)',
+                    background: isUser ? 'var(--brand-gradient, linear-gradient(135deg, var(--brand-primary, #0d8a70) 0%, var(--brand-primary, #0d8a70) 100%))' : 'rgba(255, 255, 255, 0.88)',
                     backdropFilter: 'blur(20px)',
                     WebkitBackdropFilter: 'blur(20px)',
                     border: isUser ? 'none' : '1px solid rgba(226, 232, 240, 0.85)',
@@ -319,7 +319,7 @@ export function AiFinancialManagerDrawer({
                     lineHeight: 1.5,
                     maxWidth: isExpanded ? '90%' : '98%',
                     width: isUser ? 'auto' : '100%',
-                    boxShadow: isUser ? '0 4px 14px rgba(234, 88, 12, 0.25)' : '0 4px 20px rgba(15, 23, 42, 0.06)',
+                    boxShadow: isUser ? '0 4px 14px var(--brand-shadow-color, rgba(13, 138, 112, 0.25))' : '0 4px 20px rgba(15, 23, 42, 0.06)',
                   }}
                 >
                   <FormattedAiMessage
@@ -497,7 +497,7 @@ export function AiFinancialManagerDrawer({
               fontWeight: 700,
               fontSize: '12.5px',
               transition: 'all 0.15s ease',
-              boxShadow: inputText.trim() && !isTyping ? '0 0 16px rgba(249, 115, 22, 0.4)' : 'none',
+              boxShadow: inputText.trim() && !isTyping ? '0 0 16px var(--brand-shadow-color, rgba(13, 138, 112, 0.4))' : 'none',
             }}
           >
             <span>Send</span>

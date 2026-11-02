@@ -135,7 +135,7 @@ export function KineticAiOrb({ size = 'hud', isTyping = false, onClick }: Props)
         placeItems: 'center',
         cursor: onClick ? 'pointer' : 'default',
         position: 'relative',
-        filter: isTyping ? 'drop-shadow(0 0 12px rgba(234, 88, 12, 0.6))' : 'drop-shadow(0 0 8px rgba(249, 115, 22, 0.35))',
+        filter: isTyping ? 'drop-shadow(0 0 12px var(--brand-primary, #0d8a70))' : 'drop-shadow(0 0 8px var(--brand-shadow-color, rgba(13,138,112,0.35)))',
         transition: 'filter 0.3s ease, transform 0.2s ease',
       }}
       onMouseEnter={(e) => {
