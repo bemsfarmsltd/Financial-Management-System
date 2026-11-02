@@ -10,8 +10,13 @@ export const dynamic = 'force-dynamic';
 export default async function StaffPage() {
   const actor = await getAuthenticatedEmployee();
 
-  // Strictly enforce role-based access control: only registered, approved STAFF can access /staff
-  if (!actor || actor.role !== 'STAFF') {
+  // Redirect unauthenticated visitors to login
+  if (!actor) {
+    redirect('/auth/login?redirect=/staff');
+  }
+
+  // Allow STAFF, as well as SUPER_ADMIN and GMD for administrative preview
+  if (actor.role !== 'STAFF' && actor.role !== 'SUPER_ADMIN' && actor.role !== 'GMD') {
     redirect('/');
   }
 

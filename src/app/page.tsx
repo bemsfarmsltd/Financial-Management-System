@@ -33,6 +33,18 @@ export default function EnterpriseModulesScreen() {
       ctaText: 'Open Finance',
     },
     {
+      id: 'staff',
+      title: 'Staff Portal & Workspace',
+      href: '/staff',
+      status: 'Active',
+      statusType: 'live',
+      icon: Users,
+      accentColor: '#ea580c',
+      bgLight: '#fff7ed',
+      borderLight: '#fed7aa',
+      ctaText: 'Open Staff App',
+    },
+    {
       id: 'operations',
       title: 'Operations & Fleet',
       href: '/operations',
