@@ -2,7 +2,6 @@ import React from 'react';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee } from '@/lib/auth';
-import { ConnectAppShell } from '@/components/layout/ConnectAppShell';
 import { StaffDashboardClient } from '@/components/dashboard/staff/StaffDashboardClient';
 
 export const dynamic = 'force-dynamic';
@@ -74,14 +73,12 @@ export default async function StaffPage() {
   }
 
   return (
-    <ConnectAppShell initialRole="Staff">
-      <StaffDashboardClient
-        user={staffUser}
-        businessName={businessName}
-        subsidiaries={subsidiaries}
-        vendors={vendors}
-        currentStaff={currentStaff}
-      />
-    </ConnectAppShell>
+    <StaffDashboardClient
+      user={staffUser}
+      businessName={businessName}
+      subsidiaries={subsidiaries}
+      vendors={vendors}
+      currentStaff={currentStaff}
+    />
   );
 }
