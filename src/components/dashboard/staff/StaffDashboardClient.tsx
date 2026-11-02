@@ -3,34 +3,41 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { NewRequestModal } from '@/components/requests/NewRequestModal';
+import { StaffAdminChatModal } from '@/components/chat/StaffAdminChatModal';
 import {
-  FileText,
-  Clock,
-  CheckCircle2,
-  AlertTriangle,
-  Plus,
-  ArrowUpRight,
-  Upload,
-  Building,
+  Home,
   Receipt,
-  Check,
-  ShieldCheck,
-  HelpCircle,
-  MessageSquare,
-  Search,
-  Filter,
-  CheckSquare,
-  XCircle,
-  ExternalLink,
-  ChevronRight,
-  ChevronLeft,
-  Calendar,
+  Plus,
+  Timer,
+  User,
   MapPin,
-  QrCode,
+  Clock,
+  MessageSquare,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Building,
+  Upload,
+  Calendar,
   Send,
   Zap,
   Wallet,
   RefreshCw,
+  Search,
+  Filter,
+  Check,
+  ChevronRight,
+  ChevronLeft,
+  X,
+  CreditCard,
+  ShieldCheck,
+  Lock,
+  ArrowRight,
+  TrendingUp,
+  FileText,
+  DollarSign,
+  AlertCircle,
+  Info,
 } from 'lucide-react';
 
 interface StaffUser {
@@ -42,151 +49,157 @@ interface StaffUser {
   phone?: string | null;
   bankName?: string | null;
   accountNumber?: string | null;
-}
-
-interface DisbursementItem {
-  id: string;
-  amountMinor: number;
-  amountFormatted: string;
-  bankName: string;
-  accountNumber?: string;
-  externalReference: string;
-  status: string;
-  paidAt: string;
-  confirmed: boolean;
-  request?: {
-    id: string;
-    requestNumber: string;
-    title: string;
-    category: string;
-    amountMinor: number;
-    amountFormatted: string;
-    deliverable?: string;
-  } | null;
-}
-
-interface RequestItem {
-  id: string;
-  requestNumber: string;
-  title: string;
-  category: string;
-  amountMinor: number;
-  currency?: string;
-  approvalStatus: string;
-  paymentStatus: string;
-  accountabilityStatus: string;
-  createdAt: string;
-  justification?: string;
-  requestedById?: string;
-  approvalSteps?: Array<{
-    id: string;
-    stageIndex: number;
-    status: string;
-    approverRole?: string;
-  }>;
-}
-
-interface AccountabilityItem {
-  id: string;
-  requestId: string;
-  ownerUserId: string;
-  status: string;
-  dueAt: string;
-  requiredDeliverables?: string;
-  request?: {
-    id: string;
-    requestNumber: string;
-    title: string;
-    amountMinor: number;
-  };
+  accountName?: string | null;
+  salaryBankName?: string | null;
+  salaryAccountNumber?: string | null;
+  salaryAccountName?: string | null;
 }
 
 interface StaffDashboardClientProps {
   user: StaffUser;
-  businessName?: string;
+  businessName: string;
   subsidiaries?: any[];
   vendors?: any[];
   currentStaff?: any;
 }
 
+type TabType = 'HOME' | 'REQUESTS' | 'RETIREMENT' | 'PROFILE';
+
 export function StaffDashboardClient({
   user,
-  businessName = 'BEMS Group',
+  businessName,
   subsidiaries = [],
   vendors = [],
-  currentStaff = null,
+  currentStaff,
 }: StaffDashboardClientProps) {
-  const [requests, setRequests] = useState<RequestItem[]>([]);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  // Navigation State
+  const [activeTab, setActiveTab] = useState<TabType>('HOME');
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('create') === 'true' || params.get('create') === '1') {
-        setIsCreateModalOpen(true);
-      }
-    }
-  }, []);
-  const [cases, setCases] = useState<AccountabilityItem[]>([]);
-  const [disbursementsAwaiting, setDisbursementsAwaiting] = useState<DisbursementItem[]>([]);
-  const [allDisbursements, setAllDisbursements] = useState<DisbursementItem[]>([]);
+  // Core Data States
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'PAID' | 'CLOSED'>('ALL');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [notice, setNotice] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [accountabilityCases, setAccountabilityCases] = useState<any[]>([]);
+  const [disbursementsAwaiting, setDisbursementsAwaiting] = useState<any[]>([]);
+  const [allDisbursements, setAllDisbursements] = useState<any[]>([]);
+  const [userProfile, setUserProfile] = useState<StaffUser>(user);
 
-  // View Mode: 'OVERVIEW' | 'ATTENDANCE' | 'PAYSLIPS'
-  const [viewMode, setViewMode] = useState<'OVERVIEW' | 'ATTENDANCE' | 'PAYSLIPS'>('OVERVIEW');
-
-  // Salary & Payslip state
+  // Compensation & Payslips Data
   const [compensationData, setCompensationData] = useState<any>(null);
-  const [myPayslips, setMyPayslips] = useState<any[]>([]);
+  const [payslips, setPayslips] = useState<any[]>([]);
   const [loadingPayslips, setLoadingPayslips] = useState(false);
 
-  const loadPayslips = async () => {
-    try {
-      setLoadingPayslips(true);
-      const res = await fetch('/api/payroll/my-payments', { credentials: 'include', cache: 'no-store' });
-      if (res.ok) {
-        const json = await res.json();
-        setCompensationData(json.compensation || null);
-        setMyPayslips(json.payslips || []);
-      }
-    } catch (err) {
-      console.error('Error fetching payslips:', err);
-    } finally {
-      setLoadingPayslips(false);
-    }
-  };
-
-  useEffect(() => {
-    loadPayslips();
-  }, []);
-
-  const handleConfirmPayslip = async (disbursementId: string, decision: 'RECEIVED' | 'NOT_RECEIVED', note?: string) => {
-    try {
-      const res = await fetch('/api/disbursements/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ disbursementId, decision, note }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save confirmation.');
-      setNotice(decision === 'RECEIVED' ? '✓ Salary receipt confirmed successfully!' : 'Payment issue reported to Finance.');
-      await loadPayslips();
-    } catch (e: any) {
-      setNotice(e?.message || 'Error saving confirmation.');
-    }
-  };
-
-  // Attendance state
+  // Attendance State
   const [attendanceMonth, setAttendanceMonth] = useState<number>(new Date().getMonth() + 1);
   const [attendanceYear, setAttendanceYear] = useState<number>(new Date().getFullYear());
   const [attendanceData, setAttendanceData] = useState<any>(null);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
-  const [selectedDayDetail, setSelectedDayDetail] = useState<any>(null);
+  const [punching, setPunching] = useState(false);
+  const [punchStatusMessage, setPunchStatusMessage] = useState<string | null>(null);
 
+  // Requisitions Search & Filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'PAID' | 'RECURRING'>('ALL');
+
+  // Modals & Sheets Visibility
+  const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
+  const [isPayslipsModalOpen, setIsPayslipsModalOpen] = useState(false);
+  const [isAttendancePunchOpen, setIsAttendancePunchOpen] = useState(false);
+  const [isTimesheetModalOpen, setIsTimesheetModalOpen] = useState(false);
+  const [isAdminChatOpen, setIsAdminChatOpen] = useState(false);
+  const [isDualBankingOpen, setIsDualBankingOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [activeRetirementCase, setActiveRetirementCase] = useState<any | null>(null);
+  const [selectedRequestDetail, setSelectedRequestDetail] = useState<any | null>(null);
+
+  // Dual Banking Form State
+  const [bankName, setBankName] = useState(user.bankName || '');
+  const [accountNumber, setAccountNumber] = useState(user.accountNumber || '');
+  const [accountName, setAccountName] = useState(user.accountName || '');
+  const [salaryBankName, setSalaryBankName] = useState(user.salaryBankName || user.bankName || '');
+  const [salaryAccountNumber, setSalaryAccountNumber] = useState(user.salaryAccountNumber || user.accountNumber || '');
+  const [salaryAccountName, setSalaryAccountName] = useState(user.salaryAccountName || user.accountName || '');
+  const [savingBanking, setSavingBanking] = useState(false);
+  const [bankingNotice, setBankingNotice] = useState<string | null>(null);
+
+  // Password Change State
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordNotice, setPasswordNotice] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [savingPassword, setSavingPassword] = useState(false);
+
+  // Retirement Evidence Form State
+  const [evidenceDescription, setEvidenceDescription] = useState('');
+  const [actualSpentAmount, setActualSpentAmount] = useState<number>(0);
+  const [refundReturnedAmount, setRefundReturnedAmount] = useState<number>(0);
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const [evidenceNotice, setEvidenceNotice] = useState<string | null>(null);
+
+  // Maker-Checker Disbursement Confirmation
+  const [confirmingDisbursementId, setConfirmingDisbursementId] = useState<string | null>(null);
+  const [confirmingPayslipId, setConfirmingPayslipId] = useState<string | null>(null);
+
+  // Notification Banner
+  const [alertNotice, setAlertNotice] = useState<string | null>(null);
+
+  // Load Main Data
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+    try {
+      const now = Date.now();
+      const [reqRes, caseRes, disbRes, payRes] = await Promise.all([
+        fetch(`/api/requests?_t=${now}`).then((r) => (r.ok ? r.json() : { requests: [] })),
+        fetch(`/api/accountability?_t=${now}`).then((r) => (r.ok ? r.json() : { cases: [] })),
+        fetch(`/api/staff/disbursements?_t=${now}`).then((r) => (r.ok ? r.json() : { awaitingConfirmation: [], recentDisbursements: [] })),
+        fetch(`/api/payroll/my-payments?_t=${now}`).then((r) => (r.ok ? r.json() : { compensation: null, payslips: [] })),
+      ]);
+
+      const rawRequests = Array.isArray(reqRes) ? reqRes : reqRes?.requests || [];
+      const myReqs = rawRequests.filter(
+        (r: any) =>
+          r.requestedById === user.id ||
+          r.requester?.workEmail?.toLowerCase() === user.email.toLowerCase() ||
+          r.requesterId === user.id
+      );
+      setRequests(myReqs);
+
+      const rawCases = Array.isArray(caseRes) ? caseRes : caseRes?.cases || [];
+      const myCases = rawCases.filter(
+        (c: any) =>
+          c.ownerUserId === user.id ||
+          c.owner?.workEmail?.toLowerCase() === user.email.toLowerCase() ||
+          c.request?.requestedById === user.id
+      );
+      setAccountabilityCases(myCases);
+
+      setDisbursementsAwaiting(disbRes.awaitingConfirmation || []);
+      setAllDisbursements(disbRes.recentDisbursements || []);
+
+      if (payRes?.compensation) {
+        setCompensationData(payRes.compensation);
+        setPayslips(payRes.payslips || []);
+        if (payRes.compensation.salaryBankName) {
+          setSalaryBankName(payRes.compensation.salaryBankName);
+          setSalaryAccountNumber(payRes.compensation.salaryAccountNumber || '');
+          setSalaryAccountName(payRes.compensation.salaryAccountName || '');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load staff data:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [user.id]);
+
+  // Load Attendance
   const loadAttendance = async (m: number, y: number) => {
     try {
       setLoadingAttendance(true);
@@ -203,2171 +216,1584 @@ export function StaffDashboardClient({
   };
 
   useEffect(() => {
-    loadAttendance(attendanceMonth, attendanceYear);
-  }, [attendanceMonth, attendanceYear]);
+    if (isTimesheetModalOpen) {
+      loadAttendance(attendanceMonth, attendanceYear);
+    }
+  }, [attendanceMonth, attendanceYear, isTimesheetModalOpen]);
+
+  // Computed Values
+  const firstName = user.fullName ? user.fullName.split(' ')[0] : 'Staff';
+
+  const pendingRetirements = useMemo(() => {
+    return accountabilityCases.filter(
+      (c) => c.status === 'PENDING' || c.status === 'UNDER_REVIEW' || c.status === 'OVERDUE'
+    );
+  }, [accountabilityCases]);
+
+  const activeAdvanceAmount = useMemo(() => {
+    return pendingRetirements.reduce((sum, c) => {
+      const amt = Number(c.request?.amountMinor || c.amountMinor || 0) / 100;
+      return sum + (isNaN(amt) ? 0 : amt);
+    }, 0);
+  }, [pendingRetirements]);
+
+  const mostUrgentAdvance = useMemo(() => {
+    if (pendingRetirements.length === 0) return null;
+    return [...pendingRetirements].sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime())[0];
+  }, [pendingRetirements]);
+
+  // Live countdown calculation for most urgent advance
+  const [timeLeftStr, setTimeLeftStr] = useState<string>('72h remaining');
+  const [isOverdue, setIsOverdue] = useState<boolean>(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('tab') === 'attendance') {
-        setViewMode('ATTENDANCE');
-      } else if (params.get('tab') === 'payroll' || params.get('tab') === 'salary' || params.get('tab') === 'payslips') {
-        setViewMode('PAYSLIPS');
+    if (!mostUrgentAdvance) return;
+    const updateCountdown = () => {
+      const now = new Date().getTime();
+      const due = new Date(mostUrgentAdvance.dueAt).getTime();
+      const diff = due - now;
+      if (diff <= 0) {
+        setIsOverdue(true);
+        const overdueHours = Math.floor(Math.abs(diff) / (1000 * 60 * 60));
+        setTimeLeftStr(`${overdueHours}h OVERDUE`);
+      } else {
+        setIsOverdue(false);
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        setTimeLeftStr(`${hours}h ${minutes}m left`);
       }
-    }
-  }, []);
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 60000);
+    return () => clearInterval(interval);
+  }, [mostUrgentAdvance]);
 
-  // Maker-Checker confirmation state
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
-  const [issueModalDisbursement, setIssueModalDisbursement] = useState<DisbursementItem | null>(null);
-  const [issueDecision, setIssueDecision] = useState<'NOT_RECEIVED' | 'AMOUNT_MISMATCH'>('NOT_RECEIVED');
-  const [issueNote, setIssueNote] = useState('');
-  const [submittingIssue, setSubmittingIssue] = useState(false);
+  const filteredRequests = useMemo(() => {
+    return requests.filter((r) => {
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchNum = r.requestNumber?.toLowerCase().includes(q);
+        const matchTitle = r.title?.toLowerCase().includes(q);
+        const matchPayee = r.payeeName?.toLowerCase().includes(q);
+        if (!matchNum && !matchTitle && !matchPayee) return false;
+      }
+      if (statusFilter === 'PENDING') return r.approvalStatus === 'SUBMITTED';
+      if (statusFilter === 'APPROVED') return r.approvalStatus === 'APPROVED';
+      if (statusFilter === 'PAID') return r.paymentStatus === 'PAID';
+      if (statusFilter === 'RECURRING') return r.isRecurring === true;
+      return true;
+    });
+  }, [requests, searchQuery, statusFilter]);
 
-  // Load live data from staff endpoints
-  const loadStaffData = async () => {
+  // Handlers
+  const handlePunchAttendance = async (type: 'CHECK_IN' | 'CHECK_OUT') => {
+    setPunching(true);
+    setPunchStatusMessage(null);
     try {
-      setLoading(true);
-      const [reqRes, caseRes, disbRes] = await Promise.all([
-        fetch('/api/requests').then((r) => (r.ok ? r.json() : { requests: [] })),
-        fetch('/api/accountability').then((r) => (r.ok ? r.json() : { cases: [] })),
-        fetch('/api/staff/disbursements').then((r) => (r.ok ? r.json() : { awaitingConfirmation: [], recentDisbursements: [] })),
-      ]);
+      let lat = 6.4281;
+      let lng = 3.4219;
+      if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+        try {
+          const pos: any = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000 });
+          });
+          lat = pos.coords.latitude;
+          lng = pos.coords.longitude;
+        } catch (_) {}
+      }
 
-      const rawRequests = Array.isArray(reqRes) ? reqRes : (reqRes?.requests || []);
-      const myRequests = rawRequests.filter(
-        (r: any) =>
-          r.requestedById === user.id ||
-          r.requester?.workEmail?.toLowerCase() === user.email.toLowerCase() ||
-          !r.requestedById // fallback if dev role
-      );
-      setRequests(myRequests);
-
-      const rawCases = Array.isArray(caseRes) ? caseRes : (caseRes?.cases || []);
-      const myCases = rawCases.filter(
-        (c: any) =>
-          c.ownerUserId === user.id ||
-          c.owner?.workEmail?.toLowerCase() === user.email.toLowerCase() ||
-          c.request?.requestedById === user.id
-      );
-      setCases(myCases);
-
-      setDisbursementsAwaiting(disbRes.awaitingConfirmation || []);
-      setAllDisbursements(disbRes.recentDisbursements || []);
-    } catch (err) {
-      console.error('Failed to load staff dashboard data:', err);
+      const res = await fetch('/api/attendance/punch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: user.id,
+          qrToken: 'BEMS_HQ_STATION_VALID:1',
+          latitude: lat,
+          longitude: lng,
+          type,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to punch attendance.');
+      }
+      setPunchStatusMessage(`✓ Success! Punched ${type === 'CHECK_IN' ? 'Check In' : 'Check Out'} at ${new Date().toLocaleTimeString()}`);
+      setTimeout(() => {
+        setIsAttendancePunchOpen(false);
+        setPunchStatusMessage(null);
+      }, 2000);
+    } catch (err: any) {
+      setPunchStatusMessage(`✕ Error: ${err.message}`);
     } finally {
-      setLoading(false);
+      setPunching(false);
     }
   };
 
-  useEffect(() => {
-    loadStaffData();
-  }, [user.id, user.email]);
+  const handleSaveBanking = async () => {
+    setSavingBanking(true);
+    setBankingNotice(null);
+    try {
+      const res = await fetch(`/api/staff/${user.id}/banking`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bankName,
+          accountNumber,
+          accountName,
+          salaryBankName,
+          salaryAccountNumber,
+          salaryAccountName,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save corporate banking configuration.');
+      setUserProfile((prev) => ({
+        ...prev,
+        bankName,
+        accountNumber,
+        accountName,
+        salaryBankName,
+        salaryAccountNumber,
+        salaryAccountName,
+      }));
+      setBankingNotice('✓ Banking configuration saved successfully!');
+      setTimeout(() => {
+        setIsDualBankingOpen(false);
+        setBankingNotice(null);
+      }, 1500);
+    } catch (err: any) {
+      setBankingNotice(`✕ Error: ${err.message}`);
+    } finally {
+      setSavingBanking(false);
+    }
+  };
 
-  const firstName = user.fullName ? user.fullName.split(' ')[0] : 'Staff Member';
+  const handleChangePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      setPasswordNotice({ type: 'error', msg: 'New passwords do not match.' });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordNotice({ type: 'error', msg: 'Password must be at least 6 characters.' });
+      return;
+    }
+    setSavingPassword(true);
+    setPasswordNotice(null);
+    try {
+      const res = await fetch(`/api/staff/${user.id}/password`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to change password.');
+      setPasswordNotice({ type: 'success', msg: '✓ Password changed successfully!' });
+      setTimeout(() => {
+        setIsPasswordModalOpen(false);
+        setPasswordNotice(null);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      }, 1500);
+    } catch (err: any) {
+      setPasswordNotice({ type: 'error', msg: err.message });
+    } finally {
+      setSavingPassword(false);
+    }
+  };
 
-  const formatNaira = (minor: number) => {
+  const handleSubmitRetirement = async () => {
+    if (!activeRetirementCase) return;
+    if (!evidenceDescription.trim()) {
+      setEvidenceNotice('Please provide an expense summary or itemized description.');
+      return;
+    }
+    setUploadingEvidence(true);
+    setEvidenceNotice(null);
+    try {
+      let attachmentUrl = '';
+      if (evidenceFile) {
+        const formData = new FormData();
+        formData.append('file', evidenceFile);
+        const upRes = await fetch('/api/upload', { method: 'POST', body: formData });
+        const upData = await upRes.json();
+        if (upRes.ok && upData.url) {
+          attachmentUrl = upData.url;
+        }
+      }
+
+      const res = await fetch('/api/accountability/evidence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          caseId: activeRetirementCase.id,
+          description: evidenceDescription,
+          actualSpentAmountMinor: Math.round(actualSpentAmount * 100),
+          refundAmountMinor: Math.round(refundReturnedAmount * 100),
+          attachmentUrl,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to submit retirement proof.');
+      setEvidenceNotice('✓ Clearance submitted successfully for GMD verification!');
+      setTimeout(() => {
+        setActiveRetirementCase(null);
+        setEvidenceFile(null);
+        setEvidenceDescription('');
+        setEvidenceNotice(null);
+        loadData(true);
+      }, 1500);
+    } catch (err: any) {
+      setEvidenceNotice(`✕ Error: ${err.message}`);
+    } finally {
+      setUploadingEvidence(false);
+    }
+  };
+
+  const handleConfirmDisbursement = async (disbursementId: string) => {
+    setConfirmingDisbursementId(disbursementId);
+    try {
+      const res = await fetch('/api/disbursements/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disbursementId, action: 'CONFIRM' }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Confirmation failed');
+      }
+      setAlertNotice('✓ Receipt of funds confirmed successfully!');
+      setTimeout(() => setAlertNotice(null), 3000);
+      loadData(true);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setConfirmingDisbursementId(null);
+    }
+  };
+
+  const handleConfirmPayslip = async (payslipId: string) => {
+    setConfirmingPayslipId(payslipId);
+    try {
+      const res = await fetch('/api/disbursements/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disbursementId: payslipId, action: 'CONFIRM' }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Payslip receipt confirmation failed');
+      }
+      setAlertNotice('✓ Salary payout confirmed! Your payslip voucher has been updated.');
+      setTimeout(() => setAlertNotice(null), 3000);
+      loadData(true);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setConfirmingPayslipId(null);
+    }
+  };
+
+  const formatNaira = (n: number) => {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
       currency: 'NGN',
       maximumFractionDigits: 0,
-    }).format(minor / 100);
-  };
-
-  // Confirm receipt of funds (Maker-Checker)
-  const handleConfirmReceived = async (disbursementId: string) => {
-    setConfirmingId(disbursementId);
-    try {
-      const res = await fetch('/api/disbursements/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          disbursementId,
-          decision: 'RECEIVED',
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to confirm payment receipt');
-      }
-
-      setNotice('✓ Payment receipt successfully confirmed! 72-Hour Evidence Window activated.');
-      await loadStaffData();
-    } catch (err: any) {
-      alert(err.message || 'Error confirming payment');
-    } finally {
-      setConfirmingId(null);
-    }
-  };
-
-  // Submit issue with disbursement
-  const handleSubmitIssue = async () => {
-    if (!issueModalDisbursement) return;
-    if (!issueNote.trim()) {
-      alert('Please provide a short explanation for Finance.');
-      return;
-    }
-
-    setSubmittingIssue(true);
-    try {
-      const res = await fetch('/api/disbursements/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          disbursementId: issueModalDisbursement.id,
-          decision: issueDecision,
-          note: issueNote.trim(),
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to submit payment issue');
-      }
-
-      setNotice('Payment issue reported to Finance & Audit team for investigation.');
-      setIssueModalDisbursement(null);
-      setIssueNote('');
-      await loadStaffData();
-    } catch (err: any) {
-      alert(err.message || 'Error reporting issue');
-    } finally {
-      setSubmittingIssue(false);
-    }
-  };
-
-  // Metrics calculations
-  const pendingRequests = requests.filter((r) =>
-    ['SUBMITTED', 'IN_REVIEW', 'PENDING'].includes(r.approvalStatus)
-  );
-  const approvedRequests = requests.filter(
-    (r) => r.approvalStatus === 'APPROVED' && r.paymentStatus !== 'PAID'
-  );
-  const activeUnretiredCases = cases.filter(
-    (c) => c.status !== 'CLOSED' && c.status !== 'VERIFIED' && c.status !== 'EVIDENCE_SUBMITTED'
-  );
-
-  // Compute 72h SLA nearest deadline
-  const nearestAdvance = useMemo(() => {
-    if (activeUnretiredCases.length === 0) return null;
-    const sorted = [...activeUnretiredCases].sort(
-      (a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()
-    );
-    const closest = sorted[0];
-    const diffMs = new Date(closest.dueAt).getTime() - Date.now();
-    const hoursLeft = Math.floor(diffMs / (1000 * 60 * 60));
-    const minsLeft = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    const isOverdue = diffMs < 0;
-
-    return {
-      case: closest,
-      hoursLeft,
-      minsLeft,
-      isOverdue,
-      timeString: isOverdue
-        ? `Overdue by ${Math.abs(hoursLeft)}h ${Math.abs(minsLeft)}m`
-        : `${hoursLeft}h ${minsLeft}m remaining`,
-    };
-  }, [activeUnretiredCases]);
-
-  // Filtered requests list
-  const filteredRequests = useMemo(() => {
-    return requests.filter((r) => {
-      // Tab filter
-      if (activeTab === 'PENDING') {
-        if (!['SUBMITTED', 'IN_REVIEW', 'PENDING'].includes(r.approvalStatus)) return false;
-      } else if (activeTab === 'APPROVED') {
-        if (r.approvalStatus !== 'APPROVED') return false;
-      } else if (activeTab === 'PAID') {
-        if (r.paymentStatus !== 'PAID' && r.paymentStatus !== 'RECIPIENT_CONFIRMED') return false;
-      } else if (activeTab === 'CLOSED') {
-        if (r.accountabilityStatus !== 'CLOSED' && r.approvalStatus !== 'REJECTED') return false;
-      }
-
-      // Search term
-      if (searchTerm.trim()) {
-        const query = searchTerm.toLowerCase();
-        const matchesTitle = r.title.toLowerCase().includes(query);
-        const matchesNum = (r.requestNumber || '').toLowerCase().includes(query);
-        const matchesCat = (r.category || '').toLowerCase().includes(query);
-        if (!matchesTitle && !matchesNum && !matchesCat) return false;
-      }
-
-      return true;
-    });
-  }, [requests, activeTab, searchTerm]);
-
-  // Today's attendance record
-  const todayAttendance = useMemo(() => {
-    if (!attendanceData?.days) return null;
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    return attendanceData.days.find((d: any) => d.date === todayStr) || null;
-  }, [attendanceData]);
-
-  // Calendar blank offset days (0=Sunday, 1=Monday, etc.)
-  const calendarBlankOffset = useMemo(() => {
-    return new Date(attendanceYear, attendanceMonth - 1, 1).getDay();
-  }, [attendanceYear, attendanceMonth]);
-
-  const handlePrevMonth = () => {
-    if (attendanceMonth === 1) {
-      setAttendanceMonth(12);
-      setAttendanceYear((y) => y - 1);
-    } else {
-      setAttendanceMonth((m) => m - 1);
-    }
-    setSelectedDayDetail(null);
-  };
-
-  const handleNextMonth = () => {
-    if (attendanceMonth === 12) {
-      setAttendanceMonth(1);
-      setAttendanceYear((y) => y + 1);
-    } else {
-      setAttendanceMonth((m) => m + 1);
-    }
-    setSelectedDayDetail(null);
+    }).format(n);
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1440px', margin: '0 auto' }}>
-      {/* Toast Notification */}
-      {notice && (
-        <div
-          style={{
-            background: '#064e3b',
-            color: '#a7f3d0',
-            padding: '12px 20px',
-            borderRadius: '12px',
-            fontSize: '13.5px',
-            fontWeight: '600',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            boxShadow: '0 4px 14px rgba(6, 78, 59, 0.25)',
-          }}
-        >
-          <span>{notice}</span>
-          <button
-            onClick={() => setNotice(null)}
-            style={{ background: 'transparent', border: 'none', color: '#a7f3d0', cursor: 'pointer', fontSize: '18px' }}
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* Top Banner / Hero */}
-      <div
-        style={{
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-          borderRadius: '20px',
-          padding: '28px 32px',
-          color: '#ffffff',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '20px',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: '800',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                background: 'rgba(234, 88, 12, 0.2)',
-                color: '#f97316',
-                padding: '4px 10px',
-                borderRadius: '8px',
-                border: '1px solid rgba(234, 88, 12, 0.4)',
-              }}
-            >
-              STAFF REQUISITION & EVIDENCE PORTAL
-            </span>
-            {user.employeeNumber && (
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  color: '#94a3b8',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  padding: '4px 10px',
-                  borderRadius: '8px',
-                }}
-              >
-                ID: {user.employeeNumber}
-              </span>
-            )}
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: '700',
-                color: '#38bdf8',
-                background: 'rgba(56, 189, 248, 0.1)',
-                padding: '4px 10px',
-                borderRadius: '8px',
-              }}
-            >
-              {businessName}
-            </span>
-          </div>
-
-          <h1 style={{ fontSize: '28px', fontWeight: '850', margin: 0, letterSpacing: '-0.02em', color: '#ffffff' }}>
-            Welcome back, {firstName}.
-          </h1>
-          <p style={{ margin: '8px 0 0 0', color: '#94a3b8', fontSize: '14px', maxWidth: '640px', lineHeight: 1.5 }}>
-            Submit fund requests, confirm bank disbursement receipts, and retire cash advances within the mandatory 72-hour group SLA window.
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <Link
-            href="/attendance/scan"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '11px 18px',
-              fontSize: '13.5px',
-              fontWeight: '700',
-              textDecoration: 'none',
-              boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <QrCode size={16} /> Scan Kiosk QR
-          </Link>
-
-          <Link
-            href="/accountability"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: 'rgba(255, 255, 255, 0.08)',
-              color: '#ffffff',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: '12px',
-              padding: '11px 18px',
-              fontSize: '13.5px',
-              fontWeight: '700',
-              textDecoration: 'none',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <Upload size={16} /> 72h Evidence Vault
-          </Link>
-
-          <button
-            type="button"
-            onClick={() => setIsCreateModalOpen(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '11px 20px',
-              fontSize: '13.5px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(234, 88, 12, 0.4)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <Plus size={16} /> New Fund Request
-          </button>
-        </div>
-
-        {/* View Switcher Tabs: Requisitions vs Attendance */}
-        <div style={{ display: 'flex', gap: '8px', marginTop: '20px', width: '100%', borderTop: '1px solid rgba(255, 255, 255, 0.12)', paddingTop: '16px', overflowX: 'auto' }}>
-          <button
-            type="button"
-            onClick={() => setViewMode('OVERVIEW')}
-            style={{
-              padding: '9px 18px',
-              borderRadius: '10px',
-              border: viewMode === 'OVERVIEW' ? '1.5px solid #ea580c' : '1px solid rgba(255, 255, 255, 0.15)',
-              background: viewMode === 'OVERVIEW' ? '#ea580c' : 'rgba(255, 255, 255, 0.06)',
-              color: '#ffffff',
-              fontSize: '13px',
-              fontWeight: '750',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <FileText size={15} />
-            <span>Requisitions & 72h Advances</span>
-            <span style={{ background: 'rgba(0,0,0,0.2)', padding: '2px 7px', borderRadius: '12px', fontSize: '11px' }}>
-              {requests.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setViewMode('ATTENDANCE')}
-            style={{
-              padding: '9px 18px',
-              borderRadius: '10px',
-              border: viewMode === 'ATTENDANCE' ? '1.5px solid #ea580c' : '1px solid rgba(255, 255, 255, 0.15)',
-              background: viewMode === 'ATTENDANCE' ? '#ea580c' : 'rgba(255, 255, 255, 0.06)',
-              color: '#ffffff',
-              fontSize: '13px',
-              fontWeight: '750',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <Clock size={15} />
-            <span>My Attendance & Calendar</span>
-            {todayAttendance?.checkInTime ? (
-              <span style={{ background: '#22c55e', color: '#ffffff', padding: '2px 7px', borderRadius: '12px', fontSize: '10px', fontWeight: '800' }}>
-                Clocked In ({todayAttendance.checkInTime})
-              </span>
-            ) : (
-              <span style={{ background: 'rgba(255,255,255,0.2)', color: '#fed7aa', padding: '2px 7px', borderRadius: '12px', fontSize: '10px', fontWeight: '800' }}>
-                Not Punched
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setViewMode('PAYSLIPS')}
-            style={{
-              padding: '9px 18px',
-              borderRadius: '10px',
-              border: viewMode === 'PAYSLIPS' ? '1.5px solid #ea580c' : '1px solid rgba(255, 255, 255, 0.15)',
-              background: viewMode === 'PAYSLIPS' ? '#ea580c' : 'rgba(255, 255, 255, 0.06)',
-              color: '#ffffff',
-              fontSize: '13px',
-              fontWeight: '750',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <Wallet size={15} />
-            <span>My Salary &amp; Payslips</span>
-            {myPayslips.length > 0 && (
-              <span style={{ background: 'rgba(0,0,0,0.2)', padding: '2px 7px', borderRadius: '12px', fontSize: '11px' }}>
-                {myPayslips.length}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Maker-Checker: Incoming Bank Payments Awaiting Confirmation */}
-      {disbursementsAwaiting.length > 0 && (
-        <div
-          style={{
-            background: 'linear-gradient(90deg, #fff7ed 0%, #ffedd5 100%)',
-            border: '2px solid #ea580c',
-            borderRadius: '18px',
-            padding: '20px 24px',
-            boxShadow: '0 4px 16px rgba(234, 88, 12, 0.12)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: '#ea580c',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-              }}
-            >
-              <Zap size={20} />
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex justify-center pb-24 md:pb-8 selection:bg-orange-100 selection:text-orange-900">
+      {/* Mobile App Canvas Container */}
+      <div className="w-full max-w-md md:max-w-xl bg-white shadow-xl min-h-screen flex flex-col border-x border-slate-200/70 relative">
+        
+        {/* TOP APP BAR (Identical to Flutter AppBar) */}
+        <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-100 px-5 py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 flex items-center justify-center text-white font-black text-sm shadow-md shadow-orange-500/20">
+              B
             </div>
             <div>
-              <strong style={{ color: '#9a3412', fontSize: '15px', display: 'block' }}>
-                Action Required: Bank Payment Awaiting Your Confirmation (Maker-Checker)
-              </strong>
-              <span style={{ color: '#c2410c', fontSize: '13px' }}>
-                Finance has recorded a bank transfer to your account. Confirm funds have arrived to start your 72h evidence window.
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {disbursementsAwaiting.map((disb) => (
-              <div
-                key={disb.id}
-                style={{
-                  background: '#ffffff',
-                  borderRadius: '12px',
-                  padding: '16px 20px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '12px',
-                  border: '1px solid #fed7aa',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: '800', color: '#ea580c', fontFamily: 'monospace' }}>
-                      {disb.request?.requestNumber || 'ADVANCE'}
-                    </span>
-                    <strong style={{ fontSize: '14px', color: '#0f172a' }}>
-                      {disb.request?.title || 'Operational Advance'}
-                    </strong>
-                  </div>
-                  <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '4px' }}>
-                    Sent via <strong>{disb.bankName}</strong> · Ref: <span style={{ fontFamily: 'monospace' }}>{disb.externalReference}</span> · Date: {new Date(disb.paidAt).toLocaleDateString('en-GB')}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '16px', fontWeight: '900', color: '#0f172a' }}>
-                      {disb.amountFormatted}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#9a3412', fontWeight: '700' }}>
-                      Ready for Confirmation
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      onClick={() => handleConfirmReceived(disb.id)}
-                      disabled={confirmingId === disb.id}
-                      style={{
-                        background: '#15803d',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '8px 14px',
-                        fontSize: '12.5px',
-                        fontWeight: '700',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                      }}
-                    >
-                      <Check size={14} />
-                      {confirmingId === disb.id ? 'Confirming…' : 'I Received Funds'}
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setIssueModalDisbursement(disb);
-                        setIssueDecision('NOT_RECEIVED');
-                        setIssueNote('');
-                      }}
-                      style={{
-                        background: '#f1f5f9',
-                        color: '#475569',
-                        border: '1px solid #cbd5e1',
-                        borderRadius: '8px',
-                        padding: '8px 12px',
-                        fontSize: '12.5px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Report Issue
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 72-Hour Evidence Window SLA Warning Banner */}
-      {nearestAdvance && (
-        <div
-          style={{
-            background: nearestAdvance.isOverdue
-              ? 'linear-gradient(90deg, #fef2f2 0%, #fee2e2 100%)'
-              : 'linear-gradient(90deg, #fffbeb 0%, #fef3c7 100%)',
-            border: nearestAdvance.isOverdue ? '2px solid #ef4444' : '1.5px solid #f59e0b',
-            borderRadius: '16px',
-            padding: '16px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '14px',
-            boxShadow: '0 4px 12px rgba(245, 158, 11, 0.08)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div
-              style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '10px',
-                background: nearestAdvance.isOverdue ? '#ef4444' : '#f59e0b',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                flexShrink: 0,
-              }}
-            >
-              <Clock size={22} />
-            </div>
-            <div>
-              <strong style={{ color: nearestAdvance.isOverdue ? '#991b1b' : '#92400e', fontSize: '14px', display: 'block' }}>
-                {nearestAdvance.isOverdue ? '⚠️ 72-Hour Advance Evidence Window OVERDUE' : 'Active Cash Advance: 72-Hour Evidence Clock Running'}
-              </strong>
-              <span style={{ color: nearestAdvance.isOverdue ? '#b91c1c' : '#b45309', fontSize: '13px' }}>
-                Request <strong>{nearestAdvance.case.request?.requestNumber || 'ADVANCE'}</strong>: {nearestAdvance.timeString}. Group policy requires all receipts and invoices uploaded to avoid requisition freezes.
-              </span>
-            </div>
-          </div>
-
-          <Link
-            href="/accountability"
-            style={{
-              background: nearestAdvance.isOverdue ? '#b91c1c' : '#92400e',
-              color: '#ffffff',
-              borderRadius: '8px',
-              padding: '8px 16px',
-              fontSize: '12.5px',
-              fontWeight: '700',
-              textDecoration: 'none',
-              flexShrink: 0,
-            }}
-          >
-            Upload Receipts Now →
-          </Link>
-        </div>
-      )}
-
-      {/* KPI Bento Grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          gap: '16px',
-        }}
-      >
-        {/* Card 1: My Open Requisitions */}
-        <div
-          style={{
-            background: '#ffffff',
-            borderRadius: '18px',
-            padding: '22px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              My Open Requisitions
-            </span>
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                background: '#ffedd5',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ea580c',
-              }}
-            >
-              <FileText size={16} />
-            </div>
-          </div>
-          <div style={{ marginTop: '16px' }}>
-            <div style={{ fontSize: '32px', fontWeight: '900', color: '#0f172a', lineHeight: 1 }}>
-              {pendingRequests.length}
-            </div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-              {pendingRequests.length === 0 ? 'All requests processed' : `${pendingRequests.length} in approval ladder`}
-            </div>
-          </div>
-        </div>
-
-        {/* Card 2: 72h Advance Compliance */}
-        <div
-          style={{
-            background: activeUnretiredCases.length > 0 ? '#fff7ed' : '#ffffff',
-            borderRadius: '18px',
-            padding: '22px',
-            border: activeUnretiredCases.length > 0 ? '1px solid #fed7aa' : '1px solid #e2e8f0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: '800',
-                color: activeUnretiredCases.length > 0 ? '#c2410c' : '#64748b',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}
-            >
-              72h Advance Status
-            </span>
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                background: activeUnretiredCases.length > 0 ? '#fdba74' : '#dcfce7',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: activeUnretiredCases.length > 0 ? '#9a3412' : '#15803d',
-              }}
-            >
-              {activeUnretiredCases.length > 0 ? <Clock size={16} /> : <ShieldCheck size={16} />}
-            </div>
-          </div>
-          <div style={{ marginTop: '16px' }}>
-            <div
-              style={{
-                fontSize: '32px',
-                fontWeight: '900',
-                color: activeUnretiredCases.length > 0 ? '#ea580c' : '#10b981',
-                lineHeight: 1,
-              }}
-            >
-              {activeUnretiredCases.length > 0 ? `${activeUnretiredCases.length} Pending` : '100%'}
-            </div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-              {activeUnretiredCases.length > 0 ? 'Receipts pending upload' : 'All cash advances fully retired'}
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: Ready for Payout */}
-        <div
-          style={{
-            background: '#ffffff',
-            borderRadius: '18px',
-            padding: '22px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Approved / Ready for Payout
-            </span>
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                background: '#e0f2fe',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#0284c7',
-              }}
-            >
-              <CheckCircle2 size={16} />
-            </div>
-          </div>
-          <div style={{ marginTop: '16px' }}>
-            <div style={{ fontSize: '32px', fontWeight: '900', color: '#0f172a', lineHeight: 1 }}>
-              {approvedRequests.length}
-            </div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-              {approvedRequests.length === 0 ? 'No requests awaiting payout' : 'Queued on Treasury disbursement desk'}
-            </div>
-          </div>
-        </div>
-
-        {/* Card 4: Lifetime Requisitions */}
-        <div
-          style={{
-            background: '#ffffff',
-            borderRadius: '18px',
-            padding: '22px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Lifetime Requests
-            </span>
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                background: '#f1f5f9',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#475569',
-              }}
-            >
-              <Receipt size={16} />
-            </div>
-          </div>
-          <div style={{ marginTop: '16px' }}>
-            <div style={{ fontSize: '32px', fontWeight: '900', color: '#0f172a', lineHeight: 1 }}>
-              {requests.length}
-            </div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-              Total requisitions submitted on record
-            </div>
-          </div>
-        </div>
-
-        {/* Card 5: Today's Attendance & Timekeeping */}
-        <div
-          onClick={() => setViewMode('ATTENDANCE')}
-          style={{
-            background: todayAttendance?.checkInTime ? '#f0fdf4' : '#ffffff',
-            borderRadius: '18px',
-            padding: '22px',
-            border: todayAttendance?.checkInTime ? '1.5px solid #86efac' : '1px solid #e2e8f0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: todayAttendance?.checkInTime ? '#15803d' : '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Today's Attendance
-            </span>
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                background: todayAttendance?.checkInTime ? '#dcfce7' : '#f1f5f9',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: todayAttendance?.checkInTime ? '#15803d' : '#64748b',
-              }}
-            >
-              <Clock size={16} />
-            </div>
-          </div>
-          <div style={{ marginTop: '16px' }}>
-            <div style={{ fontSize: todayAttendance?.checkInTime ? '24px' : '26px', fontWeight: '900', color: todayAttendance?.checkInTime ? '#15803d' : '#0f172a', lineHeight: 1.1 }}>
-              {todayAttendance?.checkInTime ? todayAttendance.checkInTime : 'Not Clocked In'}
-            </div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-              {todayAttendance?.checkInTime
-                ? (todayAttendance.checkOutTime ? `Day Complete (Out: ${todayAttendance.checkOutTime})` : 'Active Shift · View Calendar →')
-                : 'Click to open calendar & clock in →'}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {viewMode === 'OVERVIEW' ? (
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) minmax(320px, 1fr)', gap: '20px' }}>
-        {/* Left Column: Requisitions Explorer */}
-        <div
-          style={{
-            background: '#ffffff',
-            borderRadius: '20px',
-            padding: '24px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
-          }}
-        >
-          {/* Table Header & Controls */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '20px' }}>
-            <div>
-              <h2 style={{ fontSize: '17px', fontWeight: '850', color: '#0f172a', margin: 0 }}>
-                My Fund Requisitions
-              </h2>
-              <p style={{ fontSize: '12.5px', color: '#64748b', margin: '2px 0 0 0' }}>
-                Track approval stage progression and disbursement status in real time.
-              </p>
-            </div>
-
-            {/* Search Box */}
-            <div style={{ position: 'relative', width: '240px' }}>
-              <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '10px' }} />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search requisitions…"
-                style={{
-                  width: '100%',
-                  padding: '7px 10px 7px 30px',
-                  borderRadius: '10px',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '12.5px',
-                  outline: 'none',
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Filter Pills */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '18px', overflowX: 'auto', paddingBottom: '4px' }}>
-            {[
-              { id: 'ALL', label: 'All Requests', count: requests.length },
-              { id: 'PENDING', label: 'In Review', count: pendingRequests.length },
-              { id: 'APPROVED', label: 'Approved', count: approvedRequests.length },
-              { id: 'PAID', label: 'Disbursed', count: requests.filter((r) => r.paymentStatus === 'PAID').length },
-              { id: 'CLOSED', label: 'Completed', count: requests.filter((r) => r.accountabilityStatus === 'CLOSED').length },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: activeTab === tab.id ? '1px solid #ea580c' : '1px solid #e2e8f0',
-                  background: activeTab === tab.id ? '#fff7ed' : '#f8fafc',
-                  color: activeTab === tab.id ? '#ea580c' : '#475569',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                <span>{tab.label}</span>
-                <span
-                  style={{
-                    background: activeTab === tab.id ? '#ea580c' : '#cbd5e1',
-                    color: '#ffffff',
-                    padding: '1px 6px',
-                    borderRadius: '10px',
-                    fontSize: '10.5px',
-                  }}
-                >
-                  {tab.count}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-black tracking-wider uppercase bg-orange-50 text-orange-700 px-2 py-0.5 rounded-full border border-orange-200/60">
+                  {businessName || 'BEMS Group'}
                 </span>
-              </button>
-            ))}
+              </div>
+              <h1 className="text-sm font-extrabold text-slate-900 leading-tight">
+                Hello, {firstName} 👋
+              </h1>
+            </div>
           </div>
 
-          {/* Requests Content */}
-          {loading ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
-              Loading your requisitions…
-            </div>
-          ) : filteredRequests.length === 0 ? (
-            <div style={{ padding: '50px 20px', textAlign: 'center', color: '#64748b' }}>
-              <FileText size={40} color="#cbd5e1" style={{ margin: '0 auto 12px' }} />
-              <div style={{ fontSize: '14px', fontWeight: '700', color: '#334155' }}>No requisitions match your filter</div>
-              <div style={{ fontSize: '12.5px', color: '#94a3b8', marginTop: '4px' }}>
-                Create a new fund request to request advances, petty cash, or vendor payments.
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCreateModalOpen(true)}
-                style={{
-                  display: 'inline-block',
-                  marginTop: '16px',
-                  background: '#ea580c',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '8px 16px',
-                  fontSize: '12.5px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                }}
-              >
-                + Create New Request
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {filteredRequests.map((req) => {
-                const isApproved = req.approvalStatus === 'APPROVED';
-                const isRejected = req.approvalStatus === 'REJECTED';
-                const isPaid = req.paymentStatus === 'PAID';
+          <div className="flex items-center gap-1.5">
+            {/* Quick Attendance Check-In Launcher */}
+            <button
+              onClick={() => setIsAttendancePunchOpen(true)}
+              className="p-2 rounded-xl text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+              title="Attendance Check-In"
+            >
+              <MapPin className="w-4 h-4 text-emerald-600" />
+            </button>
 
-                return (
-                  <div
-                    key={req.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '14px 18px',
-                      background: '#f8fafc',
-                      borderRadius: '14px',
-                      border: '1px solid #f1f5f9',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <div style={{ maxWidth: '65%' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#ea580c', fontFamily: 'monospace' }}>
-                          {req.requestNumber || 'REQ'}
-                        </span>
-                        <span style={{ fontSize: '13.5px', fontWeight: '750', color: '#0f172a' }}>
-                          {req.title}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <span>{req.category || 'General Requisition'}</span>
-                        <span>•</span>
-                        <span>{new Date(req.createdAt).toLocaleDateString('en-GB')}</span>
-                      </div>
-                    </div>
+            {/* Direct Admin Chat Launcher */}
+            <button
+              onClick={() => setIsAdminChatOpen(true)}
+              className="p-2 rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50 transition-colors relative"
+              title="Message Admin / Help Desk"
+            >
+              <MessageSquare className="w-4 h-4 text-orange-600" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-orange-600 ring-2 ring-white"></span>
+            </button>
 
-                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                      <div style={{ fontSize: '15px', fontWeight: '850', color: '#0f172a' }}>
-                        {formatNaira(req.amountMinor || 0)}
-                      </div>
-                      <span
-                        style={{
-                          fontSize: '10.5px',
-                          fontWeight: '800',
-                          padding: '2px 8px',
-                          borderRadius: '10px',
-                          background: isPaid ? '#dcfce7' : isApproved ? '#e0f2fe' : isRejected ? '#fee2e2' : '#fef3c7',
-                          color: isPaid ? '#15803d' : isApproved ? '#0369a1' : isRejected ? '#b91c1c' : '#b45309',
-                        }}
+            {/* Reload Data Button */}
+            <button
+              onClick={() => loadData(true)}
+              disabled={refreshing}
+              className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-orange-600' : ''}`} />
+            </button>
+          </div>
+        </header>
+
+        {/* Global Toast Alert Notice */}
+        {alertNotice && (
+          <div className="mx-4 mt-3 p-3 bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center justify-between shadow-lg animate-fade-in z-20">
+            <span>{alertNotice}</span>
+            <button onClick={() => setAlertNotice(null)} className="opacity-80 hover:opacity-100">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* MAIN BODY AREA (Tab Switcher) */}
+        <main className="flex-1 p-4 overflow-y-auto space-y-4">
+          
+          {/* ========================================================= */}
+          {/* TAB 0: HOME WORKSPACE                                     */}
+          {/* ========================================================= */}
+          {activeTab === 'HOME' && (
+            <div className="space-y-4 animate-fade-in">
+              {/* HERO CARD: 72H SLA ADVANCE CLEARANCE */}
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white p-5 shadow-xl shadow-slate-900/10">
+                <div className="absolute -top-12 -right-12 w-36 h-36 bg-orange-500/20 rounded-full blur-2xl"></div>
+                <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-amber-500/15 rounded-full blur-xl"></div>
+
+                <div className="relative z-10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-extrabold tracking-wider uppercase text-slate-300 flex items-center gap-1.5">
+                      <Timer className="w-3.5 h-3.5 text-orange-400" />
+                      72H Operational Advance Balance
+                    </span>
+                    <span
+                      className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                        pendingRetirements.length === 0
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          : isOverdue
+                          ? 'bg-red-500/20 text-red-300 border-red-500/30'
+                          : 'bg-orange-500/20 text-orange-300 border-orange-500/30'
+                      }`}
+                    >
+                      {pendingRetirements.length === 0 ? '✓ ALL CLEARED' : timeLeftStr}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h2 className="text-3xl font-black tracking-tight text-white">
+                      {formatNaira(activeAdvanceAmount)}
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {pendingRetirements.length === 0
+                        ? 'No outstanding cash advances. You are in full compliance.'
+                        : `${pendingRetirements.length} advance(s) awaiting proof of expense submission.`}
+                    </p>
+                  </div>
+
+                  {pendingRetirements.length > 0 && (
+                    <div className="pt-1 flex gap-2">
+                      <button
+                        onClick={() => setActiveTab('RETIREMENT')}
+                        className="flex-1 py-2.5 px-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-extrabold text-xs rounded-xl hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-md shadow-orange-500/30"
                       >
-                        {isPaid ? 'PAID & DISBURSED' : req.approvalStatus}
-                      </span>
+                        <Upload className="w-3.5 h-3.5" />
+                        Liquidate / Upload Receipts
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* QUICK CARD: MY SALARY & PAYSLIPS */}
+              <div className="rounded-2xl border border-orange-200/80 bg-gradient-to-r from-orange-50/70 via-amber-50/40 to-orange-50/70 p-4 shadow-sm hover:border-orange-300 transition-all">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 font-black">
+                      <Wallet className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-black uppercase tracking-wider text-orange-950">
+                        Monthly Compensation & Payslips
+                      </h3>
+                      <p className="text-[11px] text-slate-600">
+                        Payday fixed to 3rd of each calendar month
+                      </p>
                     </div>
                   </div>
-                );
-              })}
+                  <button
+                    onClick={() => setIsPayslipsModalOpen(true)}
+                    className="px-3 py-1.5 bg-white border border-orange-200 text-orange-700 hover:bg-orange-600 hover:text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                  >
+                    View Vouchers
+                  </button>
+                </div>
+
+                {compensationData && (
+                  <div className="mt-3 pt-3 border-t border-orange-200/50 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Base Contract Gross</span>
+                      <span className="font-extrabold text-slate-900">{compensationData.grossFormatted}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Est. Take-Home Net</span>
+                      <span className="font-extrabold text-emerald-700">{compensationData.netFormatted}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 6 PASTEL QUICK ACTION TILES (Exact replica of Flutter Mobile App) */}
+              <div>
+                <h3 className="text-xs font-black tracking-wider uppercase text-slate-400 mb-2 px-1">
+                  Quick Actions
+                </h3>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* 1. Punch In / Attendance */}
+                  <button
+                    onClick={() => setIsAttendancePunchOpen(true)}
+                    className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-100 hover:bg-emerald-100/80 active:scale-[0.98] transition-all text-left flex items-start gap-3 group"
+                  >
+                    <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-sm shadow-emerald-600/30">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-emerald-950 leading-tight">Clock In / Out</h4>
+                      <p className="text-[10px] text-emerald-700 font-semibold mt-0.5">Timekeeping punch</p>
+                    </div>
+                  </button>
+
+                  {/* 2. New Fund Request */}
+                  <button
+                    onClick={() => setIsNewRequestOpen(true)}
+                    className="p-3.5 rounded-2xl bg-orange-50/80 border border-orange-100 hover:bg-orange-100/80 active:scale-[0.98] transition-all text-left flex items-start gap-3 group"
+                  >
+                    <div className="p-2 rounded-xl bg-orange-600 text-white shadow-sm shadow-orange-600/30">
+                      <Plus className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-orange-950 leading-tight">New Request</h4>
+                      <p className="text-[10px] text-orange-700 font-semibold mt-0.5">Procurement fund</p>
+                    </div>
+                  </button>
+
+                  {/* 3. Upload Receipt / 72h Clearance */}
+                  <button
+                    onClick={() => setActiveTab('RETIREMENT')}
+                    className="p-3.5 rounded-2xl bg-indigo-50/80 border border-indigo-100 hover:bg-indigo-100/80 active:scale-[0.98] transition-all text-left flex items-start gap-3 group"
+                  >
+                    <div className="p-2 rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-600/30">
+                      <Upload className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-indigo-950 leading-tight">Retire Advance</h4>
+                      <p className="text-[10px] text-indigo-700 font-semibold mt-0.5">Upload receipts</p>
+                    </div>
+                  </button>
+
+                  {/* 4. Dual Banking Config */}
+                  <button
+                    onClick={() => setIsDualBankingOpen(true)}
+                    className="p-3.5 rounded-2xl bg-purple-50/80 border border-purple-100 hover:bg-purple-100/80 active:scale-[0.98] transition-all text-left flex items-start gap-3 group"
+                  >
+                    <div className="p-2 rounded-xl bg-purple-600 text-white shadow-sm shadow-purple-600/30">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-purple-950 leading-tight">Dual Banking</h4>
+                      <p className="text-[10px] text-purple-700 font-semibold mt-0.5">Salary vs Advance</p>
+                    </div>
+                  </button>
+
+                  {/* 5. Monthly Timesheet Log */}
+                  <button
+                    onClick={() => setIsTimesheetModalOpen(true)}
+                    className="p-3.5 rounded-2xl bg-cyan-50/80 border border-cyan-100 hover:bg-cyan-100/80 active:scale-[0.98] transition-all text-left flex items-start gap-3 group"
+                  >
+                    <div className="p-2 rounded-xl bg-cyan-600 text-white shadow-sm shadow-cyan-600/30">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-cyan-950 leading-tight">Timesheet Log</h4>
+                      <p className="text-[10px] text-cyan-700 font-semibold mt-0.5">Monthly punches</p>
+                    </div>
+                  </button>
+
+                  {/* 6. Message Admin / Help Desk */}
+                  <button
+                    onClick={() => setIsAdminChatOpen(true)}
+                    className="p-3.5 rounded-2xl bg-rose-50/80 border border-rose-100 hover:bg-rose-100/80 active:scale-[0.98] transition-all text-left flex items-start gap-3 group"
+                  >
+                    <div className="p-2 rounded-xl bg-rose-600 text-white shadow-sm shadow-rose-600/30">
+                      <MessageSquare className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-rose-950 leading-tight">Message Admin</h4>
+                      <p className="text-[10px] text-rose-700 font-semibold mt-0.5">HR / Finance Help</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* 72H SLA CLEARANCE WARNING BANNER (If Urgent) */}
+              {pendingRetirements.length > 0 && (
+                <div
+                  onClick={() => setActiveTab('RETIREMENT')}
+                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-start gap-3 ${
+                    isOverdue
+                      ? 'bg-red-50 border-red-200 text-red-900'
+                      : 'bg-amber-50 border-amber-200 text-amber-900'
+                  }`}
+                >
+                  <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isOverdue ? 'text-red-600' : 'text-amber-600'}`} />
+                  <div className="text-xs">
+                    <p className="font-extrabold">
+                      {isOverdue ? 'Action Critical: Advance Overdue' : '72h SLA Clearance Warning'}
+                    </p>
+                    <p className="text-[11px] opacity-90 mt-0.5">
+                      Cash advance for <b>{mostUrgentAdvance?.request?.title || 'Operational Work'}</b> is scheduled for liquidation ({timeLeftStr}). Tap to upload your expense receipts.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* RECENT ACTIVITY FEED */}
+              <div>
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <h3 className="text-xs font-black tracking-wider uppercase text-slate-400">
+                    Recent Requisitions
+                  </h3>
+                  <button
+                    onClick={() => setActiveTab('REQUESTS')}
+                    className="text-xs font-bold text-orange-600 hover:text-orange-700"
+                  >
+                    View All ({requests.length})
+                  </button>
+                </div>
+
+                {requests.length === 0 ? (
+                  <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-8 text-center text-xs text-slate-500">
+                    No requisitions recorded yet. Tap "+ New Request" to create your first fund request.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {requests.slice(0, 4).map((r) => (
+                      <div
+                        key={r.id}
+                        onClick={() => setSelectedRequestDetail(r)}
+                        className="p-3.5 bg-white border border-slate-200/80 rounded-2xl hover:border-orange-300 hover:shadow-sm transition-all cursor-pointer flex items-center justify-between"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-slate-400">{r.requestNumber}</span>
+                            <span
+                              className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                                r.approvalStatus === 'APPROVED'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : r.paymentStatus === 'PAID'
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  : r.approvalStatus === 'REJECTED'
+                                  ? 'bg-red-50 text-red-700 border border-red-200'
+                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              }`}
+                            >
+                              {r.paymentStatus === 'PAID' ? 'DISBURSED' : r.approvalStatus}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-extrabold text-slate-900 line-clamp-1">{r.title}</h4>
+                          <span className="text-[10px] text-slate-500 block">
+                            {new Date(r.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-black text-slate-900 block">
+                            {formatNaira(Number(r.amountMinor) / 100)}
+                          </span>
+                          <span className="text-[10px] font-semibold text-orange-600 flex items-center gap-0.5 justify-end mt-0.5">
+                            Details <ChevronRight className="w-3 h-3" />
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
-        </div>
 
-        {/* Right Column: Channels, Vendor Registry & Policies */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* WhatsApp / Slack Notification Bridge Card (Workspace Rule) */}
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '20px',
-              padding: '22px',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <div
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '8px',
-                  background: '#f0fdf4',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#16a34a',
-                }}
-              >
-                <MessageSquare size={16} />
-              </div>
-              <h3 style={{ fontSize: '14.5px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-                WhatsApp & Slack Notification Bridge
-              </h3>
-            </div>
-            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 14px 0', lineHeight: 1.5 }}>
-              Receive real-time notifications when your fund requests are approved or disbursed to your commercial bank account.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
+          {/* ========================================================= */}
+          {/* TAB 1: REQUISITIONS DESK                                  */}
+          {/* ========================================================= */}
+          {activeTab === 'REQUESTS' && (
+            <div className="space-y-3 animate-fade-in">
+              <div className="flex items-center justify-between">
                 <div>
-                  <strong style={{ fontSize: '12px', color: '#0f172a', display: 'block' }}>WhatsApp Requisition Bot</strong>
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>
-                    {user.phone ? `Linked: ${user.phone}` : 'Active (+234 Bot Dispatcher)'}
-                  </span>
+                  <h2 className="text-lg font-black text-slate-900">Requisitions Desk</h2>
+                  <p className="text-xs text-slate-500">Track approvals and disbursements</p>
                 </div>
-                <span
-                  style={{
-                    background: '#dcfce7',
-                    color: '#15803d',
-                    padding: '2px 8px',
-                    borderRadius: '10px',
-                    fontSize: '10.5px',
-                    fontWeight: '800',
-                  }}
-                >
-                  CONNECTED
-                </span>
-              </div>
-
-              <div
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <div>
-                  <strong style={{ fontSize: '12px', color: '#0f172a', display: 'block' }}>Slack Executive Sync</strong>
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>#requisitions-{businessName.toLowerCase().replace(/\s+/g, '-')}</span>
-                </div>
-                <span
-                  style={{
-                    background: '#dcfce7',
-                    color: '#15803d',
-                    padding: '2px 8px',
-                    borderRadius: '10px',
-                    fontSize: '10.5px',
-                    fontWeight: '800',
-                  }}
-                >
-                  LIVE
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Vendor Registry & 3-Way Matching Quick Reference (Workspace Rule) */}
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '20px',
-              padding: '22px',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Building size={16} color="#ea580c" />
-                <h3 style={{ fontSize: '14.5px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-                  Vendor Registry & 3-Way Match
-                </h3>
-              </div>
-              <Link
-                href="/vendors"
-                style={{ fontSize: '12px', fontWeight: '700', color: '#ea580c', textDecoration: 'none' }}
-              >
-                Directory →
-              </Link>
-            </div>
-            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 12px 0', lineHeight: 1.5 }}>
-              All third-party procurement requires matching a verified Purchase Order, physical Goods Receipt Note (GRN), and final Vendor Invoice.
-            </p>
-            <div
-              style={{
-                background: '#f8fafc',
-                borderRadius: '10px',
-                padding: '10px 12px',
-                border: '1px solid #e2e8f0',
-                fontSize: '11.5px',
-                color: '#475569',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px',
-              }}
-            >
-              <div><strong>1. PO Issued:</strong> Authorized requisition number</div>
-              <div><strong>2. Delivery:</strong> Physical goods receipt verified by Store</div>
-              <div><strong>3. Payment:</strong> Direct transfer to registered corporate bank</div>
-            </div>
-          </div>
-
-          {/* Group 72h Compliance Policy Card */}
-          <div
-            style={{
-              background: '#f8fafc',
-              borderRadius: '20px',
-              padding: '20px',
-              border: '1px solid #e2e8f0',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a', fontWeight: '800', fontSize: '13px' }}>
-              <HelpCircle size={16} color="#ea580c" />
-              BEMS 72-Hour Evidence Policy
-            </div>
-            <ul style={{ margin: '10px 0 0 0', paddingLeft: '18px', fontSize: '12px', color: '#64748b', lineHeight: 1.6 }}>
-              <li>Advance retirements require verifiable invoices, receipts, or waybills.</li>
-              <li>Requisitions follow the 5-tier review matrix (HOD → Verifier → Finance → GMD).</li>
-              <li>New requests are frozen if an advance is overdue beyond 72 hours.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-      ) : viewMode === 'ATTENDANCE' ? (
-        /* Attendance & Monthly Calendar Portal */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Today's Shift & Clock-In Status Bar */}
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '20px',
-              padding: '24px',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#ea580c', background: '#fff7ed', padding: '3px 8px', borderRadius: '6px', border: '1px solid #fed7aa' }}>
-                    TODAY'S SHIFT
-                  </span>
-                  <span style={{ fontSize: '12.5px', color: '#64748b' }}>
-                    {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                  </span>
-                </div>
-                <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#0f172a', margin: '6px 0 0 0' }}>
-                  {todayAttendance?.checkInTime ? `Clocked In at ${todayAttendance.checkInTime}` : 'Not Yet Punched Today'}
-                </h2>
-                <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0 0' }}>
-                  Scheduled Shift: <strong>08:00 AM – 05:00 PM</strong> · Location: <strong>{todayAttendance?.stationName || 'BEMS Office Station'}</strong>
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <Link
-                  href="/attendance/scan"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '12px',
-                    padding: '11px 20px',
-                    fontSize: '13.5px',
-                    fontWeight: '700',
-                    textDecoration: 'none',
-                    boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <QrCode size={18} />
-                  <span>Scan Office Kiosk QR Code</span>
-                </Link>
-
                 <button
-                  type="button"
-                  onClick={() => loadAttendance(attendanceMonth, attendanceYear)}
-                  style={{
-                    background: '#f8fafc',
-                    color: '#475569',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '12px',
-                    padding: '11px 16px',
-                    fontSize: '13px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                  }}
+                  onClick={() => setIsNewRequestOpen(true)}
+                  className="px-3 py-1.5 bg-orange-600 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm hover:bg-orange-700"
                 >
-                  ↻ Refresh Attendance
+                  <Plus className="w-3.5 h-3.5" /> New
                 </button>
               </div>
-            </div>
 
-            {/* Quick Shift Details Strip */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', background: '#f8fafc', padding: '16px', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
-              <div>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Check-In Time</span>
-                <strong style={{ display: 'block', fontSize: '16px', color: '#0f172a', marginTop: '2px' }}>
-                  {todayAttendance?.checkInTime || '—'}
-                </strong>
-              </div>
-              <div>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Check-Out Time</span>
-                <strong style={{ display: 'block', fontSize: '16px', color: '#0f172a', marginTop: '2px' }}>
-                  {todayAttendance?.checkOutTime || (todayAttendance?.checkInTime ? 'Active Shift (Pending Out)' : '—')}
-                </strong>
-              </div>
-              <div>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Hours Logged</span>
-                <strong style={{ display: 'block', fontSize: '16px', color: '#0f172a', marginTop: '2px' }}>
-                  {todayAttendance?.hoursWorkedText || '0h 0m'}
-                </strong>
-              </div>
-              <div>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Today's Status</span>
-                <div style={{ marginTop: '3px' }}>
-                  {todayAttendance?.status === 'PRESENT' && (
-                    <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: '8px', fontSize: '11.5px', fontWeight: '800' }}>
-                      ✓ Present & On-Time
-                    </span>
-                  )}
-                  {todayAttendance?.status === 'LATE' && (
-                    <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: '8px', fontSize: '11.5px', fontWeight: '800' }}>
-                      ⚠ Late Arrival
-                    </span>
-                  )}
-                  {!todayAttendance?.status && (
-                    <span style={{ background: '#f1f5f9', color: '#64748b', padding: '3px 8px', borderRadius: '8px', fontSize: '11.5px', fontWeight: '800' }}>
-                      Clock-In Pending
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Monthly KPI Metrics */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
-            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '18px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-              <span style={{ fontSize: '11px', color: '#15803d', fontWeight: '800', textTransform: 'uppercase' }}>Days Present</span>
-              <div style={{ fontSize: '28px', fontWeight: '900', color: '#15803d', marginTop: '4px' }}>
-                {attendanceData?.presentCount ?? 0}
-              </div>
-              <span style={{ fontSize: '11.5px', color: '#64748b' }}>Verified on-time attendance</span>
-            </div>
-
-            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '18px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-              <span style={{ fontSize: '11px', color: '#b45309', fontWeight: '800', textTransform: 'uppercase' }}>Late Arrivals</span>
-              <div style={{ fontSize: '28px', fontWeight: '900', color: '#b45309', marginTop: '4px' }}>
-                {attendanceData?.lateCount ?? 0}
-              </div>
-              <span style={{ fontSize: '11.5px', color: '#64748b' }}>Arrival after grace window</span>
-            </div>
-
-            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '18px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-              <span style={{ fontSize: '11px', color: '#b91c1c', fontWeight: '800', textTransform: 'uppercase' }}>Absences</span>
-              <div style={{ fontSize: '28px', fontWeight: '900', color: '#b91c1c', marginTop: '4px' }}>
-                {attendanceData?.absentCount ?? 0}
-              </div>
-              <span style={{ fontSize: '11.5px', color: '#64748b' }}>Workdays without check-in</span>
-            </div>
-
-            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '18px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-              <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: '800', textTransform: 'uppercase' }}>Punctuality Score</span>
-              <div style={{ fontSize: '28px', fontWeight: '900', color: '#0284c7', marginTop: '4px' }}>
-                {attendanceData?.punctualityScore ?? 100}%
-              </div>
-              <span style={{ fontSize: '11.5px', color: '#64748b' }}>Compliance rating</span>
-            </div>
-
-            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '18px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-              <span style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase' }}>Off Days / Weekends</span>
-              <div style={{ fontSize: '28px', fontWeight: '900', color: '#475569', marginTop: '4px' }}>
-                {attendanceData?.offDayCount ?? 0}
-              </div>
-              <span style={{ fontSize: '11.5px', color: '#64748b' }}>Scheduled weekly rest</span>
-            </div>
-          </div>
-
-          {/* Monthly Attendance Calendar */}
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '20px',
-              padding: '24px',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
-            }}
-          >
-            {/* Calendar Controls */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '20px' }}>
-              <div>
-                <h3 style={{ fontSize: '17px', fontWeight: '850', color: '#0f172a', margin: 0 }}>
-                  Monthly Attendance Calendar
-                </h3>
-                <p style={{ fontSize: '12.5px', color: '#64748b', margin: '2px 0 0 0' }}>
-                  Tap any day to inspect check-in timestamps, office stations, and hours worked.
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <button
-                  type="button"
-                  onClick={handlePrevMonth}
-                  style={{
-                    background: '#f8fafc',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '8px',
-                    padding: '7px 12px',
-                    fontSize: '13px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    color: '#334155',
-                  }}
-                >
-                  ‹ Prev
-                </button>
-                <strong style={{ fontSize: '15px', color: '#0f172a', minWidth: '140px', textAlign: 'center' }}>
-                  {attendanceData?.monthName || `${attendanceMonth}/${attendanceYear}`}
-                </strong>
-                <button
-                  type="button"
-                  onClick={handleNextMonth}
-                  style={{
-                    background: '#f8fafc',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '8px',
-                    padding: '7px 12px',
-                    fontSize: '13px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    color: '#334155',
-                  }}
-                >
-                  Next ›
-                </button>
-              </div>
-            </div>
-
-            {/* Calendar Legend */}
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '16px', fontSize: '11.5px', color: '#64748b' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#22c55e' }} />
-                <span>Present</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#f59e0b' }} />
-                <span>Late</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#ef4444' }} />
-                <span>Absent</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#e2e8f0' }} />
-                <span>Off Day</span>
-              </div>
-            </div>
-
-            {/* 7-Column Calendar Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
-              {/* Day Headers */}
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-                <div key={d} style={{ textAlign: 'center', fontSize: '11px', fontWeight: '800', color: '#94a3b8', padding: '6px 0' }}>
-                  {d}
-                </div>
-              ))}
-
-              {/* Offset Blank Days */}
-              {Array.from({ length: calendarBlankOffset }).map((_, i) => (
-                <div key={`blank-${i}`} style={{ minHeight: '68px', background: '#f8fafc', borderRadius: '10px', opacity: 0.3 }} />
-              ))}
-
-              {/* Day Tiles */}
-              {attendanceData?.days?.map((day: any) => {
-                const isSelected = selectedDayDetail?.date === day.date;
-                const isToday = day.date === todayAttendance?.date;
-
-                let tileBg = '#ffffff';
-                let borderColor = '#e2e8f0';
-                let textColor = '#0f172a';
-                let badgeText = '';
-                let badgeBg = '#f1f5f9';
-                let badgeColor = '#64748b';
-
-                if (day.status === 'PRESENT') {
-                  tileBg = '#f0fdf4';
-                  borderColor = '#86efac';
-                  badgeText = day.checkInTime || 'Present';
-                  badgeBg = '#dcfce7';
-                  badgeColor = '#15803d';
-                } else if (day.status === 'LATE') {
-                  tileBg = '#fffbeb';
-                  borderColor = '#fcd34d';
-                  badgeText = `Late (${day.checkInTime})`;
-                  badgeBg = '#fef3c7';
-                  badgeColor = '#b45309';
-                } else if (day.status === 'ABSENT') {
-                  tileBg = '#fef2f2';
-                  borderColor = '#fca5a5';
-                  badgeText = 'Absent';
-                  badgeBg = '#fee2e2';
-                  badgeColor = '#b91c1c';
-                } else if (day.status === 'OFF_DAY') {
-                  tileBg = '#f8fafc';
-                  borderColor = '#e2e8f0';
-                  badgeText = 'Off';
-                  badgeBg = '#e2e8f0';
-                  badgeColor = '#64748b';
-                } else if (day.status === 'FUTURE') {
-                  tileBg = '#ffffff';
-                  borderColor = '#f1f5f9';
-                  textColor = '#cbd5e1';
-                }
-
-                return (
-                  <button
-                    key={day.date}
-                    type="button"
-                    onClick={() => setSelectedDayDetail(day)}
-                    style={{
-                      minHeight: '68px',
-                      background: tileBg,
-                      border: isSelected ? '2px solid #ea580c' : isToday ? '2px solid #3b82f6' : `1px solid ${borderColor}`,
-                      borderRadius: '12px',
-                      padding: '8px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      boxShadow: isSelected ? '0 0 0 2px rgba(234, 88, 12, 0.2)' : 'none',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '13px', fontWeight: isToday ? '900' : '750', color: isToday ? '#2563eb' : textColor }}>
-                        {day.day}
-                      </span>
-                      {isToday && (
-                        <span style={{ fontSize: '9px', fontWeight: '800', background: '#dbeafe', color: '#1d4ed8', padding: '1px 5px', borderRadius: '6px' }}>
-                          TODAY
-                        </span>
-                      )}
-                    </div>
-
-                    {badgeText && (
-                      <span
-                        style={{
-                          fontSize: '9.5px',
-                          fontWeight: '800',
-                          background: badgeBg,
-                          color: badgeColor,
-                          padding: '2px 4px',
-                          borderRadius: '6px',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          display: 'block',
-                          marginTop: '4px',
-                        }}
-                      >
-                        {badgeText}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Selected Day Inspector Detail Box */}
-            {selectedDayDetail && (
-              <div
-                style={{
-                  marginTop: '20px',
-                  background: '#f8fafc',
-                  border: '1.5px solid #cbd5e1',
-                  borderRadius: '16px',
-                  padding: '18px 20px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '14px',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#ea580c', background: '#fff7ed', padding: '2px 8px', borderRadius: '6px' }}>
-                      DAY DOSSIER
-                    </span>
-                    <strong style={{ fontSize: '14px', color: '#0f172a' }}>
-                      {selectedDayDetail.dayName}, {selectedDayDetail.date}
-                    </strong>
-                  </div>
-                  <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '6px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                    <span>In: <strong>{selectedDayDetail.checkInTime || '—'}</strong></span>
-                    <span>Out: <strong>{selectedDayDetail.checkOutTime || '—'}</strong></span>
-                    <span>Hours: <strong>{selectedDayDetail.hoursWorkedText || '—'}</strong></span>
-                    <span>Station: <strong>{selectedDayDetail.stationName || 'BEMS Office'}</strong></span>
-                    <span>Status: <strong>{selectedDayDetail.status}</strong></span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedDayDetail(null)}
-                  style={{
-                    background: '#e2e8f0',
-                    color: '#334155',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '6px 12px',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Close Inspector ✕
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Full Monthly Timesheet History Log Table */}
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '20px',
-              padding: '24px',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
-              overflowX: 'auto',
-            }}
-          >
-            <h3 style={{ fontSize: '16px', fontWeight: '850', color: '#0f172a', margin: '0 0 14px 0' }}>
-              Daily Timesheet Punch Log
-            </h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #e2e8f0', fontSize: '11px', color: '#64748b', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '10px 12px' }}>Date</th>
-                  <th style={{ padding: '10px 12px' }}>Check-In</th>
-                  <th style={{ padding: '10px 12px' }}>Check-Out</th>
-                  <th style={{ padding: '10px 12px' }}>Hours</th>
-                  <th style={{ padding: '10px 12px' }}>Station</th>
-                  <th style={{ padding: '10px 12px' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attendanceData?.days
-                  ?.filter((d: any) => d.status !== 'FUTURE')
-                  ?.map((d: any) => (
-                    <tr key={d.date} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
-                      <td style={{ padding: '12px' }}>
-                        <strong>{d.date}</strong> <span style={{ color: '#94a3b8', fontSize: '11px' }}>({d.dayName})</span>
-                      </td>
-                      <td style={{ padding: '12px', color: d.checkInTime ? '#0f172a' : '#94a3b8' }}>
-                        {d.checkInTime || '—'}
-                      </td>
-                      <td style={{ padding: '12px', color: d.checkOutTime ? '#0f172a' : '#94a3b8' }}>
-                        {d.checkOutTime || '—'}
-                      </td>
-                      <td style={{ padding: '12px', color: '#64748b' }}>
-                        {d.hoursWorkedText || '—'}
-                      </td>
-                      <td style={{ padding: '12px', color: '#64748b' }}>
-                        {d.stationName || 'Office Kiosk'}
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        {d.status === 'PRESENT' && (
-                          <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-                            PRESENT
-                          </span>
-                        )}
-                        {d.status === 'LATE' && (
-                          <span style={{ background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-                            LATE
-                          </span>
-                        )}
-                        {d.status === 'ABSENT' && (
-                          <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-                            ABSENT
-                          </span>
-                        )}
-                        {d.status === 'OFF_DAY' && (
-                          <span style={{ background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-                            OFF DAY
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Top 4 KPI Cards for Compensation */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
-            {/* Card 1: Monthly Gross Salary */}
-            <div style={{
-              background: '#ffffff',
-              borderRadius: '16px',
-              padding: '20px',
-              border: '1px solid #fed7aa',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-            }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: '#ea580c', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                AGREED MONTHLY GROSS
-              </div>
-              <div style={{ fontSize: '26px', fontWeight: 850, color: '#0f172a', margin: '8px 0 4px' }}>
-                {compensationData?.grossFormatted || '—'}
-              </div>
-              <div style={{ fontSize: '12px', color: '#64748b' }}>
-                {compensationData?.recurrence || 'MONTHLY'} · {compensationData?.primarySubsidiary || 'BEMS Conglomerate'}
-              </div>
-            </div>
-
-            {/* Card 2: Statutory Deductions */}
-            <div style={{
-              background: '#ffffff',
-              borderRadius: '16px',
-              padding: '20px',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-            }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                STATUTORY DEDUCTIONS
-              </div>
-              <div style={{ fontSize: '26px', fontWeight: 850, color: '#b91c1c', margin: '8px 0 4px' }}>
-                {compensationData?.grossMinor
-                  ? `-₦${Math.round((compensationData.employeePensionMinor + compensationData.payeTaxMinor) / 100).toLocaleString()}`
-                  : '—'}
-              </div>
-              <div style={{ fontSize: '12px', color: '#64748b' }}>
-                Pension (8%): {compensationData?.employeePensionFormatted || '₦0'} · PAYE: {compensationData?.payeTaxFormatted || '₦0'}
-              </div>
-            </div>
-
-            {/* Card 3: Estimated Net Take-Home */}
-            <div style={{
-              background: '#ffffff',
-              borderRadius: '16px',
-              padding: '20px',
-              border: '1px solid #bbf7d0',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-            }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: '#16a34a', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                ESTIMATED NET SALARY
-              </div>
-              <div style={{ fontSize: '26px', fontWeight: 850, color: '#15803d', margin: '8px 0 4px' }}>
-                {compensationData?.estimatedNetFormatted || '—'}
-              </div>
-              <div style={{ fontSize: '12px', color: '#64748b' }}>
-                Scheduled Payday: 3rd of each calendar month
-              </div>
-            </div>
-
-            {/* Card 4: Salary Account */}
-            <div style={{
-              background: '#ffffff',
-              borderRadius: '16px',
-              padding: '20px',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-            }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                SALARY BANK ACCOUNT
-              </div>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '8px 0 2px' }}>
-                {compensationData?.salaryBankName || 'Not Set'}
-              </div>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>
-                {compensationData?.salaryAccountNumber || '—'}
-              </div>
-              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                Beneficiary: {compensationData?.salaryAccountName || user.fullName}
-              </div>
-            </div>
-          </div>
-
-          {/* Monthly Payslips History Table */}
-          <div style={{
-            background: '#ffffff',
-            borderRadius: '20px',
-            padding: '24px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: 12 }}>
-              <div>
-                <h3 style={{ fontSize: '16px', fontWeight: 850, color: '#0f172a', margin: 0 }}>
-                  Monthly Salary Payslips &amp; Payment Vouchers
-                </h3>
-                <p style={{ fontSize: '12.5px', color: '#64748b', margin: '2px 0 0 0' }}>
-                  Review statutory gross-to-net breakdown and confirm receipt once your bank account is credited.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={loadPayslips}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  background: '#f8fafc',
-                  color: '#475569',
-                  fontSize: '12px',
-                  fontWeight: 650,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6
-                }}
-              >
-                <RefreshCw size={12} className={loadingPayslips ? 'animate-spin' : ''} />
-                Refresh
-              </button>
-            </div>
-
-            {loadingPayslips ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
-                Loading payslip records...
-              </div>
-            ) : myPayslips.length === 0 ? (
-              <div style={{ padding: '40px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                <Wallet size={32} style={{ color: '#94a3b8', margin: '0 auto 10px auto' }} />
-                <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>No payslips compiled yet</h4>
-                <p style={{ margin: 0, fontSize: '12.5px', color: '#64748b' }}>
-                  Your monthly salary register is generated ahead of the 3rd of each month. Check back as payday approaches.
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {myPayslips.map((p) => (
-                  <div
-                    key={p.id}
-                    style={{
-                      background: '#ffffff',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '14px',
-                      padding: '18px 20px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      flexWrap: 'wrap',
-                      gap: 16,
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <strong style={{ fontSize: '15px', color: '#0f172a' }}>{p.periodName}</strong>
-                        <span style={{
-                          fontSize: '10.5px',
-                          fontWeight: 750,
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                          background: p.paymentStatus === 'PAID' ? '#ecfdf5' : p.batchStatus === 'APPROVED' ? '#eff6ff' : '#fffbeb',
-                          color: p.paymentStatus === 'PAID' ? '#059669' : p.batchStatus === 'APPROVED' ? '#1d4ed8' : '#b45309',
-                        }}>
-                          {p.paymentStatus === 'PAID' ? 'PAID &amp; DISBURSED' : p.batchStatus === 'APPROVED' ? 'APPROVED FOR PAYMENT' : 'PREPARED'}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: 4 }}>
-                        Gross: <strong>{p.grossFormatted}</strong> · Deductions: <strong style={{ color: '#b91c1c' }}>-{p.deductionsFormatted}</strong> · Net Take-Home: <strong style={{ color: '#15803d' }}>{p.netFormatted}</strong>
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: 3 }}>
-                        {p.bankName} {p.reference ? `· Ref: ${p.reference}` : ''} {p.paidAt ? `· Paid: ${new Date(p.paidAt).toLocaleDateString()}` : ''}
-                      </div>
-                      {p.receipt && (
-                        <div style={{ marginTop: 6 }}>
-                          <a
-                            href={p.receipt.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{
-                              fontSize: '11.5px',
-                              fontWeight: 700,
-                              color: '#ea580c',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 4
-                            }}
-                          >
-                            <Receipt size={12} />
-                            View Bank Transfer Advice ({p.receipt.fileName}) ↗
-                          </a>
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      {p.confirmation ? (
-                        <div style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          background: p.confirmation.decision === 'RECEIVED' ? '#f0fdf4' : '#fef2f2',
-                          border: p.confirmation.decision === 'RECEIVED' ? '1px solid #bbf7d0' : '1px solid #fecaca',
-                          borderRadius: '8px',
-                          padding: '6px 12px',
-                          fontSize: '11.5px',
-                          fontWeight: 750,
-                          color: p.confirmation.decision === 'RECEIVED' ? '#15803d' : '#b91c1c'
-                        }}>
-                          {p.confirmation.decision === 'RECEIVED' ? (
-                            <>
-                              <CheckCircle2 size={13} />
-                              <span>Receipt Confirmed ({new Date(p.confirmation.confirmedAt).toLocaleDateString()})</span>
-                            </>
-                          ) : (
-                            <>
-                              <AlertTriangle size={13} />
-                              <span>Issue Reported: {p.confirmation.note || 'Discrepancy'}</span>
-                            </>
-                          )}
-                        </div>
-                      ) : p.disbursementId ? (
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button
-                            type="button"
-                            onClick={() => handleConfirmPayslip(p.disbursementId, 'RECEIVED')}
-                            style={{
-                              padding: '8px 14px',
-                              borderRadius: '8px',
-                              background: '#059669',
-                              color: '#ffffff',
-                              border: 'none',
-                              fontSize: '12px',
-                              fontWeight: 750,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 5,
-                              boxShadow: '0 2px 6px rgba(5, 150, 105, 0.2)'
-                            }}
-                          >
-                            <CheckCircle2 size={13} />
-                            Confirm Received
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const note = prompt('Please describe the salary credit discrepancy (e.g., amount mismatch or payment not seen):');
-                              if (note) handleConfirmPayslip(p.disbursementId, 'NOT_RECEIVED', note);
-                            }}
-                            style={{
-                              padding: '8px 12px',
-                              borderRadius: '8px',
-                              background: '#ffffff',
-                              color: '#b91c1c',
-                              border: '1px solid #fecaca',
-                              fontSize: '12px',
-                              fontWeight: 700,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Report Issue
-                          </button>
-                        </div>
-                      ) : (
-                        <span style={{ fontSize: '11.5px', color: '#64748b', fontStyle: 'italic' }}>
-                          Awaiting bank disbursement
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Report Issue with Disbursement */}
-      {issueModalDisbursement && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '20px',
-          }}
-        >
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '18px',
-              width: '100%',
-              maxWidth: '480px',
-              padding: '24px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-              <div>
-                <strong style={{ fontSize: '16px', color: '#0f172a' }}>Report Payment Issue</strong>
-                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
-                  {issueModalDisbursement.request?.requestNumber} · {issueModalDisbursement.amountFormatted}
-                </p>
-              </div>
-              <button
-                onClick={() => setIssueModalDisbursement(null)}
-                style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}
-              >
-                ×
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
-                  Issue Type
-                </label>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setIssueDecision('NOT_RECEIVED')}
-                    style={{
-                      flex: 1,
-                      padding: '8px',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                      fontWeight: '700',
-                      border: issueDecision === 'NOT_RECEIVED' ? '1.5px solid #ea580c' : '1px solid #cbd5e1',
-                      background: issueDecision === 'NOT_RECEIVED' ? '#fff7ed' : '#f8fafc',
-                      color: issueDecision === 'NOT_RECEIVED' ? '#ea580c' : '#475569',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Funds Not Arrived
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIssueDecision('AMOUNT_MISMATCH')}
-                    style={{
-                      flex: 1,
-                      padding: '8px',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                      fontWeight: '700',
-                      border: issueDecision === 'AMOUNT_MISMATCH' ? '1.5px solid #ea580c' : '1px solid #cbd5e1',
-                      background: issueDecision === 'AMOUNT_MISMATCH' ? '#fff7ed' : '#f8fafc',
-                      color: issueDecision === 'AMOUNT_MISMATCH' ? '#ea580c' : '#475569',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Amount Mismatch
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
-                  Explanation for Finance Desk
-                </label>
-                <textarea
-                  value={issueNote}
-                  onChange={(e) => setIssueNote(e.target.value)}
-                  placeholder="e.g. Bank statement checked at 10am; credit alert not yet received."
-                  rows={3}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '13px',
-                    outline: 'none',
-                    resize: 'none',
-                  }}
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <input
+                  type="text"
+                  placeholder="Search by code, title, payee..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-100/70 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setIssueModalDisbursement(null)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#f8fafc',
-                    color: '#475569',
-                    fontSize: '12.5px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                  }}
+              {/* Filter Chips */}
+              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+                {(['ALL', 'PENDING', 'APPROVED', 'PAID', 'RECURRING'] as const).map((code) => (
+                  <button
+                    key={code}
+                    onClick={() => setStatusFilter(code)}
+                    className={`px-3 py-1 rounded-full text-[11px] font-bold whitespace-nowrap transition-all ${
+                      statusFilter === code
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {code === 'ALL'
+                      ? `All (${requests.length})`
+                      : code === 'PENDING'
+                      ? 'In Review'
+                      : code === 'APPROVED'
+                      ? 'Approved'
+                      : code === 'PAID'
+                      ? 'Disbursed'
+                      : '🔁 Recurring'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Requisitions List */}
+              {filteredRequests.length === 0 ? (
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-10 text-center text-xs text-slate-500">
+                  No requisitions match your filter criteria.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {filteredRequests.map((r) => (
+                    <div
+                      key={r.id}
+                      onClick={() => setSelectedRequestDetail(r)}
+                      className="p-4 bg-white border border-slate-200/80 rounded-2xl hover:border-orange-300 hover:shadow-md transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-black text-slate-400 tracking-wider">
+                          {r.requestNumber}
+                        </span>
+                        <span
+                          className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
+                            r.approvalStatus === 'APPROVED'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : r.paymentStatus === 'PAID'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : r.approvalStatus === 'REJECTED'
+                              ? 'bg-red-50 text-red-700 border border-red-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {r.paymentStatus === 'PAID' ? 'DISBURSED' : r.approvalStatus}
+                        </span>
+                      </div>
+
+                      <h3 className="text-sm font-extrabold text-slate-900 leading-snug">{r.title}</h3>
+                      <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">{r.justification || 'No description provided'}</p>
+
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span className="font-extrabold text-slate-900 text-sm">
+                          {formatNaira(Number(r.amountMinor) / 100)}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          {new Date(r.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* TAB 3: 72H SLA & RETIREMENT DESK                          */}
+          {/* ========================================================= */}
+          {activeTab === 'RETIREMENT' && (
+            <div className="space-y-3.5 animate-fade-in">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">72h SLA Clearance Desk</h2>
+                <p className="text-xs text-slate-500">Liquidate cash advances and upload receipt vouchers</p>
+              </div>
+
+              {pendingRetirements.length === 0 ? (
+                <div className="bg-emerald-50/70 border border-emerald-200 rounded-3xl p-8 text-center space-y-2">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-md shadow-emerald-500/20 font-black">
+                    <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-sm font-extrabold text-emerald-950">100% Cleared & Compliant</h3>
+                  <p className="text-xs text-emerald-700 max-w-xs mx-auto">
+                    You have no outstanding operational cash advances awaiting retirement. Your payroll standing is clear!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingRetirements.map((c) => {
+                    const amount = Number(c.request?.amountMinor || c.amountMinor || 0) / 100;
+                    return (
+                      <div
+                        key={c.id}
+                        className="bg-white border-2 border-orange-200 rounded-3xl p-4 shadow-sm hover:border-orange-400 transition-all space-y-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200">
+                            {c.request?.requestNumber || 'ADVANCE'}
+                          </span>
+                          <span className="text-[10px] font-extrabold text-slate-500 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-orange-500" />
+                            Due: {new Date(c.dueAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                          </span>
+                        </div>
+
+                        <div>
+                          <h4 className="text-sm font-black text-slate-900">{c.request?.title || 'Operational Cash Advance'}</h4>
+                          <span className="text-xl font-black text-slate-900 block mt-1">{formatNaira(amount)}</span>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex gap-2">
+                          <button
+                            onClick={() => {
+                              setActiveRetirementCase(c);
+                              setActualSpentAmount(amount);
+                              setRefundReturnedAmount(0);
+                            }}
+                            className="w-full py-2.5 bg-orange-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-orange-500/20 hover:bg-orange-700 active:scale-[0.98] transition-all"
+                          >
+                            <Upload className="w-3.5 h-3.5" />
+                            Upload Receipts & Liquidate
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Cleared History */}
+              <div>
+                <h3 className="text-xs font-black tracking-wider uppercase text-slate-400 mb-2 px-1">
+                  Cleared Advances History
+                </h3>
+                {accountabilityCases.filter((c) => c.status === 'CLEARED' || c.status === 'APPROVED').length === 0 ? (
+                  <p className="text-xs text-slate-400 italic px-1">No cleared historical certificates yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {accountabilityCases
+                      .filter((c) => c.status === 'CLEARED' || c.status === 'APPROVED')
+                      .map((c) => (
+                        <div
+                          key={c.id}
+                          className="p-3 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-between text-xs"
+                        >
+                          <div>
+                            <span className="font-extrabold text-slate-900 block">{c.request?.title || 'Cleared Advance'}</span>
+                            <span className="text-[10px] text-slate-400">{c.request?.requestNumber}</span>
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                            ✓ Cleared
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* TAB 4: PROFILE & DUAL BANKING                             */}
+          {/* ========================================================= */}
+          {activeTab === 'PROFILE' && (
+            <div className="space-y-3.5 animate-fade-in">
+              {/* Profile Header */}
+              <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-5 rounded-3xl shadow-xl flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-400 text-white font-black text-xl flex items-center justify-center shadow-lg shadow-orange-500/30">
+                  {user.fullName ? user.fullName[0].toUpperCase() : 'S'}
+                </div>
+                <div className="space-y-0.5 flex-1 min-w-0">
+                  <h2 className="text-base font-extrabold text-white truncate">{user.fullName}</h2>
+                  <p className="text-xs text-slate-400 truncate">{user.email}</p>
+                  <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                    {user.employeeNumber || 'STAFF'} • {businessName}
+                  </span>
+                </div>
+              </div>
+
+              {/* Dual Banking Card */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-4 space-y-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-orange-600" />
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                      Corporate Dual Banking
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setIsDualBankingOpen(true)}
+                    className="text-xs font-bold text-orange-600 hover:text-orange-700"
+                  >
+                    Configure
+                  </button>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase block">1. Operational Advance NUBAN</span>
+                    <span className="font-extrabold text-slate-900 block">{userProfile.bankName || 'Not Set'}</span>
+                    <span className="text-slate-600 text-[11px]">{userProfile.accountNumber || '—'} ({userProfile.accountName || user.fullName})</span>
+                  </div>
+
+                  <div className="p-3 bg-orange-50/50 rounded-2xl border border-orange-100">
+                    <span className="text-[10px] font-extrabold text-orange-600 uppercase block">2. Monthly Payroll Salary NUBAN</span>
+                    <span className="font-extrabold text-slate-900 block">{userProfile.salaryBankName || userProfile.bankName || 'Not Set'}</span>
+                    <span className="text-slate-600 text-[11px]">{userProfile.salaryAccountNumber || userProfile.accountNumber || '—'} ({userProfile.salaryAccountName || userProfile.accountName || user.fullName})</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Compensation Summary Button */}
+              <div
+                onClick={() => setIsPayslipsModalOpen(true)}
+                className="p-4 bg-white border border-slate-200 rounded-3xl hover:border-orange-300 hover:shadow-sm cursor-pointer transition-all flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center font-black">
+                    <Wallet className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900">Salary & Payslips Vouchers</h4>
+                    <p className="text-[11px] text-slate-500">View contract gross, deductions, and payout history</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </div>
+
+              {/* Security & Password */}
+              <div
+                onClick={() => setIsPasswordModalOpen(true)}
+                className="p-4 bg-white border border-slate-200 rounded-3xl hover:border-orange-300 hover:shadow-sm cursor-pointer transition-all flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-black">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900">Security & Password</h4>
+                    <p className="text-[11px] text-slate-500">Change your staff portal password</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </div>
+
+              {/* Logout Button */}
+              <div className="pt-2">
+                <Link
+                  href="/"
+                  className="w-full py-3 bg-slate-100 hover:bg-red-50 hover:text-red-600 text-slate-600 font-extrabold text-xs rounded-2xl flex items-center justify-center gap-2 transition-all"
                 >
-                  Cancel
+                  Sign Out from Portal
+                </Link>
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* ========================================================= */}
+        {/* BOTTOM NAVIGATION BAR (Exact Replica of Flutter App)      */}
+        {/* ========================================================= */}
+        <nav className="fixed md:sticky bottom-0 left-0 right-0 max-w-md md:max-w-xl mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-3 py-2 flex items-center justify-around z-40 shadow-lg">
+          {/* Home Tab */}
+          <button
+            onClick={() => setActiveTab('HOME')}
+            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+              activeTab === 'HOME' ? 'text-orange-600 font-extrabold' : 'text-slate-400 font-semibold hover:text-slate-600'
+            }`}
+          >
+            <Home className="w-5 h-5" />
+            <span className="text-[10px]">Home</span>
+          </button>
+
+          {/* Requisitions Tab */}
+          <button
+            onClick={() => setActiveTab('REQUESTS')}
+            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all relative ${
+              activeTab === 'REQUESTS' ? 'text-orange-600 font-extrabold' : 'text-slate-400 font-semibold hover:text-slate-600'
+            }`}
+          >
+            <Receipt className="w-5 h-5" />
+            <span className="text-[10px]">Requests</span>
+            {requests.length > 0 && (
+              <span className="absolute top-1 right-2.5 w-2 h-2 rounded-full bg-orange-600 ring-2 ring-white"></span>
+            )}
+          </button>
+
+          {/* CENTER ELEVATED BUTTON: NEW REQUEST */}
+          <button
+            onClick={() => setIsNewRequestOpen(true)}
+            className="w-12 h-12 -mt-5 rounded-full bg-gradient-to-tr from-orange-600 to-amber-500 text-white flex items-center justify-center shadow-lg shadow-orange-500/40 hover:scale-105 active:scale-95 transition-all"
+            title="Create New Requisition"
+          >
+            <Plus className="w-6 h-6 stroke-[2.5]" />
+          </button>
+
+          {/* 72h SLA Tab */}
+          <button
+            onClick={() => setActiveTab('RETIREMENT')}
+            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all relative ${
+              activeTab === 'RETIREMENT' ? 'text-orange-600 font-extrabold' : 'text-slate-400 font-semibold hover:text-slate-600'
+            }`}
+          >
+            <Timer className="w-5 h-5" />
+            <span className="text-[10px]">72h SLA</span>
+            {pendingRetirements.length > 0 && (
+              <span className="absolute top-1 right-2.5 w-2 h-2 rounded-full bg-red-600 ring-2 ring-white animate-pulse"></span>
+            )}
+          </button>
+
+          {/* Profile Tab */}
+          <button
+            onClick={() => setActiveTab('PROFILE')}
+            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+              activeTab === 'PROFILE' ? 'text-orange-600 font-extrabold' : 'text-slate-400 font-semibold hover:text-slate-600'
+            }`}
+          >
+            <User className="w-5 h-5" />
+            <span className="text-[10px]">Profile</span>
+          </button>
+        </nav>
+
+        {/* ========================================================= */}
+        {/* MODAL 1: ATTENDANCE CLOCK IN / CHECK-OUT                  */}
+        {/* ========================================================= */}
+        {isAttendancePunchOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in">
+            <div className="w-full max-w-md bg-white rounded-t-3xl md:rounded-3xl p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-black">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">Attendance Timekeeping</h3>
+                    <p className="text-[10px] text-slate-500">Corporate Station GPS & Time Window Verification</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsAttendancePunchOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 bg-emerald-50/60 border border-emerald-100 rounded-2xl text-center space-y-1">
+                <span className="text-2xl font-black text-emerald-950 block">
+                  {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <span className="text-xs font-bold text-emerald-700">
+                  {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </span>
+                <span className="inline-block mt-2 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-200/60 text-emerald-900">
+                  Status: Standard Duty Shift
+                </span>
+              </div>
+
+              {punchStatusMessage && (
+                <div className="p-3 bg-slate-100 rounded-xl text-xs font-bold text-center">
+                  {punchStatusMessage}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  disabled={punching}
+                  onClick={() => handlePunchAttendance('CHECK_IN')}
+                  className="py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-extrabold shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
+                >
+                  {punching ? 'Verifying...' : '✓ Punch Check-In'}
                 </button>
                 <button
-                  type="button"
-                  onClick={handleSubmitIssue}
-                  disabled={submittingIssue}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: '#ea580c',
-                    color: '#ffffff',
-                    fontSize: '12.5px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                  }}
+                  disabled={punching}
+                  onClick={() => handlePunchAttendance('CHECK_OUT')}
+                  className="py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl text-xs font-extrabold shadow-md shadow-slate-800/20 active:scale-95 transition-all"
                 >
-                  {submittingIssue ? 'Submitting…' : 'Submit Issue to Finance'}
+                  {punching ? 'Verifying...' : '⇥ Punch Check-Out'}
                 </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* In-System Fund Request Modal for Staff */}
-      <NewRequestModal
-        isOpen={isCreateModalOpen}
-        onClose={() => {
-          setIsCreateModalOpen(false);
-          loadStaffData();
-        }}
-        subsidiaries={subsidiaries}
-        vendors={vendors}
-        currentStaff={currentStaff}
-      />
+        {/* ========================================================= */}
+        {/* MODAL 2: MONTHLY ATTENDANCE TIMESHEET                     */}
+        {/* ========================================================= */}
+        {isTimesheetModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in">
+            <div className="w-full max-w-md bg-white rounded-t-3xl md:rounded-3xl p-6 space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center font-black">
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">Monthly Timesheet</h3>
+                    <p className="text-[10px] text-slate-500">Punches for {attendanceMonth}/{attendanceYear}</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsTimesheetModalOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {loadingAttendance ? (
+                <div className="py-12 text-center text-xs text-slate-400">Loading timesheet records...</div>
+              ) : attendanceData ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <span className="text-[10px] font-bold text-emerald-600 block uppercase">Present</span>
+                      <span className="text-sm font-extrabold text-emerald-950">{attendanceData.summary?.presentDays || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-100">
+                      <span className="text-[10px] font-bold text-amber-600 block uppercase">Late</span>
+                      <span className="text-sm font-extrabold text-amber-950">{attendanceData.summary?.lateDays || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-red-50 rounded-xl border border-red-100">
+                      <span className="text-[10px] font-bold text-red-600 block uppercase">Absent</span>
+                      <span className="text-sm font-extrabold text-red-950">{attendanceData.summary?.absentDays || 0}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 pt-2">
+                    <h4 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Days Log</h4>
+                    {attendanceData.days && attendanceData.days.length > 0 ? (
+                      attendanceData.days.slice(0, 10).map((d: any, idx: number) => (
+                        <div key={idx} className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between text-xs">
+                          <div>
+                            <span className="font-extrabold text-slate-900">{d.date}</span>
+                            <span className="text-[10px] text-slate-500 block">In: {d.checkIn || '—'} | Out: {d.checkOut || '—'}</span>
+                          </div>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              d.status === 'PRESENT'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : d.status === 'LATE'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-slate-200 text-slate-700'
+                            }`}
+                          >
+                            {d.status}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-slate-400 text-center py-4">No attendance activity recorded for this period.</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-8 text-center text-xs text-slate-500">
+                  No attendance records found for this month.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* MODAL 3: DUAL BANKING CONFIGURATION                       */}
+        {/* ========================================================= */}
+        {isDualBankingOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in">
+            <div className="w-full max-w-md bg-white rounded-t-3xl md:rounded-3xl p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-black">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">Corporate Dual Banking</h3>
+                    <p className="text-[10px] text-slate-500">Separate accounts for advances vs salary</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsDualBankingOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {bankingNotice && (
+                <div className="p-3 bg-purple-50 text-purple-900 border border-purple-200 rounded-xl text-xs font-bold">
+                  {bankingNotice}
+                </div>
+              )}
+
+              {/* ADVANCE ACCOUNT */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 block">
+                  1. Operational Advance Account (72h Petty Cash)
+                </span>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Bank Name</label>
+                  <input
+                    type="text"
+                    value={bankName}
+                    onChange={(e) => setBankName(e.target.value)}
+                    placeholder="e.g. Access Bank PLC"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">NUBAN Account Number (10 Digits)</label>
+                  <input
+                    type="text"
+                    maxLength={10}
+                    value={accountNumber}
+                    onChange={(e) => setAccountNumber(e.target.value)}
+                    placeholder="0123456789"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Beneficiary Name</label>
+                  <input
+                    type="text"
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    placeholder={user.fullName}
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* SALARY ACCOUNT */}
+              <div className="p-3.5 bg-orange-50/60 rounded-2xl border border-orange-200 space-y-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-orange-800 block">
+                  2. Monthly Salary Account (3rd of Month Payroll)
+                </span>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Salary Bank Name</label>
+                  <input
+                    type="text"
+                    value={salaryBankName}
+                    onChange={(e) => setSalaryBankName(e.target.value)}
+                    placeholder="e.g. Zenith Bank PLC"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Salary NUBAN Number</label>
+                  <input
+                    type="text"
+                    maxLength={10}
+                    value={salaryAccountNumber}
+                    onChange={(e) => setSalaryAccountNumber(e.target.value)}
+                    placeholder="0123456789"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Salary Account Name</label>
+                  <input
+                    type="text"
+                    value={salaryAccountName}
+                    onChange={(e) => setSalaryAccountName(e.target.value)}
+                    placeholder={user.fullName}
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
+                  />
+                </div>
+              </div>
+
+              <button
+                disabled={savingBanking}
+                onClick={handleSaveBanking}
+                className="w-full py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-2xl text-xs font-extrabold shadow-md shadow-orange-500/20 active:scale-95 transition-all"
+              >
+                {savingBanking ? 'Saving Configuration...' : 'Save Corporate Accounts'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* MODAL 4: PAYSLIPS & SALARY VOUCHERS SHEET                 */}
+        {/* ========================================================= */}
+        {isPayslipsModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in">
+            <div className="w-full max-w-md bg-white rounded-t-3xl md:rounded-3xl p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center font-black">
+                    <Wallet className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">Salary & Payslips Vouchers</h3>
+                    <p className="text-[10px] text-slate-500">Corporate contract breakdown & payouts</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsPayslipsModalOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Compensation Breakdown Card */}
+              {compensationData && (
+                <div className="p-4 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Monthly Compensation</span>
+                    <span className="text-[10px] font-black bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded-full border border-orange-500/30">
+                      Payday 3rd
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block uppercase">Agreed Gross</span>
+                      <span className="text-base font-extrabold text-white">{compensationData.grossFormatted}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block uppercase">Est. Take-Home</span>
+                      <span className="text-base font-extrabold text-emerald-400">{compensationData.netFormatted}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block uppercase">Pension (8%)</span>
+                      <span className="font-extrabold text-slate-300">{compensationData.pensionFormatted}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block uppercase">PAYE Tax (~5%)</span>
+                      <span className="font-extrabold text-slate-300">{compensationData.taxFormatted}</span>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-slate-700/60 text-[11px] text-slate-300 flex items-center justify-between">
+                    <span>Disbursing To:</span>
+                    <span className="font-bold">{compensationData.salaryBankName} ({compensationData.salaryAccountNumber})</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Monthly Vouchers List */}
+              <div className="space-y-2.5">
+                <h4 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+                  Payment Vouchers & Receipts
+                </h4>
+                {payslips.length === 0 ? (
+                  <div className="p-6 bg-slate-50 border border-slate-200/70 rounded-2xl text-center text-xs text-slate-500">
+                    No payment vouchers generated yet. Monthly payroll is prepared on the 3rd.
+                  </div>
+                ) : (
+                  payslips.map((p) => (
+                    <div
+                      key={p.id}
+                      className="p-3.5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-slate-900">{p.period}</span>
+                        <span
+                          className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                            p.confirmed
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {p.confirmed ? '✓ RECEIVED' : 'AWAITING RECEIPT'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>Net Paid: <b className="text-slate-900">{p.amountFormatted}</b></span>
+                        <span className="text-[10px] text-slate-400">{p.paidAt ? new Date(p.paidAt).toLocaleDateString() : 'Pending'}</span>
+                      </div>
+                      {!p.confirmed && (
+                        <div className="pt-2 flex gap-2">
+                          <button
+                            disabled={confirmingPayslipId === p.id}
+                            onClick={() => handleConfirmPayslip(p.id)}
+                            className="flex-1 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700"
+                          >
+                            {confirmingPayslipId === p.id ? 'Confirming...' : '✓ Confirm Received'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* MODAL 5: 72H RETIREMENT EVIDENCE UPLOAD                   */}
+        {/* ========================================================= */}
+        {activeRetirementCase && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in">
+            <div className="w-full max-w-md bg-white rounded-t-3xl md:rounded-3xl p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center font-black">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">Upload Retirement Proof</h3>
+                    <p className="text-[10px] text-slate-500">Liquidate advance {activeRetirementCase.request?.requestNumber}</p>
+                  </div>
+                </div>
+                <button onClick={() => setActiveRetirementCase(null)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {evidenceNotice && (
+                <div className="p-3 bg-orange-50 text-orange-900 border border-orange-200 rounded-xl text-xs font-bold">
+                  {evidenceNotice}
+                </div>
+              )}
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Expense Itemization & Summary</label>
+                  <textarea
+                    rows={3}
+                    value={evidenceDescription}
+                    onChange={(e) => setEvidenceDescription(e.target.value)}
+                    placeholder="List purchases, vendor items, receipts breakdown..."
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Actual Spent (₦)</label>
+                    <input
+                      type="number"
+                      value={actualSpentAmount || ''}
+                      onChange={(e) => setActualSpentAmount(Number(e.target.value))}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Refund Returned (₦)</label>
+                    <input
+                      type="number"
+                      value={refundReturnedAmount || ''}
+                      onChange={(e) => setRefundReturnedAmount(Number(e.target.value))}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Attach Receipts / Proof (Photo or PDF)</label>
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => setEvidenceFile(e.target.files ? e.target.files[0] : null)}
+                    className="w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                  />
+                </div>
+              </div>
+
+              <button
+                disabled={uploadingEvidence}
+                onClick={handleSubmitRetirement}
+                className="w-full py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-2xl text-xs font-extrabold shadow-md shadow-orange-500/20 active:scale-95 transition-all"
+              >
+                {uploadingEvidence ? 'Submitting Proof...' : 'Submit for GMD Clearance'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* MODAL 6: REQUISITION DETAILS & REQUEST-LEVEL CHAT         */}
+        {/* ========================================================= */}
+        {selectedRequestDetail && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in">
+            <div className="w-full max-w-md bg-white rounded-t-3xl md:rounded-3xl p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <span className="text-[10px] font-black text-slate-400">{selectedRequestDetail.requestNumber}</span>
+                  <h3 className="text-sm font-extrabold text-slate-900">{selectedRequestDetail.title}</h3>
+                </div>
+                <button onClick={() => setSelectedRequestDetail(null)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Requested</span>
+                  <span className="text-xl font-black text-slate-900">
+                    {formatNaira(Number(selectedRequestDetail.amountMinor) / 100)}
+                  </span>
+                  <p className="text-slate-600 text-[11px] mt-1">{selectedRequestDetail.justification || 'No justification provided'}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="p-2.5 bg-slate-50 rounded-xl">
+                    <span className="text-slate-400 block">Approval Status</span>
+                    <span className="font-extrabold text-slate-900">{selectedRequestDetail.approvalStatus}</span>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-xl">
+                    <span className="text-slate-400 block">Disbursement</span>
+                    <span className="font-extrabold text-slate-900">{selectedRequestDetail.paymentStatus}</span>
+                  </div>
+                </div>
+
+                {selectedRequestDetail.paymentStatus === 'PAID' && (
+                  <button
+                    onClick={() => {
+                      const caseItem = accountabilityCases.find((c) => c.requestId === selectedRequestDetail.id);
+                      if (caseItem) {
+                        setActiveRetirementCase(caseItem);
+                      } else {
+                        setActiveTab('RETIREMENT');
+                      }
+                      setSelectedRequestDetail(null);
+                    }}
+                    className="w-full py-2.5 bg-orange-600 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    Upload Receipts for this Advance
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* MODAL 7: SECURITY & PASSWORD CHANGE                       */}
+        {/* ========================================================= */}
+        {isPasswordModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in">
+            <div className="w-full max-w-md bg-white rounded-t-3xl md:rounded-3xl p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-black">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">Change Password</h3>
+                    <p className="text-[10px] text-slate-500">Update your account security credential</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsPasswordModalOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {passwordNotice && (
+                <div
+                  className={`p-3 rounded-xl text-xs font-bold ${
+                    passwordNotice.type === 'success' ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-800'
+                  }`}
+                >
+                  {passwordNotice.msg}
+                </div>
+              )}
+
+              <div className="space-y-2.5 text-xs">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Current Password</label>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">New Password</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Confirm New Password</label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+
+              <button
+                disabled={savingPassword}
+                onClick={handleChangePassword}
+                className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-extrabold shadow-md active:scale-95 transition-all"
+              >
+                {savingPassword ? 'Updating...' : 'Update Password'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* MODAL 8: DIRECT ADMIN CHAT DESK                           */}
+        {/* ========================================================= */}
+        {isAdminChatOpen && (
+          <StaffAdminChatModal
+            employeeId={user.id}
+            employeeName={user.fullName}
+            employeeNumber={user.employeeNumber}
+            subsidiary={businessName}
+            onClose={() => setIsAdminChatOpen(false)}
+          />
+        )}
+
+        {/* ========================================================= */}
+        {/* MODAL 9: NEW FUND REQUISITION MODAL                       */}
+        {/* ========================================================= */}
+        <NewRequestModal
+          isOpen={isNewRequestOpen}
+          onClose={() => {
+            setIsNewRequestOpen(false);
+            loadData(true);
+          }}
+          subsidiaries={subsidiaries}
+          vendors={vendors}
+          currentStaff={currentStaff}
+        />
+      </div>
     </div>
   );
 }
