@@ -52,21 +52,21 @@ export async function getMobileAppGate(appId: string) {
           appId: 'GMD_APP',
           appName: 'BEMS GMD AI',
           packageName: 'com.bemsgroup.gmd_ai',
-          minimumAllowedVersion: '1.0.0',
-          latestVersionAvailable: '1.0.0',
+          minimumAllowedVersion: '1.0.2',
+          latestVersionAvailable: '1.0.2',
           forceUpdate: true,
           directDownloadUrl: 'https://bemserp.work/download/gmd-app.apk',
-          upgradePromptNotes: 'Critical security and synchronized balance engine updates.',
+          upgradePromptNotes: 'Critical update: Disbursed status indicators, Attendance Scanner alignment, and performance optimizations.',
         }
       : {
           appId: 'STAFF_APP',
           appName: 'BEMS Staff App',
           packageName: 'com.bemsgroup.staff',
-          minimumAllowedVersion: '1.0.0',
-          latestVersionAvailable: '1.0.0',
+          minimumAllowedVersion: '1.0.2',
+          latestVersionAvailable: '1.0.2',
           forceUpdate: true,
           directDownloadUrl: 'https://bemserp.work/download/staff-app.apk',
-          upgradePromptNotes: 'Streamlined expenditure requisitions, offline drafts and receipt uploads.',
+          upgradePromptNotes: 'Critical update: Disbursed status indicators, Attendance Scanner alignment, and performance optimizations.',
         };
 
     try {
