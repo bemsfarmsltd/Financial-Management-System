@@ -3,14 +3,27 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rate-limiter';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee(request);
-    if (!actor) {
-      return NextResponse.json({ error: 'Unauthorized: Sign in required to upload files.' }, { status: 401 });
+
+    // Rate limit uploads by IP to prevent flooding or DoS
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'direct';
+    const rateLimit = checkRateLimit(`upload:${clientIp}`, {
+      windowMs: 60 * 1000,
+      maxAttempts: 25,
+      blockDurationMs: 5 * 60 * 1000,
+    });
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Upload rate limit reached. Please wait a moment before trying again.' },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds || 60) } }
+      );
     }
 
     const contentType = request.headers.get('content-type') || '';
@@ -35,6 +48,11 @@ export async function POST(request: Request) {
 
       const cleanExt = isKnownExtension ? ext : 'jpg';
       const isPdf = cleanExt === 'pdf' || file.type === 'application/pdf';
+
+      // Security check: PDF documents require authenticated session; Image avatars are permitted for registration
+      if (isPdf && !actor) {
+        return NextResponse.json({ error: 'Sign in is required to upload official document files.' }, { status: 401 });
+      }
 
       if (file.size > 12 * 1024 * 1024) {
         return NextResponse.json({ error: 'File size exceeds maximum 12MB limit.' }, { status: 400 });

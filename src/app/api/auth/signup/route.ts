@@ -59,12 +59,12 @@ export async function POST(request: Request) {
     const avatarUrl = typeof body.avatarUrl === 'string' && body.avatarUrl.trim() 
       ? body.avatarUrl.trim() 
       : (typeof body.avatar === 'string' && body.avatar.trim() ? body.avatar.trim() : null);
-    const gender = typeof body.gender === 'string' && body.gender.trim() ? body.gender.trim().toUpperCase() : null;
-    const maritalStatus = typeof body.maritalStatus === 'string' && body.maritalStatus.trim() ? body.maritalStatus.trim().toUpperCase() : null;
+    const gender = typeof body.gender === 'string' && body.gender.trim() ? body.gender.trim().toUpperCase() : 'MALE';
+    const maritalStatus = typeof body.maritalStatus === 'string' && body.maritalStatus.trim() ? body.maritalStatus.trim().toUpperCase() : 'SINGLE';
     const dateOfBirth = typeof body.dateOfBirth === 'string' && body.dateOfBirth.trim() ? body.dateOfBirth.trim() : null;
-    const highestEducation = typeof body.highestEducation === 'string' && body.highestEducation.trim() ? body.highestEducation.trim().toUpperCase() : null;
+    const highestEducation = typeof body.highestEducation === 'string' && body.highestEducation.trim() ? body.highestEducation.trim().toUpperCase() : 'BACHELORS';
     const residentialAddress = typeof body.residentialAddress === 'string' ? body.residentialAddress.trim() : null;
-    const cityState = typeof body.cityState === 'string' ? body.cityState.trim() : null;
+    const cityState = typeof body.cityState === 'string' && body.cityState.trim() ? body.cityState.trim() : null;
 
     // 2. Corporate Placement
     let subsidiaryId = typeof body.subsidiaryId === 'string' && body.subsidiaryId.trim() 
@@ -171,21 +171,13 @@ export async function POST(request: Request) {
     if (!gender) {
       return NextResponse.json({ error: 'Please select your gender.' }, { status: 400 });
     }
-    if (!maritalStatus) {
-      return NextResponse.json({ error: 'Please select your marital status (Single, Married, Divorced, or Widowed).' }, { status: 400 });
-    }
     if (!dateOfBirth) {
       return NextResponse.json({ error: 'Please enter your date of birth.' }, { status: 400 });
-    }
-    if (!highestEducation) {
-      return NextResponse.json({ error: 'Please select your highest educational qualification.' }, { status: 400 });
     }
     if (!residentialAddress || residentialAddress.length < 3) {
       return NextResponse.json({ error: 'Please provide your full residential street address.' }, { status: 400 });
     }
-    if (!cityState || cityState.length < 2) {
-      return NextResponse.json({ error: 'Please provide your residential city and state.' }, { status: 400 });
-    }
+    const effectiveCityState = cityState || (stateOfOrigin ? `${stateOfOrigin} State` : 'Lagos, Nigeria');
     if (!stateOfOrigin || stateOfOrigin.length < 2) {
       return NextResponse.json({ error: 'Please specify your state of origin.' }, { status: 400 });
     }
@@ -236,18 +228,6 @@ export async function POST(request: Request) {
     // Automatically generate persistent enterprise Unique Identity Number
     const uniqueEmployeeNumber = await generateUniqueEmployeeNumber(subsidiaryId);
 
-    // Ensure salary account columns exist dynamically in Postgres
-    try {
-      await prisma.$executeRawUnsafe(`
-        ALTER TABLE "Employee" 
-        ADD COLUMN IF NOT EXISTS "salaryBankName" TEXT,
-        ADD COLUMN IF NOT EXISTS "salaryAccountNumber" TEXT,
-        ADD COLUMN IF NOT EXISTS "salaryAccountName" TEXT;
-      `);
-    } catch {
-      // Safe fallback if column already exists or driver prevents DDL
-    }
-
     // Create Employee within transaction
     const employee = await prisma.$transaction(async (tx) => {
       const newEmp = await tx.employee.create({
@@ -264,7 +244,7 @@ export async function POST(request: Request) {
           gender,
           dateOfBirth,
           residentialAddress,
-          cityState,
+          cityState: effectiveCityState,
           jobTitle,
           employmentType,
           resumptionDate,

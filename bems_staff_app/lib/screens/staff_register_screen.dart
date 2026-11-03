@@ -475,8 +475,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         return;
       }
       if (_maritalStatus.trim().isEmpty) {
-        setState(() => _errorMessage = 'Please select your marital status.');
-        return;
+        _maritalStatus = 'SINGLE';
       }
       if (_dobController.text.trim().isEmpty) {
         setState(() => _errorMessage = 'Please select your date of birth.');
@@ -1564,7 +1563,49 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         _buildSectionHeader('Statutory & Next-of-Kin', 'Required compliance data for national identification and emergency records.'),
         const SizedBox(height: 16),
         _buildInputCard([
-          _buildTextField(label: 'NATIONAL NIN (NIMC IDENTIFICATION)', controller: _ninController, hint: '11-digit national identity number', icon: Icons.fingerprint_rounded, keyboardType: TextInputType.number),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 3,
+                child: _buildTextField(label: 'NATIONAL NIN (NIMC)', controller: _ninController, hint: '11-digit NIN', icon: Icons.fingerprint_rounded, keyboardType: TextInputType.number),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('MARITAL STATUS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+                    const SizedBox(height: 6),
+                    Container(
+                      height: 48,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _maritalStatusOptions.contains(_maritalStatus) ? _maritalStatus : 'SINGLE',
+                          isExpanded: true,
+                          items: _maritalStatusOptions.map((m) => DropdownMenuItem(
+                            value: m,
+                            child: Text(
+                              m == 'SINGLE' ? 'Single' : m == 'MARRIED' ? 'Married' : m == 'DIVORCED' ? 'Divorced' : 'Widowed',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          )).toList(),
+                          onChanged: (v) => setState(() => _maritalStatus = v ?? 'SINGLE'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 14),
           Row(
             children: [
