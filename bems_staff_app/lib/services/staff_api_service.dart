@@ -201,8 +201,9 @@ class StaffApiService {
             response.statusCode < 300 &&
             data['url'] != null) {
           _activeBaseUrl = host;
-          final url = data['url'].toString();
-          return url.startsWith('http') ? url : '$host$url';
+          final rawUrl = data['url'].toString();
+          final cleanUrl = rawUrl.replaceFirst('https://pink-horse-318730.hostingersite.com', primaryBaseUrl);
+          return cleanUrl.startsWith('http') ? cleanUrl : '$primaryBaseUrl$cleanUrl';
         }
 
         final err = data['error']?.toString() ?? 'Could not upload passport photo.';

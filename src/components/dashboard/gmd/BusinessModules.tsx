@@ -878,6 +878,26 @@ const getStaffRoleDisplay = (r: string) => {
   return r;
 };
 
+function StaffAvatarPhoto({ name, url }: { name: string; url?: string | null }) {
+  const [failed, setFailed] = useState(false);
+  const initials = name && name.trim().length > 0 ? name.trim().slice(0, 2).toUpperCase() : 'ST';
+  const cleanUrl = url && !failed
+    ? url.replace('https://pink-horse-318730.hostingersite.com', 'https://bemserp.work')
+    : null;
+
+  if (cleanUrl) {
+    return (
+      <img
+        src={cleanUrl}
+        alt=""
+        onError={() => setFailed(true)}
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      />
+    );
+  }
+  return <span>{initials}</span>;
+}
+
 export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotice: (message: string) => void; onNavigate?: (tab: string) => void; scope?: string }) {
   const [rows, setRows] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1436,11 +1456,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                       overflow: 'hidden',
                     }}
                   >
-                    {s.avatarUrl ? (
-                      <img src={s.avatarUrl} alt={s.legalName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      s.legalName.slice(0, 2).toUpperCase()
-                    )}
+                    <StaffAvatarPhoto name={s.legalName} url={s.avatarUrl} />
                   </div>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -1617,15 +1633,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                         flexShrink: 0,
                       }}
                     >
-                      {selected.employee.avatarUrl ? (
-                        <img
-                          src={selected.employee.avatarUrl}
-                          alt={selected.employee.legalName}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                      ) : (
-                        selected.employee.legalName.slice(0, 2).toUpperCase()
-                      )}
+                      <StaffAvatarPhoto name={selected.employee.legalName} url={selected.employee.avatarUrl} />
                     </div>
 
                     <div>
