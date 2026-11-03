@@ -22,9 +22,11 @@ import {
 interface PayrollItem {
   id: string;
   employeeId: string;
+  employeeNumber?: string;
   employeeName: string;
   role: string;
   email: string;
+  avatarUrl?: string | null;
   grossMinor: number;
   grossFormatted: string;
   deductionsMinor: number;
@@ -139,6 +141,41 @@ interface PayrollBatchData {
   availablePeriods?: PayrollPeriodOption[];
   radar?: PaydayRadarInfo | null;
   permissions: { canApprove: boolean; canRecordPayments: boolean };
+}
+
+function PayrollStaffAvatar({ name, url }: { name: string; url?: string | null }) {
+  const [retryCount, setRetryCount] = useState(0);
+  const initials = name && name.trim().length > 0 ? name.trim().slice(0, 2).toUpperCase() : 'ST';
+
+  useEffect(() => {
+    setRetryCount(0);
+  }, [url]);
+
+  const cleanUrl = url && retryCount < 3
+    ? (() => {
+        const base = url.startsWith('/')
+          ? url
+          : url
+              .replace('https://pink-horse-318730.hostingersite.com', '')
+              .replace('https://bemserp.work', '');
+        if (retryCount === 0) return base;
+        const sep = base.includes('?') ? '&' : '?';
+        return retryCount === 1 ? `${base}${sep}v=2` : `${base}${sep}v=3&r=${retryCount}`;
+      })()
+    : null;
+
+  if (cleanUrl) {
+    return (
+      <img
+        key={cleanUrl}
+        src={cleanUrl}
+        alt={name || 'Staff avatar'}
+        onError={() => setRetryCount((c) => c + 1)}
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      />
+    );
+  }
+  return <span>{initials}</span>;
 }
 
 export function PayrollSignOffView({
@@ -350,15 +387,25 @@ export function PayrollSignOffView({
     try {
       setPreparingBatch(true);
       setNotice(null);
+      let targetYear = data?.period?.year;
+      let targetMonth = data?.period?.month;
+      if (selectedPeriodKey) {
+        const [y, m] = selectedPeriodKey.split('-').map(Number);
+        if (y && m) {
+          targetYear = y;
+          targetMonth = m;
+        }
+      }
       const res = await fetch('/api/payroll/prepare', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        body: JSON.stringify({ year: targetYear, month: targetMonth }),
       });
       const json = await res.json();
       if (res.ok) {
         setNotice(`✓ ${json.message || 'Payroll batch prepared successfully.'}`);
-        await fetchPayroll();
+        await fetchPayroll(targetYear, targetMonth);
       } else {
         setNotice(json.error || 'Could not prepare payroll batch.');
       }
@@ -540,29 +587,31 @@ export function PayrollSignOffView({
             Refresh
           </button>
 
-          {!data?.batch && (
-            <button
-              onClick={handlePrepareBatch}
-              disabled={preparingBatch}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '6px',
-                border: '1px solid #ea580c',
-                background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
-                color: '#fff',
-                fontSize: '11px',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                cursor: preparingBatch ? 'wait' : 'pointer',
-                boxShadow: '0 2px 8px rgba(234, 88, 12, 0.3)',
-              }}
-            >
-              <UploadCloud size={13} className={preparingBatch ? 'animate-spin' : ''} />
-              {preparingBatch ? 'Generating Register...' : 'Prepare Monthly Payroll Batch ⚡'}
-            </button>
-          )}
+          <button
+            onClick={handlePrepareBatch}
+            disabled={preparingBatch}
+            style={{
+              padding: data?.batch ? '6px 11px' : '6px 14px',
+              borderRadius: '6px',
+              border: data?.batch ? '1px solid #fed7aa' : '1px solid #ea580c',
+              background: data?.batch ? '#fff7ed' : 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+              color: data?.batch ? '#c2410c' : '#fff',
+              fontSize: '10px',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              cursor: preparingBatch ? 'wait' : 'pointer',
+              boxShadow: data?.batch ? 'none' : '0 2px 8px rgba(234, 88, 12, 0.3)',
+            }}
+          >
+            <RefreshCw size={11} className={preparingBatch ? 'animate-spin' : ''} />
+            {preparingBatch
+              ? 'Regenerating...'
+              : data?.batch
+                ? 'Regenerate Batch'
+                : 'Prepare Monthly Payroll Batch ⚡'}
+          </button>
 
           {data?.batch?.status === 'SUBMITTED' && data?.permissions?.canApprove ? (
             <button
@@ -1033,19 +1082,20 @@ export function PayrollSignOffView({
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
                   <div style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '50%',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
                     background: '#fff7ed',
                     color: '#ea580c',
                     display: 'grid',
                     placeItems: 'center',
                     fontWeight: 700,
-                    fontSize: '11px',
+                    fontSize: '10px',
                     flexShrink: 0,
                     border: '1px solid #fed7aa',
+                    overflow: 'hidden',
                   }}>
-                    {item.employeeName.charAt(0)}
+                    <PayrollStaffAvatar name={item.employeeName} url={item.avatarUrl} />
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '11px', fontWeight: 700, color: '#0f172a' }}>

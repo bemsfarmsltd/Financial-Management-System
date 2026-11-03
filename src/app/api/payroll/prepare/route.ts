@@ -12,198 +12,167 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Executive sign-off authority required.' }, { status: 403 });
     }
 
+    const body = await req.json().catch(() => ({}));
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1; // 1-12
+    const year = Number.isInteger(Number(body?.year)) && Number(body.year) >= 2020 ? Number(body.year) : now.getFullYear();
+    const month = Number.isInteger(Number(body?.month)) && Number(body.month) >= 1 && Number(body.month) <= 12
+      ? Number(body.month)
+      : now.getMonth() + 1;
 
-    // 1. Get or create current PayrollPeriod
+    // 1. Get or create target PayrollPeriod
     let period = await prisma.payrollPeriod.findFirst({
       where: { year, month },
-      include: { batches: { include: { items: true } } }
+      include: {
+        batches: {
+          orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
+          include: { items: true },
+        },
+      },
     });
+
+    const allSubsidiaries = await prisma.organization.findMany({
+      where: { status: 'ACTIVE' },
+    });
+    const hqOrg = allSubsidiaries.find((o) => o.type === 'GROUP' || o.code === 'BEMS-GROUP') || allSubsidiaries[0];
+    const defaultSubId = hqOrg?.id || 'bems-group-hq';
 
     if (!period) {
       const startsOn = new Date(year, month - 1, 1);
       const endsOn = new Date(year, month, 0, 23, 59, 59);
-      const hqOrg = await prisma.organization.findFirst({
-        where: { OR: [{ type: 'GROUP' }, { code: 'BEMS-GROUP' }] }
-      });
-      const groupId = hqOrg?.id || 'bems-group-hq';
 
       period = await prisma.payrollPeriod.create({
         data: {
-          groupId,
+          groupId: defaultSubId,
           year,
           month,
           startsOn,
           endsOn,
-          lockStatus: 'OPEN'
+          lockStatus: 'OPEN',
         },
-        include: { batches: { include: { items: true } } }
+        include: {
+          batches: {
+            orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
+            include: { items: true },
+          },
+        },
       });
     }
 
-    // 2. Fetch all active staff (exclude system admin)
+    // 2. Fetch all active approved staff with their latest compensation & cost allocations
     const activeStaff = await prisma.employee.findMany({
-      where: { status: 'ACTIVE', role: 'STAFF' },
+      where: {
+        status: 'ACTIVE',
+        role: 'STAFF',
+      },
       include: {
         assignments: {
           where: { status: 'ACTIVE' },
           orderBy: { isPrimary: 'desc' },
-          include: { subsidiary: true }
         },
         employmentAgreements: {
           where: { status: 'ACTIVE' },
+          orderBy: { createdAt: 'desc' },
           include: {
             compensations: {
-              where: {
-                effectiveFrom: { lte: now },
-                OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }]
-              },
-              include: { costAllocations: true }
-            }
-          }
-        }
-      }
+              orderBy: [{ version: 'desc' }, { effectiveFrom: 'desc' }],
+              include: { costAllocations: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
     });
 
     if (activeStaff.length === 0) {
       return NextResponse.json({ error: 'No active staff profiles found to prepare payroll.' }, { status: 400 });
     }
 
-    // 3. Ensure each staff has an EmploymentAgreement and CompensationAgreement
-    const allSubsidiaries = await prisma.organization.findMany({
-      where: { status: 'ACTIVE' }
+    // Filter to staff who have an active EmploymentAgreement & CompensationAgreement (> 0)
+    const eligibleStaff = activeStaff.filter((s) => {
+      const agreement = s.employmentAgreements[0];
+      const comp = agreement?.compensations[0];
+      return Boolean(agreement && comp && Number(comp.grossMinor) > 0);
     });
-    const subByName = new Map(allSubsidiaries.map(s => [s.legalName.toLowerCase(), s.id]));
-    const defaultSubId = allSubsidiaries[0]?.id || 'bems-group-hq';
+    const skippedCount = activeStaff.length - eligibleStaff.length;
 
-    for (const staff of activeStaff) {
-      if (staff.employmentAgreements.length === 0) {
-        const primarySubId = staff.assignments[0]?.subsidiaryId || defaultSubId;
-        const agreement = await prisma.employmentAgreement.create({
-          data: {
-            employeeId: staff.id,
-            employerEntityId: primarySubId,
-            agreementType: 'PERMANENT',
-            paymentModel: 'GROUP_PAID',
-            status: 'ACTIVE'
-          }
-        });
-
-        // Set realistic base salary
-        const baseSalaryNaira = staff.legalName.toLowerCase().includes('solomon') ? 450000 : 380000;
-        const grossMinor = BigInt(baseSalaryNaira * 100);
-
-        const comp = await prisma.compensationAgreement.create({
-          data: {
-            employmentAgreementId: agreement.id,
-            grossMinor,
-            currency: 'NGN',
-            recurrence: 'MONTHLY',
-            effectiveFrom: new Date(year, month - 1, 1),
-            approvedBy: actor.legalName
-          }
-        });
-
-        // Setup intercompany allocation split
-        const smartAirsId = subByName.get('smartairs gov technologies ltd') || subByName.get('smartairs') || defaultSubId;
-        const bemsSoftId = subByName.get('bemssoft hub ltd') || subByName.get('bemssoft') || primarySubId;
-
-        if (staff.legalName.toLowerCase().includes('solomon')) {
-          await prisma.costAllocation.createMany({
-            data: [
-              { compensationAgreementId: comp.id, subsidiaryId: bemsSoftId, percentage: 60 },
-              { compensationAgreementId: comp.id, subsidiaryId: smartAirsId, percentage: 40 }
-            ]
-          });
-        } else {
-          await prisma.costAllocation.createMany({
-            data: [
-              { compensationAgreementId: comp.id, subsidiaryId: primarySubId, percentage: 100 }
-            ]
-          });
-        }
-      }
+    if (eligibleStaff.length === 0) {
+      return NextResponse.json(
+        { error: 'No active staff members have a configured salary yet. Configure staff compensation first.' },
+        { status: 400 }
+      );
     }
 
-    // 4. Re-fetch staff with freshly guaranteed agreements
-    const preparedStaff = await prisma.employee.findMany({
-      where: { status: 'ACTIVE', role: 'STAFF' },
-      include: {
-        assignments: {
-          where: { status: 'ACTIVE' },
-          orderBy: { isPrimary: 'desc' }
-        },
-        employmentAgreements: {
-          where: { status: 'ACTIVE' },
-          include: {
-            compensations: {
-              include: { costAllocations: true }
-            }
-          }
-        }
+    // 3. Check if a batch already exists for this period
+    let batch = period.batches[0];
+    let isRegeneration = false;
+
+    if (batch) {
+      const hasPaidItems = batch.items.some((item) => Boolean(item.disbursementId));
+      if (hasPaidItems) {
+        return NextResponse.json(
+          { error: 'Cannot regenerate this payroll batch because salary disbursements have already been recorded for one or more staff.' },
+          { status: 409 }
+        );
       }
-    });
+      isRegeneration = true;
 
-    // 5. Check if an active batch already exists
-    let batch = period.batches.find(b => b.status === 'SUBMITTED' || b.status === 'DRAFT');
+      // Clear previous items and allocations before regenerating
+      await prisma.payrollItemAllocation.deleteMany({
+        where: { item: { batchId: batch.id } },
+      });
+      await prisma.payrollItem.deleteMany({
+        where: { batchId: batch.id },
+      });
 
-    if (!batch) {
+      // Re-open period if it was locked
+      if (period.lockStatus === 'LOCKED') {
+        await prisma.payrollPeriod.update({
+          where: { id: period.id },
+          data: { lockStatus: 'OPEN' },
+        });
+      }
+    } else {
       batch = await prisma.payrollBatch.create({
         data: {
           periodId: period.id,
-          version: (period.batches.length || 0) + 1,
+          version: 1,
           status: 'SUBMITTED',
           totalGrossMinor: BigInt(0),
-          totalNetMinor: BigInt(0)
+          totalNetMinor: BigInt(0),
         },
-        include: { items: true }
-      });
-    } else {
-      // Clear old items if re-preparing submitted batch
-      await prisma.payrollItemAllocation.deleteMany({
-        where: { item: { batchId: batch.id } }
-      });
-      await prisma.payrollItem.deleteMany({
-        where: { batchId: batch.id }
+        include: { items: true },
       });
     }
 
-    // 6. Generate Payroll Items for all staff
+    // 4. Generate Payroll Items & Intercompany Allocations for all eligible staff
     let totalGross = BigInt(0);
     let totalNet = BigInt(0);
 
-    for (const staff of preparedStaff) {
+    for (const staff of eligibleStaff) {
       const agreement = staff.employmentAgreements[0];
-      const comp = agreement?.compensations[0];
-      const grossMinor = comp ? comp.grossMinor : BigInt(35000000); // ₦350,000 default fallback
-
-      // Company Policy: Zero Tax / PAYE / Pension Deductions. Only attendance lateness deductions apply.
+      const comp = agreement.compensations[0];
+      const grossMinor = comp.grossMinor;
       const grossNum = Number(grossMinor);
-      const employeeDeductionsNum = 0; // No tax or pension deductions
-      const employerCostNum = 0;
-      const netNum = grossNum;
 
+      // Company Policy: Zero Tax / PAYE / Pension Deductions. Lateness deductions are evaluated dynamically from AttendanceRecords.
       const item = await prisma.payrollItem.create({
         data: {
           batchId: batch.id,
           employeeId: staff.id,
           agreementId: agreement.id,
           grossMinor,
-          employeeDeductionsMinor: BigInt(employeeDeductionsNum),
-          employerCostMinor: BigInt(employerCostNum),
-          netMinor: BigInt(netNum),
-          currency: 'NGN',
-          status: 'CALCULATED'
-        }
+          employeeDeductionsMinor: BigInt(0),
+          employerCostMinor: BigInt(0),
+          netMinor: grossMinor,
+          currency: comp.currency || 'NGN',
+          status: 'CALCULATED',
+        },
       });
 
       totalGross += grossMinor;
-      totalNet += BigInt(netNum);
+      totalNet += grossMinor;
 
-      // Allocations
-      const allocations = comp?.costAllocations || [];
+      const allocations = comp.costAllocations || [];
       if (allocations.length > 0) {
         for (const alloc of allocations) {
           const allocCost = BigInt(Math.round(grossNum * (alloc.percentage / 100)));
@@ -212,36 +181,44 @@ export async function POST(req: NextRequest) {
               itemId: item.id,
               subsidiaryId: alloc.subsidiaryId,
               allocableCostMinor: allocCost,
-              percentage: alloc.percentage
-            }
+              percentage: alloc.percentage,
+            },
           });
         }
       } else {
-        const subId = staff.assignments[0]?.subsidiaryId || defaultSubId;
+        const subId = staff.assignments[0]?.subsidiaryId || agreement.employerEntityId || defaultSubId;
         await prisma.payrollItemAllocation.create({
           data: {
             itemId: item.id,
             subsidiaryId: subId,
             allocableCostMinor: grossMinor,
-            percentage: 100
-          }
+            percentage: 100,
+          },
         });
       }
     }
 
-    // 7. Update batch totals
+    // 5. Update batch totals and bump version if regenerated
+    const nextVersion = isRegeneration ? batch.version + 1 : batch.version;
     await prisma.payrollBatch.update({
       where: { id: batch.id },
       data: {
+        version: nextVersion,
+        status: 'SUBMITTED',
+        approvedAt: null,
+        snapshotHash: null,
         totalGrossMinor: totalGross,
-        totalNetMinor: totalNet
-      }
+        totalNetMinor: totalNet,
+      },
     });
 
+    const skippedNotice = skippedCount > 0 ? ` (${skippedCount} staff skipped with no salary set yet)` : '';
     return NextResponse.json({
       success: true,
-      message: `Payroll batch prepared successfully for ${preparedStaff.length} staff members.`,
-      batchId: batch.id
+      message: `Payroll batch (Version ${nextVersion}) ${isRegeneration ? 'regenerated' : 'prepared'} for ${eligibleStaff.length} staff members${skippedNotice}.`,
+      batchId: batch.id,
+      version: nextVersion,
+      employeeCount: eligibleStaff.length,
     });
   } catch (err: any) {
     console.error('Error preparing payroll batch:', err);

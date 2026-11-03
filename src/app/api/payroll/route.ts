@@ -70,9 +70,11 @@ export async function GET(req: NextRequest) {
                 employee: {
                   select: {
                     id: true,
+                    employeeNumber: true,
                     legalName: true,
                     role: true,
                     workEmail: true,
+                    avatarUrl: true,
                     bankName: true,
                     accountNumber: true,
                     accountName: true,
@@ -156,9 +158,11 @@ export async function GET(req: NextRequest) {
       return {
         id: item.id,
         employeeId: item.employee.id,
+        employeeNumber: item.employee.employeeNumber,
         employeeName: item.employee.legalName,
         role: item.employee.role,
         email: item.employee.workEmail,
+        avatarUrl: item.employee.avatarUrl || null,
         grossMinor: Number(item.grossMinor),
         grossFormatted: formatNaira(item.grossMinor),
         deductionsMinor: latenessDeductionsMinor,
