@@ -59,14 +59,20 @@ export async function POST(request: Request) {
     const avatarUrl = typeof body.avatarUrl === 'string' && body.avatarUrl.trim() 
       ? body.avatarUrl.trim() 
       : (typeof body.avatar === 'string' && body.avatar.trim() ? body.avatar.trim() : null);
-    const gender = typeof body.gender === 'string' ? body.gender.trim() : null;
-    const dateOfBirth = typeof body.dateOfBirth === 'string' ? body.dateOfBirth.trim() : null;
+    const gender = typeof body.gender === 'string' && body.gender.trim() ? body.gender.trim().toUpperCase() : null;
+    const maritalStatus = typeof body.maritalStatus === 'string' && body.maritalStatus.trim() ? body.maritalStatus.trim().toUpperCase() : null;
+    const dateOfBirth = typeof body.dateOfBirth === 'string' && body.dateOfBirth.trim() ? body.dateOfBirth.trim() : null;
+    const highestEducation = typeof body.highestEducation === 'string' && body.highestEducation.trim() ? body.highestEducation.trim().toUpperCase() : null;
     const residentialAddress = typeof body.residentialAddress === 'string' ? body.residentialAddress.trim() : null;
     const cityState = typeof body.cityState === 'string' ? body.cityState.trim() : null;
 
     // 2. Corporate Placement
-    let subsidiaryId = typeof body.subsidiaryId === 'string' && body.subsidiaryId.trim() ? body.subsidiaryId.trim() : null;
-    let departmentId = typeof body.departmentId === 'string' && body.departmentId.trim() ? body.departmentId.trim() : null;
+    let subsidiaryId = typeof body.subsidiaryId === 'string' && body.subsidiaryId.trim() 
+      ? body.subsidiaryId.trim() 
+      : (typeof body.subsidiary === 'string' && body.subsidiary.trim() ? body.subsidiary.trim() : null);
+    let departmentId = typeof body.departmentId === 'string' && body.departmentId.trim() 
+      ? body.departmentId.trim() 
+      : (typeof body.department === 'string' && body.department.trim() ? body.department.trim() : null);
 
     if (subsidiaryId) {
       const matchOrg = await prisma.organization.findFirst({
@@ -82,7 +88,7 @@ export async function POST(request: Request) {
     }
 
     if (departmentId) {
-      const matchDept = await prisma.department.findFirst({
+      let matchDept = await prisma.department.findFirst({
         where: {
           OR: [
             { id: departmentId },
@@ -92,18 +98,32 @@ export async function POST(request: Request) {
           ...(subsidiaryId ? { organizationId: subsidiaryId } : {}),
         },
       });
-      if (matchDept) departmentId = matchDept.id;
+      if (!matchDept) {
+        matchDept = await prisma.department.findFirst({
+          where: {
+            OR: [
+              { id: departmentId },
+              { code: { equals: departmentId, mode: 'insensitive' } },
+              { name: { contains: departmentId, mode: 'insensitive' } },
+            ],
+          },
+        });
+      }
+      if (matchDept) {
+        departmentId = matchDept.id;
+        if (!subsidiaryId) subsidiaryId = matchDept.organizationId;
+      }
     }
 
-    const jobTitle = typeof body.jobTitle === 'string' && body.jobTitle.trim() ? body.jobTitle.trim() : 'Staff Member';
+    const jobTitle = typeof body.jobTitle === 'string' && body.jobTitle.trim() ? body.jobTitle.trim() : '';
     const employmentType = typeof body.employmentType === 'string' && body.employmentType.trim() ? body.employmentType.trim() : 'FULL_TIME';
-    const resumptionDateStr = typeof body.resumptionDate === 'string' ? body.resumptionDate : null;
+    const resumptionDateStr = typeof body.resumptionDate === 'string' && body.resumptionDate.trim() ? body.resumptionDate.trim() : null;
     const resumptionDate = resumptionDateStr ? new Date(resumptionDateStr) : new Date();
 
     // 3. Disbursement Bank Details & Salary Account
-    const bankName = typeof body.bankName === 'string' ? body.bankName.trim() : null;
-    const accountNumber = typeof body.accountNumber === 'string' ? body.accountNumber.trim() : null;
-    const accountName = typeof body.accountName === 'string' ? body.accountName.trim() : null;
+    const bankName = typeof body.bankName === 'string' ? body.bankName.trim() : '';
+    const accountNumber = typeof body.accountNumber === 'string' ? body.accountNumber.trim() : '';
+    const accountName = typeof body.accountName === 'string' ? body.accountName.trim() : '';
 
     // Dual Banking: Salary Account
     const useSameAccountForSalary = body.useSameAccountForSalary !== false;
@@ -118,33 +138,95 @@ export async function POST(request: Request) {
       : (typeof body.salaryAccountName === 'string' && body.salaryAccountName.trim() ? body.salaryAccountName.trim() : accountName);
 
     // 4. Emergency / Next of Kin
-    const nextOfKinName = typeof body.nextOfKinName === 'string' ? body.nextOfKinName.trim() : null;
-    const nextOfKinPhone = typeof body.nextOfKinPhone === 'string' ? body.nextOfKinPhone.trim() : null;
-    const nextOfKinRelationship = typeof body.nextOfKinRelationship === 'string' ? body.nextOfKinRelationship.trim() : null;
-    const nextOfKinAddress = typeof body.nextOfKinAddress === 'string' ? body.nextOfKinAddress.trim() : null;
+    const nextOfKinName = typeof body.nextOfKinName === 'string' ? body.nextOfKinName.trim() : '';
+    const nextOfKinPhone = typeof body.nextOfKinPhone === 'string' ? body.nextOfKinPhone.trim() : '';
+    const nextOfKinRelationship = typeof body.nextOfKinRelationship === 'string' ? body.nextOfKinRelationship.trim() : '';
+    const nextOfKinAddress = typeof body.nextOfKinAddress === 'string' ? body.nextOfKinAddress.trim() : '';
 
     // 5. Statutory & Corporate Profile
-    const maritalStatus = typeof body.maritalStatus === 'string' ? body.maritalStatus.trim() : null;
-    const stateOfOrigin = typeof body.stateOfOrigin === 'string' ? body.stateOfOrigin.trim() : null;
-    const lga = typeof body.lga === 'string' ? body.lga.trim() : null;
-    const nin = typeof body.nin === 'string' ? body.nin.trim() : null;
+    const stateOfOrigin = typeof body.stateOfOrigin === 'string' ? body.stateOfOrigin.trim() : '';
+    const lga = typeof body.lga === 'string' ? body.lga.trim() : '';
+    const nin = typeof body.nin === 'string' ? body.nin.trim() : '';
     const bvn = typeof body.bvn === 'string' ? body.bvn.trim() : null;
-    const workLocation = typeof body.workLocation === 'string' ? body.workLocation.trim() : 'UMUAHIA_OPS_HUB';
-    const staffGrade = typeof body.staffGrade === 'string' ? body.staffGrade.trim() : 'OFFICER';
-    const highestEducation = typeof body.highestEducation === 'string' ? body.highestEducation.trim() : null;
+    const workLocation = typeof body.workLocation === 'string' && body.workLocation.trim() ? body.workLocation.trim() : 'UMUAHIA_OPS_HUB';
+    const staffGrade = typeof body.staffGrade === 'string' && body.staffGrade.trim() ? body.staffGrade.trim() : 'Level 06 - Operational Specialist';
 
-    // Mandatory Validations
+    // Strict Compulsory Validations - All Fields Are Mandatory
     if (!avatarUrl || avatarUrl.length < 5) {
-      return NextResponse.json({ error: 'Profile passport photograph is required. Please upload your face photograph.' }, { status: 400 });
+      return NextResponse.json({ error: 'Profile passport photograph is required. Please upload or take your photo.' }, { status: 400 });
     }
-    if (fullName.length < 2) {
-      return NextResponse.json({ error: 'Please enter your full legal name.' }, { status: 400 });
+    if (fullName.length < 3) {
+      return NextResponse.json({ error: 'Please enter your full legal name (minimum 3 characters).' }, { status: 400 });
     }
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       return NextResponse.json({ error: 'Please enter a valid work or personal email address.' }, { status: 400 });
     }
-    if (password.length < 10) {
-      return NextResponse.json({ error: 'Password must be at least 10 characters long.' }, { status: 400 });
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      return NextResponse.json({ error: 'Please enter a valid phone number (at least 10 digits).' }, { status: 400 });
+    }
+    if (password.length < 8) {
+      return NextResponse.json({ error: 'Password must be at least 8 characters long.' }, { status: 400 });
+    }
+    if (!gender) {
+      return NextResponse.json({ error: 'Please select your gender.' }, { status: 400 });
+    }
+    if (!maritalStatus) {
+      return NextResponse.json({ error: 'Please select your marital status (Single, Married, Divorced, or Widowed).' }, { status: 400 });
+    }
+    if (!dateOfBirth) {
+      return NextResponse.json({ error: 'Please enter your date of birth.' }, { status: 400 });
+    }
+    if (!highestEducation) {
+      return NextResponse.json({ error: 'Please select your highest educational qualification.' }, { status: 400 });
+    }
+    if (!residentialAddress || residentialAddress.length < 3) {
+      return NextResponse.json({ error: 'Please provide your full residential street address.' }, { status: 400 });
+    }
+    if (!cityState || cityState.length < 2) {
+      return NextResponse.json({ error: 'Please provide your residential city and state.' }, { status: 400 });
+    }
+    if (!stateOfOrigin || stateOfOrigin.length < 2) {
+      return NextResponse.json({ error: 'Please specify your state of origin.' }, { status: 400 });
+    }
+    if (!lga || lga.length < 2) {
+      return NextResponse.json({ error: 'Please specify your Local Government Area (LGA).' }, { status: 400 });
+    }
+    if (!subsidiaryId) {
+      return NextResponse.json({ error: 'Please select your operating subsidiary company.' }, { status: 400 });
+    }
+    if (!departmentId) {
+      return NextResponse.json({ error: 'Please select your official operational department.' }, { status: 400 });
+    }
+    if (!jobTitle || jobTitle.length < 2) {
+      return NextResponse.json({ error: 'Please enter your official job title or position.' }, { status: 400 });
+    }
+    if (!bankName || bankName.length < 2) {
+      return NextResponse.json({ error: 'Please select your operational disbursement bank.' }, { status: 400 });
+    }
+    const cleanAcct = accountNumber.replace(/\D/g, '');
+    if (cleanAcct.length !== 10) {
+      return NextResponse.json({ error: 'Please enter a valid 10-digit bank account number.' }, { status: 400 });
+    }
+    if (!accountName || accountName.length < 2) {
+      return NextResponse.json({ error: 'Please enter or verify your bank account name.' }, { status: 400 });
+    }
+    const cleanNin = nin.replace(/\D/g, '');
+    if (cleanNin.length !== 11) {
+      return NextResponse.json({ error: 'Please enter a valid 11-digit National Identification Number (NIN).' }, { status: 400 });
+    }
+    if (!nextOfKinName || nextOfKinName.length < 2) {
+      return NextResponse.json({ error: 'Please provide your Next of Kin full legal name.' }, { status: 400 });
+    }
+    if (!nextOfKinRelationship || nextOfKinRelationship.length < 2) {
+      return NextResponse.json({ error: 'Please specify your relationship with your Next of Kin.' }, { status: 400 });
+    }
+    const cleanNokPhone = nextOfKinPhone.replace(/\D/g, '');
+    if (cleanNokPhone.length < 10) {
+      return NextResponse.json({ error: 'Please provide a valid contact phone number for your Next of Kin.' }, { status: 400 });
+    }
+    if (!nextOfKinAddress || nextOfKinAddress.length < 3) {
+      return NextResponse.json({ error: 'Please provide the residential address of your Next of Kin.' }, { status: 400 });
     }
 
     if (await prisma.employee.findUnique({ where: { workEmail: email }, select: { id: true } })) {

@@ -113,16 +113,34 @@ export async function POST(request: Request) {
         },
       });
 
-      if (approved && subsidiaryId) {
-        await tx.employeeAssignment.create({
-          data: {
-            employeeId: employee.id,
-            subsidiaryId,
-            departmentId: departmentId || null,
-            positionName: assignedRole,
-            isPrimary: true,
-          },
+      if (approved) {
+        // Find existing primary assignment created during registration
+        const existingAssignment = await tx.employeeAssignment.findFirst({
+          where: { employeeId: employee.id, isPrimary: true },
         });
+
+        if (existingAssignment) {
+          await tx.employeeAssignment.update({
+            where: { id: existingAssignment.id },
+            data: {
+              status: 'ACTIVE',
+              ...(subsidiaryId ? { subsidiaryId } : {}),
+              ...(departmentId ? { departmentId } : {}),
+              ...(body.positionName ? { positionName: body.positionName } : {}),
+            },
+          });
+        } else if (subsidiaryId) {
+          await tx.employeeAssignment.create({
+            data: {
+              employeeId: employee.id,
+              subsidiaryId,
+              departmentId: departmentId || null,
+              positionName: body.positionName || employee.jobTitle || assignedRole,
+              isPrimary: true,
+              status: 'ACTIVE',
+            },
+          });
+        }
       }
 
       await tx.systemNotification.create({

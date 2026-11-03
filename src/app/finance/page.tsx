@@ -551,7 +551,115 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
   };
 
   const submitSignup = (e: FormEvent) => {
-    e.preventDefault(); setError(''); setBusy(true);
+    e.preventDefault(); setError('');
+
+    // Strict Compulsory Validation - All fields must be provided
+    if (!signupForm.avatarUrl || signupForm.avatarUrl.length < 5) {
+      setError('Passport photograph is mandatory. Please upload or take your face photograph.');
+      return;
+    }
+    if (!signupForm.fullName.trim() || signupForm.fullName.trim().length < 3) {
+      setError('Full legal name is required (minimum 3 characters).');
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(signupForm.email.trim())) {
+      setError('A valid work or personal email address is required.');
+      return;
+    }
+    const cleanPhone = signupForm.phone.replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      setError('Valid mobile telephone number is required (at least 10 digits).');
+      return;
+    }
+    if (!signupForm.gender) {
+      setError('Please select your gender.');
+      return;
+    }
+    if (!signupForm.maritalStatus) {
+      setError('Please select your marital status.');
+      return;
+    }
+    if (!signupForm.dateOfBirth) {
+      setError('Please specify your date of birth.');
+      return;
+    }
+    if (!signupForm.highestEducation) {
+      setError('Please select your highest educational qualification.');
+      return;
+    }
+    if (!signupForm.residentialAddress.trim() || signupForm.residentialAddress.trim().length < 3) {
+      setError('Residential street address is required.');
+      return;
+    }
+    if (!signupForm.cityState.trim() || signupForm.cityState.trim().length < 2) {
+      setError('Residential city and state are required.');
+      return;
+    }
+    if (!signupForm.stateOfOrigin.trim() || signupForm.stateOfOrigin.trim().length < 2) {
+      setError('State of origin is required.');
+      return;
+    }
+    if (!signupForm.lga.trim() || signupForm.lga.trim().length < 2) {
+      setError('Local Government Area (LGA) is required.');
+      return;
+    }
+    if (!signupForm.subsidiaryId) {
+      setError('Please select your operating subsidiary company.');
+      return;
+    }
+    if (!signupForm.departmentId) {
+      setError('Please select your official operational department.');
+      return;
+    }
+    if (!signupForm.jobTitle.trim() || signupForm.jobTitle.trim().length < 2) {
+      setError('Official job title is required.');
+      return;
+    }
+    if (!signupForm.resumptionDate) {
+      setError('Please specify your resumption date.');
+      return;
+    }
+    if (!signupForm.bankName) {
+      setError('Please select your advance disbursement bank.');
+      return;
+    }
+    const cleanAcct = signupForm.accountNumber.replace(/\D/g, '');
+    if (cleanAcct.length !== 10) {
+      setError('Valid 10-digit advance account number is required.');
+      return;
+    }
+    if (!signupForm.accountName.trim() || signupForm.accountName.trim().length < 2) {
+      setError('Advance bank account beneficiary name is required.');
+      return;
+    }
+    const cleanNin = signupForm.nin.replace(/\D/g, '');
+    if (cleanNin.length !== 11) {
+      setError('Valid 11-digit National Identity Number (NIN) is required.');
+      return;
+    }
+    if (!signupForm.nextOfKinName.trim() || signupForm.nextOfKinName.trim().length < 2) {
+      setError('Next of Kin full legal name is required.');
+      return;
+    }
+    if (!signupForm.nextOfKinRelationship.trim()) {
+      setError('Next of Kin relationship is required.');
+      return;
+    }
+    const cleanNokPhone = signupForm.nextOfKinPhone.replace(/\D/g, '');
+    if (cleanNokPhone.length < 10) {
+      setError('Valid Next of Kin contact phone number is required.');
+      return;
+    }
+    if (!signupForm.nextOfKinAddress.trim() || signupForm.nextOfKinAddress.trim().length < 3) {
+      setError('Next of Kin residential address is required.');
+      return;
+    }
+    if (!signupForm.password || signupForm.password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    setBusy(true);
     authRequest<{ user?: AuthUser; error?: string; pendingApproval?: boolean; employeeNumber?: string }>('/api/auth/signup', signupForm)
       .then(({ ok, data }) => {
         setBusy(false);

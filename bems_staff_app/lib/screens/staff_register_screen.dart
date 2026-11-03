@@ -149,7 +149,18 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   String _gender = 'MALE';
+  String _maritalStatus = 'SINGLE';
+  final List<String> _maritalStatusOptions = ['SINGLE', 'MARRIED', 'DIVORCED', 'WIDOWED'];
   final _dobController = TextEditingController();
+  String _highestEducation = 'BSC';
+  final List<Map<String, String>> _educationOptions = [
+    {'value': 'SSCE', 'label': 'SSCE / WAEC / NECO'},
+    {'value': 'OND', 'label': 'Ordinary National Diploma (OND)'},
+    {'value': 'HND', 'label': 'Higher National Diploma (HND)'},
+    {'value': 'BSC', 'label': 'Bachelor\'s Degree (B.Sc. / B.A.)'},
+    {'value': 'MSC', 'label': 'Master\'s Degree (M.Sc. / MBA)'},
+    {'value': 'PHD', 'label': 'Doctorate (Ph.D.)'},
+  ];
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
@@ -183,6 +194,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   final _stateOfOriginController = TextEditingController();
   final _lgaController = TextEditingController();
   final _residentialAddressController = TextEditingController();
+  final _cityStateController = TextEditingController();
   final _nokNameController = TextEditingController();
   final _nokRelationshipController = TextEditingController();
   final _nokPhoneController = TextEditingController();
@@ -428,6 +440,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
     _stateOfOriginController.dispose();
     _lgaController.dispose();
     _residentialAddressController.dispose();
+    _cityStateController.dispose();
     _nokNameController.dispose();
     _nokRelationshipController.dispose();
     _nokPhoneController.dispose();
@@ -444,11 +457,33 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         return;
       }
       if (_fullNameController.text.trim().length < 3) {
-        setState(() => _errorMessage = 'Please enter your full legal name.');
+        setState(() => _errorMessage = 'Please enter your full legal name (minimum 3 characters).');
         return;
       }
-      if (!_emailController.text.trim().contains('@')) {
-        setState(() => _errorMessage = 'Please enter a valid corporate email address.');
+      final email = _emailController.text.trim();
+      if (!RegExp(r'^\S+@\S+\.\S+$').hasMatch(email)) {
+        setState(() => _errorMessage = 'Please enter a valid corporate or personal email address.');
+        return;
+      }
+      final cleanPhone = _phoneController.text.trim().replaceAll(RegExp(r'\D'), '');
+      if (cleanPhone.length < 10) {
+        setState(() => _errorMessage = 'Please enter a valid mobile phone number (at least 10 digits).');
+        return;
+      }
+      if (_gender.trim().isEmpty) {
+        setState(() => _errorMessage = 'Please select your gender.');
+        return;
+      }
+      if (_maritalStatus.trim().isEmpty) {
+        setState(() => _errorMessage = 'Please select your marital status.');
+        return;
+      }
+      if (_dobController.text.trim().isEmpty) {
+        setState(() => _errorMessage = 'Please select your date of birth.');
+        return;
+      }
+      if (_highestEducation.trim().isEmpty) {
+        setState(() => _errorMessage = 'Please select your highest educational qualification.');
         return;
       }
       if (_passwordController.text.length < 8) {
@@ -460,17 +495,96 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         return;
       }
     } else if (_currentStep == 1) {
-      if (_jobTitleController.text.trim().isEmpty) {
-        setState(() => _errorMessage = 'Please enter your official job title.');
+      if (_subsidiary.trim().isEmpty) {
+        setState(() => _errorMessage = 'Please select your subsidiary company.');
+        return;
+      }
+      if (_department.trim().isEmpty) {
+        setState(() => _errorMessage = 'Please select your operating department.');
+        return;
+      }
+      if (_jobTitleController.text.trim().length < 2) {
+        setState(() => _errorMessage = 'Please enter your official job title / position.');
+        return;
+      }
+      if (_staffGrade.trim().isEmpty) {
+        setState(() => _errorMessage = 'Please select your staff grade level.');
+        return;
+      }
+      if (_workLocation.trim().isEmpty) {
+        setState(() => _errorMessage = 'Please select your primary work location.');
+        return;
+      }
+      if (_resumptionDateController.text.trim().isEmpty) {
+        setState(() => _errorMessage = 'Please select your official resumption date.');
         return;
       }
     } else if (_currentStep == 2) {
-      if (_accountNumberController.text.trim().length < 10) {
+      if (_bankName.trim().isEmpty) {
+        setState(() => _errorMessage = 'Please select your operational advance settlement bank.');
+        return;
+      }
+      final cleanAcct = _accountNumberController.text.trim().replaceAll(RegExp(r'\D'), '');
+      if (cleanAcct.length != 10) {
         setState(() => _errorMessage = 'Please enter a valid 10-digit advance account number.');
         return;
       }
-      if (_accountNameController.text.trim().isEmpty) {
-        setState(() => _errorMessage = 'Please enter account name.');
+      if (_accountNameController.text.trim().length < 2) {
+        setState(() => _errorMessage = 'Please enter or verify your advance account name.');
+        return;
+      }
+      if (!_useSameAccountForSalary) {
+        if (_salaryBankName.trim().isEmpty) {
+          setState(() => _errorMessage = 'Please select your salary bank.');
+          return;
+        }
+        final cleanSalAcct = _salaryAccountNumberController.text.trim().replaceAll(RegExp(r'\D'), '');
+        if (cleanSalAcct.length != 10) {
+          setState(() => _errorMessage = 'Please enter a valid 10-digit salary account number.');
+          return;
+        }
+        if (_salaryAccountNameController.text.trim().length < 2) {
+          setState(() => _errorMessage = 'Please enter or verify your salary account name.');
+          return;
+        }
+      }
+    } else if (_currentStep == 3) {
+      final cleanNin = _ninController.text.trim().replaceAll(RegExp(r'\D'), '');
+      if (cleanNin.length != 11) {
+        setState(() => _errorMessage = 'Please enter a valid 11-digit National Identity Number (NIN).');
+        return;
+      }
+      if (_stateOfOriginController.text.trim().length < 2) {
+        setState(() => _errorMessage = 'Please specify your state of origin.');
+        return;
+      }
+      if (_lgaController.text.trim().length < 2) {
+        setState(() => _errorMessage = 'Please specify your Local Government Area (LGA).');
+        return;
+      }
+      if (_residentialAddressController.text.trim().length < 3) {
+        setState(() => _errorMessage = 'Please enter your residential street address.');
+        return;
+      }
+      if (_cityStateController.text.trim().length < 2) {
+        setState(() => _errorMessage = 'Please enter your residential city and state.');
+        return;
+      }
+      if (_nokNameController.text.trim().length < 2) {
+        setState(() => _errorMessage = 'Please enter your Next of Kin full legal name.');
+        return;
+      }
+      if (_nokRelationshipController.text.trim().length < 2) {
+        setState(() => _errorMessage = 'Please enter your relationship with Next of Kin.');
+        return;
+      }
+      final cleanNokPhone = _nokPhoneController.text.trim().replaceAll(RegExp(r'\D'), '');
+      if (cleanNokPhone.length < 10) {
+        setState(() => _errorMessage = 'Please enter a valid Next of Kin contact phone (at least 10 digits).');
+        return;
+      }
+      if (_nokAddressController.text.trim().length < 3) {
+        setState(() => _errorMessage = 'Please enter Next of Kin residential address.');
         return;
       }
     }
@@ -507,12 +621,17 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         password: _passwordController.text.trim(),
         phone: _phoneController.text.trim(),
         gender: _gender,
+        maritalStatus: _maritalStatus,
         dateOfBirth: _dobController.text.trim(),
+        highestEducation: _highestEducation,
+        residentialAddress: _residentialAddressController.text.trim(),
+        cityState: _cityStateController.text.trim(),
         subsidiary: _subsidiary,
         department: _department,
         jobTitle: _jobTitleController.text.trim(),
         staffGrade: _staffGrade,
         workLocation: _workLocation,
+        resumptionDate: _resumptionDateController.text.trim(),
         bankName: _bankName,
         accountNumber: _accountNumberController.text.trim(),
         accountName: _accountNameController.text.trim(),
@@ -524,7 +643,6 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         bvn: '',
         stateOfOrigin: _stateOfOriginController.text.trim(),
         lga: _lgaController.text.trim(),
-        residentialAddress: _residentialAddressController.text.trim(),
         nextOfKinName: _nokNameController.text.trim(),
         nextOfKinRelationship: _nokRelationshipController.text.trim(),
         nextOfKinPhone: _nokPhoneController.text.trim(),
@@ -986,6 +1104,71 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
             ],
           ),
           const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('MARITAL STATUS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _maritalStatus,
+                          isExpanded: true,
+                          items: _maritalStatusOptions.map((m) => DropdownMenuItem(
+                            value: m,
+                            child: Text(
+                              m == 'SINGLE' ? 'Single' : m == 'MARRIED' ? 'Married' : m == 'DIVORCED' ? 'Divorced' : 'Widowed',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          )).toList(),
+                          onChanged: (v) => setState(() => _maritalStatus = v!),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('HIGHEST QUALIFICATION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.8)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _highestEducation,
+                          isExpanded: true,
+                          items: _educationOptions.map((e) => DropdownMenuItem(
+                            value: e['value'],
+                            child: Text(e['label']!, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                          )).toList(),
+                          onChanged: (v) => setState(() => _highestEducation = v!),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           _buildTextField(
             label: 'CREATE PASSWORD',
             controller: _passwordController,
@@ -1395,7 +1578,9 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          _buildTextField(label: 'RESIDENTIAL ADDRESS', controller: _residentialAddressController, hint: 'Street, Estate, City', icon: Icons.home_outlined),
+          _buildTextField(label: 'RESIDENTIAL STREET ADDRESS', controller: _residentialAddressController, hint: 'Street address, House No., Estate', icon: Icons.home_outlined),
+          const SizedBox(height: 14),
+          _buildTextField(label: 'CITY & STATE', controller: _cityStateController, hint: 'e.g. Umuahia, Abia State', icon: Icons.location_on_outlined),
           const SizedBox(height: 20),
 
           // Emergency Header
