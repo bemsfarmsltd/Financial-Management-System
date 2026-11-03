@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { StaffNewFundRequestModal } from '@/components/requests/StaffNewFundRequestModal';
 import { StaffAdminChatModal } from '@/components/chat/StaffAdminChatModal';
+import { StaffInformationUpdateGateModal } from '@/components/dashboard/staff/StaffInformationUpdateGateModal';
 import {
   Home,
   Receipt,
@@ -128,6 +129,13 @@ export function StaffDashboardClient({
   const [allDisbursements, setAllDisbursements] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<StaffUser>(user);
   const [hideBalance, setHideBalance] = useState(false);
+
+  // Administrator-triggered mandatory information update gate
+  const [pendingUpdateData, setPendingUpdateData] = useState<{
+    request: any;
+    currentData: any;
+  } | null>(null);
+  const [isUpdateGateOpen, setIsUpdateGateOpen] = useState(false);
 
   // Compensation & Payslips Data
   const [compensationData, setCompensationData] = useState<any>(null);
@@ -286,6 +294,20 @@ export function StaffDashboardClient({
         fetch(`/api/payroll/my-payments?_t=${now}`).then((r) => (r.ok ? r.json() : { compensation: null, payslips: [] })),
         fetch(`/api/attendance/timesheet?employeeId=${user.id}&_t=${now}`).then((r) => (r.ok ? r.json() : null)),
       ]);
+
+      // Check for pending administrator profile update action
+      fetch('/api/staff/profile/pending-update')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.hasPendingUpdate && d.request) {
+            setPendingUpdateData({ request: d.request, currentData: d.currentData });
+            setIsUpdateGateOpen(true);
+          } else {
+            setIsUpdateGateOpen(false);
+            setPendingUpdateData(null);
+          }
+        })
+        .catch(() => {});
 
       const rawRequests = Array.isArray(reqRes) ? reqRes : reqRes?.requests || [];
       const myReqs = rawRequests.filter(
@@ -3560,6 +3582,24 @@ export function StaffDashboardClient({
             loadData(true);
           }}
         />
+
+        {/* Mandatory Administrator Information Update Gate */}
+        {isUpdateGateOpen && pendingUpdateData && (
+          <StaffInformationUpdateGateModal
+            isOpen={isUpdateGateOpen}
+            request={pendingUpdateData.request}
+            currentData={pendingUpdateData.currentData}
+            onSuccess={(updatedEmp) => {
+              setIsUpdateGateOpen(false);
+              setPendingUpdateData(null);
+              setUserProfile((prev) => ({
+                ...prev,
+                ...updatedEmp,
+              }));
+              loadData(true);
+            }}
+          />
+        )}
       </div>
     );
   }

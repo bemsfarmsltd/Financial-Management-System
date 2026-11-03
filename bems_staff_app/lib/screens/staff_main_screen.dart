@@ -67,6 +67,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   String _requisitionChartMetric = 'Category';
   bool _isBiometricConfigured = false;
   bool _isBiometricEnabled = false;
+  bool _isProfileUpdateGateActive = false;
 
   @override
   void initState() {
@@ -156,6 +157,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         _todayAttendance = attendance;
         _isLoading = false;
       });
+      _checkProfileUpdateGate();
     }
   }
 
@@ -241,6 +243,480 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               child: const Text('Submit Report'),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  void _checkProfileUpdateGate() {
+    if (_isProfileUpdateGateActive) return;
+    StaffApiService.fetchPendingProfileUpdate(
+      employeeId: _currentUser.id,
+      token: _currentUser.token,
+    ).then((pending) {
+      if (mounted && pending != null && pending['hasPendingUpdate'] == true) {
+        _isProfileUpdateGateActive = true;
+        _showProfileUpdateDialog(pending).then((_) {
+          _isProfileUpdateGateActive = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _showProfileUpdateDialog(Map<String, dynamic> pending) async {
+    final req = pending['request'] as Map<String, dynamic>? ?? {};
+    final cur = pending['currentData'] as Map<String, dynamic>? ?? {};
+    final fields = (req['requestedFields'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+    final instructions = req['instructions']?.toString();
+    final requestedBy = req['requestedBy']?.toString() ?? 'Administrator';
+    final requestId = req['id']?.toString() ?? '';
+
+    String? avatarUrl = cur['avatarUrl']?.toString();
+    final ninController = TextEditingController(text: cur['nin']?.toString() ?? '');
+    final bankNameController = TextEditingController(text: cur['bankName']?.toString() ?? '');
+    final accountNumController = TextEditingController(text: cur['accountNumber']?.toString() ?? '');
+    final accountNameController = TextEditingController(text: cur['accountName']?.toString() ?? '');
+    final nokNameController = TextEditingController(text: cur['nextOfKinName']?.toString() ?? '');
+    final nokPhoneController = TextEditingController(text: cur['nextOfKinPhone']?.toString() ?? '');
+    final resAddressController = TextEditingController(text: cur['residentialAddress']?.toString() ?? '');
+    final cityStateController = TextEditingController(text: cur['cityState']?.toString() ?? '');
+    final pinController = TextEditingController();
+    String maritalStatus = cur['maritalStatus']?.toString() ?? 'SINGLE';
+    String highestEducation = cur['highestEducation']?.toString() ?? 'BACHELORS';
+
+    bool isSubmitting = false;
+    bool isUploadingPhoto = false;
+    String? localError;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return WillPopScope(
+              onWillPop: () async => false,
+              child: Dialog(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 520, maxHeight: 680),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFEA580C),
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(20),
+                            topRight: Radius.circular(20),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.shield_outlined, color: Colors.white, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'ACTION REQUIRED',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.1,
+                                    ),
+                                  ),
+                                  const Text(
+                                    'Update Profile Records',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Requested by $requestedBy',
+                                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Scrollable form fields
+                      Flexible(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (instructions != null && instructions.isNotEmpty) ...[
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF7ED),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: const Color(0xFFFED7AA)),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(Icons.info_outline, color: Color(0xFFEA580C), size: 18),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          instructions,
+                                          style: const TextStyle(fontSize: 12, color: Color(0xFF9A3412)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                              ],
+                              if (localError != null) ...[
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFEF2F2),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: const Color(0xFFFECACA)),
+                                  ),
+                                  child: Text(
+                                    localError!,
+                                    style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                              ],
+
+                              // 1. Passport Photograph
+                              if (fields.contains('avatarUrl')) ...[
+                                const Text('PASSPORT PHOTOGRAPH', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 28,
+                                      backgroundColor: const Color(0xFFF1F5F9),
+                                      backgroundImage: (avatarUrl != null && avatarUrl!.startsWith('http'))
+                                          ? NetworkImage(avatarUrl!)
+                                          : null,
+                                      child: (avatarUrl == null || !avatarUrl!.startsWith('http'))
+                                          ? const Icon(Icons.person, color: Color(0xFF94A3B8), size: 30)
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 14),
+                                    ElevatedButton.icon(
+                                      onPressed: isUploadingPhoto
+                                          ? null
+                                          : () async {
+                                              final picker = ImagePicker();
+                                              final photo = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+                                              if (photo != null) {
+                                                setDialogState(() => isUploadingPhoto = true);
+                                                try {
+                                                  final bytes = await photo.readAsBytes();
+                                                  final uploaded = await StaffApiService.uploadAvatar(
+                                                    bytes: bytes,
+                                                    filename: photo.name,
+                                                  );
+                                                  setDialogState(() {
+                                                    avatarUrl = uploaded;
+                                                    isUploadingPhoto = false;
+                                                  });
+                                                } catch (e) {
+                                                  setDialogState(() {
+                                                    localError = e.toString();
+                                                    isUploadingPhoto = false;
+                                                  });
+                                                }
+                                              }
+                                            },
+                                      icon: isUploadingPhoto
+                                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                          : const Icon(Icons.upload, size: 16),
+                                      label: Text(isUploadingPhoto ? 'Uploading...' : 'Upload Passport Photo'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFFEA580C),
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+
+                              // 2. NIN
+                              if (fields.contains('nin')) ...[
+                                const Text('NATIONAL IDENTITY NUMBER (NIN)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                                const SizedBox(height: 6),
+                                TextField(
+                                  controller: ninController,
+                                  keyboardType: TextInputType.number,
+                                  maxLength: 11,
+                                  decoration: InputDecoration(
+                                    hintText: '11-digit NIN',
+                                    counterText: '',
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+
+                              // 3. Bank Details
+                              if (fields.contains('bankDetails')) ...[
+                                const Text('BANK DISBURSEMENT DETAILS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                                const SizedBox(height: 6),
+                                TextField(
+                                  controller: bankNameController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Bank Name (e.g. Access Bank)',
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: accountNumController,
+                                  keyboardType: TextInputType.number,
+                                  maxLength: 10,
+                                  decoration: InputDecoration(
+                                    hintText: '10-digit Account Number',
+                                    counterText: '',
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: accountNameController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Account Holder Legal Name',
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+
+                              // 4. Next of Kin
+                              if (fields.contains('nextOfKin')) ...[
+                                const Text('NEXT OF KIN RECORDS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                                const SizedBox(height: 6),
+                                TextField(
+                                  controller: nokNameController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Full Name',
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: nokPhoneController,
+                                  keyboardType: TextInputType.phone,
+                                  decoration: InputDecoration(
+                                    hintText: 'Phone Number',
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+
+                              // 5. Residential Address
+                              if (fields.contains('residentialAddress')) ...[
+                                const Text('RESIDENTIAL ADDRESS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                                const SizedBox(height: 6),
+                                TextField(
+                                  controller: resAddressController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Street Address',
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: cityStateController,
+                                  decoration: InputDecoration(
+                                    hintText: 'City, State',
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+
+                              // 6. Demographics
+                              if (fields.contains('demographics')) ...[
+                                const Text('MARITAL STATUS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                                const SizedBox(height: 6),
+                                DropdownButtonFormField<String>(
+                                  value: maritalStatus,
+                                  items: const [
+                                    DropdownMenuItem(value: 'SINGLE', child: Text('Single')),
+                                    DropdownMenuItem(value: 'MARRIED', child: Text('Married')),
+                                    DropdownMenuItem(value: 'DIVORCED', child: Text('Divorced')),
+                                    DropdownMenuItem(value: 'WIDOWED', child: Text('Widowed')),
+                                  ],
+                                  onChanged: (val) => setDialogState(() => maritalStatus = val ?? 'SINGLE'),
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+
+                              // 7. Security PIN
+                              if (fields.contains('securityPin')) ...[
+                                const Text('SET 4-DIGIT SECURITY PIN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                                const SizedBox(height: 6),
+                                TextField(
+                                  controller: pinController,
+                                  keyboardType: TextInputType.number,
+                                  maxLength: 4,
+                                  obscureText: true,
+                                  decoration: InputDecoration(
+                                    hintText: '4-digit PIN',
+                                    counterText: '',
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Action Button
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: const BoxDecoration(
+                          border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: isSubmitting
+                                ? null
+                                : () async {
+                                    setDialogState(() => localError = null);
+                                    if (fields.contains('avatarUrl') && (avatarUrl == null || !avatarUrl!.startsWith('http'))) {
+                                      setDialogState(() => localError = 'Please upload your passport photograph.');
+                                      return;
+                                    }
+                                    if (fields.contains('nin') && ninController.text.trim().length != 11) {
+                                      setDialogState(() => localError = 'NIN must be 11 digits.');
+                                      return;
+                                    }
+                                    if (fields.contains('bankDetails') && (bankNameController.text.trim().isEmpty || accountNumController.text.trim().length != 10)) {
+                                      setDialogState(() => localError = 'Please provide valid bank name and 10-digit account number.');
+                                      return;
+                                    }
+                                    if (fields.contains('securityPin') && pinController.text.trim().length != 4) {
+                                      setDialogState(() => localError = 'Security PIN must be 4 digits.');
+                                      return;
+                                    }
+
+                                    setDialogState(() => isSubmitting = true);
+                                    try {
+                                      final updates = <String, dynamic>{};
+                                      if (fields.contains('avatarUrl') && avatarUrl != null) updates['avatarUrl'] = avatarUrl;
+                                      if (fields.contains('nin')) updates['nin'] = ninController.text.trim();
+                                      if (fields.contains('bankDetails')) {
+                                        updates['bankName'] = bankNameController.text.trim();
+                                        updates['accountNumber'] = accountNumController.text.trim();
+                                        updates['accountName'] = accountNameController.text.trim();
+                                      }
+                                      if (fields.contains('nextOfKin')) {
+                                        updates['nextOfKinName'] = nokNameController.text.trim();
+                                        updates['nextOfKinPhone'] = nokPhoneController.text.trim();
+                                      }
+                                      if (fields.contains('residentialAddress')) {
+                                        updates['residentialAddress'] = resAddressController.text.trim();
+                                        updates['cityState'] = cityStateController.text.trim();
+                                      }
+                                      if (fields.contains('demographics')) {
+                                        updates['maritalStatus'] = maritalStatus;
+                                        updates['highestEducation'] = highestEducation;
+                                      }
+                                      if (fields.contains('securityPin')) {
+                                        updates['securityPin'] = pinController.text.trim();
+                                      }
+
+                                      await StaffApiService.submitProfileUpdate(
+                                        employeeId: _currentUser.id,
+                                        requestId: requestId,
+                                        updates: updates,
+                                        token: _currentUser.token,
+                                      );
+
+                                      if (mounted) {
+                                        Navigator.pop(ctx);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('✓ Profile updated successfully! Access granted.'),
+                                            backgroundColor: Color(0xFF059669),
+                                          ),
+                                        );
+                                        _loadData();
+                                      }
+                                    } catch (e) {
+                                      setDialogState(() {
+                                        localError = e.toString();
+                                        isSubmitting = false;
+                                      });
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFEA580C),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: isSubmitting
+                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : const Text('Save & Continue →', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );

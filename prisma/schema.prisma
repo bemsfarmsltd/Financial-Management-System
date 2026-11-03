@@ -89,6 +89,7 @@ model Employee {
   status         String   @default("ACTIVE") // ACTIVE | ON_LEAVE | TERMINATED
   approvalStatus String   @default("APPROVED") // PENDING_APPROVAL | APPROVED | REJECTED
   passwordHash   String?
+  securityPinHash String?
   avatarUrl      String?
   
   // Enhanced Enterprise Dossier
@@ -149,6 +150,25 @@ model Employee {
   adminMessages         StaffAdminMessage[]
   attendanceRecords     AttendanceRecord[]
   workSchedule          StaffWorkSchedule?
+  profileUpdateRequests StaffProfileUpdateRequest[] @relation("TargetEmployee")
+  createdProfileUpdateRequests StaffProfileUpdateRequest[] @relation("RequestedByAdmin")
+}
+
+model StaffProfileUpdateRequest {
+  id              String    @id @default(uuid())
+  employeeId      String
+  employee        Employee  @relation("TargetEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  requestedById   String
+  requestedBy     Employee  @relation("RequestedByAdmin", fields: [requestedById], references: [id])
+  
+  requestedFields String    // JSON string array of keys: ["avatarUrl", "nin", "bankDetails", "nextOfKin", "residentialAddress", "demographics", "securityPin"]
+  instructions    String?
+  
+  status          String    @default("PENDING") // PENDING | COMPLETED | CANCELLED
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([employeeId, status])
 }
 
 model AuthSession {

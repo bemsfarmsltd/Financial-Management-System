@@ -1086,4 +1086,52 @@ class StaffApiService {
     } catch (_) {}
     return [];
   }
+
+  /// Check if administrator has triggered a mandatory profile update request
+  static Future<Map<String, dynamic>?> fetchPendingProfileUpdate({
+    required String employeeId,
+    String? token,
+  }) async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/staff/profile/pending-update'),
+          headers: _headers(token: token, employeeId: employeeId),
+        ),
+        timeout: const Duration(seconds: 10),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic> && data['hasPendingUpdate'] == true) {
+          return data;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Submit profile updates to clear the administrative gate
+  static Future<Map<String, dynamic>> submitProfileUpdate({
+    required String employeeId,
+    required String requestId,
+    required Map<String, dynamic> updates,
+    String? token,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/staff/profile/submit-update'),
+        headers: _headers(token: token, employeeId: employeeId),
+        body: jsonEncode({
+          'requestId': requestId,
+          'updates': updates,
+        }),
+      ),
+      timeout: const Duration(seconds: 15),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return data is Map<String, dynamic> ? data : {};
+    }
+    throw Exception(data['error']?.toString() ?? 'Failed to submit profile updates.');
+  }
 }

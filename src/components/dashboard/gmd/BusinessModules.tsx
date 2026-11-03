@@ -30,6 +30,7 @@ import {
   ExternalLink,
   Receipt,
   ChevronDown,
+  ListChecks,
 } from 'lucide-react';
 
 async function api<T>(path: string, init?: RequestInit, retries = 1): Promise<T> {
@@ -916,6 +917,12 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
   const [reason, setReason] = useState('');
   const [modalTab, setModalTab] = useState<'dossier' | 'payroll' | 'requests'>('dossier');
 
+  // Admin-triggered update request state
+  const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [reqFields, setReqFields] = useState<string[]>(['avatarUrl']);
+  const [reqInstructions, setReqInstructions] = useState('');
+  const [triggeringUpdate, setTriggeringUpdate] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -1013,6 +1020,34 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
       setError(e.message || 'Error deleting account.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const submitUpdateRequest = async () => {
+    if (!selected) return;
+    if (reqFields.length === 0) {
+      alert('Please select at least one field to request.');
+      return;
+    }
+    setTriggeringUpdate(true);
+    try {
+      const res = await fetch(`/api/admin/employees/${selected.employee.id}/request-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestedFields: reqFields,
+          instructions: reqInstructions,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to trigger update request');
+      setNotice(`✓ Update request triggered for ${selected.employee.legalName}. They will be prompted on next login.`);
+      setUpdateModalOpen(false);
+      setReqInstructions('');
+    } catch (err: any) {
+      alert(err.message || 'Error triggering update request');
+    } finally {
+      setTriggeringUpdate(false);
     }
   };
 
@@ -1769,6 +1804,30 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                     <button
                       type="button"
                       style={{
+                        background: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        color: '#1d4ed8',
+                        fontWeight: 700,
+                        fontSize: 12,
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                      }}
+                      onClick={() => {
+                        setReqFields(['avatarUrl', 'nin']);
+                        setReqInstructions('');
+                        setUpdateModalOpen(true);
+                      }}
+                    >
+                      <ListChecks size={13} /> Request Info Update
+                    </button>
+
+                    <button
+                      type="button"
+                      style={{
                         background: '#fef2f2',
                         border: '1px solid #fecaca',
                         color: '#dc2626',
@@ -2255,6 +2314,172 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                 )}
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Admin Request Information Update Modal */}
+      {updateModalOpen && selected && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: 20,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setUpdateModalOpen(false);
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: 16,
+              maxWidth: 540,
+              width: '100%',
+              padding: 24,
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              <div>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  ADMIN MANDATORY ACTION
+                </span>
+                <h3 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '4px 0 2px' }}>
+                  Demand Information Update
+                </h3>
+                <p style={{ fontSize: 12.5, color: '#64748b', margin: 0 }}>
+                  Target: <strong>{selected.employee.legalName}</strong> ({selected.employee.employeeNumber})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUpdateModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.5, background: '#f8fafc', padding: 12, borderRadius: 10, border: '1px solid #e2e8f0', margin: '0 0 16px' }}>
+              Select which records this employee must update or verify. The next time they log in or sync their dashboard, a blocking modal will require them to complete these items before continuing.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+              <label style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Select Required Fields:
+              </label>
+
+              {[
+                { key: 'avatarUrl', label: '📷 Passport Photograph', desc: 'Require uploading a clean, clear photo' },
+                { key: 'nin', label: '🪪 National Identity Number (NIN)', desc: 'Require 11-digit verified identity number' },
+                { key: 'bankDetails', label: '🏦 Disbursement Bank Details', desc: 'Require bank name, account number & name' },
+                { key: 'nextOfKin', label: '👥 Next of Kin Records', desc: 'Require emergency contact name, phone, address' },
+                { key: 'residentialAddress', label: '📍 Residential Address & City/State', desc: 'Require physical home address verification' },
+                { key: 'demographics', label: '📋 Statutory Demographics', desc: 'Require marital status, qualification, state of origin' },
+                { key: 'securityPin', label: '🔒 4-Digit Quick Unlock Security PIN', desc: 'Require setting or resetting security PIN' },
+              ].map((f) => {
+                const checked = reqFields.includes(f.key);
+                return (
+                  <label
+                    key={f.key}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 12,
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      border: checked ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
+                      background: checked ? '#eff6ff' : '#ffffff',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        if (e.target.checked) setReqFields([...reqFields, f.key]);
+                        else setReqFields(reqFields.filter((k) => k !== f.key));
+                      }}
+                      style={{ marginTop: 2, accentColor: '#2563eb', cursor: 'pointer' }}
+                    />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: checked ? '#1e40af' : '#0f172a' }}>{f.label}</div>
+                      <div style={{ fontSize: 11.5, color: '#64748b' }}>{f.desc}</div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>
+                Administrator Instructions / Reason (Optional):
+              </label>
+              <textarea
+                value={reqInstructions}
+                onChange={(e) => setReqInstructions(e.target.value)}
+                placeholder="e.g. Please provide a clear passport photograph with a plain white background."
+                style={{
+                  width: '100%',
+                  minHeight: 70,
+                  padding: 10,
+                  fontSize: 13,
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setUpdateModalOpen(false)}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#475569',
+                  fontSize: 13,
+                  fontWeight: 650,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={triggeringUpdate || reqFields.length === 0}
+                onClick={submitUpdateRequest}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: reqFields.length === 0 ? '#94a3b8' : '#2563eb',
+                  color: '#ffffff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: reqFields.length === 0 || triggeringUpdate ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                {triggeringUpdate ? 'Sending...' : 'Trigger Update Gate →'}
+              </button>
+            </div>
           </div>
         </div>
       )}
