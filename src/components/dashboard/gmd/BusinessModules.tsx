@@ -917,15 +917,23 @@ export const ALL_INDIVIDUAL_FIELDS = [
 ];
 
 function StaffAvatarPhoto({ name, url }: { name: string; url?: string | null }) {
-  const [failed, setFailed] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const initials = name && name.trim().length > 0 ? name.trim().slice(0, 2).toUpperCase() : 'ST';
 
   useEffect(() => {
-    setFailed(false);
+    setRetryCount(0);
   }, [url]);
 
-  const cleanUrl = url && !failed
-    ? (url.startsWith('/') ? url : url.replace('https://pink-horse-318730.hostingersite.com', 'https://bemserp.work'))
+  const cleanUrl = url && retryCount < 2
+    ? (() => {
+        const base = url.startsWith('/')
+          ? url
+          : url
+              .replace('https://pink-horse-318730.hostingersite.com', '')
+              .replace('https://bemserp.work', '');
+        const sep = base.includes('?') ? '&' : '?';
+        return retryCount === 0 ? `${base}${sep}v=2` : `${base}${sep}v=2&r=${retryCount}`;
+      })()
     : null;
 
   if (cleanUrl) {
@@ -934,7 +942,7 @@ function StaffAvatarPhoto({ name, url }: { name: string; url?: string | null }) 
         key={cleanUrl}
         src={cleanUrl}
         alt={name || 'Staff avatar'}
-        onError={() => setFailed(true)}
+        onError={() => setRetryCount((c) => c + 1)}
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
     );

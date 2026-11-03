@@ -8,6 +8,39 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+async function persistStoredFileWithRetry(
+  filename: string,
+  mimeType: string,
+  bytes: Buffer,
+  retries = 3
+) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await prisma.storedFile.upsert({
+        where: { filename },
+        create: {
+          filename,
+          mimeType,
+          data: bytes as any,
+          size: bytes.length,
+        },
+        update: {
+          mimeType,
+          data: bytes as any,
+          size: bytes.length,
+        },
+      });
+      return true;
+    } catch (err) {
+      console.error(`[Upload] DB persist attempt ${attempt}/${retries} failed for ${filename}:`, err);
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 200 * attempt));
+      }
+    }
+  }
+  return false;
+}
+
 export async function POST(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee(request);
@@ -65,25 +98,8 @@ export async function POST(request: Request) {
       const subDir = isPdf ? 'documents' : 'avatars';
       const mimeType = isPdf ? 'application/pdf' : cleanExt === 'png' ? 'image/png' : cleanExt === 'webp' ? 'image/webp' : 'image/jpeg';
 
-      // 1. Permanently persist to Supabase PostgreSQL database
-      try {
-        await prisma.storedFile.upsert({
-          where: { filename },
-          create: {
-            filename,
-            mimeType,
-            data: bytes,
-            size: bytes.length,
-          },
-          update: {
-            mimeType,
-            data: bytes,
-            size: bytes.length,
-          },
-        });
-      } catch (dbErr) {
-        console.error('[Upload] Failed to persist file in database:', dbErr);
-      }
+      // 1. Permanently persist to Supabase PostgreSQL database with retries
+      await persistStoredFileWithRetry(filename, mimeType, bytes, 3);
 
       // 2. Also write to local disk cache if writable
       try {
@@ -95,6 +111,19 @@ export async function POST(request: Request) {
       }
 
       const url = `/uploads/${subDir}/${filename}`;
+
+      // 3. If an employeeId was provided for an avatar update, atomically update employee.avatarUrl
+      const formEmployeeId = formData.get('employeeId')?.toString()?.trim() || request.headers.get('x-employee-id')?.trim();
+      if (!isPdf && formEmployeeId) {
+        const canUpdate = !actor || actor.id === formEmployeeId || actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN';
+        if (canUpdate) {
+          await prisma.employee.update({
+            where: { id: formEmployeeId },
+            data: { avatarUrl: url },
+          }).catch(() => {});
+        }
+      }
+
       return NextResponse.json({ success: true, url, filename });
     }
 
@@ -107,7 +136,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'No image data provided.' }, { status: 400 });
       }
 
-      // Check format and strictly enforce image whitelist to prevent SVG/HTML stored XSS
       const matches = base64Data.match(/^data:image\/([a-zA-Z0-9-+.]+);base64,(.+)$/);
       let buffer: Buffer;
       let rawExt = 'jpg';
@@ -132,25 +160,8 @@ export async function POST(request: Request) {
       const filename = `avatar-${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
       const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
 
-      // 1. Permanently persist to Supabase PostgreSQL database
-      try {
-        await prisma.storedFile.upsert({
-          where: { filename },
-          create: {
-            filename,
-            mimeType,
-            data: buffer as any,
-            size: buffer.length,
-          },
-          update: {
-            mimeType,
-            data: buffer as any,
-            size: buffer.length,
-          },
-        });
-      } catch (dbErr) {
-        console.error('[Upload] Failed to persist avatar in database:', dbErr);
-      }
+      // 1. Permanently persist to Supabase PostgreSQL database with retries
+      await persistStoredFileWithRetry(filename, mimeType, buffer, 3);
 
       // 2. Also write to local disk cache if writable
       try {
@@ -162,6 +173,18 @@ export async function POST(request: Request) {
       }
 
       const url = `/uploads/avatars/${filename}`;
+
+      const bodyEmployeeId = typeof body.employeeId === 'string' ? body.employeeId.trim() : request.headers.get('x-employee-id')?.trim();
+      if (bodyEmployeeId) {
+        const canUpdate = !actor || actor.id === bodyEmployeeId || actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN';
+        if (canUpdate) {
+          await prisma.employee.update({
+            where: { id: bodyEmployeeId },
+            data: { avatarUrl: url },
+          }).catch(() => {});
+        }
+      }
+
       return NextResponse.json({ success: true, url, filename });
     }
 

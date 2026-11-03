@@ -4882,11 +4882,14 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       final newUrl = await StaffApiService.uploadAvatar(
         bytes: bytes,
         filename: photo.name,
+        employeeId: _currentUser.id,
+        token: _currentUser.token,
       );
 
       await StaffApiService.updateEmployeeAvatar(
         employeeId: _currentUser.id,
         avatarUrl: newUrl,
+        token: _currentUser.token,
       );
 
       final updatedUser = _currentUser.copyWith(avatarUrl: newUrl);

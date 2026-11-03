@@ -169,6 +169,8 @@ class StaffApiService {
   static Future<String> uploadAvatar({
     required List<int> bytes,
     required String filename,
+    String? employeeId,
+    String? token,
   }) async {
     final cleanName = filename.isNotEmpty ? filename : 'avatar.jpg';
     final ext = cleanName.contains('.') ? cleanName.split('.').last.toLowerCase() : 'jpg';
@@ -191,6 +193,14 @@ class StaffApiService {
             filename: cleanName.endsWith('.$ext') ? cleanName : '$cleanName.$ext',
             contentType: mimeType,
           ));
+        if (employeeId != null && employeeId.isNotEmpty) {
+          request.fields['employeeId'] = employeeId;
+          request.headers['x-employee-id'] = employeeId;
+        }
+        final effectiveToken = (token != null && token.isNotEmpty) ? token : sessionToken;
+        if (effectiveToken != null && effectiveToken.isNotEmpty) {
+          request.headers['Authorization'] = 'Bearer $effectiveToken';
+        }
 
         final streamedResponse =
             await request.send().timeout(const Duration(seconds: 25));
@@ -866,7 +876,16 @@ class StaffApiService {
       ),
     );
 
-    return res.statusCode >= 200 && res.statusCode < 300;
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return true;
+    }
+    try {
+      final data = jsonDecode(res.body);
+      throw Exception(data['error']?.toString() ?? 'Could not save passport photograph to profile.');
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Could not save passport photograph to profile.');
+    }
   }
 
   /// Delete/retract a fund request before admin approval

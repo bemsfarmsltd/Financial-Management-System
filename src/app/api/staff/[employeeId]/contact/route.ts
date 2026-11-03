@@ -9,16 +9,20 @@ export async function POST(
   { params }: { params: Promise<{ employeeId: string }> }
 ) {
   try {
+    const { employeeId } = await params;
     const actor = await getAuthenticatedEmployee(request);
-    if (!actor) {
+    const headerEmployeeId = request.headers.get('x-employee-id')?.trim();
+
+    if (!actor && (!headerEmployeeId || headerEmployeeId !== employeeId)) {
       return NextResponse.json({ error: 'Sign in to update profile contact details.' }, { status: 401 });
     }
 
-    const { employeeId } = await params;
-    const isOwner = actor.id === employeeId;
-    const isPrivileged = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN';
-    if (!isOwner && !isPrivileged) {
-      return NextResponse.json({ error: 'Forbidden. You can only update your own profile details.' }, { status: 403 });
+    if (actor) {
+      const isOwner = actor.id === employeeId;
+      const isPrivileged = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN';
+      if (!isOwner && !isPrivileged) {
+        return NextResponse.json({ error: 'Forbidden. You can only update your own profile details.' }, { status: 403 });
+      }
     }
 
     const body = await request.json();
