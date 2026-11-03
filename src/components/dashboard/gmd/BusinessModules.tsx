@@ -1614,26 +1614,75 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-                    {/* Official Staff Photo (Read-only, uploaded by staff via self-service portal/mobile app) */}
-                    <div
-                      style={{
-                        width: 72,
-                        height: 72,
-                        borderRadius: 16,
-                        background: selected.employee.role === 'GMD' ? '#fff7ed' : '#f1f5f9',
-                        border: '2px solid #e2e8f0',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: selected.employee.role === 'GMD' ? '#ea580c' : '#334155',
-                        fontWeight: 800,
-                        fontSize: 22,
-                        overflow: 'hidden',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <StaffAvatarPhoto name={selected.employee.legalName} url={selected.employee.avatarUrl} />
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <div
+                        style={{
+                          width: 72,
+                          height: 72,
+                          borderRadius: 16,
+                          background: selected.employee.role === 'GMD' ? '#fff7ed' : '#f1f5f9',
+                          border: '2px solid #e2e8f0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: selected.employee.role === 'GMD' ? '#ea580c' : '#334155',
+                          fontWeight: 800,
+                          fontSize: 22,
+                          overflow: 'hidden',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <StaffAvatarPhoto name={selected.employee.legalName} url={selected.employee.avatarUrl} />
+                      </div>
+                      <label
+                        style={{
+                          cursor: saving ? 'not-allowed' : 'pointer',
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          color: '#ea580c',
+                          background: '#fff7ed',
+                          border: '1px solid #fed7aa',
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          textAlign: 'center',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        <span>📷 Change Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={saving}
+                          style={{ display: 'none' }}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const fd = new FormData();
+                            fd.append('file', file);
+                            try {
+                              setSaving(true);
+                              const upRes = await fetch('/api/upload', { method: 'POST', body: fd });
+                              const upData = await upRes.json();
+                              if (!upRes.ok) throw new Error(upData.error || 'Upload failed');
+                              const updRes = await fetch(`/api/staff/${selected.employee.id}/contact`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ avatarUrl: upData.url }),
+                              });
+                              if (!updRes.ok) throw new Error('Could not update avatar in profile');
+                              setNotice(`✓ Updated photo for ${selected.employee.legalName}`);
+                              await Promise.all([load(), open(selected.employee.id)]);
+                            } catch (err: any) {
+                              setError(err.message || 'Error updating photo');
+                            } finally {
+                              setSaving(false);
+                            }
+                          }}
+                        />
+                      </label>
                     </div>
 
                     <div>
