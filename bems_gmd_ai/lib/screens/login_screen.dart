@@ -224,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Exclusively for the Group Managing Director',
+                    'Executive Cockpit for GMD & Super Admin',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
@@ -277,9 +277,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 16),
                         ],
 
-                        // GMD Email Input
+                        // Executive / Admin Email Input
                         const Text(
-                          'GMD Corporate Email',
+                          'Executive / Admin Corporate Email',
                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
                         ),
                         const SizedBox(height: 6),
@@ -294,7 +294,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             keyboardType: TextInputType.emailAddress,
                             style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14, fontWeight: FontWeight.w500),
                             decoration: const InputDecoration(
-                              hintText: 'bemssoftbusiness@gmail.com',
+                              hintText: 'bemssofthubltd@gmail.com',
                               hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
                               prefixIcon: Icon(Icons.email_outlined, color: Color(0xFFEA580C), size: 18),
                               border: InputBorder.none,
@@ -365,7 +365,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   )
                                 : const Text(
-                                    'Unlock GMD Cockpit',
+                                    'Unlock Executive Cockpit',
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w700,
@@ -399,7 +399,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 20),
 
-                  // Dedicated GMD Profile Chip
+                  // Dedicated Executive Profile Chip
                   Center(
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -417,7 +417,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Icon(Icons.verified_user_rounded, color: Color(0xFFEA580C), size: 14),
                           SizedBox(width: 6),
                           Text(
-                            'Group Managing Director (GMD)',
+                            'GMD & Super Admin Clearance',
                             style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
                           ),
                         ],
@@ -429,7 +429,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Footer Security Note
                   const Text(
-                    'Access is strictly restricted to the Group Managing Director (GMD).\nAll other BEMS corporate staff must access the BEMS Staff App.',
+                    'Access is strictly restricted to the Group Managing Director (GMD) and Super Admin.\nAll corporate staff must access the BEMS Staff App.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 11,
