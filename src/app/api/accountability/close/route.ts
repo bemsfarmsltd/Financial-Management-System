@@ -5,7 +5,7 @@ import { requestIdentifierWhere } from "@/lib/request-id";
 
 export async function POST(request: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: "Sign in to submit or close accountability cases." }, { status: 401 });
 
     const body = await request.json();
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       }
 
       // Check ownership unless privileged
-      const isPrivileged = hasAnyRole(actor, ["SYSTEM_ADMIN", "GMD", "HR"]);
+      const isPrivileged = hasAnyRole(actor, ["SYSTEM_ADMIN", "SUPER_ADMIN", "GMD"]);
       if (!isPrivileged && expRequest.requestedById !== actor.id) {
         return NextResponse.json({ error: "Only the request owner or executive can submit retirement evidence." }, { status: 403 });
       }
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
     }
 
     // SCENARIO 2: Executive closes accountability case via caseId
-    if (!hasAnyRole(actor, ["SYSTEM_ADMIN", "GMD", "HR"])) {
+    if (!hasAnyRole(actor, ["SYSTEM_ADMIN", "SUPER_ADMIN", "GMD"])) {
       return NextResponse.json({ error: "Executive or admin access is required to close cases." }, { status: 403 });
     }
 

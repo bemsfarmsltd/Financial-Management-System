@@ -213,6 +213,13 @@ export async function POST(
       return NextResponse.json({ error: 'This decision is assigned to another approver.' }, { status: 403 });
     }
 
+    if (action === 'APPROVE') {
+      // Separation of duties policy: Requesters cannot self-approve requests unless GMD
+      if (req.requestedById === actor.id && actor.role !== 'GMD') {
+        return NextResponse.json({ error: 'Separation of duties policy: You cannot approve your own expenditure request.' }, { status: 403 });
+      }
+    }
+
     if (action === 'APPROVE' || action === 'REQUEST_CLARIFICATION' || action === 'REJECT') {
       if ((action === 'REQUEST_CLARIFICATION' || action === 'REJECT') && (typeof text !== 'string' || !text.trim())) {
         return NextResponse.json({ error: 'Add a reason before submitting this decision.' }, { status: 400 });

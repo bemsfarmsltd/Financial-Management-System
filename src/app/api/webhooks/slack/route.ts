@@ -2,10 +2,25 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requestIdentifierWhere } from "@/lib/request-id";
 
+import crypto from "crypto";
+
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
+    const slackSigningSecret = process.env.SLACK_SIGNING_SECRET;
+    if (slackSigningSecret) {
+      const timestamp = request.headers.get("x-slack-request-timestamp");
+      const signature = request.headers.get("x-slack-signature");
+      if (!timestamp || !signature) {
+        return NextResponse.json({ error: "Missing Slack verification headers." }, { status: 401 });
+      }
+      const timeDiff = Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp));
+      if (timeDiff > 300) {
+        return NextResponse.json({ error: "Slack request timestamp expired." }, { status: 401 });
+      }
+    }
+
     const contentType = request.headers.get("content-type") || "";
     let actionData: { action: string; requestNumber: string } | null = null;
     let userSlackName = "Slack User";

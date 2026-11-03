@@ -35,8 +35,11 @@ export async function POST(request: Request) {
       }
       const pendingStep = expReq.approvalSteps.find((step) => step.status === 'PENDING');
       if (!pendingStep) return NextResponse.json({ error: `${expReq.requestNumber} has no pending approval step.` }, { status: 409 });
-      if (actor.role !== 'SYSTEM_ADMIN' && actor.role !== pendingStep.assignedRole) {
+      if (!['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'].includes(actor.role) && actor.role !== pendingStep.assignedRole) {
         return NextResponse.json({ error: `${expReq.requestNumber} is assigned to another approver.` }, { status: 403 });
+      }
+      if (normalizedDecision === 'APPROVED' && expReq.requestedById === actor.id && actor.role !== 'GMD') {
+        return NextResponse.json({ error: `Separation of duties policy: You cannot approve your own request ${expReq.requestNumber}.` }, { status: 403 });
       }
 
       const timestamp = new Date();

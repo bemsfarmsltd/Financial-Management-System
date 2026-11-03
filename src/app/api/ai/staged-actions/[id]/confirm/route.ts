@@ -7,9 +7,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN'])) {
+    if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Executive authority is required to confirm staged financial actions.' }, { status: 403 });
     }
 

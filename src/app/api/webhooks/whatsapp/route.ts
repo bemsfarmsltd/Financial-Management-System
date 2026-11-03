@@ -59,15 +59,41 @@ export async function POST(request: Request) {
       });
 
       if (expRequest) {
+        // Security check: Only verified active GMD or Super Admin phone numbers are authorized to execute approvals via WhatsApp
+        const cleanPhone = fromPhone.replace(/\D/g, '').slice(-10);
+        if (cleanPhone.length < 8) {
+          return NextResponse.json({ status: "INVALID_PHONE" }, { status: 400 });
+        }
+
+        const authorizedApprover = await prisma.employee.findFirst({
+          where: {
+            phone: { contains: cleanPhone },
+            role: { in: ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] },
+            status: 'ACTIVE',
+            approvalStatus: 'APPROVED',
+          },
+        });
+
+        if (!authorizedApprover) {
+          console.warn(`[whatsapp-webhook] Rejected unauthorized approval attempt from +${fromPhone} for ${requestNumber}`);
+          return NextResponse.json({ status: "UNAUTHORIZED_SENDER", message: "Phone number is not registered to an active executive." }, { status: 403 });
+        }
+
+        // Separation of duties check: Staff / Admin requesters cannot approve their own requests
+        if (expRequest.requestedById === authorizedApprover.id && authorizedApprover.role !== 'GMD') {
+          return NextResponse.json({ status: "FORBIDDEN_SELF_APPROVAL", message: "Requesters cannot self-approve requests." }, { status: 403 });
+        }
+
         const pendingStep = expRequest.approvalSteps.find((s) => s.status === "PENDING");
         if (pendingStep) {
-          const actorName = `WhatsApp User (+${fromPhone})`;
+          const actorName = `${authorizedApprover.legalName} (via WhatsApp +${fromPhone})`;
 
           await prisma.$transaction(async (tx) => {
             await tx.approvalStep.update({
               where: { id: pendingStep.id },
               data: {
                 status: isApprove ? "APPROVED" : "REJECTED",
+                approverId: authorizedApprover.id,
                 approverName: actorName,
                 decidedAt: new Date(),
                 decisionReason: `Action recorded via WhatsApp Bot command from +${fromPhone}`,

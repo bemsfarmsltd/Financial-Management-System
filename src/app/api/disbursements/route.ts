@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view disbursements.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'VERIFIER'])) return NextResponse.json({ error: 'Finance access is required.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive or Super admin access is required.' }, { status: 403 });
     const { searchParams } = new URL(req.url);
     const subsidiary = searchParams.get('subsidiary') || 'ALL';
 
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
   try {
     const maker = await getAuthenticatedEmployee(req);
     if (!maker) return NextResponse.json({ error: 'Sign in to record a payment.' }, { status: 401 });
-    if (!hasAnyRole(maker, ['SYSTEM_ADMIN', 'GMD', 'FINANCE'])) return NextResponse.json({ error: 'Finance or GMD access is required to record a payment.' }, { status: 403 });
+    if (!hasAnyRole(maker, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive or Super admin access is required to record a payment.' }, { status: 403 });
     const body = await req.formData();
     const requestIdentifier = String(body.get('requestId') || '');
     const payerOrgId = String(body.get('payerOrgId') || '');

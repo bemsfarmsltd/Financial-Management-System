@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import {
   calculateHaversineDistance,
   verifyStationQrToken,
@@ -14,11 +15,21 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    const actor = await getAuthenticatedEmployee(request);
+    if (!actor) {
+      return NextResponse.json({ error: 'Unauthorized: Active BEMS session required to record attendance.' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { employeeId, qrToken, latitude, longitude, type = 'CHECK_IN' } = body;
 
     if (!employeeId) {
       return NextResponse.json({ error: 'employeeId is required' }, { status: 400 });
+    }
+
+    // IDOR Protection: Staff can ONLY punch for themselves. Only GMD/System Admin can perform admin punch overrides.
+    if (actor.id !== employeeId && !hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Forbidden: You can only record attendance for your own account.' }, { status: 403 });
     }
 
     if (!qrToken) {

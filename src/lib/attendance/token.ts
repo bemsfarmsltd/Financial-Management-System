@@ -72,7 +72,11 @@ export function verifyStationQrToken(token: string, stationCode: string, secret:
   const payload = `${stationCode}:${tokenWindow}`;
   const expectedHmac = crypto.createHmac('sha256', secret).update(payload).digest('hex').slice(0, 16);
 
-  return crypto.timingSafeEqual(Buffer.from(providedHmac), Buffer.from(expectedHmac));
+  const provBuf = Buffer.from(providedHmac);
+  const expBuf = Buffer.from(expectedHmac);
+  if (provBuf.length !== expBuf.length) return false;
+
+  return crypto.timingSafeEqual(provBuf, expBuf);
 }
 
 /**

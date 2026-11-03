@@ -87,8 +87,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required incident declaration fields' }, { status: 400 });
     }
 
-    if (amountNum > 1000000) {
-      return NextResponse.json({ error: 'Emergency bypass cannot exceed the ₦1,000,000 cap' }, { status: 422 });
+    if (!Number.isFinite(amountNum) || amountNum <= 0 || amountNum > 1000000) {
+      return NextResponse.json({ error: 'Emergency bypass amount must be positive and cannot exceed the ₦1,000,000 cap.' }, { status: 422 });
     }
 
     const org = await prisma.organization.findUnique({ where: { id: subsidiaryId } });

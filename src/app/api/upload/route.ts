@@ -2,11 +2,17 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { getAuthenticatedEmployee } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    const actor = await getAuthenticatedEmployee(request);
+    if (!actor) {
+      return NextResponse.json({ error: 'Unauthorized: Sign in required to upload files.' }, { status: 401 });
+    }
+
     const contentType = request.headers.get('content-type') || '';
 
     // Handle Multipart Form Data
@@ -56,17 +62,23 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'No image data provided.' }, { status: 400 });
       }
 
-      // Check format
+      // Check format and strictly enforce image whitelist to prevent SVG/HTML stored XSS
       const matches = base64Data.match(/^data:image\/([a-zA-Z0-9-+.]+);base64,(.+)$/);
       let buffer: Buffer;
-      let ext = 'jpg';
+      let rawExt = 'jpg';
 
       if (matches) {
-        ext = matches[1].replace('jpeg', 'jpg');
+        rawExt = matches[1].toLowerCase().replace('jpeg', 'jpg');
         buffer = Buffer.from(matches[2], 'base64');
       } else {
         buffer = Buffer.from(base64Data, 'base64');
       }
+
+      const allowedImageExts = ['jpg', 'png', 'webp'];
+      if (!allowedImageExts.includes(rawExt)) {
+        return NextResponse.json({ error: 'Only JPG, PNG, and WebP images are permitted for profile avatars.' }, { status: 400 });
+      }
+      const ext = rawExt;
 
       if (buffer.length > 8 * 1024 * 1024) {
         return NextResponse.json({ error: 'Image size exceeds maximum 8MB limit.' }, { status: 400 });

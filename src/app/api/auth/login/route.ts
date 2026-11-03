@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createEmployeeSession, publicEmployee, verifyPassword } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { checkRateLimit, resetRateLimit } from '@/lib/rate-limiter';
 
 export async function POST(request: Request) {
   try {
@@ -8,6 +9,23 @@ export async function POST(request: Request) {
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     if (!email || !password) return NextResponse.json({ error: 'Enter your work email and password.' }, { status: 400 });
+
+    // Brute-force & credential stuffing defense (Max 5 attempts per 5 mins with 15 min lockout)
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'direct';
+    const rateLimitKey = `login:${email}:${clientIp}`;
+    const rateLimit = checkRateLimit(rateLimitKey, {
+      windowMs: 5 * 60 * 1000,
+      maxAttempts: 5,
+      blockDurationMs: 15 * 60 * 1000,
+    });
+
+    if (!rateLimit.allowed) {
+      const waitMin = Math.ceil((rateLimit.retryAfterSeconds || 60) / 60);
+      return NextResponse.json(
+        { error: `Too many failed login attempts. Access temporarily restricted for ${waitMin} minutes to protect your account.` },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds || 60) } }
+      );
+    }
 
     const employee = await prisma.employee.findUnique({
       where: { workEmail: email },
@@ -23,6 +41,10 @@ export async function POST(request: Request) {
     if (!employee || !(await verifyPassword(password, employee.passwordHash))) {
       return NextResponse.json({ error: 'Email or password is incorrect.' }, { status: 401 });
     }
+
+    // Reset rate limit key on successful authentication
+    resetRateLimit(rateLimitKey);
+
     if (employee.approvalStatus === 'PENDING_APPROVAL') {
       return NextResponse.json({ error: 'Your account is waiting for System Admin approval.', pendingApproval: true }, { status: 403 });
     }

@@ -117,33 +117,37 @@ export async function getAuthenticatedEmployee(req?: Request): Promise<Authentic
   if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
     const token = authHeader.substring(7).trim();
 
-    // A. Check service API key (Option B)
-    const serviceSecret = process.env.BEMS_AI_SERVICE_TOKEN || process.env.BEMS_BOOTSTRAP_SECRET || 'bems_ai_svc_9a7e2b1c4d6f80931e5f72ab4c10de';
-    if (serviceSecret && token === serviceSecret) {
-      let targetUserId: string | null = null;
-      if (req) {
-        targetUserId = req.headers.get('x-user-id');
-      } else {
-        try {
-          const hs = await headers();
-          targetUserId = hs.get('x-user-id');
-        } catch {}
-      }
+    // A. Check service API key (Option B - internal background automation only)
+    const configuredServiceSecret = process.env.BEMS_AI_SERVICE_TOKEN;
+    if (configuredServiceSecret && configuredServiceSecret.length >= 24) {
+      const tokenBuf = Buffer.from(token);
+      const secretBuf = Buffer.from(configuredServiceSecret);
+      if (tokenBuf.length === secretBuf.length && timingSafeEqual(tokenBuf, secretBuf)) {
+        let targetUserId: string | null = null;
+        if (req) {
+          targetUserId = req.headers.get('x-user-id');
+        } else {
+          try {
+            const hs = await headers();
+            targetUserId = hs.get('x-user-id');
+          } catch {}
+        }
 
-      const employee = targetUserId
-        ? await prisma.employee.findFirst({ where: { id: targetUserId, status: 'ACTIVE', approvalStatus: 'APPROVED' } })
-        : await prisma.employee.findFirst({ where: { role: { in: ['GMD', 'SYSTEM_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' } });
+        const employee = targetUserId
+          ? await prisma.employee.findFirst({ where: { id: targetUserId, status: 'ACTIVE', approvalStatus: 'APPROVED' } })
+          : await prisma.employee.findFirst({ where: { role: { in: ['GMD', 'SYSTEM_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' } });
 
-      if (employee) {
-        return {
-          id: employee.id,
-          employeeNumber: employee.employeeNumber,
-          legalName: employee.legalName,
-          workEmail: employee.workEmail,
-          phone: employee.phone,
-          role: employee.role,
-          avatarUrl: employee.avatarUrl,
-        };
+        if (employee) {
+          return {
+            id: employee.id,
+            employeeNumber: employee.employeeNumber,
+            legalName: employee.legalName,
+            workEmail: employee.workEmail,
+            phone: employee.phone,
+            role: employee.role,
+            avatarUrl: employee.avatarUrl,
+          };
+        }
       }
     }
 

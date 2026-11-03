@@ -4,17 +4,27 @@ import { createEmployeeSession, hashPassword, publicEmployee } from '@/lib/auth'
 import { prisma } from '@/lib/prisma';
 import { sendAdminVerificationOtpEmail } from '@/lib/email';
 
-const DEFAULT_FALLBACK_SECRET = 'bemsgroup11223355!';
-
-function getBootstrapSecret(): string {
-  return process.env.BEMS_BOOTSTRAP_SECRET || DEFAULT_FALLBACK_SECRET;
+function getBootstrapSecret(): string | null {
+  const secret = process.env.BEMS_BOOTSTRAP_SECRET;
+  return secret && secret.trim().length >= 16 ? secret.trim() : null;
 }
 
 export async function POST(request: Request) {
   const bootstrapSecret = getBootstrapSecret();
+  if (!bootstrapSecret) {
+    return NextResponse.json(
+      { error: 'Bootstrap configuration error: Master setup secret is not defined in server environment.' },
+      { status: 500 }
+    );
+  }
+
   try {
     const body = await request.json();
-    if (typeof body.bootstrapSecret !== 'string' || body.bootstrapSecret.trim() !== bootstrapSecret) {
+    const provided = typeof body.bootstrapSecret === 'string' ? body.bootstrapSecret.trim() : '';
+    const provBuf = Buffer.from(provided);
+    const secBuf = Buffer.from(bootstrapSecret);
+
+    if (provBuf.length !== secBuf.length || !crypto.timingSafeEqual(provBuf, secBuf)) {
       return NextResponse.json({ error: 'Setup key is invalid. Enter the master bootstrap secret.' }, { status: 401 });
     }
 

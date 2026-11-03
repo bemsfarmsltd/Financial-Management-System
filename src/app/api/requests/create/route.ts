@@ -83,6 +83,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Specify a valid expenditure amount." }, { status: 400 });
     }
 
+    if (amountMinor <= BigInt(0)) {
+      return NextResponse.json({ error: "Expenditure amount must be strictly greater than zero." }, { status: 400 });
+    }
+
+    const MAX_REQUEST_MINOR = BigInt('10000000000'); // ₦100,000,000 corporate ceiling per requisition
+    if (amountMinor > MAX_REQUEST_MINOR) {
+      return NextResponse.json({ error: "Single expenditure request exceeds maximum corporate threshold of ₦100,000,000." }, { status: 400 });
+    }
+
     const titleStr = typeof title === "string" ? title.trim() : "Expenditure Request";
     const justStr = justification || rationale || "Official business operational expense.";
     const delivStr = deliverable || "Itemized receipt and proof of delivery.";

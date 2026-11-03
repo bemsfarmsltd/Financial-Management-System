@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { stageAction } from '@/lib/staged-actions';
 import { getConsolidatedTreasury } from '@/lib/financial-metrics';
 import { enforceMobileVersionGate } from '@/lib/mobile-gate';
@@ -20,6 +20,10 @@ export async function POST(req: NextRequest) {
     if (gateBlock) return gateBlock;
 
     const actor = await getAuthenticatedEmployee(req);
+    if (!actor) {
+      return NextResponse.json({ error: 'Unauthorized: Valid BEMS session required to use AI Assistant.' }, { status: 401 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const message: string = (body.message || '').trim();
     const targetElement = body.context?.target_element;
@@ -28,25 +32,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Message cannot be empty.' }, { status: 400 });
     }
 
-    const userName = actor ? actor.legalName.split(' ')[0] : 'GMD';
+    const userName = actor.legalName.split(' ')[0] || 'User';
     const normalized = message.toLowerCase();
-    const isReadOnlyUser = !actor || actor.role === 'AI_ANALYST';
-
-    // Check if AI Analyst chat access is paused by admin
-    if (actor && actor.role === 'AI_ANALYST') {
-      const aiSetting = await prisma.workspaceSetting.findFirst({
-        where: { key: 'ai.access' },
-      });
-      if (aiSetting && typeof aiSetting.value === 'object' && aiSetting.value !== null) {
-        const val = aiSetting.value as Record<string, any>;
-        if (val.allowAiAnalystChat === false) {
-          return NextResponse.json(
-            { error: 'AI Chat access for the AI Analyst role is currently paused by the administrator in Settings.' },
-            { status: 403 }
-          );
-        }
-      }
-    }
+    const isExecutive = hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
+    const isReadOnlyUser = !isExecutive;
 
     // 0. Forward to external n8n AI Agent if configured (BEMS AI Backend Contract Section 02)
     const n8nWebhookUrl = process.env.N8N_AI_WEBHOOK_URL;
@@ -59,7 +48,7 @@ export async function POST(req: NextRequest) {
         const sessionId = `conv_${actor.id}`;
 
         // Provide valid service token so n8n tools can query BEMS APIs seamlessly
-        const authToken = process.env.BEMS_AI_SERVICE_TOKEN || process.env.BEMS_BOOTSTRAP_SECRET || 'bems_ai_svc_9a7e2b1c4d6f80931e5f72ab4c10de';
+        const authToken = process.env.BEMS_AI_SERVICE_TOKEN || '';
 
         // Fetch recent conversation history from BEMS PostgreSQL memory
         let conversationHistory: any[] = [];
@@ -266,7 +255,10 @@ title: "<Chart Title>"
       normalized.includes('liquidity') ||
       normalized.includes('reserve')
     ) {
-      if (bankAccounts.length === 0) {
+      if (!isExecutive) {
+        reply = `🔒 **Executive Confidentiality:** BEMS Group liquid treasury reserves, bank account balances, and banking institution records are confidential executive data accessible only to the Group Managing Director and System Administrator.`;
+        actionCard = null;
+      } else if (bankAccounts.length === 0) {
         reply = `**Treasury Status:** No company bank accounts have been registered yet.\n\nYou can add group bank accounts under **Treasury Accounts** in your Fund Flow menu.`;
       } else if (wantsGraph) {
         reply = `Here is the visual histogram breakdown of BEMS Group liquid treasury reserves across all registered accounts:\n\n\`\`\`chart:histogram\ntitle: "Group Treasury Reserves by Account"\n${bankAccounts.map((b) => `${b.bankName} (${b.accountNumber.slice(-4)}): ${b.balance}`).join('\n')}\n\`\`\`\n\nTotal combined liquidity across active accounts stands at **${formatNaira(totalCash)}**.`;
@@ -295,7 +287,7 @@ title: "<Chart Title>"
       normalized.includes('authorize request')
     ) {
       if (isReadOnlyUser) {
-        reply = `🔒 **Read-Only Informational Access:** The AI Analyst role is strictly restricted to data queries, financial analytics, and informational reporting. Action execution, approvals, and ledger writes are reserved for the Group Managing Director and System Administrator.`;
+        reply = `🔒 **Executive Authority Required:** Requisition approvals, financial authorizations, and staged actions are strictly reserved for the Group Managing Director and System Administrator.`;
         actionCard = null;
       } else {
         const matched = pendingRequests.find((r) =>

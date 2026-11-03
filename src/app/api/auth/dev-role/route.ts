@@ -10,13 +10,17 @@ const roleOptions = [
   { role: 'STAFF', label: 'Staff Member (Self-Registered)', employeeNumber: 'LOCAL-DEMO-STAFF', legalName: 'Chioma Adebayo', workEmail: 'chioma.staff@bemsgroup.com' },
 ];
 
+function isDevEnabled(): boolean {
+  return process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_ROLE_SWITCHER === 'true';
+}
+
 export async function GET() {
-  if (process.env.NODE_ENV === 'production') return NextResponse.json({ enabled: false }, { status: 404 });
+  if (!isDevEnabled()) return NextResponse.json({ enabled: false }, { status: 404 });
   return NextResponse.json({ enabled: true, roles: roleOptions.map(({ role, label }) => ({ role, label })) });
 }
 
 export async function POST(request: Request) {
-  if (process.env.NODE_ENV === 'production') return NextResponse.json({ error: 'Local role access is not available.' }, { status: 404 });
+  if (!isDevEnabled()) return NextResponse.json({ error: 'Local role access is not available.' }, { status: 404 });
   try {
     const body = await request.json();
     const role = typeof body.role === 'string' ? body.role : '';

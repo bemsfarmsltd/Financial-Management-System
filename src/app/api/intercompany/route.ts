@@ -10,8 +10,8 @@ export async function GET(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to view intercompany records.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'COO', 'DIRECTOR', 'HEAD_OF_ADMIN', 'AI_ANALYST', 'FINANCE_CONTROLLER', 'HR'])) {
-      return NextResponse.json({ error: 'Finance or executive access is required.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Executive or Super admin access is required.' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -53,9 +53,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const actor = await getAuthenticatedEmployee();
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to create an intercompany note.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE'])) return NextResponse.json({ error: 'Finance or executive access is required to issue intercompany notes.' }, { status: 403 });
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive or Super admin access is required to issue intercompany notes.' }, { status: 403 });
   const body = await request.json().catch(() => ({}));
   const sourceEntityId = typeof body.sourceEntityId === 'string' ? body.sourceEntityId : '';
   const targetEntityId = typeof body.targetEntityId === 'string' ? body.targetEntityId : '';
