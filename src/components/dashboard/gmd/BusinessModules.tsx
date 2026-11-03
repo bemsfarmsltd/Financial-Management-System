@@ -1037,7 +1037,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
   const [selected, setSelected] = useState<StaffDetail | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [detailLoading, setDetailLoading] = useState(false);
-  const [salaryType, setSalaryType] = useState<'SET_EXACT' | 'ADDITION' | 'DEDUCTION'>('SET_EXACT');
+  const [salaryType, setSalaryType] = useState<'SET_EXACT' | 'ADDITION' | 'DEDUCTION' | 'REMOVE_FROM_PAYROLL'>('SET_EXACT');
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [modalTab, setModalTab] = useState<'dossier' | 'payroll' | 'requests'>('dossier');
@@ -2622,27 +2622,29 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                             <select
                               style={{ ...input, width: '100%', boxSizing: 'border-box' }}
                               value={salaryType}
-                              onChange={(e) => setSalaryType(e.target.value as 'SET_EXACT' | 'ADDITION' | 'DEDUCTION')}
+                              onChange={(e) => setSalaryType(e.target.value as 'SET_EXACT' | 'ADDITION' | 'DEDUCTION' | 'REMOVE_FROM_PAYROLL')}
                             >
                               <option value="SET_EXACT">Set Exact Monthly Gross (e.g. ₦450,000)</option>
                               <option value="ADDITION">Add to Gross Salary (Increase / Raise)</option>
                               <option value="DEDUCTION">Deduct from Gross Salary (Decrease)</option>
+                              <option value="REMOVE_FROM_PAYROLL">🚫 Remove from Salary Payroll (Set to ₦0 / Stop Payments)</option>
                             </select>
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                              {salaryType === 'SET_EXACT' ? 'Monthly Gross in Naira (₦) *' : 'Adjustment Amount in Naira (₦) *'}
+                              {salaryType === 'REMOVE_FROM_PAYROLL' ? 'Amount (₦)' : salaryType === 'SET_EXACT' ? 'Monthly Gross in Naira (₦) *' : 'Adjustment Amount in Naira (₦) *'}
                             </label>
                             <input
-                              style={{ ...input, width: '100%', boxSizing: 'border-box' }}
+                              style={{ ...input, width: '100%', boxSizing: 'border-box', background: salaryType === 'REMOVE_FROM_PAYROLL' ? '#f1f5f9' : '#ffffff' }}
                               type="number"
-                              min="1"
+                              min={salaryType === 'REMOVE_FROM_PAYROLL' ? '0' : '1'}
                               step="1"
-                              required
-                              value={amount}
+                              disabled={salaryType === 'REMOVE_FROM_PAYROLL'}
+                              required={salaryType !== 'REMOVE_FROM_PAYROLL'}
+                              value={salaryType === 'REMOVE_FROM_PAYROLL' ? '0' : amount}
                               onChange={(e) => setAmount(e.target.value)}
-                              placeholder={salaryType === 'SET_EXACT' ? 'e.g. 450000' : 'e.g. 50000'}
+                              placeholder={salaryType === 'REMOVE_FROM_PAYROLL' ? '₦0 (Excluded from payroll)' : salaryType === 'SET_EXACT' ? 'e.g. 450000' : 'e.g. 50000'}
                             />
                           </div>
                         </div>

@@ -17,6 +17,9 @@ import {
   Filter,
   Download,
   Calendar,
+  UserX,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface PayrollItem {
@@ -264,6 +267,12 @@ export function PayrollSignOffView({
   const [savingBulkFund, setSavingBulkFund] = useState(false);
   const [processingProposalId, setProcessingProposalId] = useState<string | null>(null);
 
+  // Remove from payroll modal state
+  const [removeItem, setRemoveItem] = useState<PayrollItem | null>(null);
+  const [removeMode, setRemoveMode] = useState<'BATCH_ONLY' | 'PERMANENT'>('BATCH_ONLY');
+  const [removeReason, setRemoveReason] = useState('');
+  const [removingStaff, setRemovingStaff] = useState(false);
+
   // Table filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [subsidiaryCostFilter, setSubsidiaryCostFilter] = useState('ALL');
@@ -412,6 +421,36 @@ export function PayrollSignOffView({
       setNotice(err?.message || 'Error processing salary proposal.');
     } finally {
       setProcessingProposalId(null);
+    }
+  };
+
+  const handleConfirmRemoveFromPayroll = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!removeItem) return;
+    try {
+      setRemovingStaff(true);
+      const res = await fetch(`/api/payroll/items/${encodeURIComponent(removeItem.id)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          mode: removeMode,
+          reason: removeReason || (removeMode === 'PERMANENT' ? 'Permanently excluded from salary payroll' : 'Excluded from this payroll run'),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not remove staff from payroll.');
+      setNotice(`✓ ${json.message}`);
+      setRemoveItem(null);
+      setRemoveReason('');
+      if (selectedStaff?.id === removeItem.id) {
+        setSelectedStaff(null);
+      }
+      await fetchPayroll();
+    } catch (err: any) {
+      setNotice(err?.message || 'Error removing staff from payroll.');
+    } finally {
+      setRemovingStaff(false);
     }
   };
 
@@ -1529,6 +1568,35 @@ export function PayrollSignOffView({
                     {item.paymentStatus === 'RECIPIENT_CONFIRMED' ? 'Staff confirmed' : item.paymentStatus === 'AWAITING_RECIPIENT_CONFIRMATION' ? 'Awaiting staff' : item.paymentStatus === 'RECIPIENT_REPORTED_ISSUE' ? 'Staff reported issue' : item.allocations.length ? `${item.allocations.length} allocations` : 'No allocation'}
                     {item.paymentReceiptName && item.paymentReceiptUrl && <> · <a href={item.paymentReceiptUrl} onClick={event => event.stopPropagation()} style={{ color: '#ea580c' }}>Receipt</a></>}
                   </span>}
+
+                  {item.paymentStatus === 'UNPAID' && (
+                    <button
+                      type="button"
+                      title="Remove staff from salary payment"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setRemoveItem(item);
+                        setRemoveMode('BATCH_ONLY');
+                        setRemoveReason('');
+                      }}
+                      style={{
+                        padding: '5px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid #fecaca',
+                        background: '#fff5f5',
+                        color: '#dc2626',
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3,
+                      }}
+                    >
+                      <UserX size={11} />
+                      <span>Remove</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -1714,7 +1782,47 @@ export function PayrollSignOffView({
                   <div style={{ marginTop: 3, color: '#0f172a', fontSize: 16, fontWeight: 800 }}>{staffDetail.employee.salary?.grossFormatted || 'No active salary record'}{staffDetail.employee.salary && <span style={{ marginLeft: 5, color: '#64748b', fontSize: 10, fontWeight: 600 }}>· {staffDetail.employee.salary.recurrence.toLowerCase()}</span>}</div>
                   {staffDetail.employee.salary?.changeReason && <div style={{ marginTop: 3, color: '#475569', fontSize: 9 }}>Latest change: {staffDetail.employee.salary.changeReason}</div>}
                 </div>
-                {staffDetail.permissions.canEditSalary && <button type="button" disabled={!staffDetail.employee.salary} onClick={() => setSalaryEditorOpen(true)} style={{ ...payrollButtonStyle, flexShrink: 0, background: '#fff', color: 'var(--brand-primary, #0d8a70)', border: '1px solid var(--brand-border, #cbd5e1)', opacity: staffDetail.employee.salary ? 1 : .55, cursor: staffDetail.employee.salary ? 'pointer' : 'not-allowed' }}>Edit salary</button>}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {staffDetail.permissions.canEditSalary && (
+                    <button
+                      type="button"
+                      disabled={!staffDetail.employee.salary}
+                      onClick={() => setSalaryEditorOpen(true)}
+                      style={{
+                        ...payrollButtonStyle,
+                        flexShrink: 0,
+                        background: '#fff',
+                        color: 'var(--brand-primary, #0d8a70)',
+                        border: '1px solid var(--brand-border, #cbd5e1)',
+                        opacity: staffDetail.employee.salary ? 1 : 0.55,
+                        cursor: staffDetail.employee.salary ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      Edit salary
+                    </button>
+                  )}
+                  {selectedStaff.paymentStatus === 'UNPAID' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRemoveItem(selectedStaff);
+                        setRemoveMode('BATCH_ONLY');
+                        setRemoveReason('');
+                      }}
+                      style={{
+                        ...payrollButtonStyle,
+                        flexShrink: 0,
+                        background: '#fff5f5',
+                        color: '#dc2626',
+                        border: '1px solid #fecaca',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <UserX size={12} />
+                      Remove from Payroll
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: 8, marginBottom: 14 }}>
@@ -1904,6 +2012,186 @@ export function PayrollSignOffView({
               <button type="button" onClick={() => setBulkFundModalOpen(false)} style={{ ...payrollButtonStyle, background: '#fff', color: '#475569', border: '1px solid #dbe3ef' }}>Cancel</button>
               <button type="submit" disabled={savingBulkFund} style={{ ...payrollButtonStyle, background: '#059669', color: '#fff', border: '1px solid #059669' }}>
                 {savingBulkFund ? 'Recording…' : 'Confirm Lump-Sum Funding ✓'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+      {/* REMOVE FROM PAYROLL MODAL */}
+      {removeItem && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget && !removingStaff) setRemoveItem(null); }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1004,
+            background: 'rgba(6,26,66,.72)',
+            backdropFilter: 'blur(3px)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 16,
+          }}
+        >
+          <form
+            onSubmit={handleConfirmRemoveFromPayroll}
+            style={{
+              width: 'min(460px, 100%)',
+              background: '#fff',
+              borderRadius: 14,
+              padding: 20,
+              border: '1px solid #fee2e2',
+              boxShadow: '0 24px 64px rgba(220, 38, 38, 0.18)',
+              display: 'grid',
+              gap: 14,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    color: '#dc2626',
+                    display: 'grid',
+                    placeItems: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <AlertTriangle size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 9.5, fontWeight: 800, color: '#dc2626', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    PAYROLL REGISTER EXCLUSION
+                  </div>
+                  <h3 style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
+                    Remove {removeItem.employeeName}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={removingStaff}
+                onClick={() => setRemoveItem(null)}
+                style={{ border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, fontSize: 11, border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between' }}>
+              <div>
+                <span style={{ color: '#64748b' }}>Role: </span>
+                <strong style={{ color: '#0f172a' }}>{removeItem.role}</strong>
+              </div>
+              <div>
+                <span style={{ color: '#64748b' }}>Current Net: </span>
+                <strong style={{ color: '#dc2626' }}>{removeItem.netFormatted}</strong>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 750, color: '#334155', display: 'block', marginBottom: 6 }}>
+                Choose Removal Scope:
+              </label>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: `1.5px solid ${removeMode === 'BATCH_ONLY' ? '#ea580c' : '#e2e8f0'}`,
+                    background: removeMode === 'BATCH_ONLY' ? '#fff7ed' : '#ffffff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="removeMode"
+                    value="BATCH_ONLY"
+                    checked={removeMode === 'BATCH_ONLY'}
+                    onChange={() => setRemoveMode('BATCH_ONLY')}
+                    style={{ marginTop: 2 }}
+                  />
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>
+                      Remove from this month's payroll run only
+                    </div>
+                    <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 2 }}>
+                      Deducts {removeItem.netFormatted} from this batch. Recurring monthly salary agreement remains intact for next month.
+                    </div>
+                  </div>
+                </label>
+
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: `1.5px solid ${removeMode === 'PERMANENT' ? '#dc2626' : '#e2e8f0'}`,
+                    background: removeMode === 'PERMANENT' ? '#fef2f2' : '#ffffff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="removeMode"
+                    value="PERMANENT"
+                    checked={removeMode === 'PERMANENT'}
+                    onChange={() => setRemoveMode('PERMANENT')}
+                    style={{ marginTop: 2 }}
+                  />
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#991b1b' }}>
+                      Stop salary payment permanently (Set to ₦0)
+                    </div>
+                    <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 2 }}>
+                      Removes from this batch AND stops recurring salary. They will not be included in future payroll runs until a new salary is set.
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 10.5, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>
+                Reason for Removal (Optional audit log)
+              </label>
+              <input
+                type="text"
+                placeholder={removeMode === 'PERMANENT' ? 'e.g. Leave of absence, contract ended, or suspension' : 'e.g. Salary withheld this month for query'}
+                value={removeReason}
+                onChange={(e) => setRemoveReason(e.target.value)}
+                style={payrollInputStyle}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+              <button
+                type="button"
+                disabled={removingStaff}
+                onClick={() => setRemoveItem(null)}
+                style={{ ...payrollButtonStyle, background: '#fff', color: '#475569', border: '1px solid #dbe3ef' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={removingStaff}
+                style={{
+                  ...payrollButtonStyle,
+                  background: '#dc2626',
+                  color: '#ffffff',
+                  border: '1px solid #dc2626',
+                }}
+              >
+                {removingStaff ? 'Removing…' : 'Confirm Removal from Payroll'}
               </button>
             </div>
           </form>

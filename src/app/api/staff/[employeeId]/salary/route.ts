@@ -20,13 +20,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ emp
   try {
     const { employeeId } = await params;
     const body = await request.json();
-    const changeType = body.changeType === 'ADDITION' || body.changeType === 'DEDUCTION' || body.changeType === 'SET_EXACT' || body.changeType === 'INITIAL_SALARY' ? body.changeType : null;
+    const changeType = body.changeType === 'ADDITION' || body.changeType === 'DEDUCTION' || body.changeType === 'SET_EXACT' || body.changeType === 'INITIAL_SALARY' || body.changeType === 'REMOVE_FROM_PAYROLL' ? body.changeType : null;
     const amount = Number(body.amount);
     const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
-    if (!changeType) return NextResponse.json({ error: 'Choose an adjustment type (Set Exact, Addition, or Deduction).' }, { status: 400 });
-    if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000) return NextResponse.json({ error: 'Enter a valid positive amount.' }, { status: 400 });
+    if (!changeType) return NextResponse.json({ error: 'Choose an adjustment type (Set Exact, Addition, Deduction, or Remove from Payroll).' }, { status: 400 });
+    if (changeType !== 'REMOVE_FROM_PAYROLL') {
+      if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000) return NextResponse.json({ error: 'Enter a valid positive amount.' }, { status: 400 });
+    }
     if (reason.length < 5 || reason.length > 1000) return NextResponse.json({ error: 'Enter a reason of at least 5 characters.' }, { status: 400 });
-    const targetMinor = BigInt(Math.round(amount * 100));
+    const targetMinor = changeType === 'REMOVE_FROM_PAYROLL' ? BigInt(0) : BigInt(Math.round(amount * 100));
     const now = new Date();
 
     const result = await prisma.$transaction(async tx => {
@@ -79,13 +81,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ emp
 
       if (changeType === 'SET_EXACT' || changeType === 'INITIAL_SALARY') {
         newGrossMinor = targetMinor;
+      } else if (changeType === 'REMOVE_FROM_PAYROLL') {
+        newGrossMinor = BigInt(0);
       } else if (changeType === 'ADDITION') {
         newGrossMinor = prevGrossMinor + targetMinor;
       } else {
         newGrossMinor = prevGrossMinor - targetMinor;
       }
 
-      if (newGrossMinor <= BigInt(0)) throw new Error('Salary cannot be zero or negative.');
+      if (changeType !== 'REMOVE_FROM_PAYROLL' && newGrossMinor <= BigInt(0)) {
+        throw new Error('Salary cannot be zero or negative.');
+      }
 
       // If submitted by HR_ADMIN, route to SalaryChangeProposal for GMD / Super Admin approval
       if (!isDirectApprover) {
@@ -171,9 +177,45 @@ export async function POST(request: Request, { params }: { params: Promise<{ emp
         }
       });
 
-      const bodyText = changeType === 'SET_EXACT' || changeType === 'INITIAL_SALARY'
+      const bodyText = changeType === 'REMOVE_FROM_PAYROLL'
+        ? `You have been removed from salary payroll. Reason: ${reason}`
+        : changeType === 'SET_EXACT' || changeType === 'INITIAL_SALARY'
         ? `Your monthly gross salary is set to ${formatNaira(newGrossMinor)}. Reason: ${reason}`
         : `Your gross salary was ${changeType === 'ADDITION' ? 'increased' : 'decreased'} by ${formatNaira(targetMinor)}, from ${formatNaira(prevGrossMinor)} to ${formatNaira(newGrossMinor)}. Reason: ${reason}`;
+
+      // If removed from payroll, also clean up any unpaid payroll items in active batches
+      if (changeType === 'REMOVE_FROM_PAYROLL') {
+        const activeItems = await tx.payrollItem.findMany({
+          where: {
+            employeeId,
+            disbursement: null,
+          },
+          include: {
+            batch: true,
+          }
+        });
+
+        for (const it of activeItems) {
+          await tx.payrollItemAllocation.deleteMany({ where: { itemId: it.id } });
+          await tx.payrollItem.delete({ where: { id: it.id } });
+
+          // Recalculate batch totals
+          const remainingItems = await tx.payrollItem.findMany({
+            where: { batchId: it.batchId },
+            select: { grossMinor: true, netMinor: true }
+          });
+          let totalG = BigInt(0);
+          let totalN = BigInt(0);
+          for (const rem of remainingItems) {
+            totalG += rem.grossMinor;
+            totalN += rem.netMinor;
+          }
+          await tx.payrollBatch.update({
+            where: { id: it.batchId },
+            data: { totalGrossMinor: totalG, totalNetMinor: totalN }
+          });
+        }
+      }
 
       await tx.systemNotification.create({
         data: {

@@ -168,7 +168,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
         endDate: agreement.endDate
       } : null,
       salary: currentCompensation ? {
-        grossFormatted: formatNaira(currentCompensation.grossMinor),
+        grossFormatted: Number(currentCompensation.grossMinor) === 0 ? 'Not on Payroll (₦0)' : formatNaira(currentCompensation.grossMinor),
         grossMinor: Number(currentCompensation.grossMinor),
         currency: currentCompensation.currency,
         recurrence: currentCompensation.recurrence,
