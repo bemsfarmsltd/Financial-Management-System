@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/chat_storage_service.dart';
 import 'welcome_entry_screen.dart';
-import 'executive_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -53,24 +52,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      final hasSeen = await ChatStorageService.hasSeenWelcome();
-      if (!mounted) return;
-
-      if (!hasSeen) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => WelcomeEntryScreen(userName: user.fullName),
-          ),
-        );
-      } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ExecutiveHomeScreen(userName: user.fullName),
-          ),
-        );
-      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WelcomeEntryScreen(userName: user.fullName),
+        ),
+      );
     } catch (e) {
       if (mounted) {
         final raw = e.toString().replaceAll('Exception: ', '');

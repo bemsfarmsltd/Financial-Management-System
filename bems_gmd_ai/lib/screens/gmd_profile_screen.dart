@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/auth_models.dart';
+import '../services/bemi_voice_service.dart';
 import '../services/chat_storage_service.dart';
 import '../services/biometric_service.dart';
 import 'login_screen.dart';
@@ -32,6 +33,8 @@ class _GmdProfileScreenState extends State<GmdProfileScreen> with SingleTickerPr
   // Workstation & alerts
   String _defaultWorkstation = 'all';
   bool _notificationsBridge = true;
+  bool _voiceWelcomeEnabled = true;
+  String _voicePersona = 'Arya (Executive)';
 
   late AnimationController _pulseController;
 
@@ -48,6 +51,7 @@ class _GmdProfileScreenState extends State<GmdProfileScreen> with SingleTickerPr
 
   @override
   void dispose() {
+    BemiVoiceService.stop();
     _pulseController.dispose();
     super.dispose();
   }
@@ -61,6 +65,8 @@ class _GmdProfileScreenState extends State<GmdProfileScreen> with SingleTickerPr
     final pin = await ChatStorageService.getSecurityPin();
     final ws = await ChatStorageService.getDefaultWorkstation();
     final bridge = await ChatStorageService.isNotificationBridgeEnabled();
+    final voiceEnabled = await ChatStorageService.isVoiceWelcomeEnabled();
+    final persona = await ChatStorageService.getVoicePersona();
 
     if (mounted) {
       setState(() {
@@ -72,6 +78,8 @@ class _GmdProfileScreenState extends State<GmdProfileScreen> with SingleTickerPr
         _securityPin = pin;
         _defaultWorkstation = ws;
         _notificationsBridge = bridge;
+        _voiceWelcomeEnabled = voiceEnabled;
+        _voicePersona = persona;
         _isLoading = false;
       });
 
@@ -468,6 +476,11 @@ class _GmdProfileScreenState extends State<GmdProfileScreen> with SingleTickerPr
 
             const SizedBox(height: 24),
 
+            // 2b. BEMi Voice Welcome & Persona Settings
+            _buildBemiVoiceSection(fullName),
+
+            const SizedBox(height: 24),
+
             // 3. Workstation & System Governance
             _buildWorkstationGovernanceSection(),
 
@@ -839,6 +852,148 @@ class _GmdProfileScreenState extends State<GmdProfileScreen> with SingleTickerPr
                 style: TextStyle(color: Color(0xFFEA580C), fontWeight: FontWeight.w700, fontSize: 12),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBemiVoiceSection(String fullName) {
+    final personas = ['Arya (Executive)', 'Nova (Analytical)', 'Atlas (Tactical)'];
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x080F172A),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.record_voice_over_rounded, color: Color(0xFFEA580C), size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'BEMi Voice Welcome & Persona',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              ),
+              Switch.adaptive(
+                value: _voiceWelcomeEnabled,
+                activeColor: const Color(0xFFEA580C),
+                onChanged: (val) async {
+                  await ChatStorageService.setVoiceWelcomeEnabled(val);
+                  setState(() => _voiceWelcomeEnabled = val);
+                  HapticFeedback.lightImpact();
+                  if (!val) {
+                    await BemiVoiceService.stop();
+                  }
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Speak executive welcome greeting and live ledger intelligence upon sign-in.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'VOICE PERSONA',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: personas.map((p) {
+              final selected = _voicePersona == p;
+              return GestureDetector(
+                onTap: () async {
+                  await ChatStorageService.setVoicePersona(p);
+                  setState(() => _voicePersona = p);
+                  HapticFeedback.selectionClick();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: selected ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selected ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: Text(
+                    p,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? const Color(0xFFEA580C) : const Color(0xFF334155),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 14),
+          ValueListenableBuilder<bool>(
+            valueListenable: BemiVoiceService.isSpeaking,
+            builder: (context, speaking, _) {
+              return SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    if (speaking) {
+                      BemiVoiceService.stop();
+                    } else {
+                      BemiVoiceService.speakWelcomeGreeting(
+                        userName: fullName,
+                        businessName: 'BEMS Group',
+                        force: true,
+                      );
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFEA580C),
+                    side: const BorderSide(color: Color(0xFFFED7AA)),
+                    backgroundColor: const Color(0xFFFFF7ED),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: Icon(
+                    speaking ? Icons.stop_circle_outlined : Icons.volume_up_rounded,
+                    size: 18,
+                  ),
+                  label: Text(
+                    speaking ? 'Stop Voice Playback' : 'Test BEMi Voice Welcome Greeting',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),

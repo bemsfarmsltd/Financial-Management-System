@@ -214,4 +214,50 @@ class ChatStorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyNotificationBridgeEnabled, enabled);
   }
+
+  // --- BEMi Executive Voice Welcome & Speech Settings ---
+  static const String _keyVoiceWelcomeEnabled = 'bemi_voice_enabled';
+  static const String _keyVoicePersona = 'bemi_voice_persona';
+  static const String _keyVoiceRate = 'bemi_voice_rate';
+  static const String _keyVoicePitch = 'bemi_voice_pitch';
+
+  static Future<bool> isVoiceWelcomeEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyVoiceWelcomeEnabled) ?? true;
+  }
+
+  static Future<void> setVoiceWelcomeEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyVoiceWelcomeEnabled, enabled);
+  }
+
+  static Future<String> getVoicePersona() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyVoicePersona) ?? 'Arya (Executive)';
+  }
+
+  static Future<void> setVoicePersona(String persona) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyVoicePersona, persona);
+  }
+
+  static Future<double> getVoiceRate() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(_keyVoiceRate) ?? 0.94;
+  }
+
+  static Future<void> setVoiceRate(double rate) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyVoiceRate, rate);
+  }
+
+  static Future<double> getVoicePitch() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(_keyVoicePitch) ?? 1.05;
+  }
+
+  static Future<void> setVoicePitch(double pitch) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyVoicePitch, pitch);
+  }
 }

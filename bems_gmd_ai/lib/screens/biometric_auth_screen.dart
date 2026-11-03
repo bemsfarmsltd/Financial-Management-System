@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/chat_storage_service.dart';
 import '../services/biometric_service.dart';
-import 'executive_home_screen.dart';
+import 'welcome_entry_screen.dart';
 import 'login_screen.dart';
 
 class BiometricAuthScreen extends StatefulWidget {
@@ -118,7 +118,7 @@ class _BiometricAuthScreenState extends State<BiometricAuthScreen>
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 600),
         pageBuilder: (context, animation, secondaryAnimation) =>
-            ExecutiveHomeScreen(userName: widget.userName),
+            WelcomeEntryScreen(userName: widget.userName),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },

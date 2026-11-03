@@ -5,7 +5,6 @@ import '../services/api_service.dart';
 import '../widgets/kinetic_torus_iris.dart';
 import 'login_screen.dart';
 import 'welcome_entry_screen.dart';
-import 'executive_home_screen.dart';
 import 'biometric_auth_screen.dart';
 import 'app_upgrade_screen.dart';
 
@@ -29,7 +28,6 @@ class _BemiSplashScreenState extends State<BemiSplashScreen> {
     // 1. Check version gate concurrently with session bootstrap
     final gateFuture = ApiService.checkVersionGate();
     final user = await ChatStorageService.getUser();
-    final hasSeenWelcome = await ChatStorageService.hasSeenWelcome();
     final isBioConfigured = await ChatStorageService.isBiometricConfigured();
     final isBioEnabled = await ChatStorageService.isBiometricEnabled();
 
@@ -68,14 +66,9 @@ class _BemiSplashScreenState extends State<BemiSplashScreen> {
     } else if (isBioConfigured && isBioEnabled) {
       // Biometrics are configured: Always gate access with BiometricAuthScreen
       nextScreen = BiometricAuthScreen(userName: user.fullName);
-    } else if (!hasSeenWelcome) {
-      nextScreen = WelcomeEntryScreen(userName: user.fullName);
     } else {
-      // Not configured: Pass showBiometricPrompt: true to prompt GMD immediately
-      nextScreen = ExecutiveHomeScreen(
-        userName: user.fullName,
-        showBiometricPrompt: !isBioConfigured,
-      );
+      // Always show BEMi Voice Welcome Entry Screen on startup
+      nextScreen = WelcomeEntryScreen(userName: user.fullName);
     }
 
     Navigator.pushReplacement(

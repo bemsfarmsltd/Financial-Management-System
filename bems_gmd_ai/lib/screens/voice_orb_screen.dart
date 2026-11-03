@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../services/bemi_voice_service.dart';
+import '../services/chat_storage_service.dart';
 import '../widgets/kinetic_molten_orb.dart';
 import '../widgets/dynamic_streaming_text.dart';
 import 'executive_chat_screen.dart';
@@ -34,10 +36,21 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen> with SingleTickerProvid
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat();
+    _loadSavedPersona();
+  }
+
+  Future<void> _loadSavedPersona() async {
+    final saved = await ChatStorageService.getVoicePersona();
+    if (mounted) {
+      setState(() {
+        _selectedPersona = saved.split(' ').first;
+      });
+    }
   }
 
   @override
   void dispose() {
+    BemiVoiceService.stop();
     _waveformController.dispose();
     super.dispose();
   }
@@ -47,9 +60,14 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen> with SingleTickerProvid
       if (_isListening) {
         _isListening = false;
         _isSpeaking = true;
+        BemiVoiceService.speak(
+          'Your BEMS Group ledger intelligence and expenditure queues are synchronized. ${_samplePrompts[_sampleIndex]}',
+          force: true,
+        );
       } else if (_isSpeaking) {
         _isSpeaking = false;
         _isListening = true;
+        BemiVoiceService.stop();
       } else {
         _isListening = true;
       }
@@ -80,10 +98,16 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen> with SingleTickerProvid
                       borderRadius: BorderRadius.circular(16),
                       side: const BorderSide(color: Color(0xFFE2E8F0)),
                     ),
-                    onSelected: (val) {
+                    onSelected: (val) async {
+                      final shortName = val.split(' ').first;
                       setState(() {
-                        _selectedPersona = val.split(' ').first;
+                        _selectedPersona = shortName;
                       });
+                      await ChatStorageService.setVoicePersona(val);
+                      await BemiVoiceService.speak(
+                        'Hello Executive. I am $shortName, your BEMS Executive Assistant.',
+                        force: true,
+                      );
                     },
                     itemBuilder: (context) => _personas
                         .map(
