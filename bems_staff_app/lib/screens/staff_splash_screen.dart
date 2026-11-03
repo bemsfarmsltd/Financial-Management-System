@@ -6,6 +6,7 @@ import 'staff_login_screen.dart';
 import 'staff_main_screen.dart';
 import 'staff_biometric_auth_screen.dart';
 import 'app_upgrade_screen.dart';
+import 'staff_onboarding_carousel_screen.dart';
 
 class StaffSplashScreen extends StatefulWidget {
   const StaffSplashScreen({super.key});
@@ -25,6 +26,7 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
     final startTime = DateTime.now();
     final gateFuture = StaffApiService.checkVersionGate();
     final user = await StaffStorageService.getUser();
+    final hasSeenOnboarding = await StaffStorageService.hasSeenOnboardingCarousel();
     final isBioConfigured = await StaffStorageService.isBiometricConfigured();
     final isBioEnabled = await StaffStorageService.isBiometricEnabled();
 
@@ -57,12 +59,21 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
         downloadUrl: gateInfo['directDownloadUrl']?.toString() ?? 'https://bemserp.work/download/staff-app.apk',
         notes: gateInfo['upgradePromptNotes']?.toString() ?? 'A critical update is required to continue.',
       );
-    } else if (user == null || !isSessionValid) {
-      nextScreen = const StaffLoginScreen();
-    } else if (isBioConfigured && isBioEnabled) {
-      nextScreen = StaffBiometricAuthScreen(user: user);
     } else {
-      nextScreen = StaffMainScreen(user: user);
+      final Widget postOnboardingScreen;
+      if (user == null || !isSessionValid) {
+        postOnboardingScreen = const StaffLoginScreen();
+      } else if (isBioConfigured && isBioEnabled) {
+        postOnboardingScreen = StaffBiometricAuthScreen(user: user);
+      } else {
+        postOnboardingScreen = StaffMainScreen(user: user);
+      }
+
+      if (!hasSeenOnboarding) {
+        nextScreen = StaffOnboardingCarouselScreen(nextScreen: postOnboardingScreen);
+      } else {
+        nextScreen = postOnboardingScreen;
+      }
     }
 
     Navigator.pushReplacement(

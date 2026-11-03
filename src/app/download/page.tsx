@@ -9,7 +9,7 @@ export default async function PublicDownloadPage() {
     where: { appId: 'STAFF_APP' },
   });
 
-  const staffVersion = staffGate?.latestVersionAvailable || '1.0.8';
+  const staffVersion = staffGate?.latestVersionAvailable || '1.0.9';
 
   return (
     <div

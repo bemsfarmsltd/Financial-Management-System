@@ -4,6 +4,7 @@ import '../models/staff_models.dart';
 
 class StaffStorageService {
   static const _keyUser = 'bems_staff_user';
+  static const _keySeenOnboardingCarousel = 'bems_staff_seen_onboarding_carousel_v1';
   static const _keyBioConfigured = 'bems_staff_biometric_configured';
   static const _keyBioEnabled = 'bems_staff_biometric_enabled';
   static const _keyBioEnrolledAt = 'bems_staff_biometric_enrolled_at';
@@ -29,6 +30,16 @@ class StaffStorageService {
   static Future<void> clearUser() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyUser);
+  }
+
+  static Future<bool> hasSeenOnboardingCarousel() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keySeenOnboardingCarousel) ?? false;
+  }
+
+  static Future<void> setSeenOnboardingCarousel(bool seen) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keySeenOnboardingCarousel, seen);
   }
 
   // --- Biometric Authentication Settings ---

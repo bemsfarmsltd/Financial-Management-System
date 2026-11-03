@@ -7,6 +7,7 @@ import 'login_screen.dart';
 import 'welcome_entry_screen.dart';
 import 'biometric_auth_screen.dart';
 import 'app_upgrade_screen.dart';
+import 'onboarding_carousel_screen.dart';
 
 class BemiSplashScreen extends StatefulWidget {
   const BemiSplashScreen({super.key});
@@ -28,6 +29,7 @@ class _BemiSplashScreenState extends State<BemiSplashScreen> {
     // 1. Check version gate concurrently with session bootstrap
     final gateFuture = ApiService.checkVersionGate();
     final user = await ChatStorageService.getUser();
+    final hasSeenOnboarding = await ChatStorageService.hasSeenOnboardingCarousel();
     final isBioConfigured = await ChatStorageService.isBiometricConfigured();
     final isBioEnabled = await ChatStorageService.isBiometricEnabled();
 
@@ -61,14 +63,21 @@ class _BemiSplashScreenState extends State<BemiSplashScreen> {
         downloadUrl: gateInfo['directDownloadUrl']?.toString() ?? 'https://bemserp.work/download/gmd-app.apk',
         notes: gateInfo['upgradePromptNotes']?.toString() ?? 'A critical update is required to continue.',
       );
-    } else if (user == null || !isSessionValid) {
-      nextScreen = const LoginScreen();
-    } else if (isBioConfigured && isBioEnabled) {
-      // Biometrics are configured: Always gate access with BiometricAuthScreen
-      nextScreen = BiometricAuthScreen(userName: user.fullName);
     } else {
-      // Always show BEMi Voice Welcome Entry Screen on startup
-      nextScreen = WelcomeEntryScreen(userName: user.fullName);
+      final Widget postOnboardingScreen;
+      if (user == null || !isSessionValid) {
+        postOnboardingScreen = const LoginScreen();
+      } else if (isBioConfigured && isBioEnabled) {
+        postOnboardingScreen = BiometricAuthScreen(userName: user.fullName);
+      } else {
+        postOnboardingScreen = WelcomeEntryScreen(userName: user.fullName);
+      }
+
+      if (!hasSeenOnboarding) {
+        nextScreen = OnboardingCarouselScreen(nextScreen: postOnboardingScreen);
+      } else {
+        nextScreen = postOnboardingScreen;
+      }
     }
 
     Navigator.pushReplacement(

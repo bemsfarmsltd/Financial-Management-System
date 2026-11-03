@@ -6,6 +6,7 @@ import '../models/chat_models.dart';
 class ChatStorageService {
   static const String _keyUser = 'bems_auth_user';
   static const String _keySeenWelcome = 'bems_seen_first_welcome';
+  static const String _keySeenOnboardingCarousel = 'bems_seen_onboarding_carousel_v1';
   static const String _keySessions = 'bems_chat_sessions';
   static const String _keyActiveSessionId = 'bems_active_session_id';
 
@@ -41,6 +42,17 @@ class ChatStorageService {
   static Future<void> setSeenWelcome(bool seen) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keySeenWelcome, seen);
+  }
+
+  // --- First Launch Onboarding Carousel Journey ---
+  static Future<bool> hasSeenOnboardingCarousel() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keySeenOnboardingCarousel) ?? false;
+  }
+
+  static Future<void> setSeenOnboardingCarousel(bool seen) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keySeenOnboardingCarousel, seen);
   }
 
   // --- Chat Sessions ---

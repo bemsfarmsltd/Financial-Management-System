@@ -11,6 +11,7 @@ import 'request_chat_screen.dart';
 import 'staff_admin_chat_screen.dart';
 import 'attendance_scan_screen.dart';
 import 'attendance_monthly_screen.dart';
+import 'staff_onboarding_carousel_screen.dart';
 import '../widgets/bems_pie_chart.dart';
 import '../services/staff_biometric_service.dart';
 
@@ -5314,6 +5315,27 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 subtitle: Text('Advance: ${_currentUser.bankName} · ${_currentUser.accountNumber}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                 trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
                 onTap: _showUpdateBankAccountsDialog,
+              ),
+              const Divider(color: Color(0xFFF1F5F9)),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
+                  child: const Icon(Icons.view_carousel_rounded, color: Color(0xFFEA580C), size: 20),
+                ),
+                title: const Text('Replay Staff App Journey', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                subtitle: const Text('Interactive 4-slide guide to Requisitions, QR Attendance & Payroll', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const StaffOnboardingCarouselScreen(isReplay: true),
+                    ),
+                  );
+                },
               ),
             ],
           ),

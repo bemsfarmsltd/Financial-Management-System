@@ -6,6 +6,7 @@ import '../services/bemi_voice_service.dart';
 import '../services/chat_storage_service.dart';
 import '../services/biometric_service.dart';
 import 'login_screen.dart';
+import 'onboarding_carousel_screen.dart';
 
 class GmdProfileScreen extends StatefulWidget {
   final bool autoOpenEnrollment;
@@ -994,6 +995,33 @@ class _GmdProfileScreenState extends State<GmdProfileScreen> with SingleTickerPr
                 ),
               );
             },
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const OnboardingCarouselScreen(isReplay: true),
+                  ),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF0F172A),
+                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                backgroundColor: const Color(0xFFF8FAFC),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.view_carousel_rounded, size: 17, color: Color(0xFFEA580C)),
+              label: const Text(
+                'Replay Executive App Journey (4 Slides)',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+              ),
+            ),
           ),
         ],
       ),
