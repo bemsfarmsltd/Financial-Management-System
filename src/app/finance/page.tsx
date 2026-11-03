@@ -13,6 +13,7 @@ import { ApprovalsHubView } from "@/components/dashboard/gmd/ApprovalsHubView";
 import { FundFlowWorkspace } from "@/components/dashboard/gmd/FundFlowWorkspace";
 import { TreasuryFinanceHubView } from "@/components/dashboard/gmd/TreasuryFinanceHubView";
 import { RecurringCommitmentsView } from "@/components/dashboard/gmd/RecurringCommitmentsView";
+import { TabErrorBoundary } from "@/components/layout/TabErrorBoundary";
 import { IntercompanyAuditHubView } from "@/components/dashboard/gmd/IntercompanyAuditHubView";
 import { GmdView } from "@/components/dashboard/gmd/demo";
 import ExecutiveBriefingClient from "../briefing/ExecutiveBriefingClient";
@@ -4912,7 +4913,9 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
           </header>
           <div className="content">
             {notices.length>0&&<div className="notice-stack">{notices.map(n=><div className="notice" key={n.id}><span>i</span>{n.message}<button onClick={()=>dismissNotice(n.id)}>×</button></div>)}</div>}
-            {content}
+            <TabErrorBoundary tabName={active} onReset={() => setActive('Overview')}>
+              {content}
+            </TabErrorBoundary>
           </div>
         </section>
         {isAiAuthorized && (

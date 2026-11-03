@@ -339,7 +339,7 @@ export function PayrollSignOffView({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    const periodLabel = data.period ? `${data.period.year}_${String(data.period.month).padStart(2, '0')}` : 'payroll';
+    const periodLabel = data?.period ? `${data.period.year}_${String(data.period.month).padStart(2, '0')}` : 'payroll';
     link.setAttribute('download', `BEMS_Payroll_Register_${periodLabel}.csv`);
     document.body.appendChild(link);
     link.click();
@@ -374,7 +374,7 @@ export function PayrollSignOffView({
   }, []);
 
   const handleApprovePayroll = async () => {
-    if (!data?.batch.id) return;
+    if (!data?.batch?.id) return;
     if (!selectedAssigneeId) {
       setNotice('Choose who will record the external payroll payments.');
       return;
@@ -386,7 +386,7 @@ export function PayrollSignOffView({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          batchId: data.batch.id,
+          batchId: data.batch?.id,
           disbursementAssigneeId: selectedAssigneeId,
           approverEmail: 'gmd@bemsgroup.com',
           comments: comments.trim() || `${monthName} approved for external payment processing.`
@@ -409,9 +409,9 @@ export function PayrollSignOffView({
 
   const handleRecordPayment = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!data?.batch.id || !paymentItem) return;
+    if (!data?.batch?.id || !paymentItem) return;
     const form = new FormData(event.currentTarget);
-    form.set('batchId', data.batch.id);
+    form.set('batchId', data.batch?.id || '');
     form.set('payrollItemId', paymentItem.id);
     try {
       setRecordingPayment(true);
@@ -439,8 +439,17 @@ export function PayrollSignOffView({
     } catch { setNotice('Could not save your confirmation.'); }
   };
 
-  const isApproved = data?.batch.status === 'APPROVED' || data?.batch.status === 'DISBURSED';
-  const monthName = data?.period.periodName || 'Payroll';
+  const isApproved = Boolean(data?.batch && (data.batch.status === 'APPROVED' || data.batch.status === 'DISBURSED'));
+  const monthName = data?.period?.periodName || 'Payroll';
+
+  if (loading && !data && !staffPayments) {
+    return (
+      <div style={{ width: '100%', minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+        <RefreshCw size={28} className="animate-spin" style={{ color: '#ea580c' }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>Loading Hybrid Payroll records…</span>
+      </div>
+    );
+  }
 
   if (staffPayments) return <div style={{ width: '100%', minHeight: '100%', color: '#0f172a' }}>
     <div style={{ marginBottom: 16 }}><span style={{ fontSize: 9, fontWeight: 800, color: '#64748b', letterSpacing: '.12em' }}>PAYROLL</span><h1 style={{ margin: '4px 0', fontSize: 20 }}>My salary payments</h1><p style={{ margin: 0, color: '#64748b', fontSize: 11 }}>Review the transfer receipt and confirm whether the salary arrived in your account.</p></div>
@@ -477,7 +486,7 @@ export function PayrollSignOffView({
               <Calendar size={12} style={{ color: '#ea580c' }} />
               <select
                 aria-label="Select Historical Payroll Period"
-                value={selectedPeriodKey || (data.period ? `${data.period.year}-${data.period.month}` : '')}
+                value={selectedPeriodKey || (data?.period ? `${data.period.year}-${data.period.month}` : '')}
                 onChange={(e) => {
                   const val = e.target.value;
                   setSelectedPeriodKey(val);
@@ -495,7 +504,7 @@ export function PayrollSignOffView({
                   padding: '4px 2px',
                 }}
               >
-                {data.availablePeriods.map((p) => (
+                {(data?.availablePeriods || []).map((p) => (
                   <option key={p.id} value={`${p.year}-${p.month}`}>
                     {p.periodName} ({p.batchStatus === 'APPROVED' ? 'Approved' : p.batchStatus === 'PAID' ? 'Disbursed' : p.batchStatus === 'SUBMITTED' ? 'Submitted' : 'Not Prepared'})
                   </option>
@@ -531,7 +540,7 @@ export function PayrollSignOffView({
             Refresh
           </button>
 
-          {!data && (
+          {!data?.batch && (
             <button
               onClick={handlePrepareBatch}
               disabled={preparingBatch}
@@ -555,7 +564,7 @@ export function PayrollSignOffView({
             </button>
           )}
 
-          {data?.batch?.status === 'SUBMITTED' && data.permissions.canApprove ? (
+          {data?.batch?.status === 'SUBMITTED' && data?.permissions?.canApprove ? (
             <button
               onClick={async () => {
                 setSignOffModalOpen(true);
@@ -600,7 +609,7 @@ export function PayrollSignOffView({
               gap: '4px'
             }}>
               <CheckCircle2 size={12} />
-              {isApproved ? `Approved · ${data?.batch.disbursementAssignee?.legalName || 'register locked'}` : `Batch ${data?.batch.status || 'not ready'}`}
+              {isApproved ? `Approved · ${data?.batch?.disbursementAssignee?.legalName || 'register locked'}` : `Batch ${data?.batch?.status || 'not ready'}`}
             </span>
           )}
         </div>
@@ -679,16 +688,16 @@ export function PayrollSignOffView({
             </div>
             <div>
               <div style={{ fontSize: 12.5, fontWeight: 800, color: '#9a3412' }}>
-                {data.radar.daysRemaining === 0
+                {data?.radar?.daysRemaining === 0
                   ? '🚨 Payday is Today! (3rd of the Month)'
-                  : `Upcoming Payday in ${data.radar.daysRemaining} Day${data.radar.daysRemaining === 1 ? '' : 's'} (Scheduled for the 3rd)`}
+                  : `Upcoming Payday in ${data?.radar?.daysRemaining ?? '—'} Day${data?.radar?.daysRemaining === 1 ? '' : 's'} (Scheduled for the 3rd)`}
               </div>
               <div style={{ fontSize: 11, color: '#7c2d12', marginTop: 2 }}>
-                Group policy schedules salary disbursement on the 3rd of each calendar month. Complete GMD sign-off for {data.radar.periodName} so payment execution can proceed on time.
+                Group policy schedules salary disbursement on the 3rd of each calendar month. Complete GMD sign-off for {data?.radar?.periodName || 'the current period'} so payment execution can proceed on time.
               </div>
             </div>
           </div>
-          {data.batch?.status === 'SUBMITTED' && (
+          {data?.batch?.status === 'SUBMITTED' && (
             <span style={{ fontSize: 11, fontWeight: 750, color: '#ea580c', background: '#fff', padding: '5px 12px', borderRadius: 6, border: '1px solid #fed7aa', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
               ⚡ Ready for GMD Sign-off
             </span>
@@ -718,7 +727,7 @@ export function PayrollSignOffView({
           </div>
           <div>
             <div style={{ fontSize: '18px', fontWeight: 700, lineHeight: 1.1 }}>
-              {data?.batch.totalGrossFormatted || '—'}
+              {data?.batch?.totalGrossFormatted || '—'}
             </div>
             <div style={{ fontSize: '9px', color: '#ffedd5', marginTop: '2px' }}>{monthName}</div>
           </div>
@@ -743,7 +752,7 @@ export function PayrollSignOffView({
           </div>
           <div>
             <div style={{ fontSize: '18px', fontWeight: 700, color: '#d97706', lineHeight: 1.1 }}>
-              {data?.batch.totalDeductionsFormatted || '—'}
+              {data?.batch?.totalDeductionsFormatted || '—'}
             </div>
             <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>Zero tax policy · Lateness penalties only</div>
           </div>
@@ -768,7 +777,7 @@ export function PayrollSignOffView({
           </div>
           <div>
             <div style={{ fontSize: '18px', fontWeight: 700, color: '#059669', lineHeight: 1.1 }}>
-              {data?.batch.totalNetFormatted || '—'}
+              {data?.batch?.totalNetFormatted || '—'}
             </div>
             <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>Amount due to employees</div>
           </div>
@@ -793,7 +802,7 @@ export function PayrollSignOffView({
           </div>
           <div>
             <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand-primary, #0d8a70)', lineHeight: 1.1 }}>
-              {data?.items.length ?? '—'} Staff
+              {data?.items?.length ?? '—'} Staff
             </div>
             <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>In this payroll batch</div>
           </div>
@@ -818,12 +827,12 @@ export function PayrollSignOffView({
             </h4>
           </div>
           <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--brand-primary, #0d8a70)', background: 'var(--brand-tint, rgba(13, 138, 112, 0.1))', padding: '3px 8px', borderRadius: '4px' }}>
-            {data?.batch.costAllocation.totalAllocatedFormatted || 'No allocation recorded'}
+            {data?.batch?.costAllocation?.totalAllocatedFormatted || 'No allocation recorded'}
           </span>
         </div>
 
-        {data?.batch.costAllocation.allocations.length ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', fontSize: '10px', color: '#334155', marginTop: '10px' }}>
-          {data.batch.costAllocation.allocations.map((allocation) => <div key={allocation.subsidiaryId} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        {data?.batch?.costAllocation?.allocations?.length ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', fontSize: '10px', color: '#334155', marginTop: '10px' }}>
+          {(data?.batch?.costAllocation?.allocations || []).map((allocation) => <div key={allocation.subsidiaryId} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '2px', background: 'var(--brand-primary, #0d8a70)' }} />
             <strong>{allocation.subsidiaryName}</strong>: {allocation.amountFormatted}
           </div>)}
@@ -846,7 +855,7 @@ export function PayrollSignOffView({
         }}>
           <div>
             <h3 style={{ fontSize: '12px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-              {monthName} Register · Version {data?.batch.version ?? '—'}
+              {monthName} Register · Version {data?.batch?.version ?? '—'}
             </h3>
             <span style={{ fontSize: '9px', color: '#64748b' }}>
               Individual gross-to-net amounts, attendance deductions, and intercompany allocations
@@ -860,7 +869,7 @@ export function PayrollSignOffView({
             background: isApproved ? '#ecfdf5' : '#fef3c7',
             color: isApproved ? '#059669' : '#b45309'
           }}>
-            Status: {data?.batch.status || 'SUBMITTED'}
+            Status: {data?.batch?.status || 'SUBMITTED'}
           </span>
         </div>
 
@@ -989,7 +998,7 @@ export function PayrollSignOffView({
           <div style={{ padding: '30px', textAlign: 'center', fontSize: '11px', color: '#64748b' }}>
             Loading payroll register…
           </div>
-        ) : !data || data.items.length === 0 ? (
+        ) : !data || (data?.items || []).length === 0 ? (
           <div style={{ padding: '30px', textAlign: 'center', fontSize: '11px', color: '#64748b' }}>
             No payroll items found for current batch.
           </div>
@@ -1067,7 +1076,7 @@ export function PayrollSignOffView({
                     <div style={{ fontSize: '12px', fontWeight: 700, color: '#059669' }}>{item.netFormatted}</div>
                   </div>
 
-                  {isApproved && data.permissions.canRecordPayments && item.paymentStatus === 'UNPAID' ? <button onClick={(event) => { event.stopPropagation(); setPaymentItem(item); }} style={{ padding: '6px 9px', borderRadius: '6px', border: '1px solid #ea580c', background: '#fff7ed', color: '#ea580c', fontSize: '9px', fontWeight: 700, cursor: 'pointer' }}>Record payment</button> : <span style={{ fontSize: '9px', fontWeight: 700, color: item.paymentStatus === 'RECIPIENT_CONFIRMED' ? '#059669' : item.paymentStatus === 'AWAITING_RECIPIENT_CONFIRMATION' ? '#b45309' : '#64748b', whiteSpace: 'nowrap' }}>
+                  {isApproved && data?.permissions?.canRecordPayments && item.paymentStatus === 'UNPAID' ? <button onClick={(event) => { event.stopPropagation(); setPaymentItem(item); }} style={{ padding: '6px 9px', borderRadius: '6px', border: '1px solid #ea580c', background: '#fff7ed', color: '#ea580c', fontSize: '9px', fontWeight: 700, cursor: 'pointer' }}>Record payment</button> : <span style={{ fontSize: '9px', fontWeight: 700, color: item.paymentStatus === 'RECIPIENT_CONFIRMED' ? '#059669' : item.paymentStatus === 'AWAITING_RECIPIENT_CONFIRMATION' ? '#b45309' : '#64748b', whiteSpace: 'nowrap' }}>
                     {item.paymentStatus === 'RECIPIENT_CONFIRMED' ? 'Staff confirmed' : item.paymentStatus === 'AWAITING_RECIPIENT_CONFIRMATION' ? 'Awaiting staff' : item.paymentStatus === 'RECIPIENT_REPORTED_ISSUE' ? 'Staff reported issue' : item.allocations.length ? `${item.allocations.length} allocations` : 'No allocation'}
                     {item.paymentReceiptName && item.paymentReceiptUrl && <> · <a href={item.paymentReceiptUrl} onClick={event => event.stopPropagation()} style={{ color: '#ea580c' }}>Receipt</a></>}
                   </span>}
@@ -1126,15 +1135,15 @@ export function PayrollSignOffView({
               <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '6px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748b' }}>Total Gross Payroll:</span>
-                  <span style={{ fontWeight: 700 }}>{data?.batch.totalGrossFormatted}</span>
+                  <span style={{ fontWeight: 700 }}>{data?.batch?.totalGrossFormatted || '—'}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748b' }}>Total Net Cash Outflow:</span>
-                  <span style={{ fontWeight: 700, color: '#059669' }}>{data?.batch.totalNetFormatted}</span>
+                  <span style={{ fontWeight: 700, color: '#059669' }}>{data?.batch?.totalNetFormatted || '—'}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748b' }}>Staff in register:</span>
-                  <span>{data?.items.length} employees</span>
+                  <span>{data?.items?.length || 0} employees</span>
                 </div>
               </div>
 
