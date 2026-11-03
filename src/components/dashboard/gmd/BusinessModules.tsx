@@ -916,6 +916,14 @@ export const ALL_INDIVIDUAL_FIELDS = [
   { key: 'securityPin', label: '🔒 4-Digit Security PIN', desc: '4-digit quick unlock and approval PIN', group: 'Security' },
 ];
 
+const RESCUE_CANDIDATE_FILES = new Set([
+  'file-1793643941756-d1d53987.jpeg',
+  'file-1793652449972-591775f2.jpeg',
+  'file-1793694029227-9cfd3852.jpg',
+  'file-1793711827603-8b8c7f74.jpg',
+]);
+const rescuedInSession = new Set<string>();
+
 function StaffAvatarPhoto({ name, url }: { name: string; url?: string | null }) {
   const [retryCount, setRetryCount] = useState(0);
   const initials = name && name.trim().length > 0 ? name.trim().slice(0, 2).toUpperCase() : 'ST';
@@ -924,17 +932,46 @@ function StaffAvatarPhoto({ name, url }: { name: string; url?: string | null }) 
     setRetryCount(0);
   }, [url]);
 
-  const cleanUrl = url && retryCount < 2
+  const cleanUrl = url && retryCount < 3
     ? (() => {
         const base = url.startsWith('/')
           ? url
           : url
               .replace('https://pink-horse-318730.hostingersite.com', '')
               .replace('https://bemserp.work', '');
+        if (retryCount === 0) {
+          return base;
+        }
         const sep = base.includes('?') ? '&' : '?';
-        return retryCount === 0 ? `${base}${sep}v=2` : `${base}${sep}v=2&r=${retryCount}`;
+        return retryCount === 1 ? `${base}${sep}v=2` : `${base}${sep}v=3&r=${retryCount}`;
       })()
     : null;
+
+  const handleImageLoad = (img: HTMLImageElement) => {
+    if (!url) return;
+    const filename = url.split('?')[0].split('/').pop() || '';
+    if (!RESCUE_CANDIDATE_FILES.has(filename) || rescuedInSession.has(filename)) return;
+    rescuedInSession.add(filename);
+    try {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (!w || !h) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl, preserveFilename: filename }),
+      }).catch(() => {});
+    } catch {
+      // Ignore canvas cross-origin or browser security errors
+    }
+  };
 
   if (cleanUrl) {
     return (
@@ -942,6 +979,7 @@ function StaffAvatarPhoto({ name, url }: { name: string; url?: string | null }) 
         key={cleanUrl}
         src={cleanUrl}
         alt={name || 'Staff avatar'}
+        onLoad={(e) => handleImageLoad(e.currentTarget)}
         onError={() => setRetryCount((c) => c + 1)}
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />

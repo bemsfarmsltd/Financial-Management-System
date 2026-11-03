@@ -157,8 +157,10 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Image size exceeds maximum 8MB limit.' }, { status: 400 });
       }
 
-      const filename = `avatar-${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
-      const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      const rawPreserve = typeof body.preserveFilename === 'string' ? body.preserveFilename.trim() : '';
+      const isValidPreserve = /^file-\d+-[a-f0-9]+\.(jpg|jpeg|png|webp)$/i.test(rawPreserve);
+      const filename = isValidPreserve ? rawPreserve : `avatar-${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
+      const mimeType = filename.endsWith('.png') ? 'image/png' : filename.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
 
       // 1. Permanently persist to Supabase PostgreSQL database with retries
       await persistStoredFileWithRetry(filename, mimeType, buffer, 3);
