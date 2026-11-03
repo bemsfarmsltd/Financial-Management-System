@@ -59,7 +59,7 @@ class _BemiSplashScreenState extends State<BemiSplashScreen> {
     if (gateInfo != null && gateInfo['upgradeRequired'] == true) {
       nextScreen = AppUpgradeScreen(
         currentVersion: ApiService.appVersion,
-        requiredVersion: gateInfo['minimumAllowedVersion']?.toString() ?? '1.0.1',
+        requiredVersion: gateInfo['minimumAllowedVersion']?.toString() ?? '1.0.0',
         downloadUrl: gateInfo['directDownloadUrl']?.toString() ?? 'https://bemserp.work/download/gmd-app.apk',
         notes: gateInfo['upgradePromptNotes']?.toString() ?? 'A critical update is required to continue.',
       );

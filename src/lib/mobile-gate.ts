@@ -52,21 +52,21 @@ export async function getMobileAppGate(appId: string) {
           appId: 'GMD_APP',
           appName: 'BEMS GMD AI',
           packageName: 'com.bemsgroup.gmd_ai',
-          minimumAllowedVersion: '1.0.2',
-          latestVersionAvailable: '1.0.5',
+          minimumAllowedVersion: '1.0.0',
+          latestVersionAvailable: '1.0.0',
           forceUpdate: false,
-          directDownloadUrl: 'https://bemserp.work/download/gmd-app.apk?v=1.0.5',
-          upgradePromptNotes: 'Major executive release: Full parity with Admin Web Dashboard including Staff Onboarding, Disbursements, Accountability, Payroll, Vendors, and Intercompany Desks.',
+          directDownloadUrl: 'https://bemserp.work/download/gmd-app.apk?v=1.0.0',
+          upgradePromptNotes: 'Initial production release v1.0.0 for Executive Command Desk & BEMI AI Copilot.',
         }
       : {
           appId: 'STAFF_APP',
           appName: 'BEMS Staff App',
           packageName: 'com.bemsgroup.staff',
-          minimumAllowedVersion: '1.0.2',
-          latestVersionAvailable: '1.0.2',
-          forceUpdate: true,
-          directDownloadUrl: 'https://bemserp.work/download/staff-app.apk?v=1.0.2',
-          upgradePromptNotes: 'Critical update: Disbursed status indicators, Attendance Scanner alignment, and performance optimizations.',
+          minimumAllowedVersion: '1.0.0',
+          latestVersionAvailable: '1.0.0',
+          forceUpdate: false,
+          directDownloadUrl: 'https://bemserp.work/download/staff-app.apk?v=1.0.0',
+          upgradePromptNotes: 'Initial production release v1.0.0 for BEMS Staff Requisitions & Attendance.',
         };
 
     try {

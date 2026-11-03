@@ -53,7 +53,7 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
     if (gateInfo != null && gateInfo['upgradeRequired'] == true) {
       nextScreen = StaffAppUpgradeScreen(
         currentVersion: StaffApiService.appVersion,
-        requiredVersion: gateInfo['minimumAllowedVersion']?.toString() ?? '1.0.1',
+        requiredVersion: gateInfo['minimumAllowedVersion']?.toString() ?? '1.0.0',
         downloadUrl: gateInfo['directDownloadUrl']?.toString() ?? 'https://bemserp.work/download/staff-app.apk',
         notes: gateInfo['upgradePromptNotes']?.toString() ?? 'A critical update is required to continue.',
       );

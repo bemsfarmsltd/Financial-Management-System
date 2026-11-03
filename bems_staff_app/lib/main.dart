@@ -28,7 +28,7 @@ void main() {
         MaterialPageRoute(
           builder: (_) => StaffAppUpgradeScreen(
             currentVersion: StaffApiService.appVersion,
-            requiredVersion: info['minimumAllowedVersion']?.toString() ?? '1.0.1',
+            requiredVersion: info['minimumAllowedVersion']?.toString() ?? '1.0.0',
             downloadUrl: info['directDownloadUrl']?.toString() ?? 'https://bemserp.work/download/staff-app.apk',
             notes: info['upgradePromptNotes']?.toString() ?? 'A critical update is required to continue.',
           ),

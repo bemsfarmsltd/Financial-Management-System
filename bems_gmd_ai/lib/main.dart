@@ -28,7 +28,7 @@ void main() {
         MaterialPageRoute(
           builder: (_) => AppUpgradeScreen(
             currentVersion: ApiService.appVersion,
-            requiredVersion: info['minimumAllowedVersion']?.toString() ?? '1.0.1',
+            requiredVersion: info['minimumAllowedVersion']?.toString() ?? '1.0.0',
             downloadUrl: info['directDownloadUrl']?.toString() ?? 'https://bemserp.work/download/gmd-app.apk',
             notes: info['upgradePromptNotes']?.toString() ?? 'A critical update is required to continue.',
           ),
