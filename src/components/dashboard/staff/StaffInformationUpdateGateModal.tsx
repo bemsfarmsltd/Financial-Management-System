@@ -30,9 +30,15 @@ export interface CurrentEmployeeData {
   avatarUrl: string | null;
   phone: string | null;
   nin: string | null;
+  bvn?: string | null;
+  dateOfBirth?: string | null;
+  gender?: string | null;
   bankName: string | null;
   accountNumber: string | null;
   accountName: string | null;
+  salaryBankName?: string | null;
+  salaryAccountNumber?: string | null;
+  salaryAccountName?: string | null;
   nextOfKinName: string | null;
   nextOfKinPhone: string | null;
   nextOfKinRelationship: string | null;
@@ -63,11 +69,20 @@ export function StaffInformationUpdateGateModal({
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [nin, setNin] = useState(currentData?.nin || '');
+  const [bvn, setBvn] = useState(currentData?.bvn || '');
+  const [phone, setPhone] = useState(currentData?.phone || '');
+  const [dateOfBirth, setDateOfBirth] = useState(currentData?.dateOfBirth || '');
+  const [gender, setGender] = useState(currentData?.gender || 'MALE');
+
   const [bankName, setBankName] = useState(currentData?.bankName || '');
   const [accountNumber, setAccountNumber] = useState(currentData?.accountNumber || '');
   const [accountName, setAccountName] = useState(currentData?.accountName || '');
   const [verifyingBank, setVerifyingBank] = useState(false);
   const [bankVerifyMsg, setBankVerifyMsg] = useState<string | null>(null);
+
+  const [salaryBankName, setSalaryBankName] = useState(currentData?.salaryBankName || '');
+  const [salaryAccountNumber, setSalaryAccountNumber] = useState(currentData?.salaryAccountNumber || '');
+  const [salaryAccountName, setSalaryAccountName] = useState(currentData?.salaryAccountName || '');
 
   const [nextOfKinName, setNextOfKinName] = useState(currentData?.nextOfKinName || '');
   const [nextOfKinPhone, setNextOfKinPhone] = useState(currentData?.nextOfKinPhone || '');
@@ -143,7 +158,7 @@ export function StaffInformationUpdateGateModal({
     setError(null);
 
     // Validations based on requested fields
-    if (fields.includes('avatarUrl') && (!avatarUrl || !avatarUrl.startsWith('http') && !avatarUrl.startsWith('/'))) {
+    if (fields.includes('avatarUrl') && (!avatarUrl || (!avatarUrl.startsWith('http') && !avatarUrl.startsWith('/')))) {
       setError('Please upload your official passport photograph before proceeding.');
       return;
     }
@@ -156,27 +171,48 @@ export function StaffInformationUpdateGateModal({
       }
     }
 
-    if (fields.includes('bankDetails')) {
-      if (!bankName.trim()) {
-        setError('Please provide your bank name.');
-        return;
-      }
-      const cleanAcc = accountNumber.replace(/\D/g, '');
-      if (cleanAcc.length !== 10) {
-        setError('Bank account number must be 10 digits.');
-        return;
-      }
-      if (!accountName.trim()) {
-        setError('Please provide the account holder name.');
+    if (fields.includes('bvn')) {
+      const cleanBvn = bvn.replace(/\D/g, '');
+      if (cleanBvn.length !== 11) {
+        setError('Bank Verification Number (BVN) must be exactly 11 digits.');
         return;
       }
     }
 
-    if (fields.includes('nextOfKin')) {
-      if (!nextOfKinName.trim() || !nextOfKinPhone.trim()) {
-        setError('Please provide Next of Kin name and phone number.');
+    if ((fields.includes('bankName') || fields.includes('bankDetails')) && !bankName.trim()) {
+      setError('Please provide your disbursement bank name.');
+      return;
+    }
+
+    if ((fields.includes('accountNumber') || fields.includes('bankDetails'))) {
+      const cleanAcc = accountNumber.replace(/\D/g, '');
+      if (cleanAcc.length !== 10) {
+        setError('Disbursement bank account number must be 10 digits.');
         return;
       }
+    }
+
+    if ((fields.includes('accountName') || fields.includes('bankDetails')) && !accountName.trim()) {
+      setError('Please provide the disbursement account holder name.');
+      return;
+    }
+
+    if (fields.includes('salaryAccountNumber')) {
+      const cleanAcc = salaryAccountNumber.replace(/\D/g, '');
+      if (cleanAcc.length !== 10) {
+        setError('Dedicated salary account number must be 10 digits.');
+        return;
+      }
+    }
+
+    if ((fields.includes('nextOfKin') || fields.includes('nextOfKinName')) && !nextOfKinName.trim()) {
+      setError('Please provide Next of Kin legal name.');
+      return;
+    }
+
+    if ((fields.includes('nextOfKin') || fields.includes('nextOfKinPhone')) && !nextOfKinPhone.trim()) {
+      setError('Please provide Next of Kin phone number.');
+      return;
     }
 
     if (fields.includes('securityPin')) {
@@ -195,30 +231,33 @@ export function StaffInformationUpdateGateModal({
       const updates: any = {};
       if (fields.includes('avatarUrl')) updates.avatarUrl = avatarUrl;
       if (fields.includes('nin')) updates.nin = nin.replace(/\D/g, '');
-      if (fields.includes('bankDetails')) {
-        updates.bankName = bankName.trim();
-        updates.accountNumber = accountNumber.replace(/\D/g, '');
-        updates.accountName = accountName.trim();
-      }
-      if (fields.includes('nextOfKin')) {
-        updates.nextOfKinName = nextOfKinName.trim();
-        updates.nextOfKinPhone = nextOfKinPhone.trim();
-        updates.nextOfKinRelationship = nextOfKinRelationship;
-        updates.nextOfKinAddress = nextOfKinAddress.trim();
-      }
-      if (fields.includes('residentialAddress')) {
-        updates.residentialAddress = residentialAddress.trim();
-        updates.cityState = cityState.trim();
-      }
-      if (fields.includes('demographics')) {
-        updates.maritalStatus = maritalStatus;
-        updates.highestEducation = highestEducation;
-        updates.stateOfOrigin = stateOfOrigin.trim();
-        updates.lga = lga.trim();
-      }
-      if (fields.includes('securityPin')) {
-        updates.securityPin = securityPin;
-      }
+      if (fields.includes('bvn')) updates.bvn = bvn.replace(/\D/g, '');
+      if (fields.includes('phone')) updates.phone = phone.trim();
+
+      if (fields.includes('bankName') || fields.includes('bankDetails')) updates.bankName = bankName.trim();
+      if (fields.includes('accountNumber') || fields.includes('bankDetails')) updates.accountNumber = accountNumber.replace(/\D/g, '');
+      if (fields.includes('accountName') || fields.includes('bankDetails')) updates.accountName = accountName.trim();
+
+      if (fields.includes('salaryBankName')) updates.salaryBankName = salaryBankName.trim();
+      if (fields.includes('salaryAccountNumber')) updates.salaryAccountNumber = salaryAccountNumber.replace(/\D/g, '');
+      if (fields.includes('salaryAccountName')) updates.salaryAccountName = salaryAccountName.trim();
+
+      if (fields.includes('nextOfKinName') || fields.includes('nextOfKin')) updates.nextOfKinName = nextOfKinName.trim();
+      if (fields.includes('nextOfKinPhone') || fields.includes('nextOfKin')) updates.nextOfKinPhone = nextOfKinPhone.trim();
+      if (fields.includes('nextOfKinRelationship') || fields.includes('nextOfKin')) updates.nextOfKinRelationship = nextOfKinRelationship;
+      if (fields.includes('nextOfKinAddress') || fields.includes('nextOfKin')) updates.nextOfKinAddress = nextOfKinAddress.trim();
+
+      if (fields.includes('residentialAddress')) updates.residentialAddress = residentialAddress.trim();
+      if (fields.includes('cityState')) updates.cityState = cityState.trim();
+
+      if (fields.includes('maritalStatus') || fields.includes('demographics')) updates.maritalStatus = maritalStatus;
+      if (fields.includes('highestEducation') || fields.includes('demographics')) updates.highestEducation = highestEducation;
+      if (fields.includes('stateOfOrigin') || fields.includes('demographics')) updates.stateOfOrigin = stateOfOrigin.trim();
+      if (fields.includes('lga') || fields.includes('demographics')) updates.lga = lga.trim();
+      if (fields.includes('dateOfBirth')) updates.dateOfBirth = dateOfBirth;
+      if (fields.includes('gender')) updates.gender = gender;
+
+      if (fields.includes('securityPin')) updates.securityPin = securityPin;
 
       const res = await fetch('/api/staff/profile/submit-update', {
         method: 'POST',
@@ -430,61 +469,174 @@ export function StaffInformationUpdateGateModal({
             </section>
           )}
 
-          {/* 3. Disbursement Banking Details */}
-          {fields.includes('bankDetails') && (
+          {/* BVN */}
+          {fields.includes('bvn') && (
+            <section style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 16, background: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <ShieldCheck size={16} color="#0284c7" />
+                <h4 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                  Bank Verification Number (BVN)
+                </h4>
+              </div>
+              <input
+                type="text"
+                maxLength={11}
+                value={bvn}
+                onChange={(e) => setBvn(e.target.value.replace(/\D/g, ''))}
+                placeholder="11-digit bank verification number"
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  letterSpacing: '0.1em',
+                }}
+              />
+              <span style={{ fontSize: 11.5, color: '#64748b', marginTop: 4, display: 'block' }}>
+                Enter your 11-digit BVN linked to your Nigerian banking records.
+              </span>
+            </section>
+          )}
+
+          {/* Personal Mobile Phone Number */}
+          {fields.includes('phone') && (
+            <section style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 16, background: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <User size={16} color="#0284c7" />
+                <h4 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                  Personal Mobile Phone Number
+                </h4>
+              </div>
+              <input
+                type="text"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="e.g. 08012345678 or +234..."
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700 }}
+              />
+            </section>
+          )}
+
+          {/* Disbursement Banking */}
+          {(fields.includes('bankDetails') || fields.includes('bankName') || fields.includes('accountNumber') || fields.includes('accountName')) && (
             <section style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 16, background: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <CreditCard size={16} color="#059669" />
                 <h4 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                  Disbursement & Salary Bank Details
+                  Disbursement Bank Account (Expenses & Advances)
                 </h4>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
+                {(fields.includes('bankDetails') || fields.includes('bankName')) && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      Bank Name
+                    </label>
+                    <input
+                      type="text"
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      placeholder="e.g. Access Bank, GTBank, Zenith"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                    />
+                  </div>
+                )}
+                {(fields.includes('bankDetails') || fields.includes('accountNumber')) && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      Account Number (10 Digits)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={10}
+                      value={accountNumber}
+                      onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="0123456789"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700 }}
+                    />
+                  </div>
+                )}
+              </div>
+              {(fields.includes('bankDetails') || fields.includes('accountName')) && (
+                <div style={{ marginTop: 10 }}>
                   <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Bank Name
+                    Account Holder Name
                   </label>
                   <input
                     type="text"
-                    value={bankName}
-                    onChange={(e) => setBankName(e.target.value)}
-                    placeholder="e.g. Access Bank, GTBank, Zenith"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    placeholder="Official registered name on bank account"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700, background: '#ffffff' }}
                   />
+                  {verifyingBank && <span style={{ fontSize: 11, color: '#2563eb', display: 'block', marginTop: 4 }}>Verifying account with NIBSS...</span>}
+                  {bankVerifyMsg && <span style={{ fontSize: 11, color: bankVerifyMsg.startsWith('✓') ? '#16a34a' : '#d97706', display: 'block', marginTop: 4, fontWeight: 600 }}>{bankVerifyMsg}</span>}
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Account Number (10 Digits)
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={10}
-                    value={accountNumber}
-                    onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ''))}
-                    placeholder="0123456789"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700 }}
-                  />
-                </div>
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                  Verified Account Holder Name
-                </label>
-                <input
-                  type="text"
-                  value={accountName}
-                  onChange={(e) => setAccountName(e.target.value)}
-                  placeholder="Official registered name on bank account"
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700, background: '#ffffff' }}
-                />
-                {verifyingBank && <span style={{ fontSize: 11, color: '#2563eb', display: 'block', marginTop: 4 }}>Verifying account with NIBSS...</span>}
-                {bankVerifyMsg && <span style={{ fontSize: 11, color: bankVerifyMsg.startsWith('✓') ? '#16a34a' : '#d97706', display: 'block', marginTop: 4, fontWeight: 600 }}>{bankVerifyMsg}</span>}
-              </div>
+              )}
             </section>
           )}
 
-          {/* 4. Next of Kin Records */}
-          {fields.includes('nextOfKin') && (
+          {/* Salary Banking */}
+          {(fields.includes('salaryBankName') || fields.includes('salaryAccountNumber') || fields.includes('salaryAccountName')) && (
+            <section style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 16, background: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Building size={16} color="#059669" />
+                <h4 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                  Dedicated Salary Bank Account (Payroll)
+                </h4>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {fields.includes('salaryBankName') && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      Salary Bank Name
+                    </label>
+                    <input
+                      type="text"
+                      value={salaryBankName}
+                      onChange={(e) => setSalaryBankName(e.target.value)}
+                      placeholder="e.g. Stanbic IBTC, First Bank"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                    />
+                  </div>
+                )}
+                {fields.includes('salaryAccountNumber') && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      Salary Account Number (10 Digits)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={10}
+                      value={salaryAccountNumber}
+                      onChange={(e) => setSalaryAccountNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="0123456789"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700 }}
+                    />
+                  </div>
+                )}
+              </div>
+              {fields.includes('salaryAccountName') && (
+                <div style={{ marginTop: 10 }}>
+                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                    Salary Account Holder Name
+                  </label>
+                  <input
+                    type="text"
+                    value={salaryAccountName}
+                    onChange={(e) => setSalaryAccountName(e.target.value)}
+                    placeholder="Official registered name on salary account"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700, background: '#ffffff' }}
+                  />
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Next of Kin Records */}
+          {(fields.includes('nextOfKin') || fields.includes('nextOfKinName') || fields.includes('nextOfKinPhone') || fields.includes('nextOfKinRelationship') || fields.includes('nextOfKinAddress')) && (
             <section style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 16, background: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <Users size={16} color="#7c3aed" />
@@ -493,66 +645,74 @@ export function StaffInformationUpdateGateModal({
                 </h4>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Full Legal Name
-                  </label>
-                  <input
-                    type="text"
-                    value={nextOfKinName}
-                    onChange={(e) => setNextOfKinName(e.target.value)}
-                    placeholder="Next of Kin Full Name"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Telephone Number
-                  </label>
-                  <input
-                    type="text"
-                    value={nextOfKinPhone}
-                    onChange={(e) => setNextOfKinPhone(e.target.value)}
-                    placeholder="08012345678"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
-                  />
-                </div>
+                {(fields.includes('nextOfKin') || fields.includes('nextOfKinName')) && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      Full Legal Name
+                    </label>
+                    <input
+                      type="text"
+                      value={nextOfKinName}
+                      onChange={(e) => setNextOfKinName(e.target.value)}
+                      placeholder="Next of Kin Full Name"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                    />
+                  </div>
+                )}
+                {(fields.includes('nextOfKin') || fields.includes('nextOfKinPhone')) && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      Telephone Number
+                    </label>
+                    <input
+                      type="text"
+                      value={nextOfKinPhone}
+                      onChange={(e) => setNextOfKinPhone(e.target.value)}
+                      placeholder="08012345678"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                    />
+                  </div>
+                )}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 12, marginTop: 10 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Relationship
-                  </label>
-                  <select
-                    value={nextOfKinRelationship}
-                    onChange={(e) => setNextOfKinRelationship(e.target.value)}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#ffffff' }}
-                  >
-                    <option value="SPOUSE">Spouse</option>
-                    <option value="PARENT">Parent</option>
-                    <option value="SIBLING">Sibling</option>
-                    <option value="CHILD">Child</option>
-                    <option value="NEXT_OF_KIN">Next of Kin / Relative</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Residential Address
-                  </label>
-                  <input
-                    type="text"
-                    value={nextOfKinAddress}
-                    onChange={(e) => setNextOfKinAddress(e.target.value)}
-                    placeholder="Next of kin residential address"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
-                  />
-                </div>
+                {(fields.includes('nextOfKin') || fields.includes('nextOfKinRelationship')) && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      Relationship
+                    </label>
+                    <select
+                      value={nextOfKinRelationship}
+                      onChange={(e) => setNextOfKinRelationship(e.target.value)}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#ffffff' }}
+                    >
+                      <option value="SPOUSE">Spouse</option>
+                      <option value="PARENT">Parent</option>
+                      <option value="SIBLING">Sibling</option>
+                      <option value="CHILD">Child</option>
+                      <option value="NEXT_OF_KIN">Next of Kin / Relative</option>
+                    </select>
+                  </div>
+                )}
+                {(fields.includes('nextOfKin') || fields.includes('nextOfKinAddress')) && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      Residential Address
+                    </label>
+                    <input
+                      type="text"
+                      value={nextOfKinAddress}
+                      onChange={(e) => setNextOfKinAddress(e.target.value)}
+                      placeholder="Next of kin residential address"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                    />
+                  </div>
+                )}
               </div>
             </section>
           )}
 
-          {/* 5. Residential Address */}
-          {fields.includes('residentialAddress') && (
+          {/* Residential Address */}
+          {(fields.includes('residentialAddress') || fields.includes('cityState')) && (
             <section style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 16, background: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <MapPin size={16} color="#d97706" />
@@ -560,101 +720,140 @@ export function StaffInformationUpdateGateModal({
                   Physical Residential Address
                 </h4>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                  Street Address
-                </label>
-                <input
-                  type="text"
-                  value={residentialAddress}
-                  onChange={(e) => setResidentialAddress(e.target.value)}
-                  placeholder="e.g. 14 Admiralty Way, Lekki Phase 1"
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
-                />
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                  City & State
-                </label>
-                <input
-                  type="text"
-                  value={cityState}
-                  onChange={(e) => setCityState(e.target.value)}
-                  placeholder="e.g. Lagos, Lagos State"
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
-                />
-              </div>
+              {fields.includes('residentialAddress') && (
+                <div>
+                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                    Street Address
+                  </label>
+                  <input
+                    type="text"
+                    value={residentialAddress}
+                    onChange={(e) => setResidentialAddress(e.target.value)}
+                    placeholder="e.g. 14 Admiralty Way, Lekki Phase 1"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                  />
+                </div>
+              )}
+              {fields.includes('cityState') && (
+                <div style={{ marginTop: 10 }}>
+                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                    City & State
+                  </label>
+                  <input
+                    type="text"
+                    value={cityState}
+                    onChange={(e) => setCityState(e.target.value)}
+                    placeholder="e.g. Lagos, Lagos State"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                  />
+                </div>
+              )}
             </section>
           )}
 
-          {/* 6. Statutory Demographics */}
-          {fields.includes('demographics') && (
+          {/* Statutory Demographics */}
+          {(fields.includes('demographics') || fields.includes('maritalStatus') || fields.includes('highestEducation') || fields.includes('stateOfOrigin') || fields.includes('lga') || fields.includes('dateOfBirth') || fields.includes('gender')) && (
             <section style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 16, background: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <GraduationCap size={16} color="#0284c7" />
                 <h4 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                  Statutory Demographics & Education
+                  Statutory Demographics & Records
                 </h4>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Marital Status
-                  </label>
-                  <select
-                    value={maritalStatus}
-                    onChange={(e) => setMaritalStatus(e.target.value)}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#ffffff' }}
-                  >
-                    <option value="SINGLE">Single</option>
-                    <option value="MARRIED">Married</option>
-                    <option value="DIVORCED">Divorced</option>
-                    <option value="WIDOWED">Widowed</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Highest Education
-                  </label>
-                  <select
-                    value={highestEducation}
-                    onChange={(e) => setHighestEducation(e.target.value)}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#ffffff' }}
-                  >
-                    <option value="SSCE">SSCE / High School</option>
-                    <option value="OND">OND (Ordinary National Diploma)</option>
-                    <option value="HND">HND (Higher National Diploma)</option>
-                    <option value="BACHELORS">Bachelor's Degree (B.Sc / B.A)</option>
-                    <option value="MASTERS">Master's Degree (M.Sc / M.A / MBA)</option>
-                    <option value="DOCTORATE">Doctorate (Ph.D)</option>
-                  </select>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 10 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    State of Origin
-                  </label>
-                  <input
-                    type="text"
-                    value={stateOfOrigin}
-                    onChange={(e) => setStateOfOrigin(e.target.value)}
-                    placeholder="e.g. Edo, Delta, Lagos"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Local Government Area (LGA)
-                  </label>
-                  <input
-                    type="text"
-                    value={lga}
-                    onChange={(e) => setLga(e.target.value)}
-                    placeholder="e.g. Oredo, Ikeja"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
-                  />
-                </div>
+                {(fields.includes('demographics') || fields.includes('maritalStatus')) && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      Marital Status
+                    </label>
+                    <select
+                      value={maritalStatus}
+                      onChange={(e) => setMaritalStatus(e.target.value)}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#ffffff' }}
+                    >
+                      <option value="SINGLE">Single</option>
+                      <option value="MARRIED">Married</option>
+                      <option value="DIVORCED">Divorced</option>
+                      <option value="WIDOWED">Widowed</option>
+                    </select>
+                  </div>
+                )}
+                {(fields.includes('demographics') || fields.includes('highestEducation')) && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      Highest Education
+                    </label>
+                    <select
+                      value={highestEducation}
+                      onChange={(e) => setHighestEducation(e.target.value)}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#ffffff' }}
+                    >
+                      <option value="SSCE">SSCE / High School</option>
+                      <option value="OND">OND (Ordinary National Diploma)</option>
+                      <option value="HND">HND (Higher National Diploma)</option>
+                      <option value="BACHELORS">Bachelor's Degree (B.Sc / B.A)</option>
+                      <option value="MASTERS">Master's Degree (M.Sc / M.A / MBA)</option>
+                      <option value="DOCTORATE">Doctorate (Ph.D)</option>
+                    </select>
+                  </div>
+                )}
+                {fields.includes('dateOfBirth') && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      Date of Birth
+                    </label>
+                    <input
+                      type="date"
+                      value={dateOfBirth}
+                      onChange={(e) => setDateOfBirth(e.target.value)}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#ffffff' }}
+                    />
+                  </div>
+                )}
+                {fields.includes('gender') && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      Gender
+                    </label>
+                    <select
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#ffffff' }}
+                    >
+                      <option value="MALE">Male</option>
+                      <option value="FEMALE">Female</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
+                )}
+                {(fields.includes('demographics') || fields.includes('stateOfOrigin')) && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      State of Origin
+                    </label>
+                    <input
+                      type="text"
+                      value={stateOfOrigin}
+                      onChange={(e) => setStateOfOrigin(e.target.value)}
+                      placeholder="e.g. Edo, Delta, Lagos"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                    />
+                  </div>
+                )}
+                {(fields.includes('demographics') || fields.includes('lga')) && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      Local Government Area (LGA)
+                    </label>
+                    <input
+                      type="text"
+                      value={lga}
+                      onChange={(e) => setLga(e.target.value)}
+                      placeholder="e.g. Ikeja, Eti-Osa"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                    />
+                  </div>
+                )}
               </div>
             </section>
           )}

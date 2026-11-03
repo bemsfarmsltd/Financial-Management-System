@@ -867,3 +867,15 @@ model AttendanceRecord {
   @@index([workDate, status])
   @@index([employeeId, workDate])
 }
+
+model StoredFile {
+  id        String   @id @default(uuid())
+  filename  String   @unique
+  mimeType  String   @default("image/jpeg")
+  data      Bytes
+  size      Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([filename])
+}
+

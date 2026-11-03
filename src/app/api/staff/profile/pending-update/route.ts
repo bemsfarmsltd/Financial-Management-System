@@ -50,6 +50,12 @@ export async function GET(request: Request) {
         highestEducation: true,
         stateOfOrigin: true,
         lga: true,
+        bvn: true,
+        dateOfBirth: true,
+        gender: true,
+        salaryBankName: true,
+        salaryAccountNumber: true,
+        salaryAccountName: true,
         securityPinHash: true,
       },
     });

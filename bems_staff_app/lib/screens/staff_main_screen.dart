@@ -483,99 +483,113 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                               ],
 
                               // 3. Bank Details
-                              if (fields.contains('bankDetails')) ...[
+                              if (fields.contains('bankDetails') || fields.contains('bankName') || fields.contains('accountNumber') || fields.contains('accountName')) ...[
                                 const Text('BANK DISBURSEMENT DETAILS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
                                 const SizedBox(height: 6),
-                                TextField(
-                                  controller: bankNameController,
-                                  decoration: InputDecoration(
-                                    hintText: 'Bank Name (e.g. Access Bank)',
-                                    filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                if (fields.contains('bankDetails') || fields.contains('bankName')) ...[
+                                  TextField(
+                                    controller: bankNameController,
+                                    decoration: InputDecoration(
+                                      hintText: 'Bank Name (e.g. Access Bank)',
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8FAFC),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                TextField(
-                                  controller: accountNumController,
-                                  keyboardType: TextInputType.number,
-                                  maxLength: 10,
-                                  decoration: InputDecoration(
-                                    hintText: '10-digit Account Number',
-                                    counterText: '',
-                                    filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  const SizedBox(height: 8),
+                                ],
+                                if (fields.contains('bankDetails') || fields.contains('accountNumber')) ...[
+                                  TextField(
+                                    controller: accountNumController,
+                                    keyboardType: TextInputType.number,
+                                    maxLength: 10,
+                                    decoration: InputDecoration(
+                                      hintText: '10-digit Account Number',
+                                      counterText: '',
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8FAFC),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                TextField(
-                                  controller: accountNameController,
-                                  decoration: InputDecoration(
-                                    hintText: 'Account Holder Legal Name',
-                                    filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  const SizedBox(height: 8),
+                                ],
+                                if (fields.contains('bankDetails') || fields.contains('accountName')) ...[
+                                  TextField(
+                                    controller: accountNameController,
+                                    decoration: InputDecoration(
+                                      hintText: 'Account Holder Legal Name',
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8FAFC),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                    ),
                                   ),
-                                ),
+                                ],
                                 const SizedBox(height: 16),
                               ],
 
                               // 4. Next of Kin
-                              if (fields.contains('nextOfKin')) ...[
+                              if (fields.contains('nextOfKin') || fields.contains('nextOfKinName') || fields.contains('nextOfKinPhone')) ...[
                                 const Text('NEXT OF KIN RECORDS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
                                 const SizedBox(height: 6),
-                                TextField(
-                                  controller: nokNameController,
-                                  decoration: InputDecoration(
-                                    hintText: 'Full Name',
-                                    filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                if (fields.contains('nextOfKin') || fields.contains('nextOfKinName')) ...[
+                                  TextField(
+                                    controller: nokNameController,
+                                    decoration: InputDecoration(
+                                      hintText: 'Full Name',
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8FAFC),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                TextField(
-                                  controller: nokPhoneController,
-                                  keyboardType: TextInputType.phone,
-                                  decoration: InputDecoration(
-                                    hintText: 'Phone Number',
-                                    filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  const SizedBox(height: 8),
+                                ],
+                                if (fields.contains('nextOfKin') || fields.contains('nextOfKinPhone')) ...[
+                                  TextField(
+                                    controller: nokPhoneController,
+                                    keyboardType: TextInputType.phone,
+                                    decoration: InputDecoration(
+                                      hintText: 'Phone Number',
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8FAFC),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                    ),
                                   ),
-                                ),
+                                ],
                                 const SizedBox(height: 16),
                               ],
 
                               // 5. Residential Address
-                              if (fields.contains('residentialAddress')) ...[
+                              if (fields.contains('residentialAddress') || fields.contains('cityState')) ...[
                                 const Text('RESIDENTIAL ADDRESS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
                                 const SizedBox(height: 6),
-                                TextField(
-                                  controller: resAddressController,
-                                  decoration: InputDecoration(
-                                    hintText: 'Street Address',
-                                    filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                if (fields.contains('residentialAddress')) ...[
+                                  TextField(
+                                    controller: resAddressController,
+                                    decoration: InputDecoration(
+                                      hintText: 'Street Address',
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8FAFC),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                TextField(
-                                  controller: cityStateController,
-                                  decoration: InputDecoration(
-                                    hintText: 'City, State',
-                                    filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                  const SizedBox(height: 8),
+                                ],
+                                if (fields.contains('cityState')) ...[
+                                  TextField(
+                                    controller: cityStateController,
+                                    decoration: InputDecoration(
+                                      hintText: 'City, State',
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8FAFC),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                                    ),
                                   ),
-                                ),
+                                ],
                                 const SizedBox(height: 16),
                               ],
 
                               // 6. Demographics
-                              if (fields.contains('demographics')) ...[
+                              if (fields.contains('demographics') || fields.contains('maritalStatus')) ...[
                                 const Text('MARITAL STATUS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
                                 const SizedBox(height: 6),
                                 DropdownButtonFormField<String>(
@@ -640,8 +654,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                       setDialogState(() => localError = 'NIN must be 11 digits.');
                                       return;
                                     }
-                                    if (fields.contains('bankDetails') && (bankNameController.text.trim().isEmpty || accountNumController.text.trim().length != 10)) {
-                                      setDialogState(() => localError = 'Please provide valid bank name and 10-digit account number.');
+                                    if ((fields.contains('bankDetails') || fields.contains('accountNumber')) && accountNumController.text.trim().isNotEmpty && accountNumController.text.trim().length != 10) {
+                                      setDialogState(() => localError = 'Account number must be 10 digits.');
                                       return;
                                     }
                                     if (fields.contains('securityPin') && pinController.text.trim().length != 4) {
@@ -654,21 +668,30 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                       final updates = <String, dynamic>{};
                                       if (fields.contains('avatarUrl') && avatarUrl != null) updates['avatarUrl'] = avatarUrl;
                                       if (fields.contains('nin')) updates['nin'] = ninController.text.trim();
+                                      if (fields.contains('bankName')) updates['bankName'] = bankNameController.text.trim();
+                                      if (fields.contains('accountNumber')) updates['accountNumber'] = accountNumController.text.trim();
+                                      if (fields.contains('accountName')) updates['accountName'] = accountNameController.text.trim();
                                       if (fields.contains('bankDetails')) {
                                         updates['bankName'] = bankNameController.text.trim();
                                         updates['accountNumber'] = accountNumController.text.trim();
                                         updates['accountName'] = accountNameController.text.trim();
                                       }
-                                      if (fields.contains('nextOfKin')) {
+                                      if (fields.contains('nextOfKinName') || fields.contains('nextOfKin')) {
                                         updates['nextOfKinName'] = nokNameController.text.trim();
+                                      }
+                                      if (fields.contains('nextOfKinPhone') || fields.contains('nextOfKin')) {
                                         updates['nextOfKinPhone'] = nokPhoneController.text.trim();
                                       }
                                       if (fields.contains('residentialAddress')) {
                                         updates['residentialAddress'] = resAddressController.text.trim();
+                                      }
+                                      if (fields.contains('cityState')) {
                                         updates['cityState'] = cityStateController.text.trim();
                                       }
-                                      if (fields.contains('demographics')) {
+                                      if (fields.contains('demographics') || fields.contains('maritalStatus')) {
                                         updates['maritalStatus'] = maritalStatus;
+                                      }
+                                      if (fields.contains('highestEducation')) {
                                         updates['highestEducation'] = highestEducation;
                                       }
                                       if (fields.contains('securityPin')) {

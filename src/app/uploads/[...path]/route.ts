@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,22 +26,40 @@ export async function GET(
 
     // Sanitize path segments to prevent directory traversal
     const safeSegments = pathSegments.map((s) => path.basename(s));
+    const filename = safeSegments[safeSegments.length - 1];
+    const ext = path.extname(filename).toLowerCase();
+    const defaultContentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+    // 1. Primary storage check: Durable Supabase PostgreSQL database
+    try {
+      const dbFile = await prisma.storedFile.findUnique({
+        where: { filename },
+      });
+      if (dbFile && dbFile.data) {
+        return new NextResponse(Buffer.from(dbFile.data), {
+          headers: {
+            'Content-Type': dbFile.mimeType || defaultContentType,
+            'Cache-Control': 'public, max-age=31536000, immutable',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      }
+    } catch (dbErr) {
+      console.warn('[Uploads Serve] Database lookup failed, falling back to disk:', dbErr);
+    }
+
+    // 2. Secondary fallback: Local filesystem cache
     const filePath = path.join(process.cwd(), 'public', 'uploads', ...safeSegments);
-
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-
     try {
       const fileBuffer = await fs.readFile(filePath);
       return new NextResponse(fileBuffer, {
         headers: {
-          'Content-Type': contentType,
+          'Content-Type': defaultContentType,
           'Cache-Control': 'public, max-age=31536000, immutable',
           'Access-Control-Allow-Origin': '*',
         },
       });
     } catch {
-      // Return 404 if file does not exist on disk
       return new NextResponse('File Not Found', {
         status: 404,
         headers: {

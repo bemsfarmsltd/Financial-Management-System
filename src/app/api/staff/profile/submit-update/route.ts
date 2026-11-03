@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const employeeUpdateData: any = {};
 
     // 1. Passport Photograph
-    if (requestedFields.includes('avatarUrl') && updates.avatarUrl) {
+    if ((requestedFields.includes('avatarUrl')) && updates.avatarUrl) {
       const cleanAvatar = String(updates.avatarUrl).trim();
       if (cleanAvatar.length > 5) {
         employeeUpdateData.avatarUrl = cleanAvatar;
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     }
 
     // 2. National Identity Number (NIN)
-    if (requestedFields.includes('nin') && updates.nin) {
+    if ((requestedFields.includes('nin')) && updates.nin) {
       const cleanNin = String(updates.nin).replace(/\D/g, '');
       if (cleanNin.length !== 11) {
         return NextResponse.json({ error: 'National Identity Number (NIN) must be exactly 11 digits.' }, { status: 400 });
@@ -54,47 +54,116 @@ export async function POST(request: Request) {
       employeeUpdateData.nin = cleanNin;
     }
 
-    // 3. Disbursement Bank Details
-    if (requestedFields.includes('bankDetails')) {
-      if (updates.bankName && typeof updates.bankName === 'string') {
-        employeeUpdateData.bankName = updates.bankName.trim();
+    // 3. Bank Verification Number (BVN)
+    if ((requestedFields.includes('bvn')) && updates.bvn) {
+      const cleanBvn = String(updates.bvn).replace(/\D/g, '');
+      if (cleanBvn.length !== 11) {
+        return NextResponse.json({ error: 'Bank Verification Number (BVN) must be exactly 11 digits.' }, { status: 400 });
       }
-      if (updates.accountNumber) {
-        const cleanAcc = String(updates.accountNumber).replace(/\D/g, '');
-        if (cleanAcc.length !== 10) {
-          return NextResponse.json({ error: 'Bank account number must be exactly 10 digits.' }, { status: 400 });
-        }
-        employeeUpdateData.accountNumber = cleanAcc;
+      employeeUpdateData.bvn = cleanBvn;
+    }
+
+    // 4. Disbursement Bank Name
+    if ((requestedFields.includes('bankName') || requestedFields.includes('bankDetails')) && updates.bankName) {
+      employeeUpdateData.bankName = String(updates.bankName).trim();
+    }
+
+    // 5. Disbursement Account Number
+    if ((requestedFields.includes('accountNumber') || requestedFields.includes('bankDetails')) && updates.accountNumber) {
+      const cleanAcc = String(updates.accountNumber).replace(/\D/g, '');
+      if (cleanAcc.length !== 10) {
+        return NextResponse.json({ error: 'Disbursement account number must be exactly 10 digits.' }, { status: 400 });
       }
-      if (updates.accountName && typeof updates.accountName === 'string') {
-        employeeUpdateData.accountName = updates.accountName.trim();
+      employeeUpdateData.accountNumber = cleanAcc;
+    }
+
+    // 6. Disbursement Account Name
+    if ((requestedFields.includes('accountName') || requestedFields.includes('bankDetails')) && updates.accountName) {
+      employeeUpdateData.accountName = String(updates.accountName).trim();
+    }
+
+    // 7. Salary Bank Details
+    if ((requestedFields.includes('salaryBankName')) && updates.salaryBankName) {
+      employeeUpdateData.salaryBankName = String(updates.salaryBankName).trim();
+    }
+    if ((requestedFields.includes('salaryAccountNumber')) && updates.salaryAccountNumber) {
+      const cleanAcc = String(updates.salaryAccountNumber).replace(/\D/g, '');
+      if (cleanAcc.length !== 10) {
+        return NextResponse.json({ error: 'Salary account number must be exactly 10 digits.' }, { status: 400 });
       }
+      employeeUpdateData.salaryAccountNumber = cleanAcc;
+    }
+    if ((requestedFields.includes('salaryAccountName')) && updates.salaryAccountName) {
+      employeeUpdateData.salaryAccountName = String(updates.salaryAccountName).trim();
     }
 
-    // 4. Next of Kin
-    if (requestedFields.includes('nextOfKin')) {
-      if (updates.nextOfKinName) employeeUpdateData.nextOfKinName = String(updates.nextOfKinName).trim();
-      if (updates.nextOfKinPhone) employeeUpdateData.nextOfKinPhone = String(updates.nextOfKinPhone).trim();
-      if (updates.nextOfKinRelationship) employeeUpdateData.nextOfKinRelationship = String(updates.nextOfKinRelationship).trim();
-      if (updates.nextOfKinAddress) employeeUpdateData.nextOfKinAddress = String(updates.nextOfKinAddress).trim();
+    // 8. Next of Kin Name
+    if ((requestedFields.includes('nextOfKinName') || requestedFields.includes('nextOfKin')) && updates.nextOfKinName) {
+      employeeUpdateData.nextOfKinName = String(updates.nextOfKinName).trim();
     }
 
-    // 5. Residential Address
-    if (requestedFields.includes('residentialAddress')) {
-      if (updates.residentialAddress) employeeUpdateData.residentialAddress = String(updates.residentialAddress).trim();
-      if (updates.cityState) employeeUpdateData.cityState = String(updates.cityState).trim();
+    // 9. Next of Kin Phone
+    if ((requestedFields.includes('nextOfKinPhone') || requestedFields.includes('nextOfKin')) && updates.nextOfKinPhone) {
+      employeeUpdateData.nextOfKinPhone = String(updates.nextOfKinPhone).trim();
     }
 
-    // 6. Demographics
-    if (requestedFields.includes('demographics')) {
-      if (updates.maritalStatus) employeeUpdateData.maritalStatus = String(updates.maritalStatus).trim().toUpperCase();
-      if (updates.highestEducation) employeeUpdateData.highestEducation = String(updates.highestEducation).trim().toUpperCase();
-      if (updates.stateOfOrigin) employeeUpdateData.stateOfOrigin = String(updates.stateOfOrigin).trim();
-      if (updates.lga) employeeUpdateData.lga = String(updates.lga).trim();
+    // 10. Next of Kin Relationship
+    if ((requestedFields.includes('nextOfKinRelationship') || requestedFields.includes('nextOfKin')) && updates.nextOfKinRelationship) {
+      employeeUpdateData.nextOfKinRelationship = String(updates.nextOfKinRelationship).trim();
     }
 
-    // 7. Security Quick-Unlock PIN
-    if (requestedFields.includes('securityPin') && updates.securityPin) {
+    // 11. Next of Kin Address
+    if ((requestedFields.includes('nextOfKinAddress') || requestedFields.includes('nextOfKin')) && updates.nextOfKinAddress) {
+      employeeUpdateData.nextOfKinAddress = String(updates.nextOfKinAddress).trim();
+    }
+
+    // 12. Personal Phone Number
+    if ((requestedFields.includes('phone')) && updates.phone) {
+      employeeUpdateData.phone = String(updates.phone).trim();
+    }
+
+    // 13. Residential Address
+    if ((requestedFields.includes('residentialAddress')) && updates.residentialAddress) {
+      employeeUpdateData.residentialAddress = String(updates.residentialAddress).trim();
+    }
+
+    // 14. City & State of Residence
+    if ((requestedFields.includes('cityState') || requestedFields.includes('residentialAddress')) && updates.cityState) {
+      employeeUpdateData.cityState = String(updates.cityState).trim();
+    }
+
+    // 15. State of Origin
+    if ((requestedFields.includes('stateOfOrigin') || requestedFields.includes('demographics')) && updates.stateOfOrigin) {
+      employeeUpdateData.stateOfOrigin = String(updates.stateOfOrigin).trim();
+    }
+
+    // 16. LGA of Origin
+    if ((requestedFields.includes('lga') || requestedFields.includes('demographics')) && updates.lga) {
+      employeeUpdateData.lga = String(updates.lga).trim();
+    }
+
+    // 17. Marital Status
+    if ((requestedFields.includes('maritalStatus') || requestedFields.includes('demographics')) && updates.maritalStatus) {
+      employeeUpdateData.maritalStatus = String(updates.maritalStatus).trim().toUpperCase();
+    }
+
+    // 18. Highest Education
+    if ((requestedFields.includes('highestEducation') || requestedFields.includes('demographics')) && updates.highestEducation) {
+      employeeUpdateData.highestEducation = String(updates.highestEducation).trim().toUpperCase();
+    }
+
+    // 19. Date of Birth
+    if ((requestedFields.includes('dateOfBirth')) && updates.dateOfBirth) {
+      employeeUpdateData.dateOfBirth = String(updates.dateOfBirth).trim();
+    }
+
+    // 20. Gender
+    if ((requestedFields.includes('gender')) && updates.gender) {
+      employeeUpdateData.gender = String(updates.gender).trim().toUpperCase();
+    }
+
+    // 21. Security Quick-Unlock PIN
+    if ((requestedFields.includes('securityPin')) && updates.securityPin) {
       const cleanPin = String(updates.securityPin).trim();
       if (!/^\d{4}$/.test(cleanPin)) {
         return NextResponse.json({ error: 'Security PIN must be exactly 4 digits (0-9).' }, { status: 400 });

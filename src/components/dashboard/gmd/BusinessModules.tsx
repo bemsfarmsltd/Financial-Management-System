@@ -879,18 +879,61 @@ const getStaffRoleDisplay = (r: string) => {
   return r;
 };
 
+export const ALL_INDIVIDUAL_FIELDS = [
+  // 1. Identity & Official Documents
+  { key: 'avatarUrl', label: '📷 Passport Photograph', desc: 'Upload clear, recent passport photograph', group: 'Identity & Legal' },
+  { key: 'nin', label: '🪪 National Identity Number (NIN)', desc: '11-digit verified identity number', group: 'Identity & Legal' },
+  { key: 'bvn', label: '🛡️ Bank Verification Number (BVN)', desc: '11-digit BVN identity number', group: 'Identity & Legal' },
+  { key: 'dateOfBirth', label: '🎂 Date of Birth', desc: 'Formal statutory date of birth record', group: 'Identity & Legal' },
+  { key: 'gender', label: '👤 Gender', desc: 'Biological sex / gender designation', group: 'Identity & Legal' },
+  { key: 'maritalStatus', label: '💍 Marital Status', desc: 'Single, Married, Divorced, or Widowed', group: 'Identity & Legal' },
+  { key: 'stateOfOrigin', label: '🗺️ State of Origin', desc: 'Nigerian state of origin', group: 'Identity & Legal' },
+  { key: 'lga', label: '📍 LGA of Origin', desc: 'Local Government Area of origin', group: 'Identity & Legal' },
+  { key: 'highestEducation', label: '🎓 Highest Education Level', desc: 'Highest educational qualification', group: 'Identity & Legal' },
+
+  // 2. Contact & Address
+  { key: 'phone', label: '📞 Personal Phone Number', desc: 'Primary active mobile phone number', group: 'Contact & Residence' },
+  { key: 'residentialAddress', label: '🏠 Residential Street Address', desc: 'Physical home residential address', group: 'Contact & Residence' },
+  { key: 'cityState', label: '🏙️ City & State of Residence', desc: 'City and state of residence', group: 'Contact & Residence' },
+
+  // 3. Disbursement Banking
+  { key: 'bankName', label: '🏦 Disbursement Bank Name', desc: 'Bank for expense & advance disbursements', group: 'Disbursement Banking' },
+  { key: 'accountNumber', label: '💳 Disbursement Account Number', desc: '10-digit NUBAN disbursement account', group: 'Disbursement Banking' },
+  { key: 'accountName', label: '📝 Disbursement Account Holder Name', desc: 'Matching legal account name', group: 'Disbursement Banking' },
+
+  // 4. Dedicated Salary Banking
+  { key: 'salaryBankName', label: '💼 Dedicated Salary Bank Name', desc: 'Dedicated bank for payroll transfers', group: 'Salary Banking' },
+  { key: 'salaryAccountNumber', label: '🔢 Dedicated Salary Account Number', desc: '10-digit payroll account number', group: 'Salary Banking' },
+  { key: 'salaryAccountName', label: '🏷️ Dedicated Salary Account Name', desc: 'Legal name on payroll account', group: 'Salary Banking' },
+
+  // 5. Next of Kin Records
+  { key: 'nextOfKinName', label: '👥 Next of Kin Full Name', desc: 'Full legal name of next of kin', group: 'Next of Kin' },
+  { key: 'nextOfKinPhone', label: '📱 Next of Kin Phone Number', desc: 'Emergency contact phone number', group: 'Next of Kin' },
+  { key: 'nextOfKinRelationship', label: '🤝 Next of Kin Relationship', desc: 'Relationship (Spouse, Sibling, Child, etc.)', group: 'Next of Kin' },
+  { key: 'nextOfKinAddress', label: '🏡 Next of Kin Residential Address', desc: 'Physical address of next of kin', group: 'Next of Kin' },
+
+  // 6. Security
+  { key: 'securityPin', label: '🔒 4-Digit Security PIN', desc: '4-digit quick unlock and approval PIN', group: 'Security' },
+];
+
 function StaffAvatarPhoto({ name, url }: { name: string; url?: string | null }) {
   const [failed, setFailed] = useState(false);
   const initials = name && name.trim().length > 0 ? name.trim().slice(0, 2).toUpperCase() : 'ST';
+
+  useEffect(() => {
+    setFailed(false);
+  }, [url]);
+
   const cleanUrl = url && !failed
-    ? url.replace('https://pink-horse-318730.hostingersite.com', 'https://bemserp.work')
+    ? (url.startsWith('/') ? url : url.replace('https://pink-horse-318730.hostingersite.com', 'https://bemserp.work'))
     : null;
 
   if (cleanUrl) {
     return (
       <img
+        key={cleanUrl}
         src={cleanUrl}
-        alt=""
+        alt={name || 'Staff avatar'}
         onError={() => setFailed(true)}
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
@@ -2340,7 +2383,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
             style={{
               background: '#ffffff',
               borderRadius: 16,
-              maxWidth: 540,
+              maxWidth: 680,
               width: '100%',
               padding: 24,
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
@@ -2373,50 +2416,93 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
               Select which records this employee must update or verify. The next time they log in or sync their dashboard, a blocking modal will require them to complete these items before continuing.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-              <label style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Select Required Fields:
-              </label>
-
-              {[
-                { key: 'avatarUrl', label: '📷 Passport Photograph', desc: 'Require uploading a clean, clear photo' },
-                { key: 'nin', label: '🪪 National Identity Number (NIN)', desc: 'Require 11-digit verified identity number' },
-                { key: 'bankDetails', label: '🏦 Disbursement Bank Details', desc: 'Require bank name, account number & name' },
-                { key: 'nextOfKin', label: '👥 Next of Kin Records', desc: 'Require emergency contact name, phone, address' },
-                { key: 'residentialAddress', label: '📍 Residential Address & City/State', desc: 'Require physical home address verification' },
-                { key: 'demographics', label: '📋 Statutory Demographics', desc: 'Require marital status, qualification, state of origin' },
-                { key: 'securityPin', label: '🔒 4-Digit Quick Unlock Security PIN', desc: 'Require setting or resetting security PIN' },
-              ].map((f) => {
-                const checked = reqFields.includes(f.key);
-                return (
-                  <label
-                    key={f.key}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                <label style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Select Individual Required Fields ({reqFields.length} selected):
+                </label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setReqFields(ALL_INDIVIDUAL_FIELDS.map((f) => f.key))}
                     style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 12,
-                      padding: '10px 14px',
-                      borderRadius: 10,
-                      border: checked ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
-                      background: checked ? '#eff6ff' : '#ffffff',
+                      background: '#f1f5f9',
+                      border: '1px solid #cbd5e1',
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#2563eb',
                       cursor: 'pointer',
-                      transition: 'all 0.15s ease',
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) => {
-                        if (e.target.checked) setReqFields([...reqFields, f.key]);
-                        else setReqFields(reqFields.filter((k) => k !== f.key));
-                      }}
-                      style={{ marginTop: 2, accentColor: '#2563eb', cursor: 'pointer' }}
-                    />
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: checked ? '#1e40af' : '#0f172a' }}>{f.label}</div>
-                      <div style={{ fontSize: 11.5, color: '#64748b' }}>{f.desc}</div>
+                    Select All ({ALL_INDIVIDUAL_FIELDS.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReqFields([])}
+                    style={{
+                      background: '#f1f5f9',
+                      border: '1px solid #cbd5e1',
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#64748b',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+
+              {/* Individual Fields Grid */}
+              {['Identity & Legal', 'Contact & Residence', 'Disbursement Banking', 'Salary Banking', 'Next of Kin', 'Security'].map((groupName) => {
+                const groupFields = ALL_INDIVIDUAL_FIELDS.filter((f) => f.group === groupName);
+                if (groupFields.length === 0) return null;
+
+                return (
+                  <div key={groupName} style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 800, color: '#ea580c', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, paddingLeft: 2 }}>
+                      {groupName} ({groupFields.filter(f => reqFields.includes(f.key)).length}/{groupFields.length})
                     </div>
-                  </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 8 }}>
+                      {groupFields.map((f) => {
+                        const checked = reqFields.includes(f.key);
+                        return (
+                          <label
+                            key={f.key}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: 10,
+                              padding: '8px 12px',
+                              borderRadius: 8,
+                              border: checked ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
+                              background: checked ? '#eff6ff' : '#ffffff',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                if (e.target.checked) setReqFields([...reqFields, f.key]);
+                                else setReqFields(reqFields.filter((k) => k !== f.key));
+                              }}
+                              style={{ marginTop: 2, accentColor: '#2563eb', cursor: 'pointer' }}
+                            />
+                            <div>
+                              <div style={{ fontSize: 12.5, fontWeight: 700, color: checked ? '#1e40af' : '#0f172a' }}>{f.label}</div>
+                              <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.3 }}>{f.desc}</div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                 );
               })}
             </div>

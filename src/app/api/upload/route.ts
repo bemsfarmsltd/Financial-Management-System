@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,11 +62,37 @@ export async function POST(request: Request) {
       const bytes = Buffer.from(await file.arrayBuffer());
       const prefix = isPdf ? 'doc' : 'file';
       const filename = `${prefix}-${Date.now()}-${randomUUID().slice(0, 8)}.${cleanExt}`;
-      
       const subDir = isPdf ? 'documents' : 'avatars';
-      const uploadDir = join(process.cwd(), 'public', 'uploads', subDir);
-      await mkdir(uploadDir, { recursive: true });
-      await writeFile(join(uploadDir, filename), bytes);
+      const mimeType = isPdf ? 'application/pdf' : cleanExt === 'png' ? 'image/png' : cleanExt === 'webp' ? 'image/webp' : 'image/jpeg';
+
+      // 1. Permanently persist to Supabase PostgreSQL database
+      try {
+        await prisma.storedFile.upsert({
+          where: { filename },
+          create: {
+            filename,
+            mimeType,
+            data: bytes,
+            size: bytes.length,
+          },
+          update: {
+            mimeType,
+            data: bytes,
+            size: bytes.length,
+          },
+        });
+      } catch (dbErr) {
+        console.error('[Upload] Failed to persist file in database:', dbErr);
+      }
+
+      // 2. Also write to local disk cache if writable
+      try {
+        const uploadDir = join(process.cwd(), 'public', 'uploads', subDir);
+        await mkdir(uploadDir, { recursive: true });
+        await writeFile(join(uploadDir, filename), bytes);
+      } catch (fsErr) {
+        console.warn('[Upload] Local disk write skipped or failed:', fsErr);
+      }
 
       const url = `/uploads/${subDir}/${filename}`;
       return NextResponse.json({ success: true, url, filename });
@@ -103,9 +130,36 @@ export async function POST(request: Request) {
       }
 
       const filename = `avatar-${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
-      const uploadDir = join(process.cwd(), 'public', 'uploads', 'avatars');
-      await mkdir(uploadDir, { recursive: true });
-      await writeFile(join(uploadDir, filename), buffer);
+      const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+
+      // 1. Permanently persist to Supabase PostgreSQL database
+      try {
+        await prisma.storedFile.upsert({
+          where: { filename },
+          create: {
+            filename,
+            mimeType,
+            data: buffer as any,
+            size: buffer.length,
+          },
+          update: {
+            mimeType,
+            data: buffer as any,
+            size: buffer.length,
+          },
+        });
+      } catch (dbErr) {
+        console.error('[Upload] Failed to persist avatar in database:', dbErr);
+      }
+
+      // 2. Also write to local disk cache if writable
+      try {
+        const uploadDir = join(process.cwd(), 'public', 'uploads', 'avatars');
+        await mkdir(uploadDir, { recursive: true });
+        await writeFile(join(uploadDir, filename), buffer);
+      } catch (fsErr) {
+        console.warn('[Upload] Local disk write skipped or failed:', fsErr);
+      }
 
       const url = `/uploads/avatars/${filename}`;
       return NextResponse.json({ success: true, url, filename });
