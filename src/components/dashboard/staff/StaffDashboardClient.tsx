@@ -61,6 +61,8 @@ import {
   Trash2,
   Wifi,
   QrCode,
+  Download,
+  Smartphone,
 } from 'lucide-react';
 
 interface StaffUser {
@@ -129,6 +131,7 @@ export function StaffDashboardClient({
   const [allDisbursements, setAllDisbursements] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<StaffUser>(user);
   const [hideBalance, setHideBalance] = useState(false);
+  const [hideAppBanner, setHideAppBanner] = useState(false);
 
   // Administrator-triggered mandatory information update gate
   const [pendingUpdateData, setPendingUpdateData] = useState<{
@@ -1215,6 +1218,42 @@ export function StaffDashboardClient({
       {/* MAIN BODY AREA: FULL WIDTH ACROSS SCREEN FROM LEFT TO RIGHT */}
       {/* ========================================================= */}
       <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-28 md:pb-12">
+        {/* Mobile App Download Notification Banner */}
+        {!hideAppBanner && (
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-orange-500/30 rounded-2xl p-3.5 px-4 sm:px-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/40 flex items-center justify-center shrink-0 text-[#EA580C]">
+                <Smartphone className="w-5 h-5 text-orange-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-white tracking-wide">BEMS STAFF APP v1.0.7 AVAILABLE</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Latest</span>
+                </div>
+                <p className="text-[11.5px] text-slate-300">
+                  Updated with instant passport photo uploads, statutory marital status selection, and compliance gate synchronization.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+              <a
+                href="/downloads/staff-app.apk"
+                download="BEMS-Staff-App-v1.0.7.apk"
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#EA580C] to-[#C2410C] hover:from-[#C2410C] hover:to-[#9A3412] text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all flex items-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Download App (v1.0.7)
+              </a>
+              <button
+                onClick={() => setHideAppBanner(true)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
           {/* ========================================================= */}
           {/* TAB 0: HOME SCREEN                                        */}
