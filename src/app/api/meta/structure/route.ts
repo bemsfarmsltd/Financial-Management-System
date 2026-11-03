@@ -1,28 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import {
+  getOrganizationsWithStreamlinedDepartments,
+  STREAMLINED_STAFF_GRADES,
+} from '@/lib/enterpriseStructure';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const orgs = await prisma.organization.findMany({
-      where: { status: 'ACTIVE' },
-      select: {
-        id: true,
-        code: true,
-        legalName: true,
-        type: true,
-        departments: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-          },
-          orderBy: { name: 'asc' },
-        },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+    const orgs = await getOrganizationsWithStreamlinedDepartments(prisma);
 
     return NextResponse.json({
       organizations: orgs.map((org) => ({
@@ -36,6 +23,7 @@ export async function GET() {
           name: dept.name,
         })),
       })),
+      staffGrades: STREAMLINED_STAFF_GRADES,
     });
   } catch (error: any) {
     console.error('GET /api/meta/structure error:', error);

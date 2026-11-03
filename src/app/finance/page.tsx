@@ -453,7 +453,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
     departmentId: '',
     jobTitle: '',
     employmentType: 'FULL_TIME',
-    staffGrade: 'OFFICER',
+    staffGrade: 'Mid-Level Specialist / Officer (Level 4)',
     workLocation: 'UMUAHIA_OPS_HUB',
     resumptionDate: '',
     bankName: 'Access Bank Plc',
@@ -531,7 +531,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
             subsidiaryId: prev.subsidiaryId || d.organizations[0].id,
             bankName: prev.bankName || (d.banks?.[0] || 'Access Bank Plc'),
             salaryBankName: prev.salaryBankName || (d.banks?.[0] || 'Access Bank Plc'),
-            staffGrade: prev.staffGrade || (d.staffGrades?.[2]?.value || 'OFFICER'),
+            staffGrade: prev.staffGrade || (d.staffGrades?.[3]?.value || 'Mid-Level Specialist / Officer (Level 4)'),
             workLocation: prev.workLocation || (d.workLocations?.[0]?.value || 'UMUAHIA_OPS_HUB'),
             maritalStatus: prev.maritalStatus || (d.maritalStatuses?.[0]?.value || 'SINGLE'),
             highestEducation: prev.highestEducation || (d.educationLevels?.[0]?.value || 'BSC'),
@@ -1054,9 +1054,9 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                     value={signupForm.departmentId}
                     onChange={e => setSignupForm(old => ({ ...old, departmentId: e.target.value }))}
                   >
-                    <option value="">General Operations / Unassigned</option>
+                    <option value="">Select Department...</option>
                     {filteredDepartments.map(dept => (
-                      <option key={dept.id} value={dept.id}>{dept.name} ({dept.code})</option>
+                      <option key={dept.id} value={dept.id}>{dept.name}</option>
                     ))}
                   </select>
                 </label>
@@ -1083,7 +1083,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                     required
                     value={signupForm.jobTitle}
                     onChange={e => setSignupForm(old => ({ ...old, jobTitle: e.target.value }))}
-                    placeholder="e.g. Operations Lead, Software Developer, Accountant, Sales Executive"
+                    placeholder="e.g. Software Developer, UI/UX Designer, Media Producer, Accountant"
                   />
                 </label>
                 <label>
@@ -1093,12 +1093,14 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                     onChange={e => setSignupForm(old => ({ ...old, staffGrade: e.target.value }))}
                   >
                     {(options.staffGrades.length > 0 ? options.staffGrades : [
-                      { value: 'INTERN_TRAINEE', label: 'Intern / Graduate Trainee' },
-                      { value: 'JUNIOR_OFFICER', label: 'Junior Officer (Level 1)' },
-                      { value: 'OFFICER', label: 'Officer / Specialist (Level 2)' },
-                      { value: 'SENIOR_OFFICER', label: 'Senior Officer (Level 3)' },
-                      { value: 'TEAM_LEAD', label: 'Team Lead / Unit Supervisor (Level 4)' },
-                      { value: 'MANAGER', label: 'Department Manager (Level 5)' },
+                      { value: 'Intern / NYSC / Trainee (Level 1)', label: 'Intern / NYSC / Trainee (Level 1)' },
+                      { value: 'Support / Field Assistant (Level 2)', label: 'Support / Field Assistant (Level 2)' },
+                      { value: 'Junior Staff / Associate (Level 3)', label: 'Junior Staff / Associate (Level 3)' },
+                      { value: 'Mid-Level Specialist / Officer (Level 4)', label: 'Mid-Level Specialist / Officer (Level 4)' },
+                      { value: 'Senior Specialist (Level 5)', label: 'Senior Specialist (Level 5)' },
+                      { value: 'Team Lead / Supervisor (Level 6)', label: 'Team Lead / Supervisor (Level 6)' },
+                      { value: 'Manager / Head of Department (Level 7)', label: 'Manager / Head of Department (Level 7)' },
+                      { value: 'C-Suite / Executive Director (Level 8)', label: 'C-Suite / Executive Director (Level 8)' },
                     ]).map(g => (
                       <option key={g.value} value={g.value}>{g.label}</option>
                     ))}

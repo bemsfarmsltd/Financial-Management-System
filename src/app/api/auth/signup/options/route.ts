@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { STANDARD_NIGERIAN_BANKS } from '@/lib/monnify';
+import {
+  getOrganizationsWithStreamlinedDepartments,
+  STREAMLINED_STAFF_GRADES,
+} from '@/lib/enterpriseStructure';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,16 +21,6 @@ const EMPLOYMENT_TYPES = [
   { value: 'CONTRACT', label: 'Fixed-Term Contract' },
   { value: 'INTERN', label: 'Graduate Intern / NYSC Trainee' },
   { value: 'PART_TIME', label: 'Part-Time Specialist' },
-];
-
-const STAFF_GRADES = [
-  { value: 'INTERN_TRAINEE', label: 'Intern / Graduate Trainee' },
-  { value: 'JUNIOR_OFFICER', label: 'Junior Officer (Level 1)' },
-  { value: 'OFFICER', label: 'Officer / Specialist (Level 2)' },
-  { value: 'SENIOR_OFFICER', label: 'Senior Officer / Senior Specialist (Level 3)' },
-  { value: 'TEAM_LEAD', label: 'Team Lead / Unit Supervisor (Level 4)' },
-  { value: 'MANAGER', label: 'Department Manager / Head of Section (Level 5)' },
-  { value: 'DIRECTOR', label: 'Director / Executive Level (Level 6)' },
 ];
 
 const MARITAL_STATUSES = [
@@ -47,17 +41,22 @@ const EDUCATION_LEVELS = [
 
 export async function GET() {
   try {
-    const [organizations, departments] = await Promise.all([
-      prisma.organization.findMany({
-        where: { status: 'ACTIVE' },
-        select: { id: true, legalName: true, code: true },
-        orderBy: { legalName: 'asc' },
-      }),
-      prisma.department.findMany({
-        select: { id: true, name: true, code: true, organizationId: true },
-        orderBy: { name: 'asc' },
-      }),
-    ]);
+    const orgsWithDepts = await getOrganizationsWithStreamlinedDepartments(prisma);
+
+    const organizations = orgsWithDepts.map((org) => ({
+      id: org.id,
+      legalName: org.legalName,
+      code: org.code,
+    }));
+
+    const departments = orgsWithDepts.flatMap((org) =>
+      org.departments.map((d) => ({
+        id: d.id,
+        name: d.name,
+        code: d.code,
+        organizationId: d.organizationId,
+      }))
+    );
 
     const bankList = STANDARD_NIGERIAN_BANKS.map((b) => b.name);
 
@@ -66,7 +65,7 @@ export async function GET() {
       departments,
       banks: bankList,
       employmentTypes: EMPLOYMENT_TYPES,
-      staffGrades: STAFF_GRADES,
+      staffGrades: STREAMLINED_STAFF_GRADES,
       workLocations: WORK_LOCATIONS,
       maritalStatuses: MARITAL_STATUSES,
       educationLevels: EDUCATION_LEVELS,
@@ -79,7 +78,7 @@ export async function GET() {
         departments: [],
         banks: STANDARD_NIGERIAN_BANKS.map((b) => b.name),
         employmentTypes: EMPLOYMENT_TYPES,
-        staffGrades: STAFF_GRADES,
+        staffGrades: STREAMLINED_STAFF_GRADES,
         workLocations: WORK_LOCATIONS,
         maritalStatuses: MARITAL_STATUSES,
         educationLevels: EDUCATION_LEVELS,

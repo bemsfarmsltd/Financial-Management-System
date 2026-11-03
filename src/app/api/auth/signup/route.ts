@@ -98,6 +98,23 @@ export async function POST(request: Request) {
           ...(subsidiaryId ? { organizationId: subsidiaryId } : {}),
         },
       });
+      if (!matchDept && subsidiaryId) {
+        // Auto-create the streamlined department under the chosen subsidiary if not yet present
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(departmentId);
+        if (!isUuid) {
+          const shortCode = departmentId
+            .replace(/[^A-Za-z0-9]/g, '')
+            .slice(0, 6)
+            .toUpperCase();
+          matchDept = await prisma.department.create({
+            data: {
+              organizationId: subsidiaryId,
+              name: departmentId,
+              code: `DEPT-${shortCode}`,
+            },
+          });
+        }
+      }
       if (!matchDept) {
         matchDept = await prisma.department.findFirst({
           where: {
@@ -149,7 +166,7 @@ export async function POST(request: Request) {
     const nin = typeof body.nin === 'string' ? body.nin.trim() : '';
     const bvn = typeof body.bvn === 'string' ? body.bvn.trim() : null;
     const workLocation = typeof body.workLocation === 'string' && body.workLocation.trim() ? body.workLocation.trim() : 'UMUAHIA_OPS_HUB';
-    const staffGrade = typeof body.staffGrade === 'string' && body.staffGrade.trim() ? body.staffGrade.trim() : 'Level 06 - Operational Specialist';
+    const staffGrade = typeof body.staffGrade === 'string' && body.staffGrade.trim() ? body.staffGrade.trim() : 'Mid-Level Specialist / Officer (Level 4)';
 
     // Strict Compulsory Validations - All Fields Are Mandatory
     if (!avatarUrl || avatarUrl.length < 5) {

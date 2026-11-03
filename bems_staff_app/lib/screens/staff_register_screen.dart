@@ -166,9 +166,9 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
 
   // Step 2: Corporate Placement
   String _subsidiary = 'BEMS Group';
-  String _department = 'Executive Leadership & Strategic Planning';
+  String _department = 'Software Development & Engineering';
   final _jobTitleController = TextEditingController();
-  String _staffGrade = 'Level 06 - Operational Specialist';
+  String _staffGrade = 'Mid-Level Specialist / Officer (Level 4)';
   String _workLocation = 'Umuahia Operations Center (Abia State)';
   final _resumptionDateController = TextEditingController();
 
@@ -203,6 +203,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   List<Map<String, dynamic>> _organizations = [];
   List<String> _subsidiaries = [
     'BEMS Group',
+    'Bems Farms Global Ltd',
     'BemsSoft Hub Ltd',
     'SmartAIRS Gov Technologies Ltd',
     'Studio Arella Ltd',
@@ -210,22 +211,30 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   ];
 
   List<String> _departments = [
-    'Executive Leadership & Strategic Planning',
-    'Group Finance, Treasury & Accounts',
-    'Internal Audit, Risk & Compliance',
-    'Legal Affairs & Corporate Governance',
-    'People Operations, Culture & HR',
-    'Corporate Communications & Public Relations',
-    'Enterprise Procurement & Vendor Management',
-    'Security, Protocol & Facilities Management',
+    'Executive Management & Leadership',
+    'Software Development & Engineering',
+    'Product & Creative Design',
+    'Media, Studio & Content Production',
+    'Product Management & Data / AI',
+    'Sales, Marketing & Growth',
+    'Customer Support & Client Relations',
+    'Operations, Logistics & Supply Chain',
+    'Agribusiness & Farm Production',
+    'Training, Academy & Faculty',
+    'Finance, Treasury & Accounts',
+    'People (HR) & Administration',
+    'Facilities, Security & Support',
   ];
 
   final List<String> _staffGrades = [
-    'Level 05 - Field Assistant',
-    'Level 06 - Operational Specialist',
-    'Level 08 - Senior Specialist',
-    'Level 10 - Manager / Lead',
-    'Level 12 - Department Director',
+    'Intern / NYSC / Trainee (Level 1)',
+    'Support / Field Assistant (Level 2)',
+    'Junior Staff / Associate (Level 3)',
+    'Mid-Level Specialist / Officer (Level 4)',
+    'Senior Specialist (Level 5)',
+    'Team Lead / Supervisor (Level 6)',
+    'Manager / Head of Department (Level 7)',
+    'C-Suite / Executive Director (Level 8)',
   ];
 
   final List<String> _workLocations = [
