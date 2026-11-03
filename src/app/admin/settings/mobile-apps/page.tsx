@@ -35,9 +35,9 @@ export default function MobileAppsManagementPage() {
       packageName: 'com.bemsgroup.gmd_ai',
       minimumAllowedVersion: '1.0.0',
       latestVersionAvailable: '1.0.0',
-      forceUpdate: true,
+      forceUpdate: false,
       directDownloadUrl: 'https://bemserp.work/download/gmd-app.apk',
-      upgradePromptNotes: 'Critical executive balance sync and cryptographic maker-checker enhancements.',
+      upgradePromptNotes: 'Initial production release v1.0.0.',
     },
     STAFF_APP: {
       appId: 'STAFF_APP',
@@ -45,9 +45,9 @@ export default function MobileAppsManagementPage() {
       packageName: 'com.bemsgroup.staff',
       minimumAllowedVersion: '1.0.0',
       latestVersionAvailable: '1.0.0',
-      forceUpdate: true,
+      forceUpdate: false,
       directDownloadUrl: 'https://bemserp.work/download/staff-app.apk',
-      upgradePromptNotes: 'Streamlined expenditure requisitions, offline drafts and receipt uploads.',
+      upgradePromptNotes: 'Initial production release v1.0.0.',
     },
   });
 
@@ -59,13 +59,13 @@ export default function MobileAppsManagementPage() {
   // Upload states
   const [uploadingGmd, setUploadingGmd] = useState(false);
   const [gmdFile, setGmdFile] = useState<File | null>(null);
-  const [gmdVersion, setGmdVersion] = useState('1.0.1');
-  const [gmdApplyMin, setGmdApplyMin] = useState(true);
+  const [gmdVersion, setGmdVersion] = useState('1.0.0');
+  const [gmdApplyMin, setGmdApplyMin] = useState(false);
 
   const [uploadingStaff, setUploadingStaff] = useState(false);
   const [staffFile, setStaffFile] = useState<File | null>(null);
-  const [staffVersion, setStaffVersion] = useState('1.0.1');
-  const [staffApplyMin, setStaffApplyMin] = useState(true);
+  const [staffVersion, setStaffVersion] = useState('1.0.0');
+  const [staffApplyMin, setStaffApplyMin] = useState(false);
 
   const loadData = async () => {
     try {

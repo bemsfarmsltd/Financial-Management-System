@@ -3147,21 +3147,21 @@ const initialGates: Record<string, MobileGateItem> = {
     appId: 'GMD_APP',
     appName: 'BEMS GMD Executive Cockpit',
     packageName: 'com.bemsgroup.gmd_ai',
-    minimumAllowedVersion: '1.0.1',
-    latestVersionAvailable: '1.0.1',
-    forceUpdate: true,
+    minimumAllowedVersion: '1.0.0',
+    latestVersionAvailable: '1.0.0',
+    forceUpdate: false,
     directDownloadUrl: 'https://bemserp.work/download/gmd-app.apk',
-    upgradePromptNotes: 'Critical executive balance sync and cryptographic maker-checker enhancements.',
+    upgradePromptNotes: 'Initial production release v1.0.0.',
   },
   STAFF_APP: {
     appId: 'STAFF_APP',
     appName: 'BEMS Staff Portal',
     packageName: 'com.bemsgroup.staff',
-    minimumAllowedVersion: '1.0.1',
-    latestVersionAvailable: '1.0.1',
-    forceUpdate: true,
+    minimumAllowedVersion: '1.0.0',
+    latestVersionAvailable: '1.0.0',
+    forceUpdate: false,
     directDownloadUrl: 'https://bemserp.work/download/staff-app.apk',
-    upgradePromptNotes: 'Streamlined expenditure requisitions, offline drafts and receipt uploads.',
+    upgradePromptNotes: 'Initial production release v1.0.0.',
   },
 };
 
@@ -3176,10 +3176,10 @@ export function WorkspaceSettingsModule({ businessName, setNotice, initialSectio
   const [savingGates, setSavingGates] = useState(false);
   const [gmdFile, setGmdFile] = useState<File | null>(null);
   const [staffFile, setStaffFile] = useState<File | null>(null);
-  const [gmdVersion, setGmdVersion] = useState('1.0.1');
-  const [staffVersion, setStaffVersion] = useState('1.0.1');
-  const [gmdApplyMin, setGmdApplyMin] = useState(true);
-  const [staffApplyMin, setStaffApplyMin] = useState(true);
+  const [gmdVersion, setGmdVersion] = useState('1.0.0');
+  const [staffVersion, setStaffVersion] = useState('1.0.0');
+  const [gmdApplyMin, setGmdApplyMin] = useState(false);
+  const [staffApplyMin, setStaffApplyMin] = useState(false);
   const [uploadingGmd, setUploadingGmd] = useState(false);
   const [uploadingStaff, setUploadingStaff] = useState(false);
 
