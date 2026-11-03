@@ -127,6 +127,11 @@ model Employee {
   staffGrade            String?   // JUNIOR_OFFICER | OFFICER | SENIOR_OFFICER | TEAM_LEAD | MANAGER
   highestEducation      String?   // SSCE | OND | HND | BSC | MSC | PHD
 
+  // Offline / Field Staff Support (HR Manual Enrollment)
+  isOfflineStaff        Boolean   @default(false)
+  kioskPin              String?   // 4-digit PIN for /attendance/kiosk check-in without a smartphone
+  onboardedById         String?
+
   createdAt      DateTime @default(now())
 
   authSessions   AuthSession[]
@@ -152,6 +157,29 @@ model Employee {
   workSchedule          StaffWorkSchedule?
   profileUpdateRequests StaffProfileUpdateRequest[] @relation("TargetEmployee")
   createdProfileUpdateRequests StaffProfileUpdateRequest[] @relation("RequestedByAdmin")
+  salaryChangeProposals SalaryChangeProposal[]
+}
+
+model SalaryChangeProposal {
+  id                 String    @id @default(uuid())
+  employeeId         String
+  employee           Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  proposedById       String
+  proposedByName     String
+  changeType         String    // INITIAL | SET_EXACT | ADDITION | DEDUCTION
+  previousGrossMinor BigInt    @default(0)
+  proposedGrossMinor BigInt
+  reason             String
+  allocationsJson    String?   // Optional JSON array of [{ subsidiaryId, percentage }]
+  status             String    @default("PENDING_APPROVAL") // PENDING_APPROVAL | APPROVED | REJECTED
+  decidedById        String?
+  decidedByName      String?
+  decisionNote       String?
+  decidedAt          DateTime?
+  createdAt          DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([employeeId, status])
 }
 
 model StaffProfileUpdateRequest {
@@ -496,6 +524,22 @@ model PayrollBatch {
   snapshotHash      String?
   disbursementAssigneeId String?
   disbursementAssignee Employee? @relation("PayrollDisbursementAssignee", fields: [disbursementAssigneeId], references: [id])
+
+  // Single Bulk Clearing Account (Submitted by HR for GMD Lump-Sum Transfer)
+  clearingBankName      String?
+  clearingAccountNumber String?
+  clearingAccountName   String?
+  submittedById         String?
+  submittedByName       String?
+  submissionNote        String?
+
+  // GMD Lump-Sum Funding & Reconciliation Ledger
+  bulkFundedAt          DateTime?
+  bulkFundedAmountMinor BigInt?
+  bulkFundingBankName   String?
+  bulkFundingReference  String?
+  bulkFundingReceiptUrl String?
+
   createdAt         DateTime       @default(now())
 
   items             PayrollItem[]
@@ -859,6 +903,11 @@ model AttendanceRecord {
   deductionPercent   Float              @default(0.0)
   deductionMinor     BigInt             @default(0)
   payrollItemId      String?
+
+  // HR Excuse Request (Requires GMD / Super Admin Approval to Waive Deduction)
+  excuseStatus          String          @default("NONE") // NONE | PENDING_GMD_APPROVAL | APPROVED | REJECTED
+  excuseRequestNote     String?
+  excuseRequestedByName String?
 
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt

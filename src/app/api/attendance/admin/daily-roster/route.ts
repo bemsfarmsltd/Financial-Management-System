@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const user = await getAuthenticatedEmployee(request);
-    if (!user || !hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'HR', 'COO', 'FINANCE_CONTROLLER', 'HEAD_OF_ADMIN'])) {
+    if (!user || !hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN', 'HR', 'COO', 'FINANCE_CONTROLLER', 'HEAD_OF_ADMIN'])) {
       return NextResponse.json({ error: 'Unauthorized: Executive or HR access required' }, { status: 401 });
     }
 
@@ -228,6 +228,8 @@ export async function GET(request: Request) {
         role: emp.role,
         workEmail: emp.workEmail,
         avatarUrl: emp.avatarUrl,
+        isOfflineStaff: emp.isOfflineStaff,
+        kioskPin: emp.kioskPin,
         subsidiary: {
           id: primaryAssignment?.subsidiary?.id || '',
           legalName: subsidiaryName,
@@ -250,6 +252,9 @@ export async function GET(request: Request) {
         starlinkIp: rec?.clientIp || null,
         stationName: rec?.station?.name || 'Office Station',
         deductionPercent,
+        excuseStatus: rec?.excuseStatus || 'NONE',
+        excuseRequestNote: rec?.excuseRequestNote || null,
+        excuseRequestedByName: rec?.excuseRequestedByName || null,
         notes: rec?.notes || null,
         totalDeductionMinor: rec?.deductionMinor ? Number(rec.deductionMinor) : 0,
       };

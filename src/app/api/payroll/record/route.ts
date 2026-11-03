@@ -26,10 +26,18 @@ export async function POST(request: Request) {
     }
     const batch = await prisma.payrollBatch.findUnique({ where: { id: batchId }, include: { period: true } });
     if (!batch || batch.status !== 'APPROVED') return NextResponse.json({ error: 'Only an approved payroll batch can be paid.' }, { status: 409 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD']) && batch.disbursementAssigneeId !== actor.id) {
-      return NextResponse.json({ error: 'This payroll payment recording is assigned to another executive.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN']) && batch.disbursementAssigneeId !== actor.id) {
+      return NextResponse.json({ error: 'This payroll payment recording is assigned to another executive or HR administrator.' }, { status: 403 });
     }
-    if (!batch.paymentEntityId) return NextResponse.json({ error: 'Set the payroll paying entity before recording a transfer.' }, { status: 409 });
+    let payingEntityId = batch.paymentEntityId;
+    if (!payingEntityId) {
+      const defaultOrg = await prisma.organization.findFirst({ orderBy: { type: 'asc' }, select: { id: true } });
+      payingEntityId = defaultOrg?.id || null;
+      if (payingEntityId) {
+        await prisma.payrollBatch.update({ where: { id: batch.id }, data: { paymentEntityId: payingEntityId } });
+      }
+    }
+    if (!payingEntityId) return NextResponse.json({ error: 'Set the payroll paying entity before recording a transfer.' }, { status: 409 });
     const item = await prisma.payrollItem.findFirst({ where: { id: payrollItemId, batchId }, include: { employee: true, disbursement: true } });
     if (!item) return NextResponse.json({ error: 'Payroll staff record not found.' }, { status: 404 });
     if (item.disbursement) return NextResponse.json({ error: 'A payment is already recorded for this staff member.' }, { status: 409 });
@@ -44,7 +52,7 @@ export async function POST(request: Request) {
       const payment = await tx.disbursement.create({ data: {
         payrollItemId: item.id,
         beneficiaryEmployeeId: item.employeeId,
-        payerOrgId: batch.paymentEntityId!,
+        payerOrgId: payingEntityId!,
         beneficiaryName: item.employee.legalName,
         beneficiaryBank,
         beneficiaryAccount,
@@ -77,13 +85,13 @@ export async function POST(request: Request) {
       const amountNaira = Number(item.netMinor) / 100;
       const bankAccount = await tx.companyBankAccount.findFirst({
         where: {
-          organizationId: batch.paymentEntityId!,
+          organizationId: payingEntityId!,
           status: 'ACTIVE',
           bankName: { contains: bankName, mode: 'insensitive' },
         },
       }) || await tx.companyBankAccount.findFirst({
         where: {
-          organizationId: batch.paymentEntityId!,
+          organizationId: payingEntityId!,
           status: 'ACTIVE',
         },
       });
@@ -101,7 +109,7 @@ export async function POST(request: Request) {
         actorId: actor.id,
         actorName: actor.legalName,
         actorRole: actor.role,
-        groupId: batch.paymentEntityId!,
+        groupId: payingEntityId!,
         targetType: 'DISBURSEMENT',
         targetId: payment.id,
         action: 'CREATED',
@@ -116,7 +124,7 @@ export async function POST(request: Request) {
     try {
       const icResult = await generatePayrollIntercompanyNotes({
         payrollItemId: item.id,
-        payingEntityId: batch.paymentEntityId!,
+        payingEntityId: payingEntityId!,
         periodId: batch.periodId,
         actor: { id: actor.id, legalName: actor.legalName, role: actor.role },
       });

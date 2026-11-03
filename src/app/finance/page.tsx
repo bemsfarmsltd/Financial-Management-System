@@ -186,7 +186,7 @@ const goalPresets: Record<string, string[]> = {
 const defaultGoals = ['Answer customer questions', 'Collect information', 'Process payments', 'Book appointments', 'Send notifications', 'Handle support cases'];
 
 
-type SystemRole = 'GMD' | 'SYSTEM_ADMIN' | 'SUPER_ADMIN' | 'STAFF';
+type SystemRole = 'GMD' | 'SYSTEM_ADMIN' | 'SUPER_ADMIN' | 'HR_ADMIN' | 'STAFF';
 
 interface RoleProfile {
   role: SystemRole;
@@ -200,6 +200,7 @@ const roleProfiles: Record<string, RoleProfile> = {
   GMD: { role: 'GMD', title: 'The Group Managing Director', badge: 'Executive Governance', platform: 'Executive Command Center', avatarColor: '#ea580c' },
   SYSTEM_ADMIN: { role: 'SYSTEM_ADMIN', title: 'Super admin', badge: 'Super Executive', platform: 'Executive Command Center', avatarColor: '#ea580c' },
   SUPER_ADMIN: { role: 'SUPER_ADMIN', title: 'Super admin', badge: 'Super Executive', platform: 'Executive Command Center', avatarColor: '#ea580c' },
+  HR_ADMIN: { role: 'HR_ADMIN', title: 'HR & Payroll Admin', badge: 'People & Payroll Operations', platform: 'HR & Payroll Administration Desk', avatarColor: '#0d9488' },
   STAFF: { role: 'STAFF', title: 'Staff', badge: 'Staff Operations', platform: 'Staff Requisition & Accountability Portal', avatarColor: '#2563eb' },
 };
 
@@ -262,6 +263,26 @@ const gmdNavGroups = [
   },
 ];
 
+const hrAdminNavGroups = [
+  {
+    label: 'PEOPLE & PAYROLL DESK',
+    items: [
+      ['Staff profiles', '♙'],
+      ['Attendance & Timekeeping', '⏱'],
+      ['Hybrid payroll', '⌁'],
+    ]
+  },
+  {
+    label: 'MY REQUISITIONS',
+    items: [
+      ['New fund request', '＋'],
+      ['My requests', '▱'],
+      ['72h Evidence Vault', '▣'],
+      ['Settings & Profile', '⚙'],
+    ]
+  },
+];
+
 const aiAnalystNavGroups = [
   {
     label: 'AI INTELLIGENCE & COPILOT',
@@ -275,6 +296,9 @@ const aiAnalystNavGroups = [
 function getRoleNavigation(role?: string) {
   if (role === 'AI_ANALYST') {
     return aiAnalystNavGroups;
+  }
+  if (role === 'HR_ADMIN') {
+    return hrAdminNavGroups;
   }
   if (role === 'STAFF') {
     return staffNavGroups;
@@ -3906,8 +3930,10 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
   const isAiOnly = (safeUser.role as string) === 'AI_ANALYST';
   const [currentRole, setCurrentRole] = useState<SystemRole>((safeUser.role as SystemRole) || 'GMD');
   const isStaff = (currentRole as string) === 'STAFF' || (safeUser.role as string) === 'STAFF';
+  const isHrAdmin = (currentRole as string) === 'HR_ADMIN' || (safeUser.role as string) === 'HR_ADMIN';
   const [active, setActive] = useState<string>(() => {
     if (isAiOnly) return 'AI Copilot & Chat';
+    if ((safeUser.role as string) === 'HR_ADMIN') return 'Staff profiles';
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
@@ -4156,6 +4182,27 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
           setNotice={setNotice}
         />
       );
+    }
+
+    if (isHrAdmin) {
+      if (target === 'Attendance & Timekeeping' || target === 'Attendance') return <AttendanceDeskPage />;
+      if (target === 'Payroll sign-off' || target === 'Hybrid payroll') {
+        return <PayrollSignOffView businessName={current.name} userName={safeUser.fullName} onNavigate={setActive} onSelectBusiness={selectBusiness} />;
+      }
+      if (target === 'New fund request') {
+        if (typeof window !== 'undefined') window.location.href = '/requests/new';
+        return null;
+      }
+      if (target === 'My requests' || target === 'Fund requests') {
+        return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={true}/>;
+      }
+      if (target === '72h Evidence Vault' || target === 'Accountability closure') {
+        return <LiveAccountabilityModule setNotice={setNotice}/>;
+      }
+      if (target === 'Settings & Profile' || target === 'Settings') {
+        return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
+      }
+      return <LiveStaffProfilesModule scope={activeScope} setNotice={setNotice} onNavigate={(p) => setActive(p)}/>;
     }
 
     if (currentRole === 'GMD') {

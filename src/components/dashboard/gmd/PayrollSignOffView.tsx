@@ -44,6 +44,11 @@ interface PayrollItem {
   accountNumber?: string;
   accountName?: string;
   primarySubsidiary?: string;
+  isOfflineStaff?: boolean;
+  isNewStaff?: boolean;
+  salaryDeltaMinor?: number;
+  salaryDeltaFormatted?: string | null;
+  salaryChangeReason?: string | null;
   attendancePenaltyMinor?: number;
   attendancePenaltyFormatted?: string;
   lateArrivalsCount?: number;
@@ -136,11 +141,44 @@ interface PayrollBatchData {
       allocations: Array<{ subsidiaryId: string; subsidiaryName: string; amountFormatted: string; amountMinor: number }>;
     };
     payrollCostFormatted: string;
+    clearingBankName?: string | null;
+    clearingAccountNumber?: string | null;
+    clearingAccountName?: string | null;
+    submittedByName?: string | null;
+    submissionNote?: string | null;
+    bulkFundedAt?: string | null;
+    bulkFundedAmountMinor?: number | null;
+    bulkFundedFormatted?: string | null;
+    bulkFundingBankName?: string | null;
+    bulkFundingReference?: string | null;
+    bulkFundingReceiptUrl?: string | null;
+    reconciliation?: {
+      lumpSumFundedMinor: number;
+      lumpSumFundedFormatted: string;
+      totalDisbursedToStaffMinor: number;
+      totalDisbursedToStaffFormatted: string;
+      remainingWithHrMinor: number;
+      remainingWithHrFormatted: string;
+      paidStaffCount: number;
+      unpaidStaffCount: number;
+    };
   };
   items: PayrollItem[];
   availablePeriods?: PayrollPeriodOption[];
   radar?: PaydayRadarInfo | null;
-  permissions: { canApprove: boolean; canRecordPayments: boolean };
+  pendingSalaryProposals?: Array<{
+    id: string;
+    employeeId: string;
+    employeeName: string;
+    employeeNumber: string;
+    proposedByName: string;
+    previousGrossFormatted: string;
+    proposedGrossFormatted: string;
+    changeType: string;
+    changeReason: string;
+    createdAt: string;
+  }>;
+  permissions: { canApprove: boolean; canRecordPayments: boolean; isHrAdmin?: boolean };
 }
 
 function PayrollStaffAvatar({ name, url }: { name: string; url?: string | null }) {
@@ -213,6 +251,19 @@ export function PayrollSignOffView({
   const [savingSalaryChange, setSavingSalaryChange] = useState(false);
   const [preparingBatch, setPreparingBatch] = useState(false);
 
+  // Single Bulk Clearing Account & Lump-Sum Funding state
+  const [clearingModalOpen, setClearingModalOpen] = useState(false);
+  const [clearingForm, setClearingForm] = useState({
+    clearingBankName: '',
+    clearingAccountNumber: '',
+    clearingAccountName: '',
+    submissionNote: '',
+  });
+  const [savingClearing, setSavingClearing] = useState(false);
+  const [bulkFundModalOpen, setBulkFundModalOpen] = useState(false);
+  const [savingBulkFund, setSavingBulkFund] = useState(false);
+  const [processingProposalId, setProcessingProposalId] = useState<string | null>(null);
+
   // Table filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [subsidiaryCostFilter, setSubsidiaryCostFilter] = useState('ALL');
@@ -277,7 +328,11 @@ export function PayrollSignOffView({
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not update salary.');
-      setNotice(`${result.message} New gross salary: ${result.newGrossFormatted}.`);
+      setNotice(
+        result.proposalCreated
+          ? `${result.message} Proposed gross: ${result.proposedGrossFormatted || '—'}.`
+          : `${result.message} New gross salary: ${result.newGrossFormatted}.`
+      );
       setSalaryEditorOpen(false);
       setSalaryChangeAmount('');
       setSalaryChangeReason('');
@@ -288,6 +343,113 @@ export function PayrollSignOffView({
     } finally {
       setSavingSalaryChange(false);
     }
+  };
+
+  const handleSaveClearingAccount = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!data?.batch?.id) return;
+    try {
+      setSavingClearing(true);
+      const res = await fetch('/api/payroll/clearing-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          batchId: data.batch.id,
+          ...clearingForm,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not save designated disbursement account.');
+      setNotice(`✓ ${json.message}`);
+      setClearingModalOpen(false);
+      await fetchPayroll();
+    } catch (err: any) {
+      setNotice(err?.message || 'Error saving designated disbursement account.');
+    } finally {
+      setSavingClearing(false);
+    }
+  };
+
+  const handleRecordBulkFunding = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!data?.batch?.id) return;
+    try {
+      setSavingBulkFund(true);
+      const form = new FormData(e.currentTarget);
+      form.set('batchId', data.batch.id);
+      const res = await fetch('/api/payroll/fund-bulk', {
+        method: 'POST',
+        credentials: 'include',
+        body: form,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not record lump-sum funding transfer.');
+      setNotice(`✓ ${json.message}`);
+      setBulkFundModalOpen(false);
+      await fetchPayroll();
+    } catch (err: any) {
+      setNotice(err?.message || 'Error recording lump-sum funding transfer.');
+    } finally {
+      setSavingBulkFund(false);
+    }
+  };
+
+  const handleSalaryProposalDecision = async (proposalId: string, decision: 'APPROVED' | 'DECLINED') => {
+    try {
+      setProcessingProposalId(proposalId);
+      const res = await fetch('/api/payroll/salary-proposals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ proposalId, decision }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not process salary proposal.');
+      setNotice(`✓ ${json.message}`);
+      await fetchPayroll();
+    } catch (err: any) {
+      setNotice(err?.message || 'Error processing salary proposal.');
+    } finally {
+      setProcessingProposalId(null);
+    }
+  };
+
+  const handleDownloadBankSheetCSV = () => {
+    if (!data || !filteredItems || filteredItems.length === 0) {
+      setNotice('No items available in the current register to export.');
+      return;
+    }
+    const headers = [
+      'Beneficiary Account Name',
+      'Beneficiary Bank Name',
+      'Beneficiary Account Number',
+      'Net Transfer Amount (NGN)',
+      'Narration / Description',
+      'Staff ID',
+      'Subsidiary',
+    ];
+    const periodText = data?.period?.periodName || 'Monthly Salary';
+    const rows = filteredItems.map((item) => [
+      `"${(item.accountName || item.employeeName || '').replace(/"/g, '""')}"`,
+      `"${(item.bankName || 'MISSING BANK').replace(/"/g, '""')}"`,
+      `"${item.accountNumber || 'MISSING ACCOUNT'}"`,
+      (item.netMinor / 100).toFixed(2),
+      `"BEMS ${periodText} Salary - ${item.employeeName}"`,
+      `"${item.employeeNumber || item.employeeId}"`,
+      `"${(item.primarySubsidiary || 'BEMS Group').replace(/"/g, '""')}"`,
+    ]);
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    const periodLabel = data?.period ? `${data.period.year}_${String(data.period.month).padStart(2, '0')}` : 'payroll';
+    link.setAttribute('download', `BEMS_Bank_Bulk_Transfer_Sheet_${periodLabel}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const [selectedPeriodKey, setSelectedPeriodKey] = useState<string>('');
@@ -858,6 +1020,194 @@ export function PayrollSignOffView({
         </div>
       </div>
 
+      {/* PENDING SALARY PROPOSALS BANNER */}
+      {data?.pendingSalaryProposals && data.pendingSalaryProposals.length > 0 && (
+        <div style={{
+          background: '#fffbeb',
+          border: '1px solid #fde68a',
+          borderRadius: '10px',
+          padding: '12px 16px',
+          marginBottom: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <span style={{ fontSize: '9px', fontWeight: 800, color: '#b45309', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                ACTION REQUIRED · SALARY APPROVAL GATE
+              </span>
+              <h4 style={{ fontSize: '12px', fontWeight: 700, color: '#78350f', margin: '2px 0 0' }}>
+                {data.pendingSalaryProposals.length} Pending HR Salary Proposal{data.pendingSalaryProposals.length === 1 ? '' : 's'}
+              </h4>
+            </div>
+            <span style={{ fontSize: '10px', color: '#92400e', fontWeight: 600 }}>
+              Approve to update gross salary, then click Regenerate Batch to apply
+            </span>
+          </div>
+          <div style={{ display: 'grid', gap: '8px' }}>
+            {data.pendingSalaryProposals.map((prop) => (
+              <div key={prop.id} style={{ background: '#fff', border: '1px solid #fde68a', borderRadius: '8px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#0f172a' }}>
+                    {prop.employeeName} <span style={{ color: '#64748b', fontWeight: 500 }}>({prop.employeeNumber})</span>
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#475569', marginTop: 2 }}>
+                    Proposed by <strong>{prop.proposedByName}</strong>: <span style={{ textDecoration: 'line-through', color: '#94a3b8' }}>{prop.previousGrossFormatted}</span> → <strong style={{ color: '#059669' }}>{prop.proposedGrossFormatted}</strong> ({prop.changeType}) · <em>“{prop.changeReason}”</em>
+                  </div>
+                </div>
+                {data?.permissions?.canApprove ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      disabled={processingProposalId === prop.id}
+                      onClick={() => handleSalaryProposalDecision(prop.id, 'APPROVED')}
+                      style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #059669', background: '#059669', color: '#fff', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      {processingProposalId === prop.id ? 'Processing…' : '✓ Approve'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={processingProposalId === prop.id}
+                      onClick={() => handleSalaryProposalDecision(prop.id, 'DECLINED')}
+                      style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #fecaca', background: '#fff', color: '#b91c1c', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      ✕ Decline
+                    </button>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '3px 8px', borderRadius: 6 }}>
+                    Awaiting GMD / Super Admin Approval
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SINGLE BULK CLEARING ACCOUNT & LUMP-SUM RECONCILIATION CARD */}
+      {data?.batch && (
+        <div style={{
+          background: '#fff',
+          border: '1px solid #cbd5e1',
+          borderRadius: '10px',
+          padding: '14px 16px',
+          marginBottom: '16px',
+          boxShadow: '0 2px 6px rgba(15, 23, 42, 0.03)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <span style={{ fontSize: '8px', fontWeight: 800, color: '#ea580c', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                SINGLE BULK DISBURSEMENT CLEARING ACCOUNT & RECONCILIATION
+              </span>
+              <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', margin: '3px 0 2px' }}>
+                {data.batch.clearingAccountNumber
+                  ? `${data.batch.clearingBankName} · ${data.batch.clearingAccountNumber} (${data.batch.clearingAccountName})`
+                  : 'No Designated Bulk Clearing Account Submitted Yet'}
+              </h4>
+              <div style={{ fontSize: '10px', color: '#64748b' }}>
+                {data.batch.clearingAccountNumber ? (
+                  <>
+                    Submitted by <strong>{data.batch.submittedByName || 'HR / Payroll Admin'}</strong> for GMD single lump-sum transfer of <strong style={{ color: '#059669' }}>{data.batch.totalNetFormatted}</strong>
+                    {data.batch.submissionNote ? ` · Note: "${data.batch.submissionNote}"` : ''}
+                  </>
+                ) : (
+                  'HR / Payroll Admin submits a single clearing account here so the GMD transfers the entire batch net amount once, and HR disburses to all staff.'
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setClearingForm({
+                    clearingBankName: data.batch.clearingBankName || '',
+                    clearingAccountNumber: data.batch.clearingAccountNumber || '',
+                    clearingAccountName: data.batch.clearingAccountName || '',
+                    submissionNote: data.batch.submissionNote || '',
+                  });
+                  setClearingModalOpen(true);
+                }}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#0f172a',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {data.batch.clearingAccountNumber ? 'Edit Clearing Account' : '+ Submit Single Disbursement Account'}
+              </button>
+
+              {data?.permissions?.canApprove && data.batch.clearingAccountNumber && (
+                <button
+                  type="button"
+                  onClick={() => setBulkFundModalOpen(true)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: '1px solid #059669',
+                    background: data.batch.bulkFundedAt ? '#ecfdf5' : '#059669',
+                    color: data.batch.bulkFundedAt ? '#047857' : '#fff',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {data.batch.bulkFundedAt ? '✓ Lump Sum Funded (Update)' : `Fund Lump Sum (${data.batch.totalNetFormatted}) →`}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {data.batch.reconciliation && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 12, paddingTop: 12, borderTop: '1px solid #f1f5f9' }}>
+              <div style={{ padding: '8px 10px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>1. Lump Sum Funded by GMD</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: data.batch.bulkFundedAt ? '#059669' : '#64748b', marginTop: 2 }}>
+                  {data.batch.reconciliation.lumpSumFundedFormatted}
+                </div>
+                <div style={{ fontSize: 9, color: '#64748b', marginTop: 2 }}>
+                  {data.batch.bulkFundedAt
+                    ? `Ref: ${data.batch.bulkFundingReference || 'Recorded'} · ${data.batch.bulkFundingBankName || ''}`
+                    : 'Awaiting GMD single transfer'}
+                  {data.batch.bulkFundingReceiptUrl && (
+                    <> · <a href={data.batch.bulkFundingReceiptUrl} target="_blank" rel="noreferrer" style={{ color: '#ea580c', fontWeight: 700 }}>Receipt</a></>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ padding: '8px 10px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>2. Disbursed to Staff by HR</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginTop: 2 }}>
+                  {data.batch.reconciliation.totalDisbursedToStaffFormatted}
+                </div>
+                <div style={{ fontSize: 9, color: '#64748b', marginTop: 2 }}>
+                  {data.batch.reconciliation.paidStaffCount} paid · {data.batch.reconciliation.unpaidStaffCount} pending transfer
+                </div>
+              </div>
+
+              <div style={{ padding: '8px 10px', borderRadius: 8, background: data.batch.reconciliation.remainingWithHrMinor > 0 ? '#fff7ed' : '#ecfdf5', border: `1px solid ${data.batch.reconciliation.remainingWithHrMinor > 0 ? '#fed7aa' : '#a7f3d0'}` }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: data.batch.reconciliation.remainingWithHrMinor > 0 ? '#9a3412' : '#047857', textTransform: 'uppercase' }}>3. Undisbursed Balance with HR</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: data.batch.reconciliation.remainingWithHrMinor > 0 ? '#ea580c' : '#059669', marginTop: 2 }}>
+                  {data.batch.reconciliation.remainingWithHrFormatted}
+                </div>
+                <div style={{ fontSize: 9, color: '#64748b', marginTop: 2 }}>
+                  {data.batch.reconciliation.remainingWithHrMinor === 0 && data.batch.bulkFundedAt
+                    ? '✓ 100% Reconciled with staff receipts'
+                    : 'Must reach ₦0.00 via staff payout receipts'}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* PAYROLL COST ALLOCATION SUMMARY */}
       <div style={{
         background: '#fff',
@@ -995,27 +1345,50 @@ export function PayrollSignOffView({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {filteredItems.length > 0 && (
-              <button
-                type="button"
-                onClick={handleDownloadCSV}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: 6,
-                  border: '1px solid #cbd5e1',
-                  background: '#ffffff',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: '#0f172a',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                }}
-              >
-                <Download size={12} style={{ color: '#0d8a70' }} />
-                <span>Download Register (CSV)</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleDownloadBankSheetCSV}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: 6,
+                    border: '1px solid #ea580c',
+                    background: '#fff7ed',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: '#c2410c',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <Download size={12} style={{ color: '#ea580c' }} />
+                  <span>Export Bank Bulk-Transfer Sheet (CSV)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadCSV}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <Download size={12} style={{ color: '#0d8a70' }} />
+                  <span>Download Register (CSV)</span>
+                </button>
+              </>
             )}
 
             {(searchQuery || subsidiaryCostFilter !== 'ALL' || paymentFilter !== 'ALL') && (
@@ -1098,8 +1471,34 @@ export function PayrollSignOffView({
                     <PayrollStaffAvatar name={item.employeeName} url={item.avatarUrl} />
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#0f172a' }}>
-                      {item.employeeName}
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                      <span>{item.employeeName}</span>
+                      {item.isNewStaff && (
+                        <span style={{ fontSize: '8.5px', fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                          🆕 New Staff
+                        </span>
+                      )}
+                      {item.isOfflineStaff && (
+                        <span style={{ fontSize: '8.5px', fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}>
+                          📵 Offline Staff
+                        </span>
+                      )}
+                      {item.salaryDeltaFormatted && (
+                        <span
+                          title={item.salaryChangeReason || 'Salary changed from previous run'}
+                          style={{
+                            fontSize: '8.5px',
+                            fontWeight: 700,
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                            background: (item.salaryDeltaMinor || 0) > 0 ? '#ecfdf5' : '#fef2f2',
+                            color: (item.salaryDeltaMinor || 0) > 0 ? '#047857' : '#b91c1c',
+                            border: `1px solid ${(item.salaryDeltaMinor || 0) > 0 ? '#a7f3d0' : '#fecaca'}`,
+                          }}
+                        >
+                          {(item.salaryDeltaMinor || 0) > 0 ? '↑' : '↓'} {item.salaryDeltaFormatted}
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: '9px', color: '#64748b', marginTop: '1px' }}>
                       {item.role} · {item.email}
@@ -1397,6 +1796,119 @@ export function PayrollSignOffView({
           </div>
         </form>
       </div>}
+
+      {/* SINGLE BULK CLEARING ACCOUNT MODAL */}
+      {clearingModalOpen && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget && !savingClearing) setClearingModalOpen(false); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 1003, background: 'rgba(6,26,66,.68)', display: 'grid', placeItems: 'center', padding: 16 }}
+        >
+          <form onSubmit={handleSaveClearingAccount} style={{ width: 'min(460px, 100%)', background: '#fff', borderRadius: 12, padding: 18, border: '1px solid #dbe3ef', boxShadow: '0 22px 60px rgba(0,0,0,.28)', display: 'grid', gap: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 800, color: '#ea580c', letterSpacing: '.08em' }}>HR / PAYROLL SINGLE DISBURSEMENT ACCOUNT</div>
+                <h3 style={{ margin: '4px 0', fontSize: 15, color: '#0f172a' }}>Designated Bulk Clearing Account</h3>
+                <p style={{ margin: 0, color: '#64748b', fontSize: 10 }}>
+                  Provide the single bank account where the GMD will transfer the batch net amount ({data?.batch?.totalNetFormatted || '—'}) for onward payout to staff.
+                </p>
+              </div>
+              <button type="button" onClick={() => setClearingModalOpen(false)} style={{ border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+            <label style={{ fontSize: 10, fontWeight: 700, color: '#334155' }}>
+              Bank Name *
+              <input
+                type="text"
+                required
+                placeholder="e.g. Zenith Bank, GTBank, Access Bank"
+                value={clearingForm.clearingBankName}
+                onChange={(e) => setClearingForm((prev) => ({ ...prev, clearingBankName: e.target.value }))}
+                style={payrollInputStyle}
+              />
+            </label>
+            <label style={{ fontSize: 10, fontWeight: 700, color: '#334155' }}>
+              Account Number (10 Digits) *
+              <input
+                type="text"
+                required
+                maxLength={10}
+                placeholder="0123456789"
+                value={clearingForm.clearingAccountNumber}
+                onChange={(e) => setClearingForm((prev) => ({ ...prev, clearingAccountNumber: e.target.value }))}
+                style={payrollInputStyle}
+              />
+            </label>
+            <label style={{ fontSize: 10, fontWeight: 700, color: '#334155' }}>
+              Account Name *
+              <input
+                type="text"
+                required
+                placeholder="Account Holder / HR Clearing Account Name"
+                value={clearingForm.clearingAccountName}
+                onChange={(e) => setClearingForm((prev) => ({ ...prev, clearingAccountName: e.target.value }))}
+                style={payrollInputStyle}
+              />
+            </label>
+            <label style={{ fontSize: 10, fontWeight: 700, color: '#334155' }}>
+              Submission Note for GMD (Optional)
+              <input
+                type="text"
+                placeholder="e.g. Ready for November salary bulk disbursement"
+                value={clearingForm.submissionNote}
+                onChange={(e) => setClearingForm((prev) => ({ ...prev, submissionNote: e.target.value }))}
+                style={payrollInputStyle}
+              />
+            </label>
+            <div style={{ display: 'flex', justifyContent: 'end', gap: 8, marginTop: 4 }}>
+              <button type="button" onClick={() => setClearingModalOpen(false)} style={{ ...payrollButtonStyle, background: '#fff', color: '#475569', border: '1px solid #dbe3ef' }}>Cancel</button>
+              <button type="submit" disabled={savingClearing} style={{ ...payrollButtonStyle, background: '#ea580c', color: '#fff', border: '1px solid #ea580c' }}>
+                {savingClearing ? 'Saving…' : 'Submit Clearing Account to GMD'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* GMD LUMP-SUM FUNDING MODAL */}
+      {bulkFundModalOpen && data?.batch && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget && !savingBulkFund) setBulkFundModalOpen(false); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 1003, background: 'rgba(6,26,66,.68)', display: 'grid', placeItems: 'center', padding: 16 }}
+        >
+          <form onSubmit={handleRecordBulkFunding} style={{ width: 'min(480px, 100%)', background: '#fff', borderRadius: 12, padding: 18, border: '1px solid #dbe3ef', boxShadow: '0 22px 60px rgba(0,0,0,.28)', display: 'grid', gap: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 800, color: '#059669', letterSpacing: '.08em' }}>GMD SINGLE LUMP-SUM PAYROLL FUNDING</div>
+                <h3 style={{ margin: '4px 0', fontSize: 15, color: '#0f172a' }}>Fund HR Clearing Account · {data.batch.totalNetFormatted}</h3>
+                <p style={{ margin: 0, color: '#64748b', fontSize: 10 }}>
+                  Destination: <strong>{data.batch.clearingBankName} · {data.batch.clearingAccountNumber} ({data.batch.clearingAccountName})</strong>
+                </p>
+              </div>
+              <button type="button" onClick={() => setBulkFundModalOpen(false)} style={{ border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+            <label style={{ fontSize: 10, fontWeight: 700, color: '#334155' }}>
+              Paying Corporate Bank *
+              <input name="bankName" required placeholder="e.g. BEMS Group Zenith Corporate Account" style={payrollInputStyle} />
+            </label>
+            <label style={{ fontSize: 10, fontWeight: 700, color: '#334155' }}>
+              Bank Transfer Reference / Session ID *
+              <input name="reference" required placeholder="e.g. NIP/20261103/994821" style={payrollInputStyle} />
+            </label>
+            <label style={{ fontSize: 10, fontWeight: 700, color: '#334155' }}>
+              Lump-Sum Transfer Receipt (Optional PDF, PNG, JPG)
+              <input name="receipt" type="file" accept="application/pdf,image/png,image/jpeg" style={{ ...payrollInputStyle, padding: 7 }} />
+            </label>
+            <div style={{ padding: '8px 10px', borderRadius: 7, background: '#ecfdf5', color: '#047857', fontSize: 10 }}>
+              Recording this transfer locks in the lump-sum funded amount ({data.batch.totalNetFormatted}) and activates the HR Disbursed vs. Undisbursed Balance tracker.
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'end', gap: 8, marginTop: 4 }}>
+              <button type="button" onClick={() => setBulkFundModalOpen(false)} style={{ ...payrollButtonStyle, background: '#fff', color: '#475569', border: '1px solid #dbe3ef' }}>Cancel</button>
+              <button type="submit" disabled={savingBulkFund} style={{ ...payrollButtonStyle, background: '#059669', color: '#fff', border: '1px solid #059669' }}>
+                {savingBulkFund ? 'Recording…' : 'Confirm Lump-Sum Funding ✓'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

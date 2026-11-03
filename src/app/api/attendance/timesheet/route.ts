@@ -211,6 +211,8 @@ export async function GET(request: Request) {
           role: true,
           workLocation: true,
           avatarUrl: true,
+          isOfflineStaff: true,
+          kioskPin: true,
           workSchedule: true,
           assignments: {
             include: { subsidiary: { select: { legalName: true, code: true } } },
@@ -262,6 +264,11 @@ export async function GET(request: Request) {
         isManualOverride: record?.isManualOverride || false,
         overrideReason: record?.overrideReason,
         deductionPercent: record?.deductionPercent || 0,
+        excuseStatus: record?.excuseStatus || 'NONE',
+        excuseRequestNote: record?.excuseRequestNote || null,
+        excuseRequestedByName: record?.excuseRequestedByName || null,
+        isOfflineStaff: emp.isOfflineStaff,
+        kioskPin: emp.kioskPin,
         recordId: record?.id,
       };
     });

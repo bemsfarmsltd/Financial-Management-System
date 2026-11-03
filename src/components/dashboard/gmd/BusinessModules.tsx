@@ -804,7 +804,30 @@ export function FollowUpTasksModule({ setNotice }: { setNotice: (message: string
   return <><PageHeading eyebrow="ACCOUNTABILITY WORK QUEUE" title="Follow-up tasks" description="Assign and track evidence, clarification, and payment-confirmation follow-ups." action={<button style={primary} onClick={()=>setCreating(v=>!v)}>＋ New task</button>}/><div style={{display:'flex',gap:8,marginBottom:14}}>{['OPEN','OVERDUE','COMPLETED','ALL'].map(x=><button key={x} style={filter===x?primary:secondary} onClick={()=>setFilter(x)}>{x==='OPEN'?'Open':x==='ALL'?'All tasks':x.charAt(0)+x.slice(1).toLowerCase()}</button>)}<button style={{...secondary,marginLeft:'auto'}} onClick={()=>void load()}>↻ Refresh</button></div>{creating&&<form onSubmit={save} style={{...card,marginBottom:14,display:'grid',gridTemplateColumns:'2fr 1fr 1fr auto',gap:10,alignItems:'end'}}><label style={{fontWeight:700}}>Task<input style={{...input,display:'block',marginTop:5}} required value={description} onChange={e=>setDescription(e.target.value)} placeholder="e.g. Confirm delivery note"/></label><label style={{fontWeight:700}}>Due date<input style={{...input,display:'block',marginTop:5}} required type="date" value={dueAt} onChange={e=>setDueAt(e.target.value)}/></label><label style={{fontWeight:700}}>Assign to<select style={{...input,display:'block',marginTop:5}} value={assigneeId} onChange={e=>setAssigneeId(e.target.value)}>{staff.map(s=><option key={s.id} value={s.id}>{s.legalName} · {s.role}</option>)}</select></label><button style={primary} disabled={saving}>{saving?'Saving…':'Assign'}</button></form>}{loading?<p>Loading tasks…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:<section style={card}>{visible.length===0?<p style={{color:'#7889a3'}}>No tasks in this queue.</p>:visible.map(t=>{const req=t.accountabilityCase?.request||t.channel?.request;const overdue=t.status!=='COMPLETED'&&new Date(t.dueAt)<new Date();return <div key={t.id} style={{display:'grid',gridTemplateColumns:'minmax(240px,2fr) 1fr 1fr 1fr auto',gap:12,alignItems:'center',padding:'13px 2px',borderBottom:'1px solid #e8edf4'}}><span><b>{t.description}</b><small style={{display:'block',marginTop:4,color:'#7d8ba1'}}>{req?`${req.requestNumber} · ${req.title}`:'General follow-up'}{t.responseNotes?` · ${t.responseNotes}`:''}</small></span><span>{t.assignee.legalName}<small style={{display:'block',color:'#8794a8'}}>{t.assignee.role}</small></span><span>{date(t.dueAt)}</span><b style={{color:overdue?'#b42318':t.status==='COMPLETED'?'#008567':'#9a6200'}}>{overdue?'OVERDUE':t.status}</b>{t.status!=='COMPLETED'&&<button style={secondary} onClick={()=>void complete(t)}>Mark complete</button>}</div>})}</section>}</>;
 }
 
-type Staff = { id: string; legalName: string; workEmail: string; role: string; status: string; employeeNumber: string; avatarUrl?: string | null; phone?: string | null; assignments: { subsidiary: { legalName: string }; department?: { name: string } | null; positionName: string }[]; employmentAgreements: { compensations: { grossMinor: number; currency: string; recurrence: string; version: number; changeType?: string | null; changeReason?: string | null; effectiveFrom: string }[] }[] };
+type Staff = {
+  id: string;
+  legalName: string;
+  workEmail: string;
+  role: string;
+  status: string;
+  employeeNumber: string;
+  avatarUrl?: string | null;
+  phone?: string | null;
+  isOfflineStaff?: boolean;
+  kioskPin?: string | null;
+  assignments: { subsidiary: { legalName: string }; department?: { name: string } | null; positionName: string }[];
+  employmentAgreements: { compensations: { grossMinor: number; currency: string; recurrence: string; version: number; changeType?: string | null; changeReason?: string | null; effectiveFrom: string }[] }[];
+  salaryChangeProposals?: {
+    id: string;
+    previousGrossMinor: number;
+    proposedGrossMinor: number;
+    changeType: string;
+    reason: string;
+    proposedByName: string;
+    status: string;
+    createdAt: string;
+  }[];
+};
 type StaffDetail = {
   employee: {
     id: string;
@@ -815,6 +838,8 @@ type StaffDetail = {
     avatarUrl?: string | null;
     workEmail: string;
     phone: string | null;
+    isOfflineStaff?: boolean;
+    kioskPin?: string | null;
     gender?: string | null;
     dateOfBirth?: string | null;
     maritalStatus?: string | null;
@@ -843,6 +868,16 @@ type StaffDetail = {
     assignment: { positionName: string; subsidiaryName: string; departmentName: string | null; startsOn: string } | null;
     employment: { agreementType: string; paymentModel: string; startDate: string; endDate: string | null } | null;
     salary: { grossMinor: number; grossFormatted: string; recurrence: string; version: number; changeReason: string | null } | null;
+    pendingSalaryProposal?: {
+      id: string;
+      previousGrossFormatted: string;
+      proposedGrossFormatted: string;
+      proposedGrossMinor: number;
+      changeType: string;
+      reason: string;
+      proposedByName: string;
+      createdAt: string;
+    } | null;
   };
   payrollHistory: {
     id: string;
@@ -869,12 +904,13 @@ type StaffDetail = {
     createdAt: string;
     isPaid: boolean;
   }[];
-  permissions: { canEditSalary: boolean };
+  permissions: { canEditSalary: boolean; canApproveSalary?: boolean };
 };
 
 const getStaffRoleDisplay = (r: string) => {
   if (r === 'SYSTEM_ADMIN' || r === 'SUPER_ADMIN') return 'Super admin';
   if (r === 'GMD') return 'The Group Managing Director';
+  if (r === 'HR_ADMIN') return 'HR & Payroll Admin';
   if (r === 'STAFF') return 'Staff';
   return r;
 };
@@ -1012,6 +1048,119 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
   const [reqInstructions, setReqInstructions] = useState('');
   const [triggeringUpdate, setTriggeringUpdate] = useState(false);
 
+  // Offline Staff Registration & Role state
+  const [currentUserRole, setCurrentUserRole] = useState<string>('GMD');
+  const [offlineModalOpen, setOfflineModalOpen] = useState(false);
+  const [orgsList, setOrgsList] = useState<{ id: string; legalName: string; code: string }[]>([]);
+  const [deptsList, setDeptsList] = useState<{ id: string; name: string; organizationId: string }[]>([]);
+  const [offlineSaving, setOfflineSaving] = useState(false);
+  const [offlineForm, setOfflineForm] = useState({
+    legalName: '',
+    phone: '',
+    gender: 'MALE',
+    subsidiaryId: '',
+    departmentId: '',
+    jobTitle: '',
+    employmentType: 'FULL_TIME',
+    staffGrade: 'General Staff',
+    residentialAddress: '',
+    cityState: '',
+    nextOfKinName: '',
+    nextOfKinPhone: '',
+    nextOfKinRelationship: 'Spouse',
+    bankName: '',
+    accountNumber: '',
+    accountName: '',
+    proposedSalary: '',
+    kioskPin: '',
+    avatarUrl: '',
+  });
+
+  useEffect(() => {
+    fetch('/api/auth/session', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.user?.role) setCurrentUserRole(d.user.role);
+      })
+      .catch(() => {});
+    fetch('/api/organizations', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => {
+        const list = d?.organizations || [];
+        setOrgsList(list);
+        if (list.length > 0) {
+          setOfflineForm((prev) => ({ ...prev, subsidiaryId: prev.subsidiaryId || list[0].id }));
+        }
+      })
+      .catch(() => {});
+    fetch('/api/departments', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d?.departments)) setDeptsList(d.departments);
+      })
+      .catch(() => {});
+  }, []);
+
+  const submitOfflineStaff = async (e: FormEvent) => {
+    e.preventDefault();
+    setOfflineSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/staff/offline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(offlineForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not register offline staff.');
+      setNotice(data.message || 'Offline staff registered.');
+      setOfflineModalOpen(false);
+      setOfflineForm((prev) => ({
+        ...prev,
+        legalName: '',
+        phone: '',
+        jobTitle: '',
+        residentialAddress: '',
+        cityState: '',
+        nextOfKinName: '',
+        nextOfKinPhone: '',
+        bankName: '',
+        accountNumber: '',
+        accountName: '',
+        proposedSalary: '',
+        kioskPin: '',
+        avatarUrl: '',
+      }));
+      await load();
+    } catch (err: any) {
+      setError(err.message || 'Could not register offline staff.');
+    } finally {
+      setOfflineSaving(false);
+    }
+  };
+
+  const decideSalaryProposal = async (proposalId: string, decision: 'APPROVE' | 'REJECT') => {
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/payroll/salary-proposals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ proposalId, decision }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not process salary proposal.');
+      setNotice(data.message);
+      await Promise.all([load(), selectedId ? open(selectedId) : Promise.resolve()]);
+    } catch (err: any) {
+      setError(err.message || 'Could not process salary proposal.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -1048,12 +1197,16 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
     e.preventDefault();
     setSaving(true);
     try {
-      const data = await api<{ message: string; newGrossFormatted: string }>(`/api/staff/${selectedId}/salary`, {
+      const data = await api<{ message: string; newGrossFormatted?: string; proposedGrossFormatted?: string; pendingApproval?: boolean }>(`/api/staff/${selectedId}/salary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ changeType: salaryType, amount, reason }),
       });
-      setNotice(`${data.message} New gross: ${data.newGrossFormatted}.`);
+      setNotice(
+        data.pendingApproval
+          ? `${data.message} Proposed gross: ${data.proposedGrossFormatted}.`
+          : `${data.message} New gross: ${data.newGrossFormatted}.`
+      );
       setAmount('');
       setReason('');
       await Promise.all([load(), open(selectedId)]);
@@ -1223,30 +1376,166 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
 
           <button
             type="button"
-            onClick={() => {
-              if (onNavigate) onNavigate('Admin onboarding');
-              else if (typeof window !== 'undefined') window.location.search = '?tab=Admin+onboarding';
-            }}
+            onClick={() => setOfflineModalOpen(true)}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: 8,
-              padding: '9px 18px',
+              padding: '9px 16px',
               borderRadius: 8,
-              border: 'none',
-              background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
-              color: '#ffffff',
+              border: '1px solid #0d9488',
+              background: '#f0fdfa',
+              color: '#0f766e',
               fontSize: 12.5,
-              fontWeight: 700,
+              fontWeight: 750,
               cursor: 'pointer',
-              boxShadow: '0 3px 12px var(--brand-shadow-color, rgba(0, 0, 0, 0.28))',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
             }}
           >
-            <ShieldCheck size={15} color="#ffffff" />
-            <span>Admin Onboarding &amp; Invites →</span>
+            <Users size={15} color="#0f766e" />
+            <span>＋ Register Offline / Field Staff</span>
           </button>
+
+          {currentUserRole !== 'HR_ADMIN' && (
+            <button
+              type="button"
+              onClick={() => {
+                if (onNavigate) onNavigate('Admin onboarding');
+                else if (typeof window !== 'undefined') window.location.search = '?tab=Admin+onboarding';
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '9px 18px',
+                borderRadius: 8,
+                border: 'none',
+                background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
+                color: '#ffffff',
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 3px 12px var(--brand-shadow-color, rgba(0, 0, 0, 0.28))',
+              }}
+            >
+              <ShieldCheck size={15} color="#ffffff" />
+              <span>Admin Onboarding &amp; Invites →</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Pending Salary Proposals Banner */}
+      {rows.some((r) => (r.salaryChangeProposals?.length || 0) > 0) && (
+        <div
+          style={{
+            background: '#fffbeb',
+            border: '1.5px solid #fcd34d',
+            borderRadius: 12,
+            padding: '16px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            boxShadow: '0 2px 8px rgba(245, 158, 11, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#b45309', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                ⏳ PENDING EXECUTIVE SALARY APPROVALS ({rows.filter((r) => (r.salaryChangeProposals?.length || 0) > 0).length})
+              </div>
+              <div style={{ fontSize: 13.5, fontWeight: 750, color: '#78350f', marginTop: 2 }}>
+                HR has submitted salary proposals that require GMD or Super Admin approval before taking effect on payroll.
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gap: 10 }}>
+            {rows
+              .filter((r) => (r.salaryChangeProposals?.length || 0) > 0)
+              .map((r) => {
+                const prop = r.salaryChangeProposals![0];
+                const canApprove = currentUserRole === 'GMD' || currentUserRole === 'SYSTEM_ADMIN' || currentUserRole === 'SUPER_ADMIN';
+                return (
+                  <div
+                    key={prop.id}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #fde68a',
+                      borderRadius: 10,
+                      padding: '12px 16px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <strong style={{ fontSize: 14, color: '#0f172a' }}>{r.legalName}</strong>
+                        <span style={{ fontSize: 11, fontFamily: 'monospace', background: '#f1f5f9', padding: '1px 6px', borderRadius: 4, color: '#475569' }}>
+                          {r.employeeNumber}
+                        </span>
+                        {r.isOfflineStaff && (
+                          <span style={{ fontSize: 11, fontWeight: 700, background: '#f0fdfa', color: '#0f766e', border: '1px solid #99f6e4', padding: '1px 7px', borderRadius: 4 }}>
+                            📵 Offline Staff
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12.5, color: '#475569', marginTop: 4 }}>
+                        Proposed by <b>{prop.proposedByName}</b>: {fmt(prop.previousGrossMinor)} → <b style={{ color: '#0f766e' }}>{fmt(prop.proposedGrossMinor)}</b> / month · Reason: <i>{prop.reason}</i>
+                      </div>
+                    </div>
+
+                    {canApprove ? (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => void decideSalaryProposal(prop.id, 'APPROVE')}
+                          style={{
+                            padding: '7px 14px',
+                            borderRadius: 7,
+                            border: 'none',
+                            background: '#16a34a',
+                            color: '#ffffff',
+                            fontSize: 12,
+                            fontWeight: 750,
+                            cursor: saving ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          ✓ Approve Salary
+                        </button>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => void decideSalaryProposal(prop.id, 'REJECT')}
+                          style={{
+                            padding: '7px 12px',
+                            borderRadius: 7,
+                            border: '1px solid #fecaca',
+                            background: '#fef2f2',
+                            color: '#dc2626',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: saving ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          ✕ Decline
+                        </button>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 11.5, fontWeight: 750, color: '#b45309', background: '#fef3c7', padding: '4px 10px', borderRadius: 6 }}>
+                        Awaiting GMD / Super Admin Approval
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#991b1b', fontSize: 13 }}>
@@ -1611,9 +1900,39 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                       >
                         {getStaffRoleDisplay(s.role)}
                       </span>
+                      {s.isOfflineStaff && (
+                        <span
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 750,
+                            padding: '1px 7px',
+                            borderRadius: 4,
+                            background: '#f0fdfa',
+                            border: '1px solid #99f6e4',
+                            color: '#0f766e',
+                          }}
+                        >
+                          📵 Offline Staff{s.kioskPin ? ` · PIN: ${s.kioskPin}` : ''}
+                        </span>
+                      )}
+                      {(s.salaryChangeProposals?.length || 0) > 0 && (
+                        <span
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 750,
+                            padding: '1px 7px',
+                            borderRadius: 4,
+                            background: '#fef3c7',
+                            border: '1px solid #fde68a',
+                            color: '#b45309',
+                          }}
+                        >
+                          ⏳ Proposed: {fmt(s.salaryChangeProposals![0].proposedGrossMinor)}
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 3 }}>
-                      {s.workEmail} {s.phone ? `· ${s.phone}` : ''}
+                      {s.isOfflineStaff ? 'No smartphone / Offline Kiosk Enrollment' : s.workEmail} {s.phone ? `· ${s.phone}` : ''}
                     </div>
                   </div>
                 </div>
@@ -2111,6 +2430,79 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                 {/* TAB 2: Compensation & Payroll History */}
                 {modalTab === 'payroll' && (
                   <div>
+                    {selected.employee.pendingSalaryProposal && (
+                      <div
+                        style={{
+                          background: '#fffbeb',
+                          border: '1.5px solid #fcd34d',
+                          borderRadius: 12,
+                          padding: '16px 20px',
+                          marginBottom: 16,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: 12,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            ⏳ PENDING SALARY PROPOSAL (SUBMITTED BY {selected.employee.pendingSalaryProposal.proposedByName})
+                          </div>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>
+                            {selected.employee.pendingSalaryProposal.previousGrossFormatted} →{' '}
+                            <span style={{ color: '#0f766e' }}>{selected.employee.pendingSalaryProposal.proposedGrossFormatted}</span> / month
+                          </div>
+                          <div style={{ fontSize: 12.5, color: '#475569', marginTop: 2 }}>
+                            Reason: {selected.employee.pendingSalaryProposal.reason}
+                          </div>
+                        </div>
+
+                        {selected.permissions.canApproveSalary ? (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => void decideSalaryProposal(selected.employee.pendingSalaryProposal!.id, 'APPROVE')}
+                              style={{
+                                padding: '8px 16px',
+                                borderRadius: 8,
+                                border: 'none',
+                                background: '#16a34a',
+                                color: '#ffffff',
+                                fontSize: 12.5,
+                                fontWeight: 750,
+                                cursor: saving ? 'not-allowed' : 'pointer',
+                              }}
+                            >
+                              ✓ Approve Proposal
+                            </button>
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => void decideSalaryProposal(selected.employee.pendingSalaryProposal!.id, 'REJECT')}
+                              style={{
+                                padding: '8px 14px',
+                                borderRadius: 8,
+                                border: '1px solid #fecaca',
+                                background: '#fef2f2',
+                                color: '#dc2626',
+                                fontSize: 12.5,
+                                fontWeight: 700,
+                                cursor: saving ? 'not-allowed' : 'pointer',
+                              }}
+                            >
+                              ✕ Decline
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 12, fontWeight: 750, color: '#b45309', background: '#fef3c7', padding: '5px 10px', borderRadius: 6 }}>
+                            Awaiting GMD / Super Admin Approval
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     {/* Salary Card & Adjustment Form */}
                     <div
                       style={{
@@ -2613,6 +3005,252 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Register Offline / Field Staff Modal */}
+      {offlineModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: 16,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setOfflineModalOpen(false);
+          }}
+        >
+          <form
+            onSubmit={submitOfflineStaff}
+            style={{
+              background: '#ffffff',
+              borderRadius: 16,
+              maxWidth: 720,
+              width: '100%',
+              padding: '24px 28px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              display: 'grid',
+              gap: 16,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#0d9488', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  📵 OFFLINE / NO-SMARTPHONE STAFF ENROLLMENT
+                </span>
+                <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>
+                  Register Offline / Field Staff Member
+                </h3>
+                <p style={{ fontSize: 12.5, color: '#64748b', margin: 0 }}>
+                  For workers without smartphones or emails. Assigns a 4-digit Kiosk PIN for attendance check-in and captures bank details for payroll.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOfflineModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                Full Legal Name *
+                <input
+                  required
+                  style={{ ...input, width: '100%', marginTop: 4, boxSizing: 'border-box' }}
+                  placeholder="e.g. Musa Abdullahi"
+                  value={offlineForm.legalName}
+                  onChange={(e) => setOfflineForm({ ...offlineForm, legalName: e.target.value, accountName: offlineForm.accountName || e.target.value })}
+                />
+              </label>
+
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                Phone Number (Optional)
+                <input
+                  style={{ ...input, width: '100%', marginTop: 4, boxSizing: 'border-box' }}
+                  placeholder="+234 80..."
+                  value={offlineForm.phone}
+                  onChange={(e) => setOfflineForm({ ...offlineForm, phone: e.target.value })}
+                />
+              </label>
+
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                Gender
+                <select
+                  style={{ ...input, width: '100%', marginTop: 4, boxSizing: 'border-box' }}
+                  value={offlineForm.gender}
+                  onChange={(e) => setOfflineForm({ ...offlineForm, gender: e.target.value })}
+                >
+                  <option value="MALE">Male</option>
+                  <option value="FEMALE">Female</option>
+                </select>
+              </label>
+
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                Operating Subsidiary *
+                <select
+                  required
+                  style={{ ...input, width: '100%', marginTop: 4, boxSizing: 'border-box' }}
+                  value={offlineForm.subsidiaryId}
+                  onChange={(e) => setOfflineForm({ ...offlineForm, subsidiaryId: e.target.value, departmentId: '' })}
+                >
+                  {orgsList.map((o) => (
+                    <option key={o.id} value={o.id}>{o.legalName}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                Department
+                <select
+                  style={{ ...input, width: '100%', marginTop: 4, boxSizing: 'border-box' }}
+                  value={offlineForm.departmentId}
+                  onChange={(e) => setOfflineForm({ ...offlineForm, departmentId: e.target.value })}
+                >
+                  <option value="">General Operations</option>
+                  {deptsList
+                    .filter((d) => !offlineForm.subsidiaryId || d.organizationId === offlineForm.subsidiaryId)
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                </select>
+              </label>
+
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                Job Title / Role *
+                <input
+                  required
+                  style={{ ...input, width: '100%', marginTop: 4, boxSizing: 'border-box' }}
+                  placeholder="e.g. Facility Security / Cleaner / Driver"
+                  value={offlineForm.jobTitle}
+                  onChange={(e) => setOfflineForm({ ...offlineForm, jobTitle: e.target.value })}
+                />
+              </label>
+            </div>
+
+            <div style={{ background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                Salary Bank Name *
+                <input
+                  required
+                  style={{ ...input, width: '100%', marginTop: 4, boxSizing: 'border-box' }}
+                  placeholder="e.g. Access Bank / OPay / Moniepoint"
+                  value={offlineForm.bankName}
+                  onChange={(e) => setOfflineForm({ ...offlineForm, bankName: e.target.value })}
+                />
+              </label>
+
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                10-Digit Account Number *
+                <input
+                  required
+                  maxLength={10}
+                  style={{ ...input, width: '100%', marginTop: 4, boxSizing: 'border-box', fontFamily: 'monospace' }}
+                  placeholder="0123456789"
+                  value={offlineForm.accountNumber}
+                  onChange={(e) => setOfflineForm({ ...offlineForm, accountNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                />
+              </label>
+
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                Account Holder Name *
+                <input
+                  required
+                  style={{ ...input, width: '100%', marginTop: 4, boxSizing: 'border-box' }}
+                  placeholder="Account holder legal name"
+                  value={offlineForm.accountName}
+                  onChange={(e) => setOfflineForm({ ...offlineForm, accountName: e.target.value })}
+                />
+              </label>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                Monthly Gross Salary (₦) *
+                <input
+                  required
+                  type="number"
+                  min="1000"
+                  step="500"
+                  style={{ ...input, width: '100%', marginTop: 4, boxSizing: 'border-box' }}
+                  placeholder="e.g. 50000"
+                  value={offlineForm.proposedSalary}
+                  onChange={(e) => setOfflineForm({ ...offlineForm, proposedSalary: e.target.value })}
+                />
+                {currentUserRole === 'HR_ADMIN' && (
+                  <small style={{ display: 'block', color: '#b45309', marginTop: 3, fontWeight: 600 }}>
+                    Requires GMD / Super Admin approval before payroll inclusion.
+                  </small>
+                )}
+              </label>
+
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                4-Digit Kiosk Check-In PIN (Optional)
+                <input
+                  maxLength={4}
+                  style={{ ...input, width: '100%', marginTop: 4, boxSizing: 'border-box', fontFamily: 'monospace' }}
+                  placeholder="Auto-generated if left blank"
+                  value={offlineForm.kioskPin}
+                  onChange={(e) => setOfflineForm({ ...offlineForm, kioskPin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                />
+              </label>
+
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                Next of Kin Name &amp; Phone
+                <input
+                  style={{ ...input, width: '100%', marginTop: 4, boxSizing: 'border-box' }}
+                  placeholder="e.g. Amina Abdullahi - 0803..."
+                  value={offlineForm.nextOfKinName}
+                  onChange={(e) => setOfflineForm({ ...offlineForm, nextOfKinName: e.target.value })}
+                />
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
+              <button
+                type="button"
+                onClick={() => setOfflineModalOpen(false)}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#475569',
+                  fontSize: 13,
+                  fontWeight: 650,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={offlineSaving}
+                style={{
+                  padding: '9px 20px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#0d9488',
+                  color: '#ffffff',
+                  fontSize: 13,
+                  fontWeight: 750,
+                  cursor: offlineSaving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {offlineSaving ? 'Enrolling...' : 'Enroll Offline Staff Member →'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

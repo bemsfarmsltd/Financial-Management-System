@@ -79,10 +79,12 @@ type Dept = { id: string; name: string; code: string; organizationId: string };
 const EXECUTIVE_INVITE_ROLES = [
   { value: 'SYSTEM_ADMIN', label: 'Super admin' },
   { value: 'GMD', label: 'The Group Managing Director' },
+  { value: 'HR_ADMIN', label: 'HR & Payroll Admin' },
 ];
 
 const STAFF_APPROVAL_ROLES = [
   { value: 'STAFF', label: 'Staff' },
+  { value: 'HR_ADMIN', label: 'HR & Payroll Admin' },
   { value: 'GMD', label: 'The Group Managing Director' },
   { value: 'SYSTEM_ADMIN', label: 'Super admin' },
 ];
@@ -90,6 +92,7 @@ const STAFF_APPROVAL_ROLES = [
 const getRoleDisplayName = (r: string) => {
   if (r === 'SYSTEM_ADMIN' || r === 'SUPER_ADMIN') return 'Super admin';
   if (r === 'GMD') return 'The Group Managing Director';
+  if (r === 'HR_ADMIN') return 'HR & Payroll Admin';
   if (r === 'STAFF') return 'Staff';
   return r;
 };

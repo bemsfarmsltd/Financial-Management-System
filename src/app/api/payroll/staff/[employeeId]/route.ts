@@ -11,8 +11,8 @@ function formatNaira(minor: bigint | number) {
 export async function GET(_request: Request, { params }: { params: Promise<{ employeeId: string }> }) {
   const actor = await getAuthenticatedEmployee();
   if (!actor) return NextResponse.json({ error: 'Sign in to view staff payroll details.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
-    return NextResponse.json({ error: 'Executive or Super admin access is required to view staff payroll details.' }, { status: 403 });
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN'])) {
+    return NextResponse.json({ error: 'Executive, Super admin, or HR Admin access is required to view staff payroll details.' }, { status: 403 });
   }
 
   const { employeeId } = await params;
@@ -32,6 +32,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
         orderBy: { startDate: 'desc' },
         take: 1,
         include: { compensations: { where: { effectiveTo: null }, orderBy: [{ version: 'desc' }, { effectiveFrom: 'desc' }], take: 1 } }
+      },
+      salaryChangeProposals: {
+        orderBy: { createdAt: 'desc' },
+        take: 5,
       },
       payrollItems: {
         include: {
@@ -148,6 +152,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
       nextOfKinPhone: employee.nextOfKinPhone,
       nextOfKinRelationship: employee.nextOfKinRelationship,
       nextOfKinAddress: employee.nextOfKinAddress,
+      isOfflineStaff: employee.isOfflineStaff,
+      kioskPin: employee.kioskPin,
       assignment: employee.assignments[0] ? {
         positionName: employee.assignments[0].positionName,
         subsidiaryName: employee.assignments[0].subsidiary.legalName,
@@ -170,19 +176,32 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
         version: currentCompensation.version,
         changeType: currentCompensation.changeType,
         changeReason: currentCompensation.changeReason
-      } : null
+      } : null,
+      pendingSalaryProposal: employee.salaryChangeProposals?.find(p => p.status === 'PENDING_APPROVAL') ? {
+        id: employee.salaryChangeProposals.find(p => p.status === 'PENDING_APPROVAL')!.id,
+        previousGrossFormatted: formatNaira(employee.salaryChangeProposals.find(p => p.status === 'PENDING_APPROVAL')!.previousGrossMinor),
+        proposedGrossFormatted: formatNaira(employee.salaryChangeProposals.find(p => p.status === 'PENDING_APPROVAL')!.proposedGrossMinor),
+        proposedGrossMinor: Number(employee.salaryChangeProposals.find(p => p.status === 'PENDING_APPROVAL')!.proposedGrossMinor),
+        changeType: employee.salaryChangeProposals.find(p => p.status === 'PENDING_APPROVAL')!.changeType,
+        reason: employee.salaryChangeProposals.find(p => p.status === 'PENDING_APPROVAL')!.reason,
+        proposedByName: employee.salaryChangeProposals.find(p => p.status === 'PENDING_APPROVAL')!.proposedByName,
+        createdAt: employee.salaryChangeProposals.find(p => p.status === 'PENDING_APPROVAL')!.createdAt,
+      } : null,
     },
     payrollHistory,
     requestHistory,
-    permissions: { canEditSalary: hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD']) }
+    permissions: {
+      canEditSalary: hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN']),
+      canApproveSalary: hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']),
+    }
   });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ employeeId: string }> }) {
   const actor = await getAuthenticatedEmployee();
   if (!actor) return NextResponse.json({ error: 'Sign in to update profile.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
-    return NextResponse.json({ error: 'Executive or Super admin access is required.' }, { status: 403 });
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN'])) {
+    return NextResponse.json({ error: 'Executive, Super admin, or HR Admin access is required.' }, { status: 403 });
   }
 
   const { employeeId } = await params;

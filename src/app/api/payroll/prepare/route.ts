@@ -8,8 +8,8 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to prepare payroll.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
-      return NextResponse.json({ error: 'Executive sign-off authority required.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN'])) {
+      return NextResponse.json({ error: 'Executive or HR Admin authority required to prepare payroll.' }, { status: 403 });
     }
 
     const body = await req.json().catch(() => ({}));
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       include: {
         batches: {
           orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
-          include: { items: true },
+          include: { items: { include: { disbursement: true } } },
         },
       },
     });
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
         include: {
           batches: {
             orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
-            include: { items: true },
+            include: { items: { include: { disbursement: true } } },
           },
         },
       });
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     let isRegeneration = false;
 
     if (batch) {
-      const hasPaidItems = batch.items.some((item) => Boolean(item.disbursementId));
+      const hasPaidItems = batch.items.some((item) => Boolean(item.disbursement));
       if (hasPaidItems) {
         return NextResponse.json(
           { error: 'Cannot regenerate this payroll batch because salary disbursements have already been recorded for one or more staff.' },
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
           totalGrossMinor: BigInt(0),
           totalNetMinor: BigInt(0),
         },
-        include: { items: true },
+        include: { items: { include: { disbursement: true } } },
       });
     }
 
@@ -207,6 +207,9 @@ export async function POST(req: NextRequest) {
         status: 'SUBMITTED',
         approvedAt: null,
         snapshotHash: null,
+        paymentEntityId: batch.paymentEntityId || defaultSubId,
+        submittedById: actor.id,
+        submittedByName: actor.legalName,
         totalGrossMinor: totalGross,
         totalNetMinor: totalNet,
       },

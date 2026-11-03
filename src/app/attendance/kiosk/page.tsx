@@ -59,6 +59,44 @@ export default function AttendanceKioskPage() {
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
   const [showInstallModal, setShowInstallModal] = useState<boolean>(false);
 
+  // Offline Staff PIN Check-In Modal
+  const [pinModalOpen, setPinModalOpen] = useState<boolean>(false);
+  const [staffIdentifier, setStaffIdentifier] = useState<string>('');
+  const [kioskPin, setKioskPin] = useState<string>('');
+  const [pinAction, setPinAction] = useState<'CHECK_IN' | 'CHECK_OUT'>('CHECK_IN');
+  const [pinBusy, setPinBusy] = useState<boolean>(false);
+  const [pinResult, setPinResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const handlePinPunch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinBusy(true);
+    setPinResult(null);
+    try {
+      const res = await fetch('/api/attendance/kiosk-punch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          staffIdentifier,
+          kioskPin,
+          action: pinAction,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Check-in failed.');
+      setPinResult({ ok: true, message: data.message });
+      setStaffIdentifier('');
+      setKioskPin('');
+      setTimeout(() => {
+        setPinModalOpen(false);
+        setPinResult(null);
+      }, 2800);
+    } catch (err: any) {
+      setPinResult({ ok: false, message: err.message || 'Check-in failed.' });
+    } finally {
+      setPinBusy(false);
+    }
+  };
+
   // Live West Africa Time Clock
   useEffect(() => {
     function tick() {
@@ -352,6 +390,32 @@ export default function AttendanceKioskPage() {
 
           {/* Top Right Action Buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Offline Staff ID + PIN Check-In Button */}
+            <button
+              onClick={() => {
+                setPinResult(null);
+                setPinModalOpen(true);
+              }}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '10px',
+                background: '#0d9488',
+                border: 'none',
+                color: '#ffffff',
+                fontWeight: 800,
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '7px',
+                boxShadow: '0 2px 8px rgba(13, 148, 136, 0.25)',
+              }}
+              title="Clock in or out using Staff ID and 4-Digit Kiosk PIN (no smartphone needed)"
+            >
+              <UserCheck size={14} />
+              <span>Staff ID + PIN Check-In (No Phone)</span>
+            </button>
+
             {/* Download/Install on PC Button */}
             <button
               onClick={handleInstallClick}
@@ -1680,6 +1744,174 @@ export default function AttendanceKioskPage() {
               Close
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Offline Staff ID + PIN Check-In Modal */}
+      {pinModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(6px)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 10000,
+            padding: 20,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPinModalOpen(false);
+          }}
+        >
+          <form
+            onSubmit={handlePinPunch}
+            style={{
+              background: '#ffffff',
+              borderRadius: 20,
+              maxWidth: 440,
+              width: '100%',
+              padding: '28px',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)',
+              display: 'grid',
+              gap: 16,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#0d9488', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  📵 NO-SMARTPHONE KIOSK TERMINAL
+                </span>
+                <h3 style={{ margin: '4px 0 2px', fontSize: 20, fontWeight: 900, color: '#0f172a' }}>
+                  Staff ID + 4-Digit PIN Punch
+                </h3>
+                <p style={{ margin: 0, fontSize: 12.5, color: '#64748b' }}>
+                  Enter your BEMS Staff ID (or full name) and your 4-digit Kiosk PIN.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPinModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setPinAction('CHECK_IN')}
+                style={{
+                  padding: '10px',
+                  borderRadius: 10,
+                  border: pinAction === 'CHECK_IN' ? '2px solid #0d9488' : '1px solid #cbd5e1',
+                  background: pinAction === 'CHECK_IN' ? '#f0fdfa' : '#ffffff',
+                  color: pinAction === 'CHECK_IN' ? '#0f766e' : '#475569',
+                  fontWeight: 800,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                ☀️ Morning Check-In
+              </button>
+              <button
+                type="button"
+                onClick={() => setPinAction('CHECK_OUT')}
+                style={{
+                  padding: '10px',
+                  borderRadius: 10,
+                  border: pinAction === 'CHECK_OUT' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                  background: pinAction === 'CHECK_OUT' ? '#eff6ff' : '#ffffff',
+                  color: pinAction === 'CHECK_OUT' ? '#1d4ed8' : '#475569',
+                  fontWeight: 800,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                🌙 Evening Check-Out
+              </button>
+            </div>
+
+            {pinResult && (
+              <div
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: 10,
+                  background: pinResult.ok ? '#ecfdf5' : '#fef2f2',
+                  border: `1px solid ${pinResult.ok ? '#a7f3d0' : '#fecaca'}`,
+                  color: pinResult.ok ? '#065f46' : '#991b1b',
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                {pinResult.message}
+              </div>
+            )}
+
+            <label style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>
+              STAFF ID OR FULL NAME *
+              <input
+                required
+                placeholder="e.g. BEMS-GRO-2026-1042 or Musa Abdullahi"
+                value={staffIdentifier}
+                onChange={(e) => setStaffIdentifier(e.target.value)}
+                style={{
+                  width: '100%',
+                  marginTop: 6,
+                  padding: '11px 14px',
+                  borderRadius: 10,
+                  border: '1px solid #cbd5e1',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </label>
+
+            <label style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>
+              4-DIGIT KIOSK PIN *
+              <input
+                required
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="••••"
+                value={kioskPin}
+                onChange={(e) => setKioskPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                style={{
+                  width: '100%',
+                  marginTop: 6,
+                  padding: '11px 14px',
+                  borderRadius: 10,
+                  border: '1px solid #cbd5e1',
+                  fontSize: 20,
+                  letterSpacing: '0.35em',
+                  fontWeight: 900,
+                  textAlign: 'center',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={pinBusy}
+              style={{
+                width: '100%',
+                padding: '13px 20px',
+                borderRadius: 12,
+                border: 'none',
+                background: pinAction === 'CHECK_IN' ? '#0d9488' : '#2563eb',
+                color: '#ffffff',
+                fontWeight: 800,
+                fontSize: 14,
+                cursor: pinBusy ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {pinBusy ? 'Verifying...' : pinAction === 'CHECK_IN' ? 'Confirm Morning Check-In →' : 'Confirm Evening Check-Out →'}
+            </button>
+          </form>
         </div>
       )}
 

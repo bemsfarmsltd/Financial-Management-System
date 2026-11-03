@@ -52,6 +52,11 @@ interface AttendanceRow {
   isManualOverride: boolean;
   overrideReason?: string;
   deductionPercent: number;
+  excuseStatus?: string;
+  excuseRequestNote?: string | null;
+  excuseRequestedByName?: string | null;
+  isOfflineStaff?: boolean;
+  kioskPin?: string | null;
   recordId?: string;
 }
 
@@ -85,7 +90,7 @@ interface RosterMember {
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-const ALLOWED_ADMIN_ROLES = ['GMD', 'SYSTEM_ADMIN', 'HR', 'COO', 'FINANCE_CONTROLLER', 'SUPER_ADMIN'];
+const ALLOWED_ADMIN_ROLES = ['GMD', 'SYSTEM_ADMIN', 'HR_ADMIN', 'HR', 'COO', 'FINANCE_CONTROLLER', 'SUPER_ADMIN'];
 
 export default function AttendanceDeskPage() {
   const router = useRouter();
@@ -558,7 +563,7 @@ export default function AttendanceDeskPage() {
     }
   };
 
-  // Submit Manual Override
+  // Submit Manual Override / HR Excuse Request
   const handleSubmitOverride = async () => {
     if (!overrideModal.employee) return;
     try {
@@ -568,7 +573,7 @@ export default function AttendanceDeskPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           employeeId: overrideModal.employee.employeeId,
-          workDate: selectedDate,
+          workDate: selectedDate || dailyDate,
           status: overrideModal.status,
           reason: overrideModal.reason,
         }),
@@ -577,11 +582,33 @@ export default function AttendanceDeskPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to apply manual override');
       setOverrideModal({ isOpen: false, employee: null, status: 'PRESENT', reason: '' });
       setNotice(data.message);
-      setTimeout(() => setNotice(null), 4000);
+      setTimeout(() => setNotice(null), 5000);
       loadTimesheet(selectedDate);
+      loadDailyRoster(dailyDate, dailySubsidiaryFilter, dailySearch);
       setIsSaving(false);
     } catch (err: any) {
       alert(err.message);
+      setIsSaving(false);
+    }
+  };
+
+  const handleDecideExcuse = async (employeeId: string, workDate: string, excuseDecision: 'APPROVE' | 'REJECT') => {
+    try {
+      setIsSaving(true);
+      const res = await fetch('/api/attendance/admin/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId, workDate, excuseDecision }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not process excuse request.');
+      setNotice(data.message);
+      setTimeout(() => setNotice(null), 5000);
+      loadTimesheet(selectedDate);
+      loadDailyRoster(dailyDate, dailySubsidiaryFilter, dailySearch);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
       setIsSaving(false);
     }
   };
@@ -1323,34 +1350,113 @@ export default function AttendanceDeskPage() {
                               ) : (
                                 <span style={{ color: '#059669', fontWeight: 700 }}>0.0%</span>
                               )}
+                              {r.excuseStatus === 'PENDING_GMD_APPROVAL' && (
+                                <div style={{ fontSize: '10px', fontWeight: 750, color: '#b45309', background: '#fef3c7', padding: '2px 6px', borderRadius: 4, marginTop: 4 }}>
+                                  ⏳ Excuse Pending: {r.excuseRequestNote}
+                                </div>
+                              )}
                             </td>
 
                             {/* Action */}
                             <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                              <button
-                                onClick={() => {
-                                  setCalendarEmployeeId(r.employeeId);
-                                  loadStaffMonthlyCalendar(r.employeeId, calendarMonth, calendarYear);
-                                  setActiveTab('calendar');
-                                }}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  padding: '5px 10px',
-                                  borderRadius: '6px',
-                                  border: '1px solid #cbd5e1',
-                                  background: '#ffffff',
-                                  color: '#0f172a',
-                                  fontSize: '11px',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                }}
-                                title="View Full Month Calendar for Staff"
-                              >
-                                <CalendarDays size={13} color="#ea580c" />
-                                <span>Calendar</span>
-                              </button>
+                              <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                {r.excuseStatus === 'PENDING_GMD_APPROVAL' &&
+                                  (authenticatedUser?.role === 'GMD' || authenticatedUser?.role === 'SYSTEM_ADMIN' || authenticatedUser?.role === 'SUPER_ADMIN') && (
+                                    <>
+                                      <button
+                                        onClick={() => void handleDecideExcuse(r.employeeId, r.workDate || dailyDate, 'APPROVE')}
+                                        disabled={isSaving}
+                                        style={{
+                                          padding: '4px 8px',
+                                          borderRadius: 6,
+                                          border: 'none',
+                                          background: '#16a34a',
+                                          color: '#fff',
+                                          fontSize: 10.5,
+                                          fontWeight: 750,
+                                          cursor: 'pointer',
+                                        }}
+                                      >
+                                        ✓ Waive
+                                      </button>
+                                      <button
+                                        onClick={() => void handleDecideExcuse(r.employeeId, r.workDate || dailyDate, 'REJECT')}
+                                        disabled={isSaving}
+                                        style={{
+                                          padding: '4px 8px',
+                                          borderRadius: 6,
+                                          border: '1px solid #fecaca',
+                                          background: '#fef2f2',
+                                          color: '#dc2626',
+                                          fontSize: 10.5,
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                        }}
+                                      >
+                                        ✕
+                                      </button>
+                                    </>
+                                  )}
+                                {(r.morningStatus === 'LATE' || r.morningStatus === 'ABSENT') && r.excuseStatus !== 'PENDING_GMD_APPROVAL' && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedDate(r.workDate || dailyDate);
+                                      setOverrideModal({
+                                        isOpen: true,
+                                        employee: {
+                                          employeeId: r.employeeId,
+                                          legalName: r.legalName,
+                                          employeeNumber: r.employeeNumber,
+                                          role: r.role,
+                                          workLocation: r.stationName || 'HQ',
+                                          organizationName: r.subsidiary?.legalName || 'BEMS Group',
+                                          status: r.morningStatus === 'LATE' ? 'LATE' : 'ABSENT',
+                                          isManualOverride: false,
+                                          deductionPercent: r.deductionPercent,
+                                        },
+                                        status: 'EXCUSED',
+                                        reason: '',
+                                      });
+                                    }}
+                                    style={{
+                                      padding: '5px 9px',
+                                      borderRadius: '6px',
+                                      border: '1px solid #fed7aa',
+                                      background: '#fff7ed',
+                                      color: '#ea580c',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    {authenticatedUser?.role === 'HR_ADMIN' ? 'Request Excuse' : 'Excuse / Override'}
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    setCalendarEmployeeId(r.employeeId);
+                                    loadStaffMonthlyCalendar(r.employeeId, calendarMonth, calendarYear);
+                                    setActiveTab('calendar');
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '5px 10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    background: '#ffffff',
+                                    color: '#0f172a',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                  }}
+                                  title="View Full Month Calendar for Staff"
+                                >
+                                  <CalendarDays size={13} color="#ea580c" />
+                                  <span>Calendar</span>
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -2735,13 +2841,14 @@ export default function AttendanceDeskPage() {
 
                     <div>
                       <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#ea580c', marginBottom: '4px' }}>
-                        LATENESS DEDUCTION (%)
+                        LATENESS DEDUCTION (%) {authenticatedUser?.role === 'HR_ADMIN' ? '(READ-ONLY FOR HR)' : ''}
                       </label>
                       <input
                         type="number"
                         step="0.5"
                         min="0"
                         max="50"
+                        disabled={authenticatedUser?.role === 'HR_ADMIN'}
                         value={policy.latenessDeductionPercent}
                         onChange={e => setPolicy(prev => ({ ...prev, latenessDeductionPercent: Number(e.target.value) }))}
                         style={{
@@ -2752,7 +2859,8 @@ export default function AttendanceDeskPage() {
                           fontSize: '13px',
                           fontWeight: 800,
                           color: '#ea580c',
-                          background: '#fff7ed',
+                          background: authenticatedUser?.role === 'HR_ADMIN' ? '#f1f5f9' : '#fff7ed',
+                          cursor: authenticatedUser?.role === 'HR_ADMIN' ? 'not-allowed' : 'text',
                         }}
                       />
                     </div>
@@ -3050,7 +3158,9 @@ export default function AttendanceDeskPage() {
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800 }}>
-                Manual Attendance Override
+                {authenticatedUser?.role === 'HR_ADMIN'
+                  ? 'Submit Excuse Request for GMD Approval'
+                  : 'Manual Attendance Override'}
               </h3>
               <button
                 onClick={() => setOverrideModal({ isOpen: false, employee: null, status: 'PRESENT', reason: '' })}
@@ -3059,6 +3169,11 @@ export default function AttendanceDeskPage() {
                 <X size={18} />
               </button>
             </div>
+            {authenticatedUser?.role === 'HR_ADMIN' && (
+              <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 11.5, marginBottom: 12, fontWeight: 600 }}>
+                Note: HR cannot directly waive attendance deductions. Submitting this note flags the record for GMD / Super Admin approval.
+              </div>
+            )}
 
             <div style={{ padding: '12px', borderRadius: '8px', background: '#f8fafc', marginBottom: '16px', fontSize: '12px' }}>
               <div><strong>Staff:</strong> {overrideModal.employee.legalName} ({overrideModal.employee.employeeNumber})</div>
