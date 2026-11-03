@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
         },
         employmentAgreements: {
           where: { status: 'ACTIVE' },
-          orderBy: { createdAt: 'desc' },
+          orderBy: { startDate: 'desc' },
           include: {
             compensations: {
               orderBy: [{ version: 'desc' }, { effectiveFrom: 'desc' }],
