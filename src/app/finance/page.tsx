@@ -43,6 +43,7 @@ import { StaffWorkspaceModule } from "@/components/dashboard/staff/StaffWorkspac
 import { NIGERIAN_STATES, NIGERIAN_STATE_LGAS, RESIDENTIAL_CITIES_AND_STATES } from "@/lib/nigeriaGeoData";
 import { CorporateSubsidiaryModal } from "@/components/dashboard/CorporateSubsidiaryModal";
 import { EditSubsidiaryModal } from "@/components/dashboard/EditSubsidiaryModal";
+import { Eye, EyeOff } from "lucide-react";
 import AttendanceDeskPage from "../attendance/page";
 
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -432,6 +433,9 @@ const emptyOnboarding: OnboardingData = {
 function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
   const [view, setView] = useState<'login' | 'signup' | 'pending' | 'setup'>('login');
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showBootstrapPassword, setShowBootstrapPassword] = useState(false);
   const [signupStep, setSignupStep] = useState(1);
   const [registeredEmpNumber, setRegisteredEmpNumber] = useState('');
   const [registeredName, setRegisteredName] = useState('');
@@ -804,7 +808,39 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
         <p className="kicker">WELCOME BACK</p><h2>Sign in to BEMS Group</h2><p className="lead">Sign in with your approved BEMS Group work email.</p>
         <div className="form-grid">
           <label className="full">Email<input required type="email" value={loginForm.email} onChange={e=>setLoginForm(old=>({...old, email: e.target.value}))} placeholder="you@company.com"/></label>
-          <label className="full">Password<input required type="password" value={loginForm.password} onChange={e=>setLoginForm(old=>({...old, password: e.target.value}))} placeholder="Your password"/></label>
+          <label className="full">
+            Password
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginTop: 4 }}>
+              <input
+                required
+                type={showPassword ? 'text' : 'password'}
+                value={loginForm.password}
+                onChange={e=>setLoginForm(old=>({...old, password: e.target.value}))}
+                placeholder="Your password"
+                style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                title={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  background: 'none',
+                  border: 'none',
+                  padding: '4px',
+                  cursor: 'pointer',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </label>
         </div>
         {error && <p className="auth-error">{error}</p>}
         <footer className="journey-actions"><span/><button className="continue-button" disabled={busy}>{busy?'Signing in…':'Sign in'} <span>→</span></button></footer>
@@ -1337,14 +1373,37 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                 </label>
                 <label className="full">
                   Account Password *
-                  <input
-                    required
-                    type="password"
-                    minLength={10}
-                    value={signupForm.password}
-                    onChange={e => setSignupForm(old => ({ ...old, password: e.target.value }))}
-                    placeholder="Minimum 10 characters"
-                  />
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginTop: 4 }}>
+                    <input
+                      required
+                      type={showSignupPassword ? 'text' : 'password'}
+                      minLength={10}
+                      value={signupForm.password}
+                      onChange={e => setSignupForm(old => ({ ...old, password: e.target.value }))}
+                      placeholder="Minimum 10 characters"
+                      style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSignupPassword(!showSignupPassword)}
+                      title={showSignupPassword ? "Hide password" : "Show password"}
+                      aria-label={showSignupPassword ? "Hide password" : "Show password"}
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        background: 'none',
+                        border: 'none',
+                        padding: '4px',
+                        cursor: 'pointer',
+                        color: '#64748b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {showSignupPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </label>
               </div>
               <label className="check-row" style={{ marginTop: 16 }}>
@@ -1396,7 +1455,37 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
               <input required type="email" value={loginForm.email} onChange={e=>setLoginForm(old=>({...old, email: e.target.value}))} placeholder="admin@bemsgroup.com"/>
             </label>
             <label className="full">Password
-              <input required type="password" minLength={10} value={loginForm.password} onChange={e=>setLoginForm(old=>({...old, password: e.target.value}))} placeholder="At least 10 characters"/>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginTop: 4 }}>
+                <input
+                  required
+                  type={showBootstrapPassword ? 'text' : 'password'}
+                  minLength={10}
+                  value={loginForm.password}
+                  onChange={e=>setLoginForm(old=>({...old, password: e.target.value}))}
+                  placeholder="At least 10 characters"
+                  style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowBootstrapPassword(!showBootstrapPassword)}
+                  title={showBootstrapPassword ? "Hide password" : "Show password"}
+                  aria-label={showBootstrapPassword ? "Hide password" : "Show password"}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    background: 'none',
+                    border: 'none',
+                    padding: '4px',
+                    cursor: 'pointer',
+                    color: '#64748b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {showBootstrapPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </label>
           </div>
           {error && <p className="auth-error">{error}</p>}

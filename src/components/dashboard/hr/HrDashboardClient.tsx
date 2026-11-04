@@ -2425,3 +2425,4 @@ export function HrDashboardClient({ user }: { user: HrUser }) {
     </div>
   );
 }
+
