@@ -1,7 +1,7 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/staff_storage_service.dart';
-import '../widgets/kinetic_torus_iris.dart';
 import 'staff_login_screen.dart';
 
 class _StaffOnboardingSlide {
@@ -11,7 +11,8 @@ class _StaffOnboardingSlide {
   final List<String> highlights;
   final IconData icon;
   final Color accentColor;
-  final bool showTorus;
+  final String localAsset;
+  final String networkFallback;
 
   const _StaffOnboardingSlide({
     required this.eyebrow,
@@ -20,7 +21,8 @@ class _StaffOnboardingSlide {
     required this.highlights,
     required this.icon,
     required this.accentColor,
-    this.showTorus = false,
+    required this.localAsset,
+    required this.networkFallback,
   });
 }
 
@@ -55,7 +57,9 @@ class _StaffOnboardingCarouselScreenState extends State<StaffOnboardingCarouselS
       ],
       icon: Icons.badge_rounded,
       accentColor: Color(0xFFEA580C),
-      showTorus: true,
+      localAsset: 'assets/images/onboarding/staff_slide_1.jpg',
+      networkFallback:
+          'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1600&q=85',
     ),
     _StaffOnboardingSlide(
       eyebrow: 'SLIDE 02 · SMART FUND REQUISITIONS',
@@ -69,6 +73,9 @@ class _StaffOnboardingCarouselScreenState extends State<StaffOnboardingCarouselS
       ],
       icon: Icons.request_quote_rounded,
       accentColor: Color(0xFF0284C7),
+      localAsset: 'assets/images/onboarding/staff_slide_2.jpg',
+      networkFallback:
+          'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=1600&q=85',
     ),
     _StaffOnboardingSlide(
       eyebrow: 'SLIDE 03 · 72-HOUR ACCOUNTABILITY CLOSURE',
@@ -82,6 +89,9 @@ class _StaffOnboardingCarouselScreenState extends State<StaffOnboardingCarouselS
       ],
       icon: Icons.receipt_long_rounded,
       accentColor: Color(0xFF059669),
+      localAsset: 'assets/images/onboarding/staff_slide_3.jpg',
+      networkFallback:
+          'https://images.unsplash.com/photo-1554224154-26032ffc0d07?auto=format&fit=crop&w=1600&q=85',
     ),
     _StaffOnboardingSlide(
       eyebrow: 'SLIDE 04 · QR ATTENDANCE & SALARY RECEIPTS',
@@ -94,7 +104,10 @@ class _StaffOnboardingCarouselScreenState extends State<StaffOnboardingCarouselS
         'View bank transfer receipts & confirm salary arrival',
       ],
       icon: Icons.qr_code_scanner_rounded,
-      accentColor: Color(0xFF7C3AED),
+      accentColor: Color(0xFF8B5CF6),
+      localAsset: 'assets/images/onboarding/staff_slide_4.jpg',
+      networkFallback:
+          'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=1600&q=85',
     ),
   ];
 
@@ -131,7 +144,7 @@ class _StaffOnboardingCarouselScreenState extends State<StaffOnboardingCarouselS
     HapticFeedback.selectionClick();
     if (_currentIndex < _slides.length - 1) {
       _pageController.nextPage(
-        duration: const Duration(milliseconds: 380),
+        duration: const Duration(milliseconds: 400),
         curve: Curves.easeOutCubic,
       );
     } else {
@@ -141,319 +154,433 @@ class _StaffOnboardingCarouselScreenState extends State<StaffOnboardingCarouselS
 
   @override
   Widget build(BuildContext context) {
-    final slide = _slides[_currentIndex];
     final isLast = _currentIndex == _slides.length - 1;
+    final currentSlide = _slides[_currentIndex];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F5),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      backgroundColor: const Color(0xFF040711),
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 1. Edge-to-Edge Full-Screen Photo PageView
+          PageView.builder(
+            controller: _pageController,
+            itemCount: _slides.length,
+            onPageChanged: (idx) {
+              HapticFeedback.selectionClick();
+              setState(() => _currentIndex = idx);
+            },
+            itemBuilder: (context, index) {
+              final slide = _slides[index];
+
+              return Stack(
+                fit: StackFit.expand,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: slide.accentColor,
-                          shape: BoxShape.circle,
+                  // Full Bleed Photographic Background
+                  Image.asset(
+                    slide.localAsset,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    errorBuilder: (ctx, err, stack) => Image.network(
+                      slide.networkFallback,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      errorBuilder: (ctx2, err2, stack2) => Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF0F172A), Color(0xFF040711)],
+                          ),
+                        ),
+                        child: Center(
+                          child: Icon(slide.icon, size: 90, color: slide.accentColor.withOpacity(0.35)),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'BEMS STAFF PORTAL · JOURNEY',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.1,
-                          color: Color(0xFF334155),
-                        ),
-                      ),
-                    ],
-                  ),
-                  TextButton(
-                    onPressed: _completeJourney,
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF64748B),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     ),
-                    child: Text(
-                      widget.isReplay ? 'Close Tour' : 'Skip',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
+                  ),
+
+                  // Subtle Dark Ambient Wash
+                  Container(
+                    color: const Color(0xFF040711).withOpacity(0.28),
+                  ),
+
+                  // Top Cinematic Vignette (For Status Bar & Navigation readability)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 220,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.85),
+                            Colors.black.withOpacity(0.35),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Deep Bottom Atmospheric Gradient (Guarantees 100% Text Legibility)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: MediaQuery.of(context).size.height * 0.76,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: const [0.0, 0.25, 0.55, 0.85, 1.0],
+                          colors: [
+                            Colors.transparent,
+                            const Color(0xFF040711).withOpacity(0.40),
+                            const Color(0xFF040711).withOpacity(0.85),
+                            const Color(0xFF040711).withOpacity(0.97),
+                            const Color(0xFF040711),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Ambient Radial Glow for Accent Lighting
+                  Positioned(
+                    left: -60,
+                    bottom: 160,
+                    child: Container(
+                      width: 280,
+                      height: 280,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: slide.accentColor.withOpacity(0.18),
+                      ),
+                    ),
+                  ),
+
+                  // Foreground Content Area
+                  Positioned.fill(
+                    child: SafeArea(
+                      top: false,
+                      bottom: true,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Glassmorphic Category Eyebrow Pill
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(30),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(30),
+                                    border: Border.all(color: Colors.white.withOpacity(0.20)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: slide.accentColor,
+                                          shape: BoxShape.circle,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: slide.accentColor,
+                                              blurRadius: 8,
+                                              spreadRadius: 1,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        slide.eyebrow,
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 1.1,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 14),
+
+                            // Hero Headline
+                            Text(
+                              slide.title,
+                              style: const TextStyle(
+                                fontSize: 29,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.8,
+                                height: 1.16,
+                                color: Colors.white,
+                              ),
+                            ),
+
+                            const SizedBox(height: 10),
+
+                            // Subtitle Narrative
+                            Text(
+                              slide.subtitle,
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w400,
+                                height: 1.48,
+                                color: Colors.white.withOpacity(0.85),
+                              ),
+                            ),
+
+                            const SizedBox(height: 18),
+
+                            // Key Capability Chips (Frosted Glass)
+                            ...slide.highlights.map(
+                              (point) => Padding(
+                                padding: const EdgeInsets.only(bottom: 7),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(color: Colors.white.withOpacity(0.12)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.check_circle_rounded,
+                                            size: 16,
+                                            color: slide.accentColor,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              point,
+                                              style: TextStyle(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.white.withOpacity(0.95),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            // Space for bottom navigation controls
+                            const SizedBox(height: 96),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ],
-              ),
-            ),
+              );
+            },
+          ),
 
-            // Swipeable PageView
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: _slides.length,
-                onPageChanged: (idx) {
-                  HapticFeedback.selectionClick();
-                  setState(() => _currentIndex = idx);
-                },
-                itemBuilder: (context, index) {
-                  final item = _slides[index];
-                  return SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 20),
+          // 2. Floating Top Header: Brand Pill + Skip Action
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Brand Badge
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(28),
-                            border: Border.all(color: item.accentColor.withOpacity(0.22)),
-                            boxShadow: [
-                              BoxShadow(
-                                color: item.accentColor.withOpacity(0.08),
-                                blurRadius: 24,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              if (item.showTorus)
-                                KineticTorusIris(
-                                  size: (MediaQuery.of(context).size.width * 0.44).clamp(150.0, 200.0),
-                                )
-                              else
-                                Container(
-                                  width: 96,
-                                  height: 96,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        item.accentColor,
-                                        item.accentColor.withOpacity(0.75),
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: item.accentColor.withOpacity(0.32),
-                                        blurRadius: 20,
-                                        offset: const Offset(0, 8),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Icon(
-                                    item.icon,
-                                    size: 44,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              const SizedBox(height: 18),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: item.accentColor.withOpacity(0.10),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  item.eyebrow,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 0.9,
-                                    color: item.accentColor,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 24),
-
-                        Text(
-                          item.title,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 23,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.6,
-                            color: Color(0xFF0F172A),
-                            height: 1.2,
-                          ),
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        Text(
-                          item.subtitle,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF475569),
-                            height: 1.45,
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.90),
+                            color: Colors.black.withOpacity(0.35),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            border: Border.all(color: Colors.white.withOpacity(0.15)),
                           ),
-                          child: Column(
-                            children: item.highlights.map((point) {
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 6),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      margin: const EdgeInsets.only(top: 2),
-                                      width: 18,
-                                      height: 18,
-                                      decoration: BoxDecoration(
-                                        color: item.accentColor.withOpacity(0.14),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        Icons.check_rounded,
-                                        size: 12,
-                                        color: item.accentColor,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        point,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF1E293B),
-                                          height: 1.35,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF10B981),
+                                  shape: BoxShape.circle,
                                 ),
-                              );
-                            }).toList(),
+                              ),
+                              const SizedBox(width: 7),
+                              const Text(
+                                'BEMS STAFF PORTAL',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.1,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  );
-                },
+
+                    // Skip / Close Tour Button
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: TextButton(
+                          onPressed: _completeJourney,
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.white.withOpacity(0.12),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(color: Colors.white.withOpacity(0.20)),
+                            ),
+                          ),
+                          child: Text(
+                            widget.isReplay ? 'Close Tour' : 'Skip',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+          ),
 
-            // Bottom Controls
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
-              child: Column(
+          // 3. Floating Bottom Controls: Dynamic Dot Indicators & Primary Action Button
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 22,
+            child: SafeArea(
+              top: false,
+              child: Row(
                 children: [
+                  // Animated Dot Indicators
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(_slides.length, (i) {
-                      final active = i == _currentIndex;
+                    children: List.generate(_slides.length, (index) {
+                      final isActive = index == _currentIndex;
                       return AnimatedContainer(
-                        duration: const Duration(milliseconds: 260),
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        width: active ? 28 : 8,
-                        height: 8,
+                        duration: const Duration(milliseconds: 320),
+                        margin: const EdgeInsets.only(right: 6),
+                        width: isActive ? 26 : 7,
+                        height: 7,
                         decoration: BoxDecoration(
-                          color: active ? slide.accentColor : const Color(0xFFCBD5E1),
-                          borderRadius: BorderRadius.circular(999),
+                          color: isActive ? currentSlide.accentColor : Colors.white.withOpacity(0.28),
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: isActive
+                              ? [
+                                  BoxShadow(
+                                    color: currentSlide.accentColor.withOpacity(0.5),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ]
+                              : null,
                         ),
                       );
                     }),
                   ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      if (_currentIndex > 0) ...[
-                        OutlinedButton(
-                          onPressed: () {
-                            HapticFeedback.selectionClick();
-                            _pageController.previousPage(
-                              duration: const Duration(milliseconds: 320),
-                              curve: Curves.easeOutCubic,
-                            );
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF334155),
-                            side: const BorderSide(color: Color(0xFFCBD5E1)),
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                          ),
-                          child: const Text(
-                            'Back',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                          ),
+
+                  const Spacer(),
+
+                  // Primary Action CTA Button
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      gradient: LinearGradient(
+                        colors: [
+                          currentSlide.accentColor,
+                          currentSlide.accentColor.withOpacity(0.85),
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: currentSlide.accentColor.withOpacity(0.42),
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
                         ),
-                        const SizedBox(width: 12),
                       ],
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _nextSlide,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isLast ? slide.accentColor : const Color(0xFF18181B),
-                            foregroundColor: Colors.white,
-                            elevation: 4,
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                isLast
-                                    ? (widget.isReplay ? 'Finish Staff Tour' : 'Continue to Staff Sign-In')
-                                    : 'Next (${_currentIndex + 1}/${_slides.length})',
-                                style: const TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.arrow_forward_rounded, size: 17),
-                            ],
-                          ),
+                    ),
+                    child: ElevatedButton(
+                      onPressed: _nextSlide,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
                         ),
                       ),
-                    ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            isLast ? (widget.isReplay ? 'Exit Tour' : 'Enter Portal') : 'Continue',
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            isLast ? Icons.login_rounded : Icons.arrow_forward_rounded,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
-
