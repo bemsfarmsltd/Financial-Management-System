@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { StaffNewFundRequestModal } from '@/components/requests/StaffNewFundRequestModal';
 import { StaffAdminChatModal } from '@/components/chat/StaffAdminChatModal';
+import { InAppChatPushToast } from '@/components/chat/InAppChatPushToast';
 import { StaffInformationUpdateGateModal } from '@/components/dashboard/staff/StaffInformationUpdateGateModal';
 import {
   Home,
@@ -3639,6 +3640,7 @@ export function StaffDashboardClient({
             }}
           />
         )}
+        <InAppChatPushToast />
       </div>
     );
   }

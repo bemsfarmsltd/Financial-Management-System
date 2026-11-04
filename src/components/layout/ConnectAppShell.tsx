@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { InAppChatPushToast } from '@/components/chat/InAppChatPushToast';
 
 export type SystemRole = 'GMD' | 'SystemAdmin' | 'Staff';
 
@@ -674,6 +675,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
           </Link>
         </nav>
       )}
+      <InAppChatPushToast />
     </main>
     </>
   );

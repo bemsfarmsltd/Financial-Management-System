@@ -579,6 +579,114 @@ class ApiService {
     return {'subsidiaryPayrolls': []};
   }
 
+  static Future<Map<String, dynamic>> updateStaffSalary({
+    required String employeeId,
+    required String changeType, // ADDITION | DEDUCTION | SET_EXACT
+    required double amount,
+    required String reason,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/staff/${Uri.encodeComponent(employeeId)}/salary'),
+        headers: authHeaders,
+        body: jsonEncode({
+          'changeType': changeType,
+          'amount': amount,
+          'reason': reason,
+        }),
+      ),
+      timeout: const Duration(seconds: 15),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200) {
+      return data as Map<String, dynamic>;
+    }
+    throw Exception(data['error'] ?? 'Salary update failed (${res.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> removePayrollItem({
+    required String itemId,
+    required String scope, // BATCH_ONLY | PERMANENT
+    required String reason,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.delete(
+        Uri.parse('$host/api/payroll/items/${Uri.encodeComponent(itemId)}?scope=${Uri.encodeQueryComponent(scope)}&reason=${Uri.encodeQueryComponent(reason)}'),
+        headers: authHeaders,
+      ),
+      timeout: const Duration(seconds: 15),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200) {
+      return data as Map<String, dynamic>;
+    }
+    throw Exception(data['error'] ?? 'Removal failed (${res.statusCode})');
+  }
+
+  // --- GMD DIRECT STAFF CHAT ---
+  static Future<List<dynamic>> fetchStaffChatThreads() async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(Uri.parse('$host/api/staff/chat/admin'), headers: authHeaders),
+        timeout: const Duration(seconds: 10),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return (data['threads'] as List<dynamic>?) ?? [];
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<Map<String, dynamic>> fetchStaffChatMessages(String employeeId) async {
+    final res = await _executeWithFailover(
+      (host) => http.get(
+        Uri.parse('$host/api/staff/chat/admin?employeeId=${Uri.encodeComponent(employeeId)}'),
+        headers: authHeaders,
+      ),
+      timeout: const Duration(seconds: 10),
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to load conversation (${res.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> sendStaffChatMessage({
+    required String employeeId,
+    required String message,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/staff/chat/admin'),
+        headers: authHeaders,
+        body: jsonEncode({
+          'employeeId': employeeId,
+          'message': message,
+        }),
+      ),
+      timeout: const Duration(seconds: 12),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200) {
+      return data as Map<String, dynamic>;
+    }
+    throw Exception(data['error'] ?? 'Failed to send message (${res.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> fetchUnreadChatInfo() async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(Uri.parse('$host/api/staff/chat/unread'), headers: authHeaders),
+        timeout: const Duration(seconds: 6),
+      );
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return {'unreadCount': 0, 'latestMessage': null};
+  }
+
   // --- VENDORS REGISTRY ---
   static Future<List<dynamic>> fetchVendorsList({String? category, String? search}) async {
     try {
@@ -630,11 +738,17 @@ class ApiService {
   }
 
   // --- ATTENDANCE TIMESHEET ---
-  static Future<Map<String, dynamic>> fetchAttendanceTimesheet() async {
+  static Future<Map<String, dynamic>> fetchAttendanceTimesheet({int? month, int? year, String? date}) async {
     try {
+      final params = <String>[];
+      if (month != null) params.add('month=$month');
+      if (year != null) params.add('year=$year');
+      if (date != null && date.isNotEmpty) params.add('date=$date');
+      final query = params.isNotEmpty ? '?${params.join('&')}' : '';
+
       final res = await _executeWithFailover(
-        (host) => http.get(Uri.parse('$host/api/attendance/timesheet'), headers: authHeaders),
-        timeout: const Duration(seconds: 10),
+        (host) => http.get(Uri.parse('$host/api/attendance/timesheet$query'), headers: authHeaders),
+        timeout: const Duration(seconds: 12),
       );
       if (res.statusCode == 200) {
         return jsonDecode(res.body) as Map<String, dynamic>;

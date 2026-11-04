@@ -17,6 +17,7 @@ import 'intercompany_notes_screen.dart';
 import 'attendance_radar_screen.dart';
 import 'emergency_overrides_screen.dart';
 import 'staff_management_screen.dart';
+import 'gmd_staff_chat_screen.dart';
 
 class ExecutiveSystemDashboard extends StatefulWidget {
   final VoidCallback onOpenDrawer;
@@ -1542,6 +1543,13 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
         'icon': Icons.badge_rounded,
         'color': const Color(0xFF475569),
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StaffManagementScreen())),
+      },
+      {
+        'title': 'Staff Direct Chat',
+        'desc': 'Direct messaging & directives to staff',
+        'icon': Icons.chat_rounded,
+        'color': const Color(0xFFEA580C),
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GmdStaffChatScreen())),
       },
     ];
 

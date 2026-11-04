@@ -197,8 +197,11 @@ export async function GET(request: Request) {
       });
     }
 
-    // Mode 2: Admin Live Daily Dashboard
-    const [employees, todayRecords, policy] = await Promise.all([
+    // Mode 2: Admin Live Daily Dashboard OR Previous Month Roll-Up Radar
+    const isMonthlyAggregation = Boolean(monthParam && !dateParam);
+    const monthPrefix = `${effectiveYear}-${String(effectiveMonth).padStart(2, '0')}`;
+
+    const [employees, records, policy] = await Promise.all([
       prisma.employee.findMany({
         where: {
           status: 'ACTIVE',
@@ -221,15 +224,97 @@ export async function GET(request: Request) {
         },
         orderBy: { legalName: 'asc' },
       }),
-      prisma.attendanceRecord.findMany({
-        where: { workDate: targetDate },
-        include: { station: { select: { name: true, code: true } } },
-      }),
+      isMonthlyAggregation
+        ? prisma.attendanceRecord.findMany({
+            where: { workDate: { startsWith: monthPrefix } },
+            include: { station: { select: { name: true, code: true } } },
+          })
+        : prisma.attendanceRecord.findMany({
+            where: { workDate: targetDate },
+            include: { station: { select: { name: true, code: true } } },
+          }),
       prisma.attendancePolicy.findFirst(),
     ]);
 
-    // Map each employee to their status today
-    const attendanceMap = new Map(todayRecords.map(r => [r.employeeId, r]));
+    if (isMonthlyAggregation) {
+      // Group records by employeeId for monthly summary
+      const recordsByEmp = new Map<string, typeof records>();
+      for (const rec of records) {
+        if (!recordsByEmp.has(rec.employeeId)) {
+          recordsByEmp.set(rec.employeeId, []);
+        }
+        recordsByEmp.get(rec.employeeId)!.push(rec);
+      }
+
+      const monthlyRows = employees.map((emp) => {
+        const empRecords = recordsByEmp.get(emp.id) || [];
+        const presentCount = empRecords.filter((r) => r.status === 'PRESENT').length;
+        const lateCount = empRecords.filter((r) => r.status === 'LATE').length;
+        const excusedCount = empRecords.filter((r) => r.status === 'EXCUSED').length;
+        const totalDeductionPercent = empRecords.reduce((sum, r) => sum + (r.deductionPercent || 0), 0);
+        const lastRecord = empRecords[empRecords.length - 1];
+
+        // Overall status badge for the month
+        const status = empRecords.length === 0
+          ? 'NO_RECORD'
+          : lateCount > presentCount
+          ? 'LATE'
+          : 'PRESENT';
+
+        return {
+          employeeId: emp.id,
+          legalName: emp.legalName,
+          employeeNumber: emp.employeeNumber,
+          role: emp.role,
+          workLocation: emp.workLocation || 'HQ',
+          organizationName: emp.assignments[0]?.subsidiary?.legalName || 'BEMS Group',
+          status,
+          monthlyPunches: empRecords.length,
+          presentDays: presentCount,
+          lateDays: lateCount,
+          excusedDays: excusedCount,
+          totalDeductionPercent: Math.round(totalDeductionPercent * 10) / 10,
+          checkInTime: lastRecord?.checkInTime,
+          checkOutTime: lastRecord?.checkOutTime,
+          stationName: lastRecord?.station?.name,
+          isOfflineStaff: emp.isOfflineStaff,
+        };
+      });
+
+      const totalPunches = records.length;
+      const totalPresent = records.filter((r) => r.status === 'PRESENT').length;
+      const totalLate = records.filter((r) => r.status === 'LATE').length;
+      const totalExcused = records.filter((r) => r.status === 'EXCUSED').length;
+
+      const monthName = new Date(effectiveYear, effectiveMonth - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+      return NextResponse.json({
+        date: monthPrefix,
+        isMonthlyView: true,
+        selectedMonth: effectiveMonth,
+        selectedYear: effectiveYear,
+        monthName,
+        policy: {
+          resumptionTime: policy?.resumptionTime || '08:00',
+          closingTime: policy?.closingTime || '17:00',
+          gracePeriodMinutes: policy?.gracePeriodMinutes || 15,
+          latenessDeductionPercent: policy?.latenessDeductionPercent || 5.0,
+        },
+        counts: {
+          total: employees.length,
+          present: totalPresent,
+          late: totalLate,
+          excused: totalExcused,
+          offDay: 0,
+          absent: employees.filter((e) => (recordsByEmp.get(e.id)?.length || 0) === 0).length,
+          totalPunches,
+        },
+        employees: monthlyRows,
+      });
+    }
+
+    // Daily View
+    const attendanceMap = new Map(records.map(r => [r.employeeId, r]));
 
     // Determine day of week to check off-days
     const targetDateObj = new Date(`${targetDate}T00:00:00Z`);
@@ -284,7 +369,7 @@ export async function GET(request: Request) {
     };
 
     if (isKioskStream) {
-      const sanitizedRecent = todayRecords.slice(0, 8).map(r => {
+      const sanitizedRecent = records.slice(0, 8).map(r => {
         const emp = employees.find(e => e.id === r.employeeId);
         return {
           employeeId: r.employeeId,

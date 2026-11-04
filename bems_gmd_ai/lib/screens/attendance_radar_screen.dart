@@ -12,6 +12,9 @@ class AttendanceRadarScreen extends StatefulWidget {
 class _AttendanceRadarScreenState extends State<AttendanceRadarScreen> {
   bool _isLoading = true;
   String _targetDate = '';
+  DateTime _selectedDate = DateTime.now();
+  bool _isMonthlyView = false;
+  String _monthName = '';
   Map<String, dynamic> _counts = {};
   Map<String, dynamic> _policy = {};
   List<dynamic> _employees = [];
@@ -25,16 +28,59 @@ class _AttendanceRadarScreenState extends State<AttendanceRadarScreen> {
 
   Future<void> _loadAttendance() async {
     setState(() => _isLoading = true);
-    final res = await ApiService.fetchAttendanceTimesheet();
+    final res = _isMonthlyView
+        ? await ApiService.fetchAttendanceTimesheet(month: _selectedDate.month, year: _selectedDate.year)
+        : await ApiService.fetchAttendanceTimesheet(date: DateFormat('yyyy-MM-dd').format(_selectedDate));
     if (mounted) {
       setState(() {
-        _targetDate = res['date']?.toString() ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
+        _targetDate = res['date']?.toString() ?? DateFormat('yyyy-MM-dd').format(_selectedDate);
+        _monthName = res['monthName']?.toString() ?? DateFormat('MMMM yyyy').format(_selectedDate);
         _counts = (res['counts'] as Map<String, dynamic>?) ?? {};
         _policy = (res['policy'] as Map<String, dynamic>?) ?? {};
         _employees = (res['employees'] as List<dynamic>?) ?? [];
         _isLoading = false;
       });
     }
+  }
+
+  void _previousPeriod() {
+    setState(() {
+      if (_isMonthlyView) {
+        _selectedDate = DateTime(_selectedDate.year, _selectedDate.month - 1, 1);
+      } else {
+        _selectedDate = _selectedDate.subtract(const Duration(days: 1));
+      }
+    });
+    _loadAttendance();
+  }
+
+  void _nextPeriod() {
+    final now = DateTime.now();
+    if (_isMonthlyView) {
+      if (_selectedDate.year > now.year || (_selectedDate.year == now.year && _selectedDate.month >= now.month)) return;
+      setState(() {
+        _selectedDate = DateTime(_selectedDate.year, _selectedDate.month + 1, 1);
+      });
+    } else {
+      if (DateFormat('yyyy-MM-dd').format(_selectedDate) == DateFormat('yyyy-MM-dd').format(now)) return;
+      setState(() {
+        _selectedDate = _selectedDate.add(const Duration(days: 1));
+      });
+    }
+    _loadAttendance();
+  }
+
+  void _toggleViewMode(bool monthly) {
+    if (_isMonthlyView == monthly) return;
+    setState(() {
+      _isMonthlyView = monthly;
+      if (monthly) {
+        _selectedDate = DateTime(_selectedDate.year, _selectedDate.month, 1);
+      } else {
+        _selectedDate = DateTime.now();
+      }
+    });
+    _loadAttendance();
   }
 
   List<dynamic> get _filteredEmployees {
@@ -98,6 +144,7 @@ class _AttendanceRadarScreenState extends State<AttendanceRadarScreen> {
     final absent = _counts['absent'] ?? 0;
     final offDay = _counts['offDay'] ?? 0;
     final excused = _counts['excused'] ?? 0;
+    final totalPunches = _counts['totalPunches'] ?? 0;
 
     final resumption = _policy['resumptionTime'] ?? '08:00';
     final grace = _policy['gracePeriodMinutes'] ?? 15;
@@ -106,7 +153,10 @@ class _AttendanceRadarScreenState extends State<AttendanceRadarScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Live Attendance Radar', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF0F172A))),
+        title: Text(
+          _isMonthlyView ? 'Monthly Attendance Radar' : 'Live Attendance Radar',
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF0F172A)),
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -131,6 +181,92 @@ class _AttendanceRadarScreenState extends State<AttendanceRadarScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  // Period Navigation & View Switcher Bar
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.chevron_left_rounded, size: 24, color: Color(0xFF0F172A)),
+                              onPressed: _previousPeriod,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _isMonthlyView ? _monthName : DateFormat('EEE, d MMM yyyy').format(_selectedDate),
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                            ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.chevron_right_rounded, size: 24, color: Color(0xFF0F172A)),
+                              onPressed: _nextPeriod,
+                            ),
+                          ],
+                        ),
+                        // View mode toggle pills
+                        Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              GestureDetector(
+                                onTap: () => _toggleViewMode(false),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: !_isMonthlyView ? Colors.white : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(6),
+                                    boxShadow: !_isMonthlyView ? [const BoxShadow(color: Colors.black12, blurRadius: 2)] : null,
+                                  ),
+                                  child: Text(
+                                    'Daily',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: !_isMonthlyView ? FontWeight.w800 : FontWeight.w600,
+                                      color: !_isMonthlyView ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => _toggleViewMode(true),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: _isMonthlyView ? const Color(0xFFEA580C) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(6),
+                                    boxShadow: _isMonthlyView ? [const BoxShadow(color: Colors.black12, blurRadius: 2)] : null,
+                                  ),
+                                  child: Text(
+                                    'Monthly',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: _isMonthlyView ? FontWeight.w800 : FontWeight.w600,
+                                      color: _isMonthlyView ? Colors.white : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                   // KPI Live Radar Card
                   Container(
                     padding: const EdgeInsets.all(18),
@@ -152,27 +288,39 @@ class _AttendanceRadarScreenState extends State<AttendanceRadarScreen> {
                                 Container(
                                   width: 8,
                                   height: 8,
-                                  decoration: const BoxDecoration(color: Color(0xFF10B981), shape: BoxShape.circle),
+                                  decoration: BoxDecoration(
+                                    color: _isMonthlyView ? const Color(0xFF38BDF8) : const Color(0xFF10B981),
+                                    shape: BoxShape.circle,
+                                  ),
                                 ),
                                 const SizedBox(width: 6),
-                                const Text('CONGLOMERATE LIVE RADAR', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFFFB923C), letterSpacing: 0.8)),
+                                Text(
+                                  _isMonthlyView ? 'MONTHLY HISTORICAL RADAR' : 'CONGLOMERATE LIVE RADAR',
+                                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFFFB923C), letterSpacing: 0.8),
+                                ),
                               ],
                             ),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                               decoration: BoxDecoration(color: const Color(0xFF059669), borderRadius: BorderRadius.circular(6)),
-                              child: Text('DATE: $_targetDate', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Colors.white)),
+                              child: Text(
+                                _isMonthlyView ? _monthName.toUpperCase() : 'DATE: $_targetDate',
+                                style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Colors.white),
+                              ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Text(todayFormatted, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+                        Text(
+                          _isMonthlyView ? 'Historical Audit & Timekeeping · $_monthName' : todayFormatted,
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+                        ),
                         const SizedBox(height: 14),
 
                         // Counts Grid
                         Row(
                           children: [
-                            Expanded(child: _buildMetricTile('ENROLLED', '$total', Colors.white, const Color(0xFF334155))),
+                            Expanded(child: _buildMetricTile(_isMonthlyView ? 'PUNCHES' : 'ENROLLED', _isMonthlyView ? '$totalPunches' : '$total', Colors.white, const Color(0xFF334155))),
                             const SizedBox(width: 8),
                             Expanded(child: _buildMetricTile('PRESENT', '$present', const Color(0xFF4ADE80), const Color(0xFF14532D))),
                             const SizedBox(width: 8),
@@ -312,27 +460,44 @@ class _AttendanceRadarScreenState extends State<AttendanceRadarScreen> {
                                     style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                                   ),
                                   const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.login_rounded, size: 12, color: status == 'PRESENT' ? const Color(0xFF16A34A) : const Color(0xFF94A3B8)),
-                                      const SizedBox(width: 3),
-                                      Text('In: $checkIn', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
-                                      const SizedBox(width: 10),
-                                      Icon(Icons.logout_rounded, size: 12, color: checkOut != '—' ? const Color(0xFF059669) : const Color(0xFF94A3B8)),
-                                      const SizedBox(width: 3),
-                                      Text('Out: $checkOut', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
-                                      if (station != null && station.isNotEmpty) ...[
+                                  if (_isMonthlyView)
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.touch_app_rounded, size: 12, color: Color(0xFFEA580C)),
+                                        const SizedBox(width: 3),
+                                        Text('Punches: ${emp['monthlyPunches'] ?? 0}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF334155))),
                                         const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            '· $station',
-                                            style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
+                                        Text('· Present: ${emp['presentDays'] ?? 0}d', style: const TextStyle(fontSize: 10.5, color: Color(0xFF059669))),
+                                        const SizedBox(width: 6),
+                                        Text('· Late: ${emp['lateDays'] ?? 0}d', style: const TextStyle(fontSize: 10.5, color: Color(0xFFEA580C))),
+                                        if ((emp['totalDeductionPercent'] ?? 0) > 0) ...[
+                                          const SizedBox(width: 6),
+                                          Text('(-${emp['totalDeductionPercent']}%)', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFFDC2626))),
+                                        ],
                                       ],
-                                    ],
-                                  ),
+                                    )
+                                  else
+                                    Row(
+                                      children: [
+                                        Icon(Icons.login_rounded, size: 12, color: status == 'PRESENT' ? const Color(0xFF16A34A) : const Color(0xFF94A3B8)),
+                                        const SizedBox(width: 3),
+                                        Text('In: $checkIn', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
+                                        const SizedBox(width: 10),
+                                        Icon(Icons.logout_rounded, size: 12, color: checkOut != '—' ? const Color(0xFF059669) : const Color(0xFF94A3B8)),
+                                        const SizedBox(width: 3),
+                                        Text('Out: $checkOut', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
+                                        if (station != null && station.isNotEmpty) ...[
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              '· $station',
+                                              style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
                                   if (isOverride) ...[
                                     const SizedBox(height: 3),
                                     Text('Manual HR/Admin Override: ${emp['overrideReason'] ?? 'Approved'}', style: const TextStyle(fontSize: 9.5, fontStyle: FontStyle.italic, color: Color(0xFFD97706))),

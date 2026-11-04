@@ -7,6 +7,8 @@ import 'voice_orb_screen.dart';
 import 'executive_chat_screen.dart';
 import 'executive_system_dashboard.dart';
 import 'gmd_profile_screen.dart';
+import 'gmd_staff_chat_screen.dart';
+import '../services/in_app_chat_service.dart';
 import '../widgets/biometric_setup_dialog.dart';
 
 class ExecutiveHomeScreen extends StatefulWidget {
@@ -42,6 +44,13 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
     _pageController = PageController(initialPage: _currentPage);
     _loadUser();
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        InAppChatNotificationService().setContext(context);
+        InAppChatNotificationService().start();
+      }
+    });
+
     if (widget.showBiometricPrompt) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         final configured = await ChatStorageService.isBiometricConfigured();
@@ -54,6 +63,7 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
 
   @override
   void dispose() {
+    InAppChatNotificationService().stop();
     _pageController.dispose();
     super.dispose();
   }
@@ -197,6 +207,27 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                 ),
                 Row(
                   children: [
+                    // Staff Direct Chat Button
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFFFF7ED),
+                        border: Border.all(color: const Color(0xFFFDBA74)),
+                      ),
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFFEA580C), size: 18),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const GmdStaffChatScreen()),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     // Search button
                     Container(
                       width: 36,
