@@ -8,10 +8,12 @@ import '../services/staff_api_service.dart';
 
 class StaffAdminChatScreen extends StatefulWidget {
   final StaffUser currentUser;
+  final String initialChannel;
 
   const StaffAdminChatScreen({
     super.key,
     required this.currentUser,
+    this.initialChannel = 'GMD',
   });
 
   @override
@@ -22,6 +24,7 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  late String _activeChannel;
   List<Map<String, dynamic>> _messages = [];
   bool _isLoading = true;
   bool _isSending = false;
@@ -38,6 +41,7 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
   @override
   void initState() {
     super.initState();
+    _activeChannel = widget.initialChannel;
     _loadMessages();
     _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (mounted) _loadMessages(isBackground: true);
@@ -56,6 +60,7 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
     try {
       final msgs = await StaffApiService.getAdminChat(
         employeeId: widget.currentUser.id,
+        channel: _activeChannel,
       );
 
       if (mounted) {
@@ -206,6 +211,7 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
       await StaffApiService.sendAdminMessage(
         employeeId: widget.currentUser.id,
         text: text.isNotEmpty ? text : (attachmentName != null ? 'Attached: $attachmentName' : 'File attached'),
+        channel: _activeChannel,
         attachmentUrl: attachmentUrl,
         attachmentName: attachmentName,
       );
@@ -228,10 +234,14 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isGmd = _activeChannel == 'GMD';
+    final primaryColor = isGmd ? const Color(0xFFB91C1C) : const Color(0xFF1D4ED8);
+    final accentBg = isGmd ? const Color(0xFFFEF2F2) : const Color(0xFFEFF6FF);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFEA580C),
+        backgroundColor: primaryColor,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
@@ -247,16 +257,20 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white.withOpacity(0.3)),
               ),
-              child: const Icon(Icons.support_agent_rounded, color: Colors.white, size: 20),
+              child: Icon(
+                isGmd ? Icons.admin_panel_settings_rounded : Icons.people_alt_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Finance & Admin Helpdesk',
-                    style: TextStyle(
+                  Text(
+                    isGmd ? 'Executive Line: GMD' : 'Human Resources Desk',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
                       fontSize: 14.5,
@@ -274,9 +288,9 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        'Direct line to Executive Admin & GMD',
+                        isGmd ? 'Confidential GMD Direct Channel' : 'HR Helpdesk & Operations Desk',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withOpacity(0.85),
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
                         ),
@@ -297,18 +311,139 @@ class _StaffAdminChatScreenState extends State<StaffAdminChatScreen> {
       ),
       body: Column(
         children: [
+          // Channel Pipeline Switcher Tab Bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            color: const Color(0xFFF1F5F9),
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () {
+                      if (_activeChannel != 'GMD') {
+                        setState(() {
+                          _activeChannel = 'GMD';
+                          _isLoading = true;
+                        });
+                        _loadMessages();
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isGmd ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        border: isGmd ? Border.all(color: const Color(0xFFFCA5A5)) : null,
+                        boxShadow: isGmd
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                )
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.security_rounded,
+                            size: 14,
+                            color: isGmd ? const Color(0xFFB91C1C) : const Color(0xFF64748B),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'GMD Direct',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: isGmd ? const Color(0xFFB91C1C) : const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () {
+                      if (_activeChannel != 'HR') {
+                        setState(() {
+                          _activeChannel = 'HR';
+                          _isLoading = true;
+                        });
+                        _loadMessages();
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: !isGmd ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        border: !isGmd ? Border.all(color: const Color(0xFFBFDBFE)) : null,
+                        boxShadow: !isGmd
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                )
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.people_alt_rounded,
+                            size: 14,
+                            color: !isGmd ? const Color(0xFF1D4ED8) : const Color(0xFF64748B),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'HR Helpdesk',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: !isGmd ? const Color(0xFF1D4ED8) : const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // Banner Notice
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: const Color(0xFFFFF7ED),
-            child: const Row(
+            color: accentBg,
+            child: Row(
               children: [
-                Icon(Icons.lock_rounded, size: 13, color: Color(0xFFEA580C)),
-                SizedBox(width: 8),
+                Icon(
+                  isGmd ? Icons.lock_rounded : Icons.info_outline_rounded,
+                  size: 13,
+                  color: primaryColor,
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Confidential channel. Directly monitored by Finance Officers and Group Managing Directorate.',
-                    style: TextStyle(fontSize: 10.5, color: Color(0xFFEA580C), fontWeight: FontWeight.w700),
+                    isGmd
+                        ? 'Confidential Executive Pipeline: Messages route strictly to the GMD. HR cannot view them.'
+                        : 'People Operations Helpdesk: Inquiries route directly to Human Resources.',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: primaryColor,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],

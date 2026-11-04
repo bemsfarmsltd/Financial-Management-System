@@ -637,7 +637,7 @@ class ApiService {
   static Future<List<dynamic>> fetchStaffChatThreads() async {
     try {
       final res = await _executeWithFailover(
-        (host) => http.get(Uri.parse('$host/api/staff/chat/admin'), headers: authHeaders),
+        (host) => http.get(Uri.parse('$host/api/staff/chat/admin?channel=GMD'), headers: authHeaders),
         timeout: const Duration(seconds: 10),
       );
       if (res.statusCode == 200) {
@@ -651,7 +651,7 @@ class ApiService {
   static Future<Map<String, dynamic>> fetchStaffChatMessages(String employeeId) async {
     final res = await _executeWithFailover(
       (host) => http.get(
-        Uri.parse('$host/api/staff/chat/admin?employeeId=${Uri.encodeComponent(employeeId)}'),
+        Uri.parse('$host/api/staff/chat/admin?employeeId=${Uri.encodeComponent(employeeId)}&channel=GMD'),
         headers: authHeaders,
       ),
       timeout: const Duration(seconds: 10),
@@ -672,6 +672,7 @@ class ApiService {
         headers: authHeaders,
         body: jsonEncode({
           'employeeId': employeeId,
+          'channel': 'GMD',
           'message': message,
         }),
       ),

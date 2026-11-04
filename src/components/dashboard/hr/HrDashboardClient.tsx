@@ -184,7 +184,7 @@ export function HrDashboardClient({ user }: { user: HrUser }) {
   // Fetch chat threads when switching to CHAT tab
   const fetchChatThreads = async () => {
     try {
-      const res = await fetch('/api/staff/chat/admin');
+      const res = await fetch('/api/staff/chat/admin?channel=HR');
       if (res.ok) {
         const data = await res.json();
         setChatThreads(data.threads || []);
@@ -201,7 +201,7 @@ export function HrDashboardClient({ user }: { user: HrUser }) {
     setActiveChatStaffId(staffId);
     setChatLoading(true);
     try {
-      const res = await fetch(`/api/staff/chat/admin?employeeId=${staffId}`);
+      const res = await fetch(`/api/staff/chat/admin?employeeId=${staffId}&channel=HR`);
       if (res.ok) {
         const data = await res.json();
         setActiveChatMessages(data.messages || []);
@@ -223,6 +223,7 @@ export function HrDashboardClient({ user }: { user: HrUser }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           employeeId: activeChatStaffId,
+          channel: 'HR',
           message: msg,
         }),
       });

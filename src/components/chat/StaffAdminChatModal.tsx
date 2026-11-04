@@ -22,14 +22,17 @@ export function StaffAdminChatModal({
   employeeName,
   employeeNumber,
   subsidiary,
+  initialChannel = 'GMD',
   onClose,
 }: {
   employeeId: string;
   employeeName: string;
   employeeNumber?: string;
   subsidiary?: string;
+  initialChannel?: 'GMD' | 'HR';
   onClose: () => void;
 }) {
+  const [activeChannel, setActiveChannel] = useState<'GMD' | 'HR'>(initialChannel);
   const [messages, setMessages] = useState<StaffAdminMsg[]>([]);
   const [messageText, setMessageText] = useState('');
   const [loading, setLoading] = useState(true);
@@ -43,7 +46,7 @@ export function StaffAdminChatModal({
 
   const loadConversation = async (silent = false) => {
     try {
-      const res = await fetch(`/api/staff/chat/admin?employeeId=${encodeURIComponent(employeeId)}`, {
+      const res = await fetch(`/api/staff/chat/admin?employeeId=${encodeURIComponent(employeeId)}&channel=${activeChannel}`, {
         credentials: 'include',
       });
       const data = await res.json();
@@ -60,6 +63,7 @@ export function StaffAdminChatModal({
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
     void loadConversation();
     const interval = window.setInterval(() => {
       if (active) void loadConversation(true);
@@ -68,7 +72,7 @@ export function StaffAdminChatModal({
       active = false;
       window.clearInterval(interval);
     };
-  }, [employeeId]);
+  }, [employeeId, activeChannel]);
 
   const sendMessage = async (e: FormEvent) => {
     e.preventDefault();
@@ -85,6 +89,7 @@ export function StaffAdminChatModal({
         credentials: 'include',
         body: JSON.stringify({
           employeeId,
+          channel: activeChannel,
           message: text,
         }),
       });
@@ -106,11 +111,11 @@ export function StaffAdminChatModal({
     <div className="request-chat-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <section className="request-chat-modal" role="dialog" aria-modal="true" aria-label={`Helpdesk chat with ${employeeName}`}>
         <header className="request-chat-header" style={{ borderBottom: '1px solid var(--line)' }}>
-          <span className="request-chat-icon" style={{ background: '#ECFDF5', color: '#047857' }}>
+          <span className="request-chat-icon" style={{ background: activeChannel === 'GMD' ? '#FEF2F2' : '#EFF6FF', color: activeChannel === 'GMD' ? '#DC2626' : '#2563EB' }}>
             <Headphones size={17} />
           </span>
           <div>
-            <strong>Staff Helpdesk & Direct Inquiry</strong>
+            <strong>{activeChannel === 'GMD' ? 'Executive Desk: Direct Line to GMD' : 'Human Resources Operations Desk'}</strong>
             <small>
               {employeeName} {employeeNumber ? `(${employeeNumber})` : ''} {subsidiary ? `· ${subsidiary}` : ''}
             </small>
@@ -120,9 +125,65 @@ export function StaffAdminChatModal({
           </button>
         </header>
 
-        <div style={{ padding: '8px 16px', background: '#F8FAFC', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#64748B' }}>
-          <ShieldCheck size={13} color="#047857" />
-          <span>Direct conversation between Employee and Executive Finance/Admin. Messages are recorded for audit compliance.</span>
+        {/* Channel Pipeline Switcher */}
+        <div style={{ display: 'flex', gap: '6px', padding: '6px 12px', background: '#F1F5F9', borderBottom: '1px solid var(--line)' }}>
+          <button
+            type="button"
+            onClick={() => setActiveChannel('GMD')}
+            style={{
+              flex: 1,
+              padding: '7px 10px',
+              borderRadius: '8px',
+              border: activeChannel === 'GMD' ? '1px solid #FCA5A5' : '1px solid transparent',
+              background: activeChannel === 'GMD' ? '#FFFFFF' : 'transparent',
+              color: activeChannel === 'GMD' ? '#991B1B' : '#64748B',
+              fontWeight: 800,
+              fontSize: '11.5px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              boxShadow: activeChannel === 'GMD' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span>🏛️</span>
+            <span>Direct Line to GMD</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveChannel('HR')}
+            style={{
+              flex: 1,
+              padding: '7px 10px',
+              borderRadius: '8px',
+              border: activeChannel === 'HR' ? '1px solid #BFDBFE' : '1px solid transparent',
+              background: activeChannel === 'HR' ? '#FFFFFF' : 'transparent',
+              color: activeChannel === 'HR' ? '#1D4ED8' : '#64748B',
+              fontWeight: 800,
+              fontSize: '11.5px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              boxShadow: activeChannel === 'HR' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span>👥</span>
+            <span>HR Helpdesk Desk</span>
+          </button>
+        </div>
+
+        <div style={{ padding: '7px 16px', background: '#F8FAFC', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#64748B' }}>
+          <ShieldCheck size={13} color={activeChannel === 'GMD' ? '#DC2626' : '#2563EB'} />
+          <span>
+            {activeChannel === 'GMD'
+              ? 'Confidential Executive Pipeline: Messages sent here route strictly to the GMD. HR cannot view them.'
+              : 'People & Operations Pipeline: Messages sent here route strictly to the HR Operations Desk.'}
+          </span>
         </div>
 
         <div className="request-chat-messages" style={{ minHeight: '340px', maxHeight: '450px', overflowY: 'auto', padding: '16px' }}>

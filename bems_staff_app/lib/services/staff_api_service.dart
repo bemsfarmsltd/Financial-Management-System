@@ -817,12 +817,13 @@ class StaffApiService {
   /// Fetch direct messages between this staff member and company administrators
   static Future<List<Map<String, dynamic>>> getAdminChat({
     required String employeeId,
+    String channel = 'GMD',
     String? token,
   }) async {
     try {
       final res = await _executeWithFailover(
         (host) => http.get(
-          Uri.parse('$host/api/staff/chat/admin'),
+          Uri.parse('$host/api/staff/chat/admin?channel=$channel'),
           headers: _headers(token: token, employeeId: employeeId),
         ),
       );
@@ -839,6 +840,7 @@ class StaffApiService {
   static Future<Map<String, dynamic>> sendAdminMessage({
     required String employeeId,
     required String text,
+    String channel = 'GMD',
     String? attachmentUrl,
     String? attachmentName,
     String? token,
@@ -849,6 +851,7 @@ class StaffApiService {
         headers: _headers(token: token, employeeId: employeeId),
         body: jsonEncode({
           'message': text.trim(),
+          'channel': channel,
           if (attachmentUrl != null) 'attachmentUrl': attachmentUrl,
           if (attachmentName != null) 'attachmentName': attachmentName,
         }),

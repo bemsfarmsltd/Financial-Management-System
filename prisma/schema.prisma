@@ -770,7 +770,8 @@ model StaffAdminMessage {
   id             String    @id @default(uuid())
   employeeId     String
   employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  senderRole     String    // "STAFF" | "ADMIN" | "GMD"
+  channel        String    @default("GMD") // "GMD" (Confidential Executive Line) | "HR" (HR Operations Helpdesk)
+  senderRole     String    // "STAFF" | "GMD" | "HR" | "SYSTEM_ADMIN"
   senderId       String    // ID of the employee sending
   senderName     String
   message        String
@@ -780,7 +781,8 @@ model StaffAdminMessage {
   isReadByAdmin  Boolean   @default(false)
   createdAt      DateTime  @default(now())
 
-  @@index([employeeId, createdAt])
+  @@index([employeeId, channel, createdAt])
+  @@index([channel, createdAt])
 }
 
 model EmailVerificationToken {
