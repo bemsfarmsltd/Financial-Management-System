@@ -94,3 +94,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ unreadCount: 0, latestMessage: null }, { status: 500 });
   }
 }
+

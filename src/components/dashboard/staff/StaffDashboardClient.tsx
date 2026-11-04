@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
+import jsQR from 'jsqr';
 import { StaffNewFundRequestModal } from '@/components/requests/StaffNewFundRequestModal';
 import { StaffAdminChatModal } from '@/components/chat/StaffAdminChatModal';
 import { InAppChatPushToast } from '@/components/chat/InAppChatPushToast';
@@ -163,7 +164,13 @@ export function StaffDashboardClient({
   const [scannerManualTokenInput, setScannerManualTokenInput] = useState('');
   const [scannerPunchSuccessRecord, setScannerPunchSuccessRecord] = useState<any | null>(null);
   const [scannerGpsCoords, setScannerGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [scannerGpsStatus, setScannerGpsStatus] = useState<'ACQUIRING' | 'READY' | 'ERROR'>('ACQUIRING');
+  const [scannerGpsAccuracy, setScannerGpsAccuracy] = useState<number | null>(null);
+  const [scannerGpsError, setScannerGpsError] = useState<string | null>(null);
+  const [scannerDetectedCode, setScannerDetectedCode] = useState<string | null>(null);
+  const [scannerIsScanning, setScannerIsScanning] = useState<boolean>(true);
   const scannerVideoRef = useRef<HTMLVideoElement>(null);
+  const scannerFileInputRef = useRef<HTMLInputElement>(null);
 
   // Requisitions Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -711,13 +718,20 @@ export function StaffDashboardClient({
     }).format(n);
   };
 
-  // Camera Stream Lifecycle for Scanner Modal
+  // Camera Stream Lifecycle & High-Precision GPS for Attendance Scanner
   useEffect(() => {
-    if (!isAttendanceScanModalOpen) return;
+    if (!isAttendanceScanModalOpen) {
+      setScannerDetectedCode(null);
+      setScannerIsScanning(true);
+      return;
+    }
     let currentStream: MediaStream | null = null;
+    let geoWatchId: number | null = null;
 
     async function initCamera() {
       setScannerCameraError(null);
+      setScannerDetectedCode(null);
+      setScannerIsScanning(true);
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           throw new Error('Camera access not supported on this device/browser');
@@ -742,26 +756,140 @@ export function StaffDashboardClient({
 
     initCamera();
 
-    // Acquire GPS position for geofence
+    // Acquire high-precision GPS position for geofence verification
     if (typeof window !== 'undefined' && 'geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
+      setScannerGpsStatus('ACQUIRING');
+      geoWatchId = navigator.geolocation.watchPosition(
         (pos) => {
           setScannerGpsCoords({
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
           });
+          setScannerGpsAccuracy(Math.round(pos.coords.accuracy));
+          setScannerGpsStatus('READY');
+          setScannerGpsError(null);
         },
-        () => {},
-        { enableHighAccuracy: true, timeout: 8000 }
+        (err) => {
+          setScannerGpsStatus('ERROR');
+          setScannerGpsError(err.message || 'Location permission required to verify office perimeter');
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 }
       );
+    } else {
+      setScannerGpsStatus('ERROR');
+      setScannerGpsError('Geolocation is not supported by your browser');
     }
 
     return () => {
       if (currentStream) {
         currentStream.getTracks().forEach((track) => track.stop());
       }
+      if (geoWatchId !== null && typeof window !== 'undefined' && 'geolocation' in navigator) {
+        navigator.geolocation.clearWatch(geoWatchId);
+      }
     };
   }, [isAttendanceScanModalOpen, scannerFacingMode]);
+
+  // Continuous Video Frame QR Decoding Engine (Native BarcodeDetector + jsQR fallback)
+  useEffect(() => {
+    if (!isAttendanceScanModalOpen || !scannerIsScanning || punching || scannerPunchSuccessRecord) {
+      return;
+    }
+
+    let animationFrameId: number;
+    let lastScanTime = 0;
+    let isCancelled = false;
+
+    // Detect BarcodeDetector API availability
+    let barcodeDetector: any = null;
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+      try {
+        barcodeDetector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+      } catch {
+        barcodeDetector = null;
+      }
+    }
+
+    const offscreenCanvas = document.createElement('canvas');
+    const offscreenCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+
+    async function scanLoop(timestamp: number) {
+      if (isCancelled) return;
+
+      const video = scannerVideoRef.current;
+      // Scan every 180ms to keep CPU minimal while providing instant response
+      if (video && video.readyState >= 2 && video.videoWidth > 0 && timestamp - lastScanTime > 180) {
+        lastScanTime = timestamp;
+        try {
+          let detectedToken: string | null = null;
+
+          // Priority 1: Hardware-accelerated BarcodeDetector
+          if (barcodeDetector) {
+            try {
+              const barcodes = await barcodeDetector.detect(video);
+              if (barcodes && barcodes.length > 0) {
+                for (const b of barcodes) {
+                  const val = b.rawValue?.trim();
+                  if (val && (val.startsWith('BEMSQR:') || val.length >= 8)) {
+                    detectedToken = val;
+                    break;
+                  }
+                }
+              }
+            } catch {
+              // Ignore and fall through to jsQR
+            }
+          }
+
+          // Priority 2: jsQR Canvas Frame Analysis
+          if (!detectedToken && offscreenCtx) {
+            const scale = Math.min(1, 480 / video.videoWidth);
+            const w = Math.floor(video.videoWidth * scale);
+            const h = Math.floor(video.videoHeight * scale);
+
+            if (offscreenCanvas.width !== w || offscreenCanvas.height !== h) {
+              offscreenCanvas.width = w;
+              offscreenCanvas.height = h;
+            }
+
+            offscreenCtx.drawImage(video, 0, 0, w, h);
+            const imgData = offscreenCtx.getImageData(0, 0, w, h);
+            const code = jsQR(imgData.data, w, h, { inversionAttempts: 'dontInvert' });
+            if (code && code.data) {
+              const val = code.data.trim();
+              if (val.startsWith('BEMSQR:') || val.length >= 8) {
+                detectedToken = val;
+              }
+            }
+          }
+
+          if (detectedToken && !isCancelled) {
+            setScannerDetectedCode(detectedToken);
+            setScannerIsScanning(false);
+            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+              try { navigator.vibrate([40, 50, 40]); } catch {}
+            }
+            // Auto punch attendance immediately
+            handlePunchAttendance(todayAttendance ? 'CHECK_OUT' : 'CHECK_IN', detectedToken);
+            return;
+          }
+        } catch {
+          // ignore scan frame exception and continue next tick
+        }
+      }
+
+      if (!isCancelled) {
+        animationFrameId = requestAnimationFrame(scanLoop);
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(scanLoop);
+
+    return () => {
+      isCancelled = true;
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    };
+  }, [isAttendanceScanModalOpen, scannerIsScanning, punching, scannerPunchSuccessRecord, todayAttendance]);
 
   const toggleScannerTorch = async () => {
     if (!scannerVideoRef.current || !scannerVideoRef.current.srcObject) return;
@@ -782,57 +910,92 @@ export function StaffDashboardClient({
     }
   };
 
+  // Upload Photo / Screenshot QR Code Fallback
+  const handleImageFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setPunchStatusMessage(null);
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const canvas = document.createElement('canvas');
+        const maxDim = 800;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imgData.data, canvas.width, canvas.height);
+          if (code && code.data && code.data.trim()) {
+            const token = code.data.trim();
+            setScannerDetectedCode(token);
+            setScannerIsScanning(false);
+            handlePunchAttendance(todayAttendance ? 'CHECK_OUT' : 'CHECK_IN', token);
+          } else {
+            setPunchStatusMessage('✕ No valid BEMS QR code found in the uploaded image. Please ensure the QR code on the kiosk is clearly visible.');
+          }
+        }
+      };
+      img.onerror = () => {
+        setPunchStatusMessage('✕ Failed to read image file.');
+      };
+      img.src = objectUrl;
+    } catch (err: any) {
+      setPunchStatusMessage(`✕ Error loading image: ${err.message}`);
+    }
+  };
+
   // Handlers
   const handlePunchAttendance = async (type: 'CHECK_IN' | 'CHECK_OUT', customToken?: string) => {
     setPunching(true);
     setPunchStatusMessage(null);
     try {
-      // 1. Get real active cryptographic dynamic token from attendance station
-      let tokenToUse = customToken?.trim();
-      let stationLat = 6.4281;
-      let stationLng = 3.4219;
+      // 1. Determine token: customToken -> scannerDetectedCode -> fetch station token fallback
+      let tokenToUse = customToken?.trim() || scannerDetectedCode?.trim();
 
-      const qrRes = await fetch('/api/attendance/station/qr');
-      if (qrRes.ok) {
-        const qrData = await qrRes.json();
-        if (!tokenToUse && qrData.qrToken) {
-          tokenToUse = qrData.qrToken;
-        }
-        if (qrData.latitude && qrData.longitude) {
-          stationLat = qrData.latitude;
-          stationLng = qrData.longitude;
+      if (!tokenToUse) {
+        const qrRes = await fetch('/api/attendance/station/qr');
+        if (qrRes.ok) {
+          const qrData = await qrRes.json();
+          if (qrData.qrToken) {
+            tokenToUse = qrData.qrToken;
+          }
         }
       }
 
       if (!tokenToUse) {
-        throw new Error('Unable to acquire station attendance token. Please contact reception.');
+        throw new Error('No QR code detected. Point camera at the reception kiosk screen or enter code manually.');
       }
 
       // 2. Acquire real live device GPS coordinates
-      let lat: number | null = null;
-      let lng: number | null = null;
-
-      if (typeof window !== 'undefined' && 'geolocation' in navigator) {
-        try {
-          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: true,
-              timeout: 10000,
-              maximumAge: 10000,
-            });
-          });
-          lat = pos.coords.latitude;
-          lng = pos.coords.longitude;
-        } catch (geoErr: any) {
-          console.warn('Geolocation acquisition error:', geoErr);
-          throw new Error('Real GPS location is required to verify physical attendance. Please enable location permissions in your browser and ensure GPS is active.');
-        }
-      } else {
-        throw new Error('Geolocation is not supported by your browser. Please use the BEMS Staff Mobile App to scan.');
-      }
+      let lat: number | null = scannerGpsCoords?.lat ?? null;
+      let lng: number | null = scannerGpsCoords?.lng ?? null;
 
       if (lat === null || lng === null) {
-        throw new Error('Real GPS location could not be acquired. Please ensure location permissions are granted.');
+        if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+          try {
+            const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 8000,
+                maximumAge: 5000,
+              });
+            });
+            lat = pos.coords.latitude;
+            lng = pos.coords.longitude;
+            setScannerGpsCoords({ lat, lng });
+            setScannerGpsAccuracy(Math.round(pos.coords.accuracy));
+            setScannerGpsStatus('READY');
+          } catch {
+            throw new Error('Real GPS location required to verify office perimeter. Please allow location access in your browser.');
+          }
+        } else {
+          throw new Error('Geolocation is not supported by your browser.');
+        }
       }
 
       // 3. Post punch request to API
@@ -849,7 +1012,9 @@ export function StaffDashboardClient({
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to punch attendance.');
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to punch attendance.');
+      }
 
       const record = data.record || {};
       const statusText = record.status || (type === 'CHECK_IN' ? 'PRESENT' : 'COMPLETED');
@@ -871,7 +1036,10 @@ export function StaffDashboardClient({
       setScannerManualTokenOpen(false);
       setScannerManualTokenInput('');
     } catch (err: any) {
-      setPunchStatusMessage(`✕ Error: ${err.message}`);
+      setPunchStatusMessage(`✕ ${err.message || 'Failed to verify attendance'}`);
+      // Resume scanning on failure so staff can re-align immediately
+      setScannerIsScanning(true);
+      setScannerDetectedCode(null);
     } finally {
       setPunching(false);
     }
@@ -2801,11 +2969,21 @@ export function StaffDashboardClient({
                         </div>
                       )}
 
-                      {/* Animated Laser Beam */}
-                      <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#EA580C] to-transparent shadow-[0_0_14px_3px_rgba(234,88,12,0.8)] animate-pulse pointer-events-none" style={{ top: '45%' }} />
+                      {/* Animated Laser Beam (Active while scanning) */}
+                      {scannerIsScanning && !scannerDetectedCode && (
+                        <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#EA580C] to-transparent shadow-[0_0_14px_3px_rgba(234,88,12,0.8)] animate-pulse pointer-events-none" style={{ top: '45%' }} />
+                      )}
 
-                      {/* Corner Reticles */}
-                      <div className="absolute w-36 h-36 rounded-2xl border-2 border-white/40 pointer-events-none shadow-[0_0_0_9999px_rgba(0,0,0,0.22)]" />
+                      {/* Corner Reticles (Transitions to glowing emerald on QR detection) */}
+                      <div className={`absolute w-36 h-36 rounded-2xl pointer-events-none transition-all duration-300 flex items-center justify-center ${
+                        scannerDetectedCode
+                          ? 'border-2 border-emerald-400 bg-emerald-500/20 shadow-[0_0_24px_rgba(16,185,129,0.7)]'
+                          : 'border-2 border-white/40 shadow-[0_0_0_9999px_rgba(0,0,0,0.22)]'
+                      }`}>
+                        {scannerDetectedCode && (
+                          <CheckCircle2 className="w-10 h-10 text-emerald-400 animate-bounce" />
+                        )}
+                      </div>
 
                       {/* Upper Aircraft Glass Glare */}
                       <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-t-[66px]" />
@@ -2814,12 +2992,23 @@ export function StaffDashboardClient({
                       {punching && (
                         <div className="absolute inset-0 bg-black/65 backdrop-blur-[2px] flex flex-col items-center justify-center text-white z-20">
                           <RefreshCw className="w-7 h-7 text-[#EA580C] animate-spin mb-2" />
-                          <span className="text-xs font-black">Verifying Dynamic QR...</span>
-                          <span className="text-[10px] text-white/70 mt-0.5">Matching Starlink Geofence</span>
+                          <span className="text-xs font-black">
+                            {scannerDetectedCode ? 'QR Recognized! Clocking In...' : 'Verifying Dynamic QR...'}
+                          </span>
+                          <span className="text-[10px] text-white/70 mt-0.5">Matching Office Geofence & Starlink</span>
                         </div>
                       )}
                     </div>
                   </div>
+
+                  {/* Hidden file input for Photo / Image QR Scan */}
+                  <input
+                    ref={scannerFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageFileScan}
+                  />
 
                   {/* Camera Controls Overlapping the Rim */}
                   <div className="absolute -bottom-4 flex items-center gap-3 z-10">
@@ -2839,6 +3028,13 @@ export function StaffDashboardClient({
                     >
                       <RefreshCw className="w-4 h-4" />
                     </button>
+                    <button
+                      onClick={() => scannerFileInputRef.current?.click()}
+                      className="w-10 h-10 rounded-full border-2 border-white shadow-md bg-white text-slate-700 flex items-center justify-center hover:bg-slate-50 transition-all"
+                      title="Scan QR from Photo / Upload"
+                    >
+                      <Upload className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2846,33 +3042,64 @@ export function StaffDashboardClient({
               {/* Title & Instructions */}
               <div className="text-center pt-5 space-y-1">
                 <h4 className="text-base font-black text-[#0F172A] tracking-tight">
-                  Align Dynamic QR Code
+                  {scannerDetectedCode ? 'QR Code Recognized!' : 'Align Reception Kiosk QR'}
                 </h4>
                 <p className="text-[11px] text-[#64748B] max-w-[260px] mx-auto leading-relaxed">
-                  Point camera at the reception kiosk screen to automatically register attendance.
+                  {scannerDetectedCode
+                    ? 'Submitting high-precision geofence verification...'
+                    : 'Point camera at the reception kiosk screen to automatically register attendance.'}
                 </p>
               </div>
 
-              {/* Security Telemetry Status Pills */}
+              {/* Real-Time Security Telemetry Status Pills */}
               <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                {/* Dynamic GPS Pill */}
+                {scannerGpsStatus === 'READY' ? (
+                  <div className="px-2.5 py-1 rounded-full bg-[#ECFDF5] border border-[#A7F3D0] text-[#059669] text-[10px] font-extrabold flex items-center gap-1.5 shadow-sm">
+                    <MapPin className="w-3 h-3 text-[#059669]" />
+                    <span>GPS Locked {scannerGpsAccuracy ? `(±${scannerGpsAccuracy}m)` : ''}</span>
+                  </div>
+                ) : scannerGpsStatus === 'ACQUIRING' ? (
+                  <div className="px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-extrabold flex items-center gap-1.5 shadow-sm">
+                    <RefreshCw className="w-3 h-3 animate-spin text-amber-600" />
+                    <span>Acquiring GPS...</span>
+                  </div>
+                ) : (
+                  <div className="px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-extrabold flex items-center gap-1.5 shadow-sm">
+                    <AlertTriangle className="w-3 h-3 text-rose-600" />
+                    <span>Location Access Denied</span>
+                  </div>
+                )}
+
+                {/* Starlink Network Pill */}
                 <div className="px-2.5 py-1 rounded-full bg-[#ECFDF5] border border-[#A7F3D0] text-[#059669] text-[10px] font-extrabold flex items-center gap-1.5 shadow-sm">
                   <Wifi className="w-3 h-3" />
-                  <span>Starlink Wi-Fi Verified</span>
-                </div>
-                <div className="px-2.5 py-1 rounded-full bg-[#ECFDF5] border border-[#A7F3D0] text-[#059669] text-[10px] font-extrabold flex items-center gap-1.5 shadow-sm">
-                  <MapPin className="w-3 h-3" />
-                  <span>HQ Geofence Active (Within 500m)</span>
+                  <span>Starlink Office Network</span>
                 </div>
               </div>
 
-              {/* Status or Error Banner */}
+              {/* Status or Error Banner with Instant Retry */}
               {punchStatusMessage && (
-                <div className={`p-2.5 rounded-xl text-[11px] font-bold text-center border ${
+                <div className={`p-3 rounded-2xl text-[11px] font-bold text-center border space-y-1.5 shadow-sm ${
                   punchStatusMessage.startsWith('✕')
                     ? 'bg-rose-50 border-rose-200 text-rose-700'
                     : 'bg-emerald-50 border-emerald-200 text-emerald-800'
                 }`}>
-                  {punchStatusMessage}
+                  <div>{punchStatusMessage}</div>
+                  {punchStatusMessage.startsWith('✕') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPunchStatusMessage(null);
+                        setScannerDetectedCode(null);
+                        setScannerIsScanning(true);
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-rose-200 rounded-lg text-rose-700 font-extrabold hover:bg-rose-100 transition-all text-[10px] shadow-sm"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Scan Again</span>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -2895,6 +3122,8 @@ export function StaffDashboardClient({
                   <span>
                     {punching
                       ? 'Cryptographic Verification...'
+                      : scannerDetectedCode
+                      ? 'Re-submit Scanned QR'
                       : todayAttendance
                       ? 'Verify Dynamic QR & Clock Out'
                       : 'Verify Dynamic QR & Clock In'}

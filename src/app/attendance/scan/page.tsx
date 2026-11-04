@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import jsQR from 'jsqr';
 import {
   Camera,
   MapPin,
@@ -17,6 +18,7 @@ import {
   QrCode,
   Clock,
   Sparkles,
+  Upload,
 } from 'lucide-react';
 
 export default function MobileAttendanceScannerPage() {
@@ -27,6 +29,8 @@ export default function MobileAttendanceScannerPage() {
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [isScanning, setIsScanning] = useState<boolean>(true);
   const [isPunching, setIsPunching] = useState<boolean>(false);
+  const [detectedToken, setDetectedToken] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Device telemetry
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number } | null>(null);
@@ -112,7 +116,92 @@ export default function MobileAttendanceScannerPage() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
-  // 3. Handle Flashlight / Torch Toggle
+  // 3. Continuous Video Frame QR Decoding Engine (Native BarcodeDetector + jsQR fallback)
+  useEffect(() => {
+    if (!isScanning || isPunching || punchResult?.success) return;
+
+    let animationFrameId: number;
+    let lastScanTime = 0;
+    let isCancelled = false;
+
+    let barcodeDetector: any = null;
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+      try {
+        barcodeDetector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+      } catch {
+        barcodeDetector = null;
+      }
+    }
+
+    const offscreenCanvas = document.createElement('canvas');
+    const offscreenCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+
+    async function scanLoop(timestamp: number) {
+      if (isCancelled) return;
+      const video = videoRef.current;
+      if (video && video.readyState >= 2 && video.videoWidth > 0 && timestamp - lastScanTime > 180) {
+        lastScanTime = timestamp;
+        try {
+          let token: string | null = null;
+          if (barcodeDetector) {
+            try {
+              const barcodes = await barcodeDetector.detect(video);
+              if (barcodes && barcodes.length > 0) {
+                for (const b of barcodes) {
+                  const val = b.rawValue?.trim();
+                  if (val && (val.startsWith('BEMSQR:') || val.length >= 8)) {
+                    token = val;
+                    break;
+                  }
+                }
+              }
+            } catch {}
+          }
+
+          if (!token && offscreenCtx) {
+            const scale = Math.min(1, 480 / video.videoWidth);
+            const w = Math.floor(video.videoWidth * scale);
+            const h = Math.floor(video.videoHeight * scale);
+            if (offscreenCanvas.width !== w || offscreenCanvas.height !== h) {
+              offscreenCanvas.width = w;
+              offscreenCanvas.height = h;
+            }
+            offscreenCtx.drawImage(video, 0, 0, w, h);
+            const imgData = offscreenCtx.getImageData(0, 0, w, h);
+            const qr = jsQR(imgData.data, w, h, { inversionAttempts: 'dontInvert' });
+            if (qr && qr.data) {
+              const val = qr.data.trim();
+              if (val.startsWith('BEMSQR:') || val.length >= 8) {
+                token = val;
+              }
+            }
+          }
+
+          if (token && !isCancelled) {
+            setDetectedToken(token);
+            setIsScanning(false);
+            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+              try { navigator.vibrate([40, 50, 40]); } catch {}
+            }
+            handleVerifyPunch(token);
+            return;
+          }
+        } catch {}
+      }
+
+      if (!isCancelled) {
+        animationFrameId = requestAnimationFrame(scanLoop);
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(scanLoop);
+    return () => {
+      isCancelled = true;
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    };
+  }, [isScanning, isPunching, punchResult]);
+
+  // 4. Handle Flashlight / Torch Toggle
   const toggleTorch = async () => {
     if (!videoRef.current || !videoRef.current.srcObject) return;
     try {
@@ -132,13 +221,54 @@ export default function MobileAttendanceScannerPage() {
     }
   };
 
-  // 4. Submit Attendance Punch
+  // 5. Upload Photo / Snapshot QR Code
+  const handleImageFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const canvas = document.createElement('canvas');
+        const maxDim = 800;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imgData.data, canvas.width, canvas.height);
+          if (code && code.data && code.data.trim()) {
+            const token = code.data.trim();
+            setDetectedToken(token);
+            setIsScanning(false);
+            handleVerifyPunch(token);
+          } else {
+            setPunchResult({
+              success: false,
+              message: 'No valid BEMS QR code found in the uploaded image. Please ensure the QR code is clearly visible.',
+            });
+          }
+        }
+      };
+      img.src = objectUrl;
+    } catch (err: any) {
+      setPunchResult({
+        success: false,
+        message: 'Could not load image: ' + err.message,
+      });
+    }
+  };
+
+  // 6. Submit Attendance Punch
   const handleVerifyPunch = async (mockToken?: string) => {
     try {
       setIsPunching(true);
 
       // Fetch dynamic active QR token from station if not already provided
-      let tokenToSubmit = mockToken;
+      let tokenToSubmit = mockToken || detectedToken;
       if (!tokenToSubmit) {
         const qrRes = await fetch('/api/attendance/station/qr');
         if (!qrRes.ok) throw new Error('Unable to retrieve active station token');
@@ -185,6 +315,9 @@ export default function MobileAttendanceScannerPage() {
         message: err.message || 'Failed to clock in. Ensure you are connected to Starlink Wi-Fi.',
       });
       setIsPunching(false);
+      // Resume scanning on failure
+      setIsScanning(true);
+      setDetectedToken(null);
     }
   };
 
@@ -359,19 +492,27 @@ export default function MobileAttendanceScannerPage() {
               />
             )}
 
-            {/* Center Reticle Corner Accents */}
+            {/* Center Reticle Corner Accents (Transitions to emerald on detection) */}
             <div
               style={{
                 position: 'absolute',
                 width: '160px',
                 height: '160px',
-                border: '2px solid rgba(255, 255, 255, 0.35)',
+                border: detectedToken ? '2px solid #34d399' : '2px solid rgba(255, 255, 255, 0.35)',
+                background: detectedToken ? 'rgba(52, 211, 153, 0.15)' : 'transparent',
                 borderRadius: '24px',
                 pointerEvents: 'none',
                 zIndex: 3,
-                boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.25)',
+                boxShadow: detectedToken
+                  ? '0 0 24px rgba(52, 211, 153, 0.6)'
+                  : '0 0 0 9999px rgba(0, 0, 0, 0.25)',
+                display: 'grid',
+                placeItems: 'center',
+                transition: 'all 0.3s ease',
               }}
-            />
+            >
+              {detectedToken && <CheckCircle2 size={44} color="#34d399" />}
+            </div>
 
             {/* Aircraft Portal Glass Glare Overlay */}
             <div
@@ -389,6 +530,15 @@ export default function MobileAttendanceScannerPage() {
             />
           </div>
         </div>
+
+        {/* Hidden file input for Photo / Snapshot QR Scan */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handleImageFileScan}
+        />
 
         {/* Floating Camera Control Badges */}
         <div
@@ -439,6 +589,26 @@ export default function MobileAttendanceScannerPage() {
             title="Switch Camera"
           >
             <SwitchCamera size={18} />
+          </button>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '50%',
+              background: '#ffffff',
+              color: '#334155',
+              border: '2px solid #ffffff',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.12)',
+              cursor: 'pointer',
+              display: 'grid',
+              placeItems: 'center',
+              transition: 'all 0.2s ease',
+            }}
+            title="Scan QR from Photo / Upload"
+          >
+            <Upload size={18} />
           </button>
         </div>
       </div>
