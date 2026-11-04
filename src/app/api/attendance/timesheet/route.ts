@@ -231,7 +231,27 @@ export async function GET(request: Request) {
           })
         : prisma.attendanceRecord.findMany({
             where: { workDate: targetDate },
-            include: { station: { select: { name: true, code: true } } },
+            include: {
+              station: { select: { name: true, code: true } },
+              employee: {
+                select: {
+                  id: true,
+                  legalName: true,
+                  employeeNumber: true,
+                  role: true,
+                  workLocation: true,
+                  avatarUrl: true,
+                  assignments: {
+                    include: {
+                      department: { select: { name: true, code: true } },
+                      subsidiary: { select: { legalName: true, code: true } },
+                    },
+                    take: 1,
+                  },
+                },
+              },
+            },
+            orderBy: { checkInTime: 'desc' },
           }),
       prisma.attendancePolicy.findFirst(),
     ]);
@@ -369,19 +389,29 @@ export async function GET(request: Request) {
     };
 
     if (isKioskStream) {
-      const sanitizedRecent = records.slice(0, 8).map(r => {
-        const emp = employees.find(e => e.id === r.employeeId);
-        return {
-          employeeId: r.employeeId,
-          legalName: emp?.legalName || 'Staff Member',
-          role: emp?.role || 'STAFF',
-          workLocation: emp?.workLocation || 'HQ',
-          checkInTime: r.checkInTime,
-          status: r.status,
-        };
-      });
+      // Return ALL staff members who marked attendance today, ordered by most recent check-in
+      const allTodayAttendees = records
+        .filter((r: any) => r.checkInTime)
+        .map((r: any) => {
+          const emp = r.employee || employees.find(e => e.id === r.employeeId);
+          return {
+            employeeId: r.employeeId,
+            legalName: emp?.legalName || 'Staff Member',
+            employeeNumber: emp?.employeeNumber || '',
+            role: emp?.role || 'STAFF',
+            workLocation: emp?.workLocation || 'HQ',
+            department: emp?.assignments?.[0]?.department?.name || 'Operations',
+            subsidiary: emp?.assignments?.[0]?.subsidiary?.legalName || 'BEMS Group',
+            checkInTime: r.checkInTime,
+            checkOutTime: r.checkOutTime,
+            status: r.status,
+            stationName: r.station?.name || 'Main Gate Kiosk',
+          };
+        });
+
       return NextResponse.json({
-        employees: sanitizedRecent,
+        totalPresent: allTodayAttendees.length,
+        employees: allTodayAttendees,
       });
     }
 

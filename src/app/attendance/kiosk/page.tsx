@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Clock,
@@ -67,6 +67,21 @@ export default function AttendanceKioskPage() {
   const [pinBusy, setPinBusy] = useState<boolean>(false);
   const [pinResult, setPinResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  // Poll recent arrivals & all staff who marked attendance today
+  const fetchRecent = useCallback(async () => {
+    try {
+      const res = await fetch('/api/attendance/timesheet?kiosk=true');
+      if (res.ok) {
+        const data = await res.json();
+        const activeToday = (data.employees || []).filter((e: any) => e.checkInTime && (e.role === 'STAFF' || !e.role));
+        setRecentPunches(activeToday);
+        setTotalPresentCount(data.totalPresent ?? activeToday.length);
+      }
+    } catch (e) {
+      // quiet ignore
+    }
+  }, []);
+
   const handlePinPunch = async (e: React.FormEvent) => {
     e.preventDefault();
     setPinBusy(true);
@@ -86,6 +101,7 @@ export default function AttendanceKioskPage() {
       setPinResult({ ok: true, message: data.message });
       setStaffIdentifier('');
       setKioskPin('');
+      void fetchRecent();
       setTimeout(() => {
         setPinModalOpen(false);
         setPinResult(null);
@@ -199,23 +215,10 @@ export default function AttendanceKioskPage() {
 
   // Poll recent arrivals & all staff who marked attendance today
   useEffect(() => {
-    const fetchRecent = async () => {
-      try {
-        const res = await fetch('/api/attendance/timesheet?kiosk=true');
-        if (res.ok) {
-          const data = await res.json();
-          const activeToday = (data.employees || []).filter((e: any) => e.checkInTime && e.role === 'STAFF');
-          setRecentPunches(activeToday);
-          setTotalPresentCount(activeToday.length);
-        }
-      } catch (e) {
-        // quiet ignore
-      }
-    };
-    fetchRecent();
+    void fetchRecent();
     const interval = setInterval(fetchRecent, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchRecent]);
 
   // Synchronize System Fullscreen state on fullscreenchange (Esc or browser button)
   useEffect(() => {
@@ -310,7 +313,9 @@ export default function AttendanceKioskPage() {
     const nameMatch = (p.legalName || '').toLowerCase().includes(term);
     const roleMatch = (p.role || '').toLowerCase().includes(term);
     const deptMatch = (p.department || '').toLowerCase().includes(term);
-    return nameMatch || roleMatch || deptMatch;
+    const subMatch = (p.subsidiary || '').toLowerCase().includes(term);
+    const idMatch = (p.employeeNumber || '').toLowerCase().includes(term);
+    return nameMatch || roleMatch || deptMatch || subMatch || idMatch;
   });
 
   return (
