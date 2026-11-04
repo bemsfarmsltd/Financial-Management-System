@@ -409,13 +409,19 @@ export async function GET(request: Request) {
           };
         });
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         totalPresent: allTodayAttendees.length,
         employees: allTodayAttendees,
       });
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+      response.headers.set('CDN-Cache-Control', 'no-store');
+      response.headers.set('Cloudflare-CDN-Cache-Control', 'no-store');
+      response.headers.set('Pragma', 'no-cache');
+      response.headers.set('Expires', '0');
+      return response;
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       date: targetDate,
       policy: {
         resumptionTime: policy?.resumptionTime || '08:00',
@@ -426,6 +432,9 @@ export async function GET(request: Request) {
       counts,
       employees: rows,
     });
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    response.headers.set('Pragma', 'no-cache');
+    return response;
   } catch (error: any) {
     console.error('Error fetching attendance timesheet:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });

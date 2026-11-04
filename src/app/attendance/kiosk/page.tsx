@@ -53,6 +53,7 @@ export default function AttendanceKioskPage() {
   const [recentPunches, setRecentPunches] = useState<any[]>([]);
   const [totalPresentCount, setTotalPresentCount] = useState<number>(0);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [isSyncingRecent, setIsSyncingRecent] = useState<boolean>(false);
 
   // PWA Desktop App Installation
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -67,18 +68,27 @@ export default function AttendanceKioskPage() {
   const [pinBusy, setPinBusy] = useState<boolean>(false);
   const [pinResult, setPinResult] = useState<{ ok: boolean; message: string } | null>(null);
 
-  // Poll recent arrivals & all staff who marked attendance today
+  // Poll recent arrivals & all staff who marked attendance today (cache-busted)
   const fetchRecent = useCallback(async () => {
+    setIsSyncingRecent(true);
     try {
-      const res = await fetch('/api/attendance/timesheet?kiosk=true');
+      const res = await fetch(`/api/attendance/timesheet?kiosk=true&_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+      });
       if (res.ok) {
         const data = await res.json();
-        const activeToday = (data.employees || []).filter((e: any) => e.checkInTime && (e.role === 'STAFF' || !e.role));
+        const activeToday = (data.employees || []).filter((e: any) => Boolean(e.checkInTime));
         setRecentPunches(activeToday);
         setTotalPresentCount(data.totalPresent ?? activeToday.length);
       }
     } catch (e) {
       // quiet ignore
+    } finally {
+      setIsSyncingRecent(false);
     }
   }, []);
 
@@ -989,9 +999,33 @@ export default function AttendanceKioskPage() {
                   <UserCheck size={18} />
                 </div>
                 <div>
-                  <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                    Marked Attendance Today
-                  </h2>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                      Marked Attendance Today
+                    </h2>
+                    <button
+                      onClick={() => void fetchRecent()}
+                      disabled={isSyncingRecent}
+                      title="Force refresh live attendance list"
+                      style={{
+                        border: '1px solid #e2e8f0',
+                        background: '#f8fafc',
+                        cursor: isSyncingRecent ? 'wait' : 'pointer',
+                        padding: '3px 8px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        color: isSyncingRecent ? '#059669' : '#64748b',
+                        borderRadius: '8px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <RefreshCw size={11} className={isSyncingRecent ? 'animate-spin text-emerald-600' : ''} />
+                      <span>{isSyncingRecent ? 'Syncing...' : 'Sync'}</span>
+                    </button>
+                  </div>
                   <div style={{ fontSize: '12px', color: '#64748b', marginTop: '1px' }}>
                     Real-time confirmed presence via Starlink Wi-Fi
                   </div>
@@ -1048,7 +1082,7 @@ export default function AttendanceKioskPage() {
                     border: '1px solid #a7f3d0',
                   }}
                 >
-                  {filteredStaff.length} Present
+                  {searchTerm ? `${filteredStaff.length} of ${recentPunches.length}` : `${recentPunches.length}`} Present
                 </span>
               </div>
             </div>
@@ -1061,7 +1095,7 @@ export default function AttendanceKioskPage() {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '10px',
-                maxHeight: isFullscreen ? '580px' : '420px',
+                maxHeight: isFullscreen ? 'calc(100vh - 280px)' : '620px',
                 paddingRight: '4px',
               }}
             >
@@ -1199,6 +1233,32 @@ export default function AttendanceKioskPage() {
                 })
               )}
             </div>
+
+            {/* Footer Summary */}
+            {recentPunches.length > 0 && (
+              <div
+                style={{
+                  marginTop: '14px',
+                  paddingTop: '10px',
+                  borderTop: '1px solid #f1f5f9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '11px',
+                  color: '#64748b',
+                  fontWeight: 600,
+                }}
+              >
+                <span>
+                  Showing all <strong style={{ color: '#0f172a' }}>{filteredStaff.length}</strong> of{' '}
+                  <strong style={{ color: '#0f172a' }}>{recentPunches.length}</strong> staff clock-ins today
+                </span>
+                <span style={{ color: '#059669', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <ShieldCheck size={13} />
+                  Live Sync
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </main>
