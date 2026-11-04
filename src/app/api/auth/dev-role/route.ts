@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 const roleOptions = [
   { role: 'GMD', label: 'GMD (Executive Command)', employeeNumber: 'LOCAL-DEMO-GMD', legalName: 'GMD Executive', workEmail: 'gmd@bemsgroup.com' },
   { role: 'SYSTEM_ADMIN', label: 'System Admin (Shared Command)', employeeNumber: 'LOCAL-DEMO-SYSTEM-ADMIN', legalName: 'Bems system Admin', workEmail: 'bemssofthubltd@gmail.com' },
+  { role: 'HR', label: 'HR (Human Resources)', employeeNumber: 'LOCAL-DEMO-HR', legalName: 'Folake Adeleke (HR Lead)', workEmail: 'hr@bemsgroup.com' },
   { role: 'STAFF', label: 'Staff Member (Self-Registered)', employeeNumber: 'LOCAL-DEMO-STAFF', legalName: 'Chioma Adebayo', workEmail: 'chioma.staff@bemsgroup.com' },
 ];
 
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const role = typeof body.role === 'string' ? body.role : '';
     const option = roleOptions.find(item => item.role === role);
-    if (!option) return NextResponse.json({ error: 'Choose GMD, System Admin, or Staff.' }, { status: 400 });
+    if (!option) return NextResponse.json({ error: 'Choose GMD, System Admin, HR, or Staff.' }, { status: 400 });
     let employee = await prisma.employee.findFirst({
       where: { role, status: 'ACTIVE', approvalStatus: 'APPROVED' },
       orderBy: { employeeNumber: 'asc' },

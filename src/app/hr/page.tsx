@@ -102,11 +102,14 @@ export default function HumanResourcesPortalPage() {
     );
   }
 
-  // Not authorized
-  const isAuthorized =
-    user.isHrAuthorized || user.role === 'GMD' || user.role === 'SYSTEM_ADMIN' || user.role === 'SUPER_ADMIN';
+  // Strict HR role segregation: Only HR personnel can access the HR workspace.
+  // GMD and Super Admin are intentionally segregated and operate via their executive cockpits.
+  const isAuthorized = user.role === 'HR' || user.role === 'HR_ADMIN' || user.isHrAuthorized;
 
   if (!isAuthorized) {
+    const isExecutiveOrAdmin =
+      user.role === 'GMD' || user.role === 'SYSTEM_ADMIN' || user.role === 'SUPER_ADMIN';
+
     return (
       <div
         style={{
@@ -115,65 +118,99 @@ export default function HumanResourcesPortalPage() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#f8fafc',
+          background: '#0a0d14',
           padding: '24px',
           fontFamily: "'Outfit', system-ui, sans-serif",
           textAlign: 'center',
+          color: '#f8fafc',
         }}
       >
         <div
           style={{
-            width: 64,
-            height: 64,
-            borderRadius: '16px',
-            background: '#fee2e2',
-            color: '#b91c1c',
+            width: 72,
+            height: 72,
+            borderRadius: '20px',
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            color: '#f87171',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             marginBottom: '20px',
           }}
         >
-          <ShieldAlert size={32} />
+          <ShieldAlert size={36} />
         </div>
-        <h2 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 8px 0', color: '#0f172a' }}>
-          Access Restricted: HR Authority Required
+        <h2 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 8px 0', color: '#ffffff' }}>
+          HR Role Isolated Workspace
         </h2>
-        <p style={{ fontSize: '14px', color: '#64748b', maxWidth: '480px', margin: '0 0 24px 0', lineHeight: 1.5 }}>
-          The Human Resources workspace is restricted to HR Department personnel and Executive Leadership. Your current
-          account (<strong>{user.fullName}</strong>) is not assigned to the Human Resources unit.
+        <p style={{ fontSize: '14px', color: '#94a3b8', maxWidth: '520px', margin: '0 0 28px 0', lineHeight: 1.6 }}>
+          The Human Resources dashboard is strictly isolated to designated HR administrators.
+          {isExecutiveOrAdmin ? (
+            <>
+              {' '}As <strong>{user.fullName} ({user.role})</strong>, your administrative domain is located in the Executive Leadership cockpit.
+            </>
+          ) : (
+            <>
+              {' '}Your account (<strong>{user.fullName}</strong>) is not assigned to the HR administrative role.
+            </>
+          )}
         </p>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          {isExecutiveOrAdmin ? (
+            <Link
+              href="/finance"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '12px 22px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#ffffff',
+                fontSize: '13px',
+                fontWeight: 700,
+                textDecoration: 'none',
+              }}
+            >
+              Open Executive Dashboard
+            </Link>
+          ) : (
+            <Link
+              href="/staff"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '12px 22px',
+                borderRadius: '10px',
+                background: '#4f46e5',
+                color: '#ffffff',
+                fontSize: '13px',
+                fontWeight: 700,
+                textDecoration: 'none',
+              }}
+            >
+              Open Staff Workspace
+            </Link>
+          )}
           <Link
             href="/"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '10px 18px',
-              borderRadius: '8px',
-              background: '#f1f5f9',
-              color: '#334155',
+              padding: '12px 20px',
+              borderRadius: '10px',
+              background: '#1e293b',
+              color: '#cbd5e1',
               fontSize: '13px',
-              fontWeight: 700,
+              fontWeight: 600,
               textDecoration: 'none',
+              border: '1px solid #334155',
             }}
           >
             <ArrowLeft size={14} /> Back to Portal
-          </Link>
-          <Link
-            href="/staff"
-            style={{
-              padding: '10px 18px',
-              borderRadius: '8px',
-              background: '#4f46e5',
-              color: '#ffffff',
-              fontSize: '13px',
-              fontWeight: 700,
-              textDecoration: 'none',
-            }}
-          >
-            Open Staff Workspace
           </Link>
         </div>
       </div>

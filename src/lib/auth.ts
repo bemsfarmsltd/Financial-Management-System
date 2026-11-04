@@ -274,6 +274,7 @@ export function publicEmployee(employee: AuthenticatedEmployee) {
 export const CANONICAL_ROLES = {
   SUPER_ADMIN: 'SYSTEM_ADMIN',
   GMD: 'GMD',
+  HR: 'HR',
   STAFF: 'STAFF',
 } as const;
 
@@ -281,11 +282,12 @@ export const ROLE_DISPLAY_NAMES: Record<string, string> = {
   SYSTEM_ADMIN: 'Super admin',
   SUPER_ADMIN: 'Super admin',
   GMD: 'The Group Managing Director',
+  HR: 'Human Resources',
   STAFF: 'Staff',
 };
 
 export function getRoleDisplayName(role: string): string {
-  return ROLE_DISPLAY_NAMES[role] || (role === 'GMD' ? 'The Group Managing Director' : role.replace(/_/g, ' '));
+  return ROLE_DISPLAY_NAMES[role] || (role === 'GMD' ? 'The Group Managing Director' : role === 'HR' ? 'Human Resources' : role.replace(/_/g, ' '));
 }
 
 export function hasAnyRole(employee: AuthenticatedEmployee | null | undefined, roles: string[]): boolean {
@@ -304,6 +306,9 @@ export function hasAnyRole(employee: AuthenticatedEmployee | null | undefined, r
     if (role === 'GMD' && (target === 'GMD' || target.includes('MANAGING DIRECTOR'))) {
       return true;
     }
+    if ((role === 'HR' || role === 'HR_ADMIN') && (target === 'HR' || target === 'HR_ADMIN' || target.includes('HUMAN RESOURCES'))) {
+      return true;
+    }
     if (role === 'STAFF' && target === 'STAFF') {
       return true;
     }
@@ -313,43 +318,8 @@ export function hasAnyRole(employee: AuthenticatedEmployee | null | undefined, r
 
 export async function isHrAuthorizedEmployee(employee: AuthenticatedEmployee | null | undefined): Promise<boolean> {
   if (!employee) return false;
-  // Super Admin and GMD have full executive oversight
-  if (hasAnyRole(employee, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return true;
-  // Check if staff member is assigned to HR department or holds an HR title
-  try {
-    const emp = await prisma.employee.findUnique({
-      where: { id: employee.id },
-      select: {
-        jobTitle: true,
-        assignments: {
-          select: {
-            positionName: true,
-            department: { select: { code: true, name: true } },
-          },
-        },
-      },
-    });
-    if (!emp) return false;
-    const globalTitle = (emp.jobTitle || '').toLowerCase();
-    if (globalTitle.includes('hr') || globalTitle.includes('human') || globalTitle.includes('people') || globalTitle.includes('talent')) {
-      return true;
-    }
-    return emp.assignments.some((a) => {
-      const dept = (a.department?.name || a.department?.code || '').toLowerCase();
-      const pos = (a.positionName || '').toLowerCase();
-      return (
-        dept.includes('hr') ||
-        dept.includes('human') ||
-        dept.includes('people') ||
-        dept.includes('talent') ||
-        pos.includes('hr') ||
-        pos.includes('human resources') ||
-        pos.includes('people') ||
-        pos.includes('talent')
-      );
-    });
-  } catch {
-    return false;
-  }
+  const role = (employee.role || '').toUpperCase();
+  if (role === 'HR' || role === 'HR_ADMIN') return true;
+  return false;
 }
 

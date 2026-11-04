@@ -5142,6 +5142,9 @@ export default function Home() {
     if (authStatus === 'signed-in' && user?.role === 'STAFF' && typeof window !== 'undefined' && window.location.pathname === '/') {
       window.location.href = '/staff';
     }
+    if (authStatus === 'signed-in' && (user?.role === 'HR' || user?.role === 'HR_ADMIN') && typeof window !== 'undefined') {
+      window.location.href = '/hr';
+    }
   }, [authStatus, user]);
 
   const onAuthed = (u: AuthUser) => {
@@ -5150,6 +5153,10 @@ export default function Home() {
     window.dispatchEvent(new Event('bems-session-changed'));
     setStatus('ready');
     setAuthStatus('signed-in');
+    if (u.role === 'HR' || u.role === 'HR_ADMIN') {
+      window.location.href = '/hr';
+      return;
+    }
     if (u.role === 'STAFF') {
       window.location.href = '/staff';
       return;

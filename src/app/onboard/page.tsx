@@ -193,7 +193,17 @@ function OnboardingContent() {
 
       setSuccess(true);
       setTimeout(() => {
-        router.push('/');
+        if (data.user?.role === 'HR' || data.user?.role === 'HR_ADMIN') {
+          router.push('/hr');
+        } else if (
+          data.user?.role === 'GMD' ||
+          data.user?.role === 'SYSTEM_ADMIN' ||
+          data.user?.role === 'SUPER_ADMIN'
+        ) {
+          router.push('/finance');
+        } else {
+          router.push('/');
+        }
       }, 1800);
     } catch (err) {
       console.error('Submission error:', err);
