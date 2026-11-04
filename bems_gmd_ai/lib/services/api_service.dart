@@ -10,7 +10,7 @@ class ApiService {
   static const String fallbackBaseUrl = 'https://pink-horse-318730.hostingersite.com';
   static String _activeBaseUrl = primaryBaseUrl;
 
-  static const String appVersion = '1.0.8';
+  static const String appVersion = '1.0.9';
   static const String appId = 'GMD_APP';
 
   // Active user session attributes
@@ -514,6 +514,58 @@ class ApiService {
   }
 
   // --- HYBRID PAYROLL ---
+  static Future<Map<String, dynamic>> fetchPayrollFull({int? year, int? month}) async {
+    try {
+      final query = (year != null && month != null) ? '?year=$year&month=$month' : '';
+      final res = await _executeWithFailover(
+        (host) => http.get(Uri.parse('$host/api/payroll$query'), headers: authHeaders),
+        timeout: const Duration(seconds: 14),
+      );
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  static Future<List<dynamic>> fetchPayrollAssignees() async {
+    try {
+      final res = await _executeWithFailover(
+        (host) => http.get(Uri.parse('$host/api/payroll/assignees'), headers: authHeaders),
+        timeout: const Duration(seconds: 10),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return (data['employees'] as List<dynamic>?) ?? [];
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<Map<String, dynamic>> approvePayrollBatch({
+    required String batchId,
+    required String disbursementAssigneeId,
+    String? comments,
+  }) async {
+    final res = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/payroll'),
+        headers: authHeaders,
+        body: jsonEncode({
+          'batchId': batchId,
+          'disbursementAssigneeId': disbursementAssigneeId,
+          'comments': comments ?? 'Approved via BEMS GMD Executive AI mobile',
+        }),
+      ),
+      timeout: const Duration(seconds: 15),
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    final err = jsonDecode(res.body);
+    throw Exception(err['error'] ?? 'Sign-off failed (${res.statusCode})');
+  }
+
   static Future<Map<String, dynamic>> fetchPayrollSummary() async {
     try {
       final res = await _executeWithFailover(
