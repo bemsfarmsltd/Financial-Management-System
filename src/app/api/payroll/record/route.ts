@@ -26,8 +26,8 @@ export async function POST(request: Request) {
     }
     const batch = await prisma.payrollBatch.findUnique({ where: { id: batchId }, include: { period: true } });
     if (!batch || batch.status !== 'APPROVED') return NextResponse.json({ error: 'Only an approved payroll batch can be paid.' }, { status: 409 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN']) && batch.disbursementAssigneeId !== actor.id) {
-      return NextResponse.json({ error: 'This payroll payment recording is assigned to another executive or HR administrator.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']) && batch.disbursementAssigneeId !== actor.id) {
+      return NextResponse.json({ error: 'This payroll payment recording is assigned to another executive.' }, { status: 403 });
     }
     let payingEntityId = batch.paymentEntityId;
     if (!payingEntityId) {

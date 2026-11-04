@@ -90,7 +90,7 @@ interface RosterMember {
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-const ALLOWED_ADMIN_ROLES = ['GMD', 'SYSTEM_ADMIN', 'HR_ADMIN', 'HR', 'COO', 'FINANCE_CONTROLLER', 'SUPER_ADMIN'];
+const ALLOWED_ADMIN_ROLES = ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'];
 
 export default function AttendanceDeskPage() {
   const router = useRouter();
@@ -1429,7 +1429,7 @@ export default function AttendanceDeskPage() {
                                       cursor: 'pointer',
                                     }}
                                   >
-                                    {authenticatedUser?.role === 'HR_ADMIN' ? 'Request Excuse' : 'Excuse / Override'}
+                                    Excuse / Override
                                   </button>
                                 )}
                                 <button
@@ -2841,14 +2841,13 @@ export default function AttendanceDeskPage() {
 
                     <div>
                       <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#ea580c', marginBottom: '4px' }}>
-                        LATENESS DEDUCTION (%) {authenticatedUser?.role === 'HR_ADMIN' ? '(READ-ONLY FOR HR)' : ''}
+                        LATENESS DEDUCTION (%)
                       </label>
                       <input
                         type="number"
                         step="0.5"
                         min="0"
                         max="50"
-                        disabled={authenticatedUser?.role === 'HR_ADMIN'}
                         value={policy.latenessDeductionPercent}
                         onChange={e => setPolicy(prev => ({ ...prev, latenessDeductionPercent: Number(e.target.value) }))}
                         style={{
@@ -2859,8 +2858,7 @@ export default function AttendanceDeskPage() {
                           fontSize: '13px',
                           fontWeight: 800,
                           color: '#ea580c',
-                          background: authenticatedUser?.role === 'HR_ADMIN' ? '#f1f5f9' : '#fff7ed',
-                          cursor: authenticatedUser?.role === 'HR_ADMIN' ? 'not-allowed' : 'text',
+                          background: '#fff7ed',
                         }}
                       />
                     </div>
@@ -3158,9 +3156,7 @@ export default function AttendanceDeskPage() {
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800 }}>
-                {authenticatedUser?.role === 'HR_ADMIN'
-                  ? 'Submit Excuse Request for GMD Approval'
-                  : 'Manual Attendance Override'}
+                Manual Attendance Override
               </h3>
               <button
                 onClick={() => setOverrideModal({ isOpen: false, employee: null, status: 'PRESENT', reason: '' })}
@@ -3169,11 +3165,6 @@ export default function AttendanceDeskPage() {
                 <X size={18} />
               </button>
             </div>
-            {authenticatedUser?.role === 'HR_ADMIN' && (
-              <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 11.5, marginBottom: 12, fontWeight: 600 }}>
-                Note: HR cannot directly waive attendance deductions. Submitting this note flags the record for GMD / Super Admin approval.
-              </div>
-            )}
 
             <div style={{ padding: '12px', borderRadius: '8px', background: '#f8fafc', marginBottom: '16px', fontSize: '12px' }}>
               <div><strong>Staff:</strong> {overrideModal.employee.legalName} ({overrideModal.employee.employeeNumber})</div>

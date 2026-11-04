@@ -910,7 +910,6 @@ type StaffDetail = {
 const getStaffRoleDisplay = (r: string) => {
   if (r === 'SYSTEM_ADMIN' || r === 'SUPER_ADMIN') return 'Super admin';
   if (r === 'GMD') return 'The Group Managing Director';
-  if (r === 'HR_ADMIN') return 'HR & Payroll Admin';
   if (r === 'STAFF') return 'Staff';
   return r;
 };
@@ -1140,26 +1139,6 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
     }
   };
 
-  const decideSalaryProposal = async (proposalId: string, decision: 'APPROVE' | 'REJECT') => {
-    setSaving(true);
-    setError('');
-    try {
-      const res = await fetch('/api/payroll/salary-proposals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ proposalId, decision }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not process salary proposal.');
-      setNotice(data.message);
-      await Promise.all([load(), selectedId ? open(selectedId) : Promise.resolve()]);
-    } catch (err: any) {
-      setError(err.message || 'Could not process salary proposal.');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1396,146 +1375,33 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
             <span>＋ Register Offline / Field Staff</span>
           </button>
 
-          {currentUserRole !== 'HR_ADMIN' && (
-            <button
-              type="button"
-              onClick={() => {
-                if (onNavigate) onNavigate('Admin onboarding');
-                else if (typeof window !== 'undefined') window.location.search = '?tab=Admin+onboarding';
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '9px 18px',
-                borderRadius: 8,
-                border: 'none',
-                background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
-                color: '#ffffff',
-                fontSize: 12.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 3px 12px var(--brand-shadow-color, rgba(0, 0, 0, 0.28))',
-              }}
-            >
-              <ShieldCheck size={15} color="#ffffff" />
-              <span>Admin Onboarding &amp; Invites →</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (onNavigate) onNavigate('Admin onboarding');
+              else if (typeof window !== 'undefined') window.location.search = '?tab=Admin+onboarding';
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '9px 18px',
+              borderRadius: 8,
+              border: 'none',
+              background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
+              color: '#ffffff',
+              fontSize: 12.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 3px 12px var(--brand-shadow-color, rgba(0, 0, 0, 0.28))',
+            }}
+          >
+            <ShieldCheck size={15} color="#ffffff" />
+            <span>Admin Onboarding &amp; Invites →</span>
+          </button>
         </div>
       </div>
 
-      {/* Pending Salary Proposals Banner */}
-      {rows.some((r) => (r.salaryChangeProposals?.length || 0) > 0) && (
-        <div
-          style={{
-            background: '#fffbeb',
-            border: '1.5px solid #fcd34d',
-            borderRadius: 12,
-            padding: '16px 20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-            boxShadow: '0 2px 8px rgba(245, 158, 11, 0.08)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#b45309', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                ⏳ PENDING EXECUTIVE SALARY APPROVALS ({rows.filter((r) => (r.salaryChangeProposals?.length || 0) > 0).length})
-              </div>
-              <div style={{ fontSize: 13.5, fontWeight: 750, color: '#78350f', marginTop: 2 }}>
-                HR has submitted salary proposals that require GMD or Super Admin approval before taking effect on payroll.
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gap: 10 }}>
-            {rows
-              .filter((r) => (r.salaryChangeProposals?.length || 0) > 0)
-              .map((r) => {
-                const prop = r.salaryChangeProposals![0];
-                const canApprove = currentUserRole === 'GMD' || currentUserRole === 'SYSTEM_ADMIN' || currentUserRole === 'SUPER_ADMIN';
-                return (
-                  <div
-                    key={prop.id}
-                    style={{
-                      background: '#ffffff',
-                      border: '1px solid #fde68a',
-                      borderRadius: 10,
-                      padding: '12px 16px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      gap: 12,
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <strong style={{ fontSize: 14, color: '#0f172a' }}>{r.legalName}</strong>
-                        <span style={{ fontSize: 11, fontFamily: 'monospace', background: '#f1f5f9', padding: '1px 6px', borderRadius: 4, color: '#475569' }}>
-                          {r.employeeNumber}
-                        </span>
-                        {r.isOfflineStaff && (
-                          <span style={{ fontSize: 11, fontWeight: 700, background: '#f0fdfa', color: '#0f766e', border: '1px solid #99f6e4', padding: '1px 7px', borderRadius: 4 }}>
-                            📵 Offline Staff
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 12.5, color: '#475569', marginTop: 4 }}>
-                        Proposed by <b>{prop.proposedByName}</b>: {fmt(prop.previousGrossMinor)} → <b style={{ color: '#0f766e' }}>{fmt(prop.proposedGrossMinor)}</b> / month · Reason: <i>{prop.reason}</i>
-                      </div>
-                    </div>
-
-                    {canApprove ? (
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={() => void decideSalaryProposal(prop.id, 'APPROVE')}
-                          style={{
-                            padding: '7px 14px',
-                            borderRadius: 7,
-                            border: 'none',
-                            background: '#16a34a',
-                            color: '#ffffff',
-                            fontSize: 12,
-                            fontWeight: 750,
-                            cursor: saving ? 'not-allowed' : 'pointer',
-                          }}
-                        >
-                          ✓ Approve Salary
-                        </button>
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={() => void decideSalaryProposal(prop.id, 'REJECT')}
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: 7,
-                            border: '1px solid #fecaca',
-                            background: '#fef2f2',
-                            color: '#dc2626',
-                            fontSize: 12,
-                            fontWeight: 700,
-                            cursor: saving ? 'not-allowed' : 'pointer',
-                          }}
-                        >
-                          ✕ Decline
-                        </button>
-                      </div>
-                    ) : (
-                      <span style={{ fontSize: 11.5, fontWeight: 750, color: '#b45309', background: '#fef3c7', padding: '4px 10px', borderRadius: 6 }}>
-                        Awaiting GMD / Super Admin Approval
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
 
       {error && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#991b1b', fontSize: 13 }}>
@@ -2430,79 +2296,6 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                 {/* TAB 2: Compensation & Payroll History */}
                 {modalTab === 'payroll' && (
                   <div>
-                    {selected.employee.pendingSalaryProposal && (
-                      <div
-                        style={{
-                          background: '#fffbeb',
-                          border: '1.5px solid #fcd34d',
-                          borderRadius: 12,
-                          padding: '16px 20px',
-                          marginBottom: 16,
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          flexWrap: 'wrap',
-                          gap: 12,
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontSize: 11, fontWeight: 800, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                            ⏳ PENDING SALARY PROPOSAL (SUBMITTED BY {selected.employee.pendingSalaryProposal.proposedByName})
-                          </div>
-                          <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>
-                            {selected.employee.pendingSalaryProposal.previousGrossFormatted} →{' '}
-                            <span style={{ color: '#0f766e' }}>{selected.employee.pendingSalaryProposal.proposedGrossFormatted}</span> / month
-                          </div>
-                          <div style={{ fontSize: 12.5, color: '#475569', marginTop: 2 }}>
-                            Reason: {selected.employee.pendingSalaryProposal.reason}
-                          </div>
-                        </div>
-
-                        {selected.permissions.canApproveSalary ? (
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button
-                              type="button"
-                              disabled={saving}
-                              onClick={() => void decideSalaryProposal(selected.employee.pendingSalaryProposal!.id, 'APPROVE')}
-                              style={{
-                                padding: '8px 16px',
-                                borderRadius: 8,
-                                border: 'none',
-                                background: '#16a34a',
-                                color: '#ffffff',
-                                fontSize: 12.5,
-                                fontWeight: 750,
-                                cursor: saving ? 'not-allowed' : 'pointer',
-                              }}
-                            >
-                              ✓ Approve Proposal
-                            </button>
-                            <button
-                              type="button"
-                              disabled={saving}
-                              onClick={() => void decideSalaryProposal(selected.employee.pendingSalaryProposal!.id, 'REJECT')}
-                              style={{
-                                padding: '8px 14px',
-                                borderRadius: 8,
-                                border: '1px solid #fecaca',
-                                background: '#fef2f2',
-                                color: '#dc2626',
-                                fontSize: 12.5,
-                                fontWeight: 700,
-                                cursor: saving ? 'not-allowed' : 'pointer',
-                              }}
-                            >
-                              ✕ Decline
-                            </button>
-                          </div>
-                        ) : (
-                          <span style={{ fontSize: 12, fontWeight: 750, color: '#b45309', background: '#fef3c7', padding: '5px 10px', borderRadius: 6 }}>
-                            Awaiting GMD / Super Admin Approval
-                          </span>
-                        )}
-                      </div>
-                    )}
-
                     {/* Salary Card & Adjustment Form */}
                     <div
                       style={{
@@ -3189,11 +2982,6 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                   value={offlineForm.proposedSalary}
                   onChange={(e) => setOfflineForm({ ...offlineForm, proposedSalary: e.target.value })}
                 />
-                {currentUserRole === 'HR_ADMIN' && (
-                  <small style={{ display: 'block', color: '#b45309', marginTop: 3, fontWeight: 600 }}>
-                    Requires GMD / Super Admin approval before payroll inclusion.
-                  </small>
-                )}
               </label>
 
               <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>

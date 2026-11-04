@@ -21,8 +21,8 @@ export async function DELETE(
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to modify payroll items.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN'])) {
-      return NextResponse.json({ error: 'Executive or HR Admin access required.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Executive access (GMD or Super Admin) required.' }, { status: 403 });
     }
 
     const { itemId } = await params;

@@ -274,7 +274,6 @@ export function publicEmployee(employee: AuthenticatedEmployee) {
 export const CANONICAL_ROLES = {
   SUPER_ADMIN: 'SYSTEM_ADMIN',
   GMD: 'GMD',
-  HR_ADMIN: 'HR_ADMIN',
   STAFF: 'STAFF',
 } as const;
 
@@ -282,8 +281,6 @@ export const ROLE_DISPLAY_NAMES: Record<string, string> = {
   SYSTEM_ADMIN: 'Super admin',
   SUPER_ADMIN: 'Super admin',
   GMD: 'The Group Managing Director',
-  HR_ADMIN: 'HR & Payroll Admin',
-  HR: 'HR & Payroll Admin',
   STAFF: 'Staff',
 };
 
@@ -297,7 +294,6 @@ export function hasAnyRole(employee: AuthenticatedEmployee | null | undefined, r
 
   // Super admin has full administrative oversight
   const isSuperAdmin = role === 'SYSTEM_ADMIN' || role === 'SUPER_ADMIN';
-  const isHrAdmin = role === 'HR_ADMIN' || role === 'HR';
 
   for (const r of roles) {
     const target = r.toUpperCase();
@@ -306,9 +302,6 @@ export function hasAnyRole(employee: AuthenticatedEmployee | null | undefined, r
       return true;
     }
     if (role === 'GMD' && (target === 'GMD' || target.includes('MANAGING DIRECTOR'))) {
-      return true;
-    }
-    if (isHrAdmin && (target === 'HR_ADMIN' || target === 'HR')) {
       return true;
     }
     if (role === 'STAFF' && target === 'STAFF') {

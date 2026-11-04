@@ -8,8 +8,8 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to prepare payroll.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN'])) {
-      return NextResponse.json({ error: 'Executive or HR Admin authority required to prepare payroll.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Executive authority (GMD or Super Admin) required to prepare payroll.' }, { status: 403 });
     }
 
     const body = await req.json().catch(() => ({}));

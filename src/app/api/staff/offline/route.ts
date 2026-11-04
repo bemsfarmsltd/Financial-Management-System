@@ -11,8 +11,8 @@ function formatNaira(minor: bigint | number) {
 export async function POST(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee(request);
-    if (!actor || !hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN'])) {
-      return NextResponse.json({ error: 'HR Admin, Super Admin, or GMD authorization required.' }, { status: 403 });
+    if (!actor || !hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Super Admin or GMD authorization required.' }, { status: 403 });
     }
 
     const body = await request.json().catch(() => ({}));

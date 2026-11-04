@@ -10,8 +10,8 @@ export async function GET(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view staff records.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN'])) {
-      return NextResponse.json({ error: 'Executive, Super admin, or HR Admin access is required to view staff and salary records.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Executive or Super admin access is required to view staff and salary records.' }, { status: 403 });
     }
     const { searchParams } = new URL(req.url);
     const orgId = searchParams.get('orgId') || searchParams.get('subsidiary');

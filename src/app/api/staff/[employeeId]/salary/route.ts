@@ -12,10 +12,9 @@ function formatNaira(minor: bigint) {
 export async function POST(request: Request, { params }: { params: Promise<{ employeeId: string }> }) {
   const actor = await getAuthenticatedEmployee();
   if (!actor) return NextResponse.json({ error: 'Sign in to update salary.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN'])) {
-    return NextResponse.json({ error: 'Only GMD, Super Admin, or HR Admin can submit a staff salary change.' }, { status: 403 });
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+    return NextResponse.json({ error: 'Only the GMD or Super Admin can update staff salary.' }, { status: 403 });
   }
-  const isDirectApprover = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
 
   try {
     const { employeeId } = await params;
@@ -92,62 +91,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ emp
       if (changeType !== 'REMOVE_FROM_PAYROLL' && newGrossMinor <= BigInt(0)) {
         throw new Error('Salary cannot be zero or negative.');
       }
-
-      // If submitted by HR_ADMIN, route to SalaryChangeProposal for GMD / Super Admin approval
-      if (!isDirectApprover) {
-        await tx.salaryChangeProposal.updateMany({
-          where: { employeeId, status: 'PENDING_APPROVAL' },
-          data: { status: 'REJECTED', decisionNote: 'Superseded by a newer proposal from HR.' }
-        });
-
-        const proposal = await tx.salaryChangeProposal.create({
-          data: {
-            employeeId,
-            previousGrossMinor: prevGrossMinor,
-            proposedGrossMinor: newGrossMinor,
-            changeType: prevGrossMinor === BigInt(0) ? 'INITIAL_SALARY' : changeType,
-            reason,
-            status: 'PENDING_APPROVAL',
-            proposedById: actor.id,
-            proposedByName: actor.legalName,
-          }
-        });
-
-        const executives = await tx.employee.findMany({
-          where: { role: { in: ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] }, status: 'ACTIVE' },
-          select: { id: true }
-        });
-
-        for (const exec of executives) {
-          await tx.systemNotification.create({
-            data: {
-              employeeId: exec.id,
-              kind: 'SALARY_PROPOSAL_PENDING',
-              title: `Salary Approval Needed: ${employee.legalName}`,
-              body: `${actor.legalName} (HR) proposed changing ${employee.legalName}'s monthly gross salary from ${formatNaira(prevGrossMinor)} to ${formatNaira(newGrossMinor)}. Reason: ${reason}`,
-              linkUrl: '/finance?tab=Staff+profiles'
-            }
-          });
-        }
-
-        return {
-          pendingApproval: true as const,
-          proposal,
-          previousGrossMinor: prevGrossMinor,
-          newGrossMinor,
-        };
-      }
-
-      // If GMD or Super Admin is directly updating salary, also mark any pending proposal as APPROVED
-      await tx.salaryChangeProposal.updateMany({
-        where: { employeeId, status: 'PENDING_APPROVAL' },
-        data: {
-          status: 'APPROVED',
-          decidedById: actor.id,
-          decidedByName: actor.legalName,
-          decidedAt: now,
-        }
-      });
 
       const prior = await tx.compensationAgreement.findMany({ where: { employmentAgreementId: agreement.id }, select: { version: true } });
       const nextVersion = Math.max(0, ...prior.map(compensation => compensation.version)) + 1;
@@ -243,21 +186,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ emp
         },
       });
 
-      return { pendingApproval: false as const, compensation, previousGrossMinor: prevGrossMinor, newGrossMinor };
+      return { compensation, previousGrossMinor: prevGrossMinor, newGrossMinor };
     });
 
-    if (result.pendingApproval) {
-      return NextResponse.json({
-        pendingApproval: true,
-        proposalCreated: true,
-        message: 'Salary proposal submitted to GMD / Super Admin for approval.',
-        previousGrossFormatted: formatNaira(result.previousGrossMinor),
-        proposedGrossFormatted: formatNaira(result.newGrossMinor),
-      });
-    }
-
     return NextResponse.json({
-      pendingApproval: false,
+      success: true,
       message: 'Salary updated. The staff member has been notified.',
       previousGrossFormatted: formatNaira(result.previousGrossMinor),
       newGrossFormatted: formatNaira(result.newGrossMinor),

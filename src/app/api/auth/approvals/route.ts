@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     const employeeId = typeof body.employeeId === 'string' ? body.employeeId : '';
     const decision = body.decision;
     const candidateRole = typeof body.role === 'string' && body.role ? body.role : 'STAFF';
-    const allowedRoles = ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN', 'STAFF'];
+    const allowedRoles = ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN', 'STAFF'];
     const assignedRole = allowedRoles.includes(candidateRole) ? candidateRole : 'STAFF';
     const subsidiaryId = typeof body.subsidiaryId === 'string' && body.subsidiaryId ? body.subsidiaryId : null;
     const departmentId = typeof body.departmentId === 'string' && body.departmentId ? body.departmentId : null;

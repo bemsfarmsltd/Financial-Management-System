@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view payroll.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN'])) {
-      return NextResponse.json({ error: 'Executive or HR Admin access is required to view payroll.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Executive access (GMD or Super Admin) is required to view payroll.' }, { status: 403 });
     }
 
     // Run payday radar check (evaluates 7-day pre-payday window and triggers GMD notification if needed)
@@ -230,34 +230,6 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    const paidItems = safeItems.filter((i) => i.paymentStatus !== 'UNPAID');
-    const totalDisbursedToStaffMinor = paidItems.reduce((sum, i) => sum + i.netMinor, 0);
-    const lumpSumFundedMinor = Number(batch.bulkFundedAmountMinor || 0);
-    const remainingWithHrMinor = lumpSumFundedMinor > 0 ? Math.max(0, lumpSumFundedMinor - totalDisbursedToStaffMinor) : Math.max(0, totalNet - totalDisbursedToStaffMinor);
-
-    const pendingProposalsRaw = await prisma.salaryChangeProposal.findMany({
-      where: { status: 'PENDING_APPROVAL' },
-      include: {
-        employee: {
-          select: { id: true, legalName: true, employeeNumber: true, isOfflineStaff: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const pendingSalaryProposals = pendingProposalsRaw.map((p) => ({
-      id: p.id,
-      employeeId: p.employeeId,
-      employeeName: p.employee.legalName,
-      employeeNumber: p.employee.employeeNumber,
-      isOfflineStaff: p.employee.isOfflineStaff,
-      previousGrossFormatted: formatNaira(p.previousGrossMinor),
-      proposedGrossFormatted: formatNaira(p.proposedGrossMinor),
-      reason: p.reason,
-      proposedByName: p.proposedByName,
-      createdAt: p.createdAt,
-    }));
-
     return NextResponse.json({
       period: {
         id: period.id,
@@ -274,28 +246,6 @@ export async function GET(req: NextRequest) {
         status: batch.status,
         disbursementAssignee: batch.disbursementAssigneeId ? await prisma.employee.findUnique({ where: { id: batch.disbursementAssigneeId }, select: { id: true, legalName: true, role: true } }) : null,
         approvedAt: batch.approvedAt,
-        clearingBankName: batch.clearingBankName || null,
-        clearingAccountNumber: batch.clearingAccountNumber || null,
-        clearingAccountName: batch.clearingAccountName || null,
-        submittedById: batch.submittedById || null,
-        submittedByName: batch.submittedByName || null,
-        submissionNote: batch.submissionNote || null,
-        bulkFundedAt: batch.bulkFundedAt || null,
-        bulkFundedAmountMinor: lumpSumFundedMinor,
-        bulkFundedFormatted: lumpSumFundedMinor > 0 ? formatNaira(lumpSumFundedMinor) : null,
-        bulkFundingBankName: batch.bulkFundingBankName || null,
-        bulkFundingReference: batch.bulkFundingReference || null,
-        bulkFundingReceiptUrl: batch.bulkFundingReceiptUrl || null,
-        reconciliation: {
-          lumpSumFundedMinor,
-          lumpSumFundedFormatted: formatNaira(lumpSumFundedMinor),
-          totalDisbursedToStaffMinor,
-          totalDisbursedToStaffFormatted: formatNaira(totalDisbursedToStaffMinor),
-          remainingWithHrMinor,
-          remainingWithHrFormatted: formatNaira(remainingWithHrMinor),
-          paidStaffCount: paidItems.length,
-          unpaidStaffCount: safeItems.length - paidItems.length,
-        },
         totalGrossMinor: totalGross,
         totalGrossFormatted: formatNaira(totalGross),
         totalNetMinor: totalNet,
@@ -318,11 +268,9 @@ export async function GET(req: NextRequest) {
       items: safeItems,
       availablePeriods,
       radar,
-      pendingSalaryProposals,
       permissions: {
-        isHrAdmin: actor.role === 'HR_ADMIN',
         canApprove: hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']),
-        canRecordPayments: hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN']) || batch.disbursementAssigneeId === actor.id
+        canRecordPayments: hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']) || batch.disbursementAssigneeId === actor.id
       }
     });
   } catch (error: any) {
@@ -363,7 +311,7 @@ export async function POST(req: NextRequest) {
       id: disbursementAssigneeId,
       status: 'ACTIVE',
       approvalStatus: 'APPROVED',
-      role: { in: ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN'] }
+      role: { in: ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'] }
     } });
     if (!assignee) return NextResponse.json({ error: 'Choose an active executive or HR user for payment recording.' }, { status: 400 });
     const defaultOrg = batch.paymentEntityId || (await prisma.organization.findFirst({ orderBy: { type: 'asc' } }))?.id || null;

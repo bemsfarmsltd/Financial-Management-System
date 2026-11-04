@@ -11,8 +11,8 @@ function formatNaira(minor: bigint | number) {
 export async function GET(_request: Request, { params }: { params: Promise<{ employeeId: string }> }) {
   const actor = await getAuthenticatedEmployee();
   if (!actor) return NextResponse.json({ error: 'Sign in to view staff payroll details.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN'])) {
-    return NextResponse.json({ error: 'Executive, Super admin, or HR Admin access is required to view staff payroll details.' }, { status: 403 });
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+    return NextResponse.json({ error: 'Executive or Super admin access is required to view staff payroll details.' }, { status: 403 });
   }
 
   const { employeeId } = await params;
@@ -191,7 +191,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
     payrollHistory,
     requestHistory,
     permissions: {
-      canEditSalary: hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN']),
+      canEditSalary: hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']),
       canApproveSalary: hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']),
     }
   });
@@ -200,8 +200,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
 export async function PATCH(request: Request, { params }: { params: Promise<{ employeeId: string }> }) {
   const actor = await getAuthenticatedEmployee();
   if (!actor) return NextResponse.json({ error: 'Sign in to update profile.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'HR_ADMIN'])) {
-    return NextResponse.json({ error: 'Executive, Super admin, or HR Admin access is required.' }, { status: 403 });
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+    return NextResponse.json({ error: 'Executive or Super admin access is required.' }, { status: 403 });
   }
 
   const { employeeId } = await params;
