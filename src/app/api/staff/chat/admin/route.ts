@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, isHrAuthorizedEmployee } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sendChatMessageEmail } from '@/lib/email';
 
@@ -13,7 +13,8 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const requestedEmployeeId = searchParams.get('employeeId');
-    const isAdmin = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN' || actor.role === 'FINANCE_MANAGER';
+    const isHr = await isHrAuthorizedEmployee(actor);
+    const isAdmin = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN' || actor.role === 'FINANCE_MANAGER' || isHr;
 
     // Scenario A: Admin viewing a thread list of all employees
     if (isAdmin && !requestedEmployeeId) {
@@ -129,7 +130,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Message cannot be empty.' }, { status: 400 });
     }
 
-    const isAdmin = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN' || actor.role === 'FINANCE_MANAGER';
+    const isHr = await isHrAuthorizedEmployee(actor);
+    const isAdmin = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN' || actor.role === 'FINANCE_MANAGER' || isHr;
     const targetEmployeeId = isAdmin && body.employeeId ? body.employeeId : actor.id;
 
     // Verify employee exists

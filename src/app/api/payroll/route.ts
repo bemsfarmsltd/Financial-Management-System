@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole, isHrAuthorizedEmployee } from '@/lib/auth';
 import { createHash } from 'node:crypto';
 import { evaluatePaydayRadar } from '@/lib/payroll-radar';
 
@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view payroll.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
-      return NextResponse.json({ error: 'Executive access (GMD or Super Admin) is required to view payroll.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']) && !(await isHrAuthorizedEmployee(actor))) {
+      return NextResponse.json({ error: 'Executive or HR access is required to view payroll.' }, { status: 403 });
     }
 
     // Run payday radar check (evaluates 7-day pre-payday window and triggers GMD notification if needed)

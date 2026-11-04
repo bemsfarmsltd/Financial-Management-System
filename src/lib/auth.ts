@@ -311,3 +311,45 @@ export function hasAnyRole(employee: AuthenticatedEmployee | null | undefined, r
   return false;
 }
 
+export async function isHrAuthorizedEmployee(employee: AuthenticatedEmployee | null | undefined): Promise<boolean> {
+  if (!employee) return false;
+  // Super Admin and GMD have full executive oversight
+  if (hasAnyRole(employee, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return true;
+  // Check if staff member is assigned to HR department or holds an HR title
+  try {
+    const emp = await prisma.employee.findUnique({
+      where: { id: employee.id },
+      select: {
+        jobTitle: true,
+        assignments: {
+          select: {
+            positionName: true,
+            department: { select: { code: true, name: true } },
+          },
+        },
+      },
+    });
+    if (!emp) return false;
+    const globalTitle = (emp.jobTitle || '').toLowerCase();
+    if (globalTitle.includes('hr') || globalTitle.includes('human') || globalTitle.includes('people') || globalTitle.includes('talent')) {
+      return true;
+    }
+    return emp.assignments.some((a) => {
+      const dept = (a.department?.name || a.department?.code || '').toLowerCase();
+      const pos = (a.positionName || '').toLowerCase();
+      return (
+        dept.includes('hr') ||
+        dept.includes('human') ||
+        dept.includes('people') ||
+        dept.includes('talent') ||
+        pos.includes('hr') ||
+        pos.includes('human resources') ||
+        pos.includes('people') ||
+        pos.includes('talent')
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+

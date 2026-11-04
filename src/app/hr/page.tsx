@@ -1,129 +1,184 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Users, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Users, Lock, ArrowLeft, RefreshCw, ShieldAlert } from 'lucide-react';
+import { HrDashboardClient } from '@/components/dashboard/hr/HrDashboardClient';
 
 export default function HumanResourcesPortalPage() {
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: '#f8fafc',
-        color: '#0f172a',
-        fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      <header
-        style={{
-          background: '#ffffff',
-          borderBottom: '1px solid #e2e8f0',
-          padding: '16px 28px',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: '1100px',
-            margin: '0 auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <img src="/bems-group-logo.png?v=20261024" alt="BEMS logo" style={{ width: 32, height: 32, objectFit: 'contain' }} />
-            <strong style={{ fontSize: '17px', fontWeight: 800 }}>BEMS Human Resources</strong>
-          </div>
-          <Link
-            href="/"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 14px',
-              borderRadius: '8px',
-              background: '#f1f5f9',
-              color: '#334155',
-              fontSize: '12px',
-              fontWeight: 700,
-              textDecoration: 'none',
-            }}
-          >
-            <ArrowLeft size={13} />
-            <span>All Departments</span>
-          </Link>
-        </div>
-      </header>
+  const [user, setUser] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
 
-      <main
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const res = await fetch('/api/auth/session', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data.user || null);
+        }
+      } catch (err) {
+        console.error('Session check error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    checkAuth();
+  }, []);
+
+  if (loading) {
+    return (
+      <div
         style={{
-          flex: 1,
+          minHeight: '100vh',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '40px 24px',
+          background: '#f8fafc',
+          color: '#64748b',
+          fontFamily: "'Outfit', system-ui, sans-serif",
+          gap: '12px',
+        }}
+      >
+        <RefreshCw size={28} className="animate-spin text-indigo-600" />
+        <span style={{ fontSize: '14px', fontWeight: 600 }}>Authenticating BEMS HR Workspace...</span>
+      </div>
+    );
+  }
+
+  // Not signed in
+  if (!user) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#f8fafc',
+          padding: '24px',
+          fontFamily: "'Outfit', system-ui, sans-serif",
           textAlign: 'center',
         }}
       >
         <div
           style={{
-            width: '64px',
-            height: '64px',
+            width: 64,
+            height: 64,
             borderRadius: '16px',
-            background: '#faf5ff',
-            color: '#7c3aed',
-            display: 'grid',
-            placeItems: 'center',
+            background: '#e0e7ff',
+            color: '#4338ca',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             marginBottom: '20px',
           }}
         >
-          <Users size={32} />
+          <Lock size={32} />
         </div>
-        <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '0 0 8px' }}>
-          Human Resources & Talent Management
-        </h1>
-        <p style={{ fontSize: '15px', color: '#64748b', margin: '0 0 28px' }}>
-          This module is currently in development (Phase 4).
+        <h2 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 8px 0', color: '#0f172a' }}>
+          Authentication Required
+        </h2>
+        <p style={{ fontSize: '14px', color: '#64748b', maxWidth: '420px', margin: '0 0 24px 0', lineHeight: 1.5 }}>
+          Please sign in with your corporate account to access the BEMS Human Resources & Timekeeping Workspace.
+        </p>
+        <Link
+          href="/"
+          style={{
+            padding: '10px 24px',
+            borderRadius: '8px',
+            background: '#4f46e5',
+            color: '#ffffff',
+            fontSize: '14px',
+            fontWeight: 700,
+            textDecoration: 'none',
+          }}
+        >
+          Go to Sign In
+        </Link>
+      </div>
+    );
+  }
+
+  // Not authorized
+  const isAuthorized =
+    user.isHrAuthorized || user.role === 'GMD' || user.role === 'SYSTEM_ADMIN' || user.role === 'SUPER_ADMIN';
+
+  if (!isAuthorized) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#f8fafc',
+          padding: '24px',
+          fontFamily: "'Outfit', system-ui, sans-serif",
+          textAlign: 'center',
+        }}
+      >
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: '16px',
+            background: '#fee2e2',
+            color: '#b91c1c',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '20px',
+          }}
+        >
+          <ShieldAlert size={32} />
+        </div>
+        <h2 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 8px 0', color: '#0f172a' }}>
+          Access Restricted: HR Authority Required
+        </h2>
+        <p style={{ fontSize: '14px', color: '#64748b', maxWidth: '480px', margin: '0 0 24px 0', lineHeight: 1.5 }}>
+          The Human Resources workspace is restricted to HR Department personnel and Executive Leadership. Your current
+          account (<strong>{user.fullName}</strong>) is not assigned to the Human Resources unit.
         </p>
         <div style={{ display: 'flex', gap: '12px' }}>
           <Link
             href="/"
             style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
               padding: '10px 18px',
               borderRadius: '8px',
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
+              background: '#f1f5f9',
               color: '#334155',
               fontSize: '13px',
               fontWeight: 700,
               textDecoration: 'none',
             }}
           >
-            ← Back to Departments
+            <ArrowLeft size={14} /> Back to Portal
           </Link>
           <Link
-            href="/finance"
+            href="/staff"
             style={{
               padding: '10px 18px',
               borderRadius: '8px',
-              background: '#ea580c',
+              background: '#4f46e5',
               color: '#ffffff',
               fontSize: '13px',
               fontWeight: 700,
               textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
             }}
           >
-            <span>Open Finance Module</span>
-            <ArrowRight size={14} />
+            Open Staff Workspace
           </Link>
         </div>
-      </main>
-    </div>
-  );
+      </div>
+    );
+  }
+
+  return <HrDashboardClient user={user} />;
 }

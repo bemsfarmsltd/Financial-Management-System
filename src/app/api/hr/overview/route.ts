@@ -1,0 +1,170 @@
+import { NextResponse } from 'next/server';
+import { getAuthenticatedEmployee, isHrAuthorizedEmployee } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+
+export async function GET(req: Request) {
+  try {
+    const actor = await getAuthenticatedEmployee(req);
+    if (!actor) {
+      return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });
+    }
+
+    if (!(await isHrAuthorizedEmployee(actor))) {
+      return NextResponse.json({ error: 'Forbidden. HR workspace access required.' }, { status: 403 });
+    }
+
+    // Today in Africa/Lagos
+    const now = new Date();
+    const todayStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Lagos',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+
+    const [
+      totalStaff,
+      pendingOnboarding,
+      pendingProfileUpdates,
+      pendingLeaves,
+      pendingExcuseRequests,
+      todayRecords,
+      latestPayrollBatch,
+      subsidiaries,
+    ] = await Promise.all([
+      // Total active staff
+      prisma.employee.count({
+        where: {
+          role: 'STAFF',
+          status: 'ACTIVE',
+        },
+      }),
+
+      // Pending onboarding
+      prisma.employee.count({
+        where: {
+          role: 'STAFF',
+          approvalStatus: 'PENDING_APPROVAL',
+        },
+      }),
+
+      // Pending profile update requests
+      prisma.staffProfileUpdateRequest.count({
+        where: {
+          status: 'PENDING',
+        },
+      }),
+
+      // Pending leave requests
+      prisma.leaveRequest.count({
+        where: {
+          status: 'PENDING',
+        },
+      }),
+
+      // Pending excuse / waiver requests
+      prisma.attendanceRecord.count({
+        where: {
+          excuseStatus: 'PENDING_GMD_APPROVAL',
+        },
+      }),
+
+      // Today's attendance records
+      prisma.attendanceRecord.findMany({
+        where: {
+          workDate: todayStr,
+        },
+        select: {
+          status: true,
+          checkInTime: true,
+          isManualOverride: true,
+          excuseStatus: true,
+        },
+      }),
+
+      // Latest Payroll Batch
+      prisma.payrollBatch.findFirst({
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          version: true,
+          payrollType: true,
+          status: true,
+          totalGrossMinor: true,
+          totalNetMinor: true,
+          createdAt: true,
+          period: {
+            select: { year: true, month: true },
+          },
+          _count: {
+            select: { items: true },
+          },
+        },
+      }),
+
+      // Subsidiary breakdown
+      prisma.organization.findMany({
+        where: { status: 'ACTIVE' },
+        select: {
+          id: true,
+          legalName: true,
+          code: true,
+          brandColor: true,
+          _count: {
+            select: { employeeAssignments: true },
+          },
+        },
+      }),
+    ]);
+
+    let presentToday = 0;
+    let lateToday = 0;
+    let excusedToday = 0;
+
+    for (const r of todayRecords) {
+      if (r.status === 'PRESENT') presentToday++;
+      else if (r.status === 'LATE') lateToday++;
+      else if (r.status === 'EXCUSED') excusedToday++;
+    }
+
+    const absentToday = Math.max(0, totalStaff - (presentToday + lateToday + excusedToday));
+
+    return NextResponse.json({
+      success: true,
+      todayStr,
+      metrics: {
+        totalStaff,
+        presentToday,
+        lateToday,
+        absentToday,
+        excusedToday,
+        pendingOnboarding,
+        pendingProfileUpdates,
+        pendingLeaves,
+        pendingExcuseRequests,
+      },
+      latestPayrollBatch: latestPayrollBatch
+        ? {
+            id: latestPayrollBatch.id,
+            version: latestPayrollBatch.version,
+            status: latestPayrollBatch.status,
+            yearMonth: `${latestPayrollBatch.period.year}-${String(latestPayrollBatch.period.month).padStart(2, '0')}`,
+            totalHeadcount: latestPayrollBatch._count.items,
+            totalGrossMinor: latestPayrollBatch.totalGrossMinor.toString(),
+            totalNetMinor: latestPayrollBatch.totalNetMinor.toString(),
+            createdAt: latestPayrollBatch.createdAt,
+          }
+        : null,
+      subsidiaries: subsidiaries.map((sub) => ({
+        id: sub.id,
+        name: sub.legalName,
+        code: sub.code,
+        brandColor: sub.brandColor,
+        staffCount: sub._count.employeeAssignments,
+      })),
+    });
+  } catch (error) {
+    console.error('HR Overview API Error:', error);
+    return NextResponse.json({ error: 'Failed to load HR overview data' }, { status: 500 });
+  }
+}
