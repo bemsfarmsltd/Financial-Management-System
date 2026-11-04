@@ -92,6 +92,7 @@ export function HrDashboardClient({ user }: { user: HrUser }) {
   // Payroll preparation state
   const [payrollLoading, setPayrollLoading] = useState(false);
   const [payrollPrepareNotice, setPayrollPrepareNotice] = useState<string | null>(null);
+  const [payrollSearch, setPayrollSearch] = useState('');
 
   // Chat state
   const [chatThreads, setChatThreads] = useState<any[]>([]);
@@ -444,7 +445,7 @@ export function HrDashboardClient({ user }: { user: HrUser }) {
 
   // Tab switch listener
   useEffect(() => {
-    if (activeTab === 'DIRECTORY') fetchStaffList();
+    if (activeTab === 'DIRECTORY' || activeTab === 'PAYROLL') fetchStaffList();
     if (activeTab === 'ATTENDANCE') fetchAttendanceRecords();
     if (activeTab === 'LEAVE') fetchLeaveRequests();
     if (activeTab === 'CHAT') fetchChatThreads();
@@ -2112,144 +2113,384 @@ export function HrDashboardClient({ user }: { user: HrUser }) {
         )}
 
         {/* TAB 5: PAYROLL PREPARATION */}
-        {activeTab === 'PAYROLL' && (
-          <div style={{ maxWidth: '880px', margin: '0 auto' }}>
-            <div
-              style={{
-                background: '#ffffff',
-                borderRadius: '16px',
-                border: '1px solid #e2e8f0',
-                padding: '32px',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
+        {activeTab === 'PAYROLL' && (() => {
+          const enrolledStaffList = staffList.filter((s: any) => {
+            if (!payrollSearch.trim()) return true;
+            const q = payrollSearch.toLowerCase();
+            const nameMatch = (s.legalName || '').toLowerCase().includes(q);
+            const idMatch = (s.employeeNumber || '').toLowerCase().includes(q);
+            const subMatch = (s.primaryAssignment?.subsidiary?.legalName || '').toLowerCase().includes(q);
+            const deptMatch = (s.primaryAssignment?.department?.name || '').toLowerCase().includes(q);
+            const jobMatch = (s.jobTitle || '').toLowerCase().includes(q);
+            return nameMatch || idMatch || subMatch || deptMatch || jobMatch;
+          });
+
+          const eligibleStaffCount = staffList.filter((s: any) => Number(s.currentGrossMinor || 0) > 0).length;
+          const totalBasePayroll = staffList.reduce((acc: number, s: any) => {
+            return acc + (Number(s.currentGrossMinor || 0) / 100);
+          }, 0);
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  border: '1px solid #e2e8f0',
+                  padding: '32px',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: '12px',
+                      background: '#e0e7ff',
+                      color: '#4338ca',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <DollarSign size={26} />
+                  </div>
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>
+                      Monthly Payroll Preparation Desk
+                    </h2>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                      Roll up verified attendance logs, compute lateness deductions, and assemble draft batch for GMD sign-off.
+                    </p>
+                  </div>
+                </div>
+
+                {payrollPrepareNotice && (
+                  <div
+                    style={{
+                      padding: '14px 18px',
+                      borderRadius: '10px',
+                      background: payrollPrepareNotice.startsWith('Error') ? '#fee2e2' : '#dcfce7',
+                      color: payrollPrepareNotice.startsWith('Error') ? '#b91c1c' : '#15803d',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      marginBottom: '20px',
+                    }}
+                  >
+                    {payrollPrepareNotice}
+                  </div>
+                )}
+
+                {/* Status Box */}
                 <div
                   style={{
-                    width: 48,
-                    height: 48,
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
                     borderRadius: '12px',
-                    background: '#e0e7ff',
-                    color: '#4338ca',
+                    padding: '20px',
+                    marginBottom: '24px',
+                  }}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+                    <div>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>LAST BATCH STATUS</span>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
+                        {overview?.latestPayrollBatch?.status || 'No Active Batch'}
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>HEADCOUNT ENROLLED</span>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#4f46e5', marginTop: '4px' }}>
+                        {overview?.latestPayrollBatch
+                          ? `${overview.latestPayrollBatch.totalHeadcount} Staff`
+                          : `${eligibleStaffCount || 0} Staff (Ready)`}
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>ESTIMATED NET TOTAL</span>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#15803d', marginTop: '4px' }}>
+                        {overview?.latestPayrollBatch?.totalNetMinor
+                          ? `₦${(Number(overview.latestPayrollBatch.totalNetMinor) / 100).toLocaleString()}`
+                          : totalBasePayroll > 0
+                          ? `₦${totalBasePayroll.toLocaleString()} (Est. Base)`
+                          : '—'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step Process Description */}
+                <div style={{ marginBottom: '28px', fontSize: '13px', color: '#475569', lineHeight: 1.6 }}>
+                  <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', margin: '0 0 10px 0' }}>
+                    HR Preparation Workflow:
+                  </h4>
+                  <ol style={{ paddingLeft: '20px', margin: 0 }}>
+                    <li style={{ marginBottom: '6px' }}>
+                      <strong>Verify Attendance Logs:</strong> Ensure lateness excuses have been reviewed and forwarded to GMD.
+                    </li>
+                    <li style={{ marginBottom: '6px' }}>
+                      <strong>Generate Draft Batch:</strong> Click below to roll up active employee agreements and compute statutory & lateness deductions.
+                    </li>
+                    <li>
+                      <strong>GMD Sign-Off & Disbursement:</strong> The GMD will inspect the draft batch on their Executive App/Dashboard, adjust individual pay if needed, and authorize the disbursement batch.
+                    </li>
+                  </ol>
+                </div>
+
+                {/* Preparation Trigger Button */}
+                <button
+                  onClick={handlePreparePayroll}
+                  disabled={payrollLoading}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '15px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(79, 70, 229, 0.35)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    gap: '10px',
                   }}
                 >
-                  <DollarSign size={26} />
-                </div>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>
-                    Monthly Payroll Preparation Desk
-                  </h2>
-                  <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
-                    Roll up verified attendance logs, compute lateness deductions, and assemble draft batch for GMD sign-off.
-                  </p>
-                </div>
+                  {payrollLoading ? (
+                    <>
+                      <RefreshCw size={18} className="animate-spin" /> Preparing Draft Batch...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={18} /> Run Payroll Calculation & Submit Batch to GMD
+                    </>
+                  )}
+                </button>
               </div>
 
-              {payrollPrepareNotice && (
-                <div
-                  style={{
-                    padding: '14px 18px',
-                    borderRadius: '10px',
-                    background: payrollPrepareNotice.startsWith('Error') ? '#fee2e2' : '#dcfce7',
-                    color: payrollPrepareNotice.startsWith('Error') ? '#b91c1c' : '#15803d',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    marginBottom: '20px',
-                  }}
-                >
-                  {payrollPrepareNotice}
-                </div>
-              )}
-
-              {/* Status Box */}
+              {/* ITEMIZE STAFF PAYROLL ROSTER */}
               <div
                 style={{
-                  background: '#f8fafc',
+                  background: '#ffffff',
+                  borderRadius: '16px',
                   border: '1px solid #e2e8f0',
-                  borderRadius: '12px',
-                  padding: '20px',
-                  marginBottom: '24px',
+                  overflow: 'hidden',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
                 }}
               >
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+                <div
+                  style={{
+                    padding: '20px 24px',
+                    borderBottom: '1px solid #e2e8f0',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '16px',
+                    background: '#f8fafc',
+                  }}
+                >
                   <div>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>LAST BATCH STATUS</span>
-                    <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
-                      {overview?.latestPayrollBatch?.status || 'No Active Batch'}
-                    </div>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
+                      Enrolled Staff Payroll Roster Preview
+                    </h3>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                      Verified active staff agreements eligible for monthly payroll calculation
+                    </p>
                   </div>
-                  <div>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>HEADCOUNT ENROLLED</span>
-                    <div style={{ fontSize: '18px', fontWeight: 800, color: '#4f46e5', marginTop: '4px' }}>
-                      {overview?.latestPayrollBatch?.totalHeadcount || overview?.metrics?.totalStaff || 0} Staff
-                    </div>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>ESTIMATED NET TOTAL</span>
-                    <div style={{ fontSize: '18px', fontWeight: 800, color: '#15803d', marginTop: '4px' }}>
-                      {overview?.latestPayrollBatch?.totalNetMinor
-                        ? `₦${(Number(overview.latestPayrollBatch.totalNetMinor) / 100).toLocaleString()}`
-                        : '—'}
-                    </div>
+
+                  {/* Search Bar */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '10px',
+                      padding: '8px 14px',
+                      width: '280px',
+                    }}
+                  >
+                    <Search size={15} color="#64748b" />
+                    <input
+                      type="text"
+                      placeholder="Search roster by name, ID, title..."
+                      value={payrollSearch}
+                      onChange={(e) => setPayrollSearch(e.target.value)}
+                      style={{
+                        border: 'none',
+                        outline: 'none',
+                        background: 'transparent',
+                        fontSize: '13px',
+                        width: '100%',
+                        color: '#0f172a',
+                      }}
+                    />
+                    {payrollSearch && (
+                      <button
+                        onClick={() => setPayrollSearch('')}
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
+                      >
+                        <X size={14} color="#94a3b8" />
+                      </button>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              {/* Step Process Description */}
-              <div style={{ marginBottom: '28px', fontSize: '13px', color: '#475569', lineHeight: 1.6 }}>
-                <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', margin: '0 0 10px 0' }}>
-                  HR Preparation Workflow:
-                </h4>
-                <ol style={{ paddingLeft: '20px', margin: 0 }}>
-                  <li style={{ marginBottom: '6px' }}>
-                    <strong>Verify Attendance Logs:</strong> Ensure lateness excuses have been reviewed and forwarded to GMD.
-                  </li>
-                  <li style={{ marginBottom: '6px' }}>
-                    <strong>Generate Draft Batch:</strong> Click below to roll up active employee agreements and compute statutory & lateness deductions.
-                  </li>
-                  <li>
-                    <strong>GMD Sign-Off & Disbursement:</strong> The GMD will inspect the draft batch on their Executive App/Dashboard, adjust individual pay if needed, and authorize the disbursement batch.
-                  </li>
-                </ol>
-              </div>
+                {/* Summary Strip */}
+                <div
+                  style={{
+                    padding: '12px 24px',
+                    background: '#f1f5f9',
+                    borderBottom: '1px solid #e2e8f0',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#334155',
+                  }}
+                >
+                  <span>
+                    Enrolled Roster: <strong style={{ color: '#4f46e5' }}>{eligibleStaffCount} Active Staff</strong>
+                  </span>
+                  <span>
+                    Live Monthly Base Total:{' '}
+                    <strong style={{ color: '#15803d' }}>
+                      ₦{totalBasePayroll.toLocaleString()}
+                    </strong>
+                  </span>
+                </div>
 
-              {/* Preparation Trigger Button */}
-              <button
-                onClick={handlePreparePayroll}
-                disabled={payrollLoading}
-                style={{
-                  width: '100%',
-                  padding: '14px',
-                  borderRadius: '10px',
-                  background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: '15px',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(79, 70, 229, 0.35)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '10px',
-                }}
-              >
-                {payrollLoading ? (
-                  <>
-                    <RefreshCw size={18} className="animate-spin" /> Preparing Draft Batch...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={18} /> Run Payroll Calculation & Submit Batch to GMD
-                  </>
-                )}
-              </button>
+                {/* Table */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <th style={{ padding: '12px 20px', width: '50px' }}>#</th>
+                        <th style={{ padding: '12px 20px' }}>Staff Member</th>
+                        <th style={{ padding: '12px 20px' }}>Department / Subsidiary</th>
+                        <th style={{ padding: '12px 20px' }}>Role / Job Title</th>
+                        <th style={{ padding: '12px 20px', textAlign: 'right' }}>Monthly Base Salary</th>
+                        <th style={{ padding: '12px 20px', textAlign: 'center' }}>Compensation Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {enrolledStaffList.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ padding: '36px 20px', textAlign: 'center', color: '#64748b' }}>
+                            No staff records matching your search.
+                          </td>
+                        </tr>
+                      ) : (
+                        enrolledStaffList.map((staff: any, idx: number) => {
+                          const grossMinor = Number(staff.currentGrossMinor || 0);
+                          const hasSalary = grossMinor > 0;
+                          const salaryFormatted = hasSalary
+                            ? `₦${(grossMinor / 100).toLocaleString()}`
+                            : 'Not Configured';
+
+                          const initials = (staff.legalName || 'ST')
+                            .split(' ')
+                            .map((n: string) => n[0])
+                            .slice(0, 2)
+                            .join('')
+                            .toUpperCase();
+
+                          return (
+                            <tr
+                              key={staff.id}
+                              style={{
+                                borderBottom: '1px solid #f1f5f9',
+                                transition: 'background 0.15s ease',
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              <td style={{ padding: '14px 20px', color: '#94a3b8', fontWeight: 600 }}>{idx + 1}</td>
+                              <td style={{ padding: '14px 20px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <div
+                                    style={{
+                                      width: '32px',
+                                      height: '32px',
+                                      borderRadius: '8px',
+                                      background: '#e0e7ff',
+                                      color: '#4338ca',
+                                      display: 'grid',
+                                      placeItems: 'center',
+                                      fontWeight: 800,
+                                      fontSize: '11px',
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {initials}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 800, color: '#0f172a' }}>{staff.legalName}</div>
+                                    <div style={{ fontSize: '11px', color: '#64748b' }}>{staff.employeeNumber || 'ID Pending'}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 20px' }}>
+                                <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                                  {staff.primaryAssignment?.department?.name || 'Operations'}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                  {staff.primaryAssignment?.subsidiary?.legalName || 'BEMS Group'}
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 20px', color: '#475569' }}>
+                                {staff.jobTitle || 'Staff Member'}
+                              </td>
+                              <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: 800, color: hasSalary ? '#0f172a' : '#94a3b8' }}>
+                                {salaryFormatted}
+                              </td>
+                              <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                                {hasSalary ? (
+                                  <span
+                                    style={{
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      background: '#ecfdf5',
+                                      color: '#059669',
+                                      border: '1px solid #a7f3d0',
+                                    }}
+                                  >
+                                    Enrolled
+                                  </span>
+                                ) : (
+                                  <span
+                                    style={{
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      background: '#fef2f2',
+                                      color: '#dc2626',
+                                      border: '1px solid #fecaca',
+                                    }}
+                                  >
+                                    No Salary Set
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* TAB 6: STAFF HELPDESK CHAT */}
         {activeTab === 'CHAT' && (
