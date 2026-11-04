@@ -33,9 +33,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ emp
     const result = await prisma.$transaction(async tx => {
       const employee = await tx.employee.findUnique({
         where: { id: employeeId },
-        select: { id: true, legalName: true, status: true, assignments: { select: { subsidiaryId: true, departmentId: true }, take: 1 } }
+        select: { id: true, legalName: true, status: true, role: true, assignments: { select: { subsidiaryId: true, departmentId: true }, take: 1 } }
       });
       if (!employee) throw new Error('Staff member not found.');
+      if (employee.role !== 'STAFF') throw new Error('Staff salary adjustments are only applicable to staff members.');
       if (employee.status !== 'ACTIVE') throw new Error('Salary can only be changed for active staff.');
 
       const defaultOrg = employee.assignments[0]?.subsidiaryId || (await tx.organization.findFirst({ select: { id: true } }))?.id || '';

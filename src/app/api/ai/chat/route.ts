@@ -187,7 +187,7 @@ title: "<Chart Title>"
         orderBy: { createdAt: 'desc' },
         include: { requester: true },
       }).catch(() => []),
-      prisma.employee.count({ where: { status: 'ACTIVE', role: { not: 'SYSTEM_ADMIN' } } }).catch(() => 0),
+      prisma.employee.count({ where: { status: 'ACTIVE', role: 'STAFF' } }).catch(() => 0),
       prisma.organization.findMany({ where: { status: 'ACTIVE' } }).catch(() => []),
       prisma.accountabilityCase.findMany({
         where: { status: { not: 'CLOSED' } },

@@ -60,7 +60,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
     }
   });
 
-  if (!employee) return NextResponse.json({ error: 'Staff member not found.' }, { status: 404 });
+  if (!employee || employee.role !== 'STAFF') {
+    return NextResponse.json({ error: 'Staff member not found.' }, { status: 404 });
+  }
 
   const subsidiaryIds = [...new Set(employee.payrollItems.flatMap(item => item.allocations.map(allocation => allocation.subsidiaryId)))];
   const subsidiaries = subsidiaryIds.length

@@ -11,7 +11,7 @@ export async function GET() {
 
   const [employees, organizations, departments, activeGmd] = await Promise.all([
     prisma.employee.findMany({
-      where: { approvalStatus: 'PENDING_APPROVAL' },
+      where: { approvalStatus: 'PENDING_APPROVAL', role: 'STAFF' },
       select: {
         id: true,
         employeeNumber: true,

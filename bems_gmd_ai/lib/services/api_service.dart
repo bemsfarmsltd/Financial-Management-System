@@ -404,7 +404,12 @@ class ApiService {
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        return (data['employees'] as List<dynamic>?) ?? [];
+        final list = (data['employees'] as List<dynamic>?) ?? [];
+        // Strictly guarantee only STAFF members are returned
+        return list.where((emp) {
+          final role = (emp['role'] ?? 'STAFF').toString().toUpperCase();
+          return role == 'STAFF';
+        }).toList();
       }
     } catch (_) {}
     return [];
@@ -536,7 +541,12 @@ class ApiService {
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        return (data['employees'] as List<dynamic>?) ?? [];
+        final list = (data['employees'] as List<dynamic>?) ?? [];
+        // Strictly guarantee only STAFF members are returned
+        return list.where((emp) {
+          final role = (emp['role'] ?? 'STAFF').toString().toUpperCase();
+          return role == 'STAFF';
+        }).toList();
       }
     } catch (_) {}
     return [];

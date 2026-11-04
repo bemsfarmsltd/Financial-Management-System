@@ -19,7 +19,7 @@ export async function GET(req: Request) {
 
     const employees = await prisma.employee.findMany({
       where: {
-        role: { notIn: ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'] },
+        role: 'STAFF',
       },
       include: {
         assignments: {

@@ -28,8 +28,14 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     final dirData = await ApiService.fetchStaffDirectory();
 
     if (mounted) {
+      final rawPending = (approvalData['employees'] as List<dynamic>?) ?? [];
+      final pendingStaff = rawPending.where((e) {
+        final r = (e['role'] ?? 'STAFF').toString().toUpperCase();
+        return r == 'STAFF';
+      }).toList();
+
       setState(() {
-        _pendingStaff = (approvalData['employees'] as List<dynamic>?) ?? [];
+        _pendingStaff = pendingStaff;
         _directoryStaff = dirData;
         _isLoading = false;
       });

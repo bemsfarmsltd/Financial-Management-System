@@ -364,11 +364,12 @@ export function PeopleAccessWorkspaceModule({
     [invitations]
   );
 
-  // Search filtering
+  // Search filtering - strictly guarantee only STAFF appear under staff approvals
   const filteredEmployees = useMemo(() => {
-    if (!searchQuery.trim()) return employees;
+    const onlyStaff = employees.filter((e) => (e.role || 'STAFF') === 'STAFF');
+    if (!searchQuery.trim()) return onlyStaff;
     const q = searchQuery.toLowerCase();
-    return employees.filter(
+    return onlyStaff.filter(
       (e) =>
         e.legalName.toLowerCase().includes(q) ||
         e.workEmail.toLowerCase().includes(q) ||
