@@ -316,33 +316,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
           ),
           child: Row(
             children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: widget.onSwitchToAi,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.auto_awesome_rounded, size: 14, color: Color(0xFF64748B)),
-                        SizedBox(width: 6),
-                        Text(
-                          'BEMi Copilot',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              // System Dashboard Option (Active on Page 0)
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 9),
@@ -374,6 +348,35 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
                   ),
                 ),
               ),
+
+              // BEMi Copilot Option (Tap to swap to Page 1)
+              Expanded(
+                child: GestureDetector(
+                  onTap: widget.onSwitchToAi,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.auto_awesome_rounded, size: 14, color: Color(0xFF64748B)),
+                        SizedBox(width: 6),
+                        Text(
+                          'BEMi Copilot',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -384,7 +387,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
             Icon(Icons.swipe_rounded, size: 11, color: Color(0xFF94A3B8)),
             SizedBox(width: 4),
             Text(
-              'Swipe screen or tap pill to swap view',
+              'Swipe left for BEMi AI Copilot or tap pill',
               style: TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
             ),
           ],
@@ -806,6 +809,9 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
         _buildRequisitionCard(activeRequests.first, formatter),
         const SizedBox(height: 18),
       ],
+
+      // Operations & System Capabilities Cards (Featured Prominently on Home)
+      ..._buildOperationCardsGrid(isHome: true),
 
       // 1. Solid Multi-Bank Treasury Donut / Pie Chart (Workstation Scoped)
       _buildSectionHeader(currentWorkstation.code == 'all' ? 'WHERE OUR MONEY IS KEPT' : '${currentWorkstation.code} BANK ACCOUNTS', 'Current balances in company bank accounts for ${currentWorkstation.shortName}'),
@@ -1485,9 +1491,9 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
     );
   }
 
-  // TAB 3: OPERATIONS HUB
-  List<Widget> _buildOperationsHubTab(NumberFormat formatter, WorkstationProfile currentWorkstation) {
-    final modules = [
+  // OPERATIONAL MODULES DEFINITION
+  List<Map<String, dynamic>> _getOperationModules() {
+    return [
       {
         'title': 'Disbursements Console',
         'desc': 'Approved payout queue & bank proof',
@@ -1552,11 +1558,18 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GmdStaffChatScreen())),
       },
     ];
+  }
+
+  // REUSABLE OPERATION CARDS GRID (FEATURED ON HOME & IN OPERATIONS HUB)
+  List<Widget> _buildOperationCardsGrid({bool isHome = false}) {
+    final modules = _getOperationModules();
 
     return [
       _buildSectionHeader(
-        'OPERATIONAL COMMAND DESKS',
-        'Executive consoles with complete parity to the Admin Web Dashboard',
+        isHome ? 'SYSTEM CAPABILITIES & OPERATION CARDS' : 'OPERATIONAL COMMAND DESKS',
+        isHome
+            ? 'Tap any card to access and manage live group operations with ease'
+            : 'Executive consoles with complete parity to the Admin Web Dashboard',
       ),
       const SizedBox(height: 12),
       GridView.builder(
@@ -1628,6 +1641,13 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
         },
       ),
       const SizedBox(height: 20),
+    ];
+  }
+
+  // TAB 3: OPERATIONS HUB
+  List<Widget> _buildOperationsHubTab(NumberFormat formatter, WorkstationProfile currentWorkstation) {
+    return [
+      ..._buildOperationCardsGrid(isHome: false),
       ..._buildAccountabilityBudgetsTab(formatter, currentWorkstation),
     ];
   }

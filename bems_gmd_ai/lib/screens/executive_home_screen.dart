@@ -21,7 +21,7 @@ class ExecutiveHomeScreen extends StatefulWidget {
     super.key,
     this.userName = 'Group Managing Director',
     this.businessName = 'BEMS Group · GMD Cockpit',
-    this.initialMode = 'ai',
+    this.initialMode = 'dashboard',
     this.showBiometricPrompt = false,
   });
 
@@ -40,7 +40,7 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _currentPage = widget.initialMode == 'dashboard' ? 1 : 0;
+    _currentPage = widget.initialMode == 'ai' ? 1 : 0;
     _pageController = PageController(initialPage: _currentPage);
     _loadUser();
 
@@ -122,11 +122,11 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
           setState(() => _currentPage = page);
         },
         children: [
-          _buildAiCockpit(context, effectiveUserName),
           ExecutiveSystemDashboard(
             onOpenDrawer: () => _homeScaffoldKey.currentState?.openDrawer(),
-            onSwitchToAi: () => _navigateToPage(0),
+            onSwitchToAi: () => _navigateToPage(1),
           ),
+          _buildAiCockpit(context, effectiveUserName),
         ],
       ),
     );
@@ -288,7 +288,7 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                   ),
                   child: Row(
                     children: [
-                      // AI Copilot Option
+                      // System Dashboard Option (Default Page 0)
                       Expanded(
                         child: GestureDetector(
                           onTap: () => _navigateToPage(0),
@@ -311,13 +311,13 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
-                                  Icons.auto_awesome_rounded,
+                                  Icons.dashboard_customize_rounded,
                                   size: 14,
                                   color: _currentPage == 0 ? Colors.white : const Color(0xFF64748B),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'BEMi Copilot',
+                                  'System Dashboard',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: _currentPage == 0 ? FontWeight.w800 : FontWeight.w700,
@@ -330,7 +330,7 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                         ),
                       ),
 
-                      // System Dashboard Option
+                      // AI Copilot Option (Page 1)
                       Expanded(
                         child: GestureDetector(
                           onTap: () => _navigateToPage(1),
@@ -353,13 +353,13 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
-                                  Icons.dashboard_customize_rounded,
+                                  Icons.auto_awesome_rounded,
                                   size: 14,
                                   color: _currentPage == 1 ? Colors.white : const Color(0xFF64748B),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'System Dashboard',
+                                  'BEMi Copilot',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: _currentPage == 1 ? FontWeight.w800 : FontWeight.w700,
@@ -375,14 +375,16 @@ class _ExecutiveHomeScreenState extends State<ExecutiveHomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Row(
+                Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.swipe_rounded, size: 11, color: Color(0xFF94A3B8)),
-                    SizedBox(width: 4),
+                    const Icon(Icons.swipe_rounded, size: 11, color: Color(0xFF94A3B8)),
+                    const SizedBox(width: 4),
                     Text(
-                      'Swipe screen or tap pill to swap view',
-                      style: TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                      _currentPage == 0
+                          ? 'Swipe left for BEMi AI Copilot or tap pill'
+                          : 'Swipe right for System Dashboard or tap pill',
+                      style: const TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
