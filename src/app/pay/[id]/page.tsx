@@ -376,3 +376,4 @@ export default function QuickPayPage({ params }: { params: Promise<{ id: string 
     </div>
   );
 }
+

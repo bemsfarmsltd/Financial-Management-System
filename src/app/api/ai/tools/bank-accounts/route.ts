@@ -24,23 +24,29 @@ export async function POST(req: NextRequest) {
   const accountName = (body.accountName || body.beneficiaryName || '').trim();
   const accountType = (body.accountType || 'Corporate Operational').trim(); // For CompanyBankAccount
 
-  if (!targetQuery) {
-    return NextResponse.json(
-      { ok: false, error_code: 'VALIDATION_FAILED', message: 'Target identifier (employee, subsidiary, or vendor name/ID) is required.' },
-      { status: 400 }
-    );
-  }
+  const missing: string[] = [];
+  if (!targetQuery) missing.push('targetId (Name, Email, or ID of Staff, Subsidiary, or Vendor)');
+  if (!rawBankName) missing.push('bankName (Bank Name, e.g. GTBank, Kuda, Zenith, Access, OPay)');
+  if (!accountNumber || accountNumber.length !== 10) missing.push('accountNumber (Exactly 10-digit NUBAN)');
+  if (!accountName) missing.push('accountName (Exact beneficiary account name on record with NIBSS)');
 
-  if (!rawBankName) {
+  if (missing.length > 0) {
     return NextResponse.json(
-      { ok: false, error_code: 'VALIDATION_FAILED', message: 'Bank name is required.' },
-      { status: 400 }
-    );
-  }
-
-  if (accountNumber.length !== 10) {
-    return NextResponse.json(
-      { ok: false, error_code: 'INVALID_NUBAN', message: 'Nigerian bank account number must be exactly 10 digits.' },
+      {
+        ok: false,
+        error_code: 'INCOMPLETE_PARAMETERS',
+        message: 'To register a bank account, all financial and beneficiary specifications are mandatory.',
+        missing_fields: missing,
+        required_fields: [
+          { field: 'targetType', label: 'Target Type (STAFF, SUBSIDIARY, or VENDOR)', example: 'STAFF' },
+          { field: 'targetId', label: 'Beneficiary Name/Email/Code', example: 'babatundediekolayomi@gmail.com' },
+          { field: 'bankName', label: 'Bank Name', example: 'Guaranty Trust Bank' },
+          { field: 'accountNumber', label: '10-Digit Account Number', example: '0123456789' },
+          { field: 'accountName', label: 'Verified Beneficiary Account Name', example: 'Babatunde Diekolayomi' },
+        ],
+        conversational_prompt: `To register this bank account, please ask the GMD for:\n` +
+          missing.map((m, i) => `${i + 1}. **${m}**`).join('\n'),
+      },
       { status: 400 }
     );
   }
@@ -212,3 +218,4 @@ export async function POST(req: NextRequest) {
     { status: 400 }
   );
 }
+

@@ -59,15 +59,41 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const name: string = (body.name || body.legalName || '').trim();
   let code: string = (body.code || '').trim().toUpperCase();
-  const type: string = body.type || 'SUBSIDIARY';
-  const currency: string = (body.currency || 'NGN').toUpperCase();
-  const brandColor: string = body.brandColor || '#EA580C';
-  const industry: string = (body.industry || '').trim();
-  const headquarters: string = (body.headquarters || '').trim();
+  const type: string = (body.type || 'OPERATING_SUBSIDIARY').trim();
+  const currency: string = (body.currency || 'NGN').toUpperCase().trim();
+  const brandColor: string = (body.brandColor || body.color || '').trim();
+  const industry: string = (body.industry || body.sector || '').trim();
+  const headquarters: string = (body.headquarters || body.location || body.address || '').trim();
+  const logoUrl: string = (body.logoUrl || body.logo || '').trim();
 
-  if (!name || name.length < 2) {
+  // Validate missing fields
+  const missing: string[] = [];
+  if (!name || name.length < 2) missing.push('name (Legal corporate name)');
+  if (!brandColor) missing.push('brandColor (Corporate brand hex color, e.g. #EA580C, #2563EB)');
+  if (!industry) missing.push('industry (Primary operational sector, e.g. Agribusiness, Media Production)');
+  if (!headquarters) missing.push('headquarters (City / State / Physical headquarters address)');
+
+  if (missing.length > 0) {
     return NextResponse.json(
-      { ok: false, error_code: 'VALIDATION_FAILED', message: 'Subsidiary legal name is required (min 2 chars).' },
+      {
+        ok: false,
+        error_code: 'INCOMPLETE_PARAMETERS',
+        message: 'To create a subsidiary, all corporate specifications are mandatory. The AI must ask the GMD for the missing details before execution.',
+        missing_fields: missing,
+        required_fields: [
+          { field: 'name', label: 'Legal Corporate Name', example: 'Studio Arella Ltd' },
+          { field: 'brandColor', label: 'Brand Color (Hex)', example: '#EA580C' },
+          { field: 'industry', label: 'Industry / Business Sector', example: 'Media & Creative Production' },
+          { field: 'headquarters', label: 'Headquarters Location', example: 'Lagos, Nigeria' },
+          { field: 'code', label: 'Shortcode (Optional)', example: 'SAL' },
+          { field: 'type', label: 'Entity Structure', example: 'OPERATING_SUBSIDIARY' },
+          { field: 'currency', label: 'Operating Currency', example: 'NGN' },
+          { field: 'logoUrl', label: 'Logo URL (Optional)', example: 'https://.../logo.png' },
+        ],
+        conversational_prompt: `To create this subsidiary, please provide the following details:\n` +
+          missing.map((m, i) => `${i + 1}. **${m}**`).join('\n') +
+          `\n\n*(Optional: Shortcode, Entity Structure, and Logo URL).*`,
+      },
       { status: 400 }
     );
   }
@@ -99,6 +125,7 @@ export async function POST(req: NextRequest) {
         defaultCurrency: ['NGN', 'USD', 'GBP', 'EUR'].includes(currency) ? currency : 'NGN',
         timezone: 'Africa/Lagos',
         brandColor,
+        logoUrl: logoUrl || null,
       },
     });
 

@@ -78,3 +78,4 @@ export async function authenticateAiToolRequest(req: NextRequest): Promise<{ act
     errorResponse: null,
   };
 }
+

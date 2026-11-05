@@ -655,17 +655,71 @@ title: "<Chart Title>"
       if (!isExecutive) {
         reply = `🔒 **Executive Authority Required:** Corporate entity formation and subsidiary provisioning can only be authorized by the Group Managing Director or System Administrator.`;
       } else {
-        reply = `**Subsidiary Provisioning:**\n\nYou can create new operating entities directly in the system. The entity will be automatically assigned an enterprise shortcode, currency register, and default attendance policy.\n\nTo provision a subsidiary via chat or automation, pass the legal name, state/headquarters, and operational sector (e.g. \`Studio Arella Ltd\`, \`Arella Farms SPV\`).`;
+        reply = `🏛️ **Corporate Subsidiary Provisioning Specification**\n\n` +
+          `To configure and launch a new operating subsidiary on BEMS, all operational parameters are required:\n\n` +
+          `1. **Corporate Legal Name**: Official registered name (e.g., *Arella Creative Studio Ltd*)\n` +
+          `2. **Brand Hex Color**: Primary identity color (e.g., \`#EA580C\` Orange, \`#2563EB\` Blue, \`#0D8A70\` Emerald)\n` +
+          `3. **Industry / Operational Sector**: Primary business focus (e.g., *Media Production*, *Agribusiness & Logistics*, *Tech IP*)\n` +
+          `4. **Headquarters Location**: Physical base / State (e.g., *14 Admiralty Way, Lekki Phase 1, Lagos*)\n` +
+          `5. **Corporate Logo URL**: Link to official logo asset (e.g., *https://.../logo.png*)\n` +
+          `6. **Shortcode (Optional)**: 3–4 letter code (e.g., *SAL*, *ACS* - will be auto-generated if omitted)\n` +
+          `7. **Functional Currency**: Default is \`NGN\` (or \`USD\`, \`GBP\`, \`EUR\`)\n\n` +
+          `💬 *Please reply with these details, and I will prepare the complete subsidiary dossier for your authorization.*`;
+        
+        actionCard = {
+          type: 'SPECIFICATION_CHECKLIST',
+          title: 'Subsidiary Creation Checklist',
+          fields: ['Corporate Legal Name', 'Brand Color (Hex)', 'Industry Sector', 'Headquarters City/State', 'Logo URL', 'Shortcode'],
+        };
       }
     } else if (
       normalized.includes('onboard admin') ||
       normalized.includes('create admin') ||
-      normalized.includes('new admin')
+      normalized.includes('new admin') ||
+      normalized.includes('invite admin')
     ) {
       if (!isExecutive) {
         reply = `🔒 **Executive Authority Required:** Only the GMD or Super Admin can provision executive accounts.`;
       } else {
-        reply = `**Strict 3-Role Architecture Admin Onboarding:**\n\nUnder system governance rules, only two executive roles can be invited via administration:\n1. **The Group Managing Director (GMD)**\n2. **Super Admin (SYSTEM_ADMIN / SUPER_ADMIN)**\n\n*(Staff onboarding is strictly self-service on the BEMS Staff Mobile App and Portal).* To invite an executive, provide their legal name, corporate work email, and selected role.`;
+        reply = `👤 **Executive Admin Onboarding Specification**\n\n` +
+          `*(Strict 3-Role Governance: Limited strictly to SUPER_ADMIN or GMD. Staff accounts use self-service mobile app registration).*\n\n` +
+          `Please provide the following required details:\n\n` +
+          `1. **Full Legal Name**: e.g., *Engr. Michael Adeyemi*\n` +
+          `2. **Corporate Work Email**: e.g., *adeyemi@bemsgroup.com*\n` +
+          `3. **Official Mobile Number**: e.g., *+234 803 000 1122*\n` +
+          `4. **Executive Role**: Strictly \`SUPER_ADMIN\` or \`GMD\`\n` +
+          `5. **Assigned Entity**: Primary subsidiary (e.g., *BEMS Group Holdings HQ*)\n\n` +
+          `💬 *Once provided, an executive invitation token with cryptographic sign-in credentials will be generated and dispatched.*`;
+
+        actionCard = {
+          type: 'SPECIFICATION_CHECKLIST',
+          title: 'Admin Onboarding Checklist',
+          fields: ['Full Legal Name', 'Corporate Work Email', 'Mobile Phone', 'Executive Role (SUPER_ADMIN or GMD)', 'Assigned Entity'],
+        };
+      }
+    } else if (
+      normalized.includes('register account') ||
+      normalized.includes('add bank') ||
+      normalized.includes('update bank') ||
+      normalized.includes('register bank')
+    ) {
+      if (!isExecutive) {
+        reply = `🔒 **Executive Authority Required:** Banking details can only be registered by Executive Leadership.`;
+      } else {
+        reply = `🏦 **Bank Account Registration Specification**\n\n` +
+          `To link or update a disbursement or corporate account, please provide:\n\n` +
+          `1. **Target Category**: \`STAFF\`, \`SUBSIDIARY\`, or \`VENDOR\`\n` +
+          `2. **Beneficiary Identifier**: Staff email/name, Subsidiary shortcode, or Vendor name\n` +
+          `3. **Bank Name**: e.g., *Guaranty Trust Bank, Kuda Bank, Zenith, Access, OPay, Moniepoint*\n` +
+          `4. **Account Number**: Exactly 10-digit NUBAN\n` +
+          `5. **Verified Beneficiary Name**: Exact account name on record with NIBSS\n\n` +
+          `💬 *Once provided, the account will be validated and linked to the disbursement routing ledger.*`;
+
+        actionCard = {
+          type: 'SPECIFICATION_CHECKLIST',
+          title: 'Bank Registration Checklist',
+          fields: ['Target Type (STAFF/SUBSIDIARY/VENDOR)', 'Beneficiary Name/Email', 'Bank Name', '10-Digit Account Number', 'Verified Account Name'],
+        };
       }
     } else if (
       normalized.includes('subsidiary') ||

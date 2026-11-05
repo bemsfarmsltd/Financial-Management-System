@@ -517,3 +517,39 @@ https://bemserp.work/pay/REQ-2026-0005
 *737*2*150000*2001928374#
 ```
 
+---
+
+## 10. Mandatory Parameter Collection Protocol (Zero Dummy Data Rule)
+
+**CRITICAL RULE FOR n8n & AI LLM NODES:**
+The AI and automated workflows must **NEVER invent, guess, or use dummy/placeholder data** when creating entities or updating financial records. When a user or GMD initiates a creation task, the AI/workflow must proactively verify all mandatory fields and explicitly prompt for any missing details before invoking the API.
+
+If an API request is received with missing required parameters, the backend strictly rejects it with `HTTP 400` and `error_code: "INCOMPLETE_PARAMETERS"`, returning a ready-to-display `conversational_prompt` and `missing_fields` list.
+
+### 10.1 Subsidiary Creation Requirements
+Before creating a subsidiary, the AI must collect:
+1. `name` (string, required): Legal registered name (e.g., *"Studio Arella Ltd"*, *"Arella Agribusiness SPV"*).
+2. `brandColor` (hex string, required): Primary brand color (e.g., `"#EA580C"`, `"#2563EB"`, `"#059669"`).
+3. `industry` (string, required): Primary business sector (e.g., *"Creative Media & Video Production"*).
+4. `headquarters` (string, required): Physical operating location or state (e.g., *"14 Admiralty Way, Lekki Phase 1, Lagos"*).
+5. `logoUrl` (string, optional/recommended): Publicly accessible corporate logo image URL.
+6. `code` (string, optional): 3-4 letter entity ticker (e.g., `"SAL"`, `"AAS"`). Auto-derived if omitted.
+7. `currency` (string, optional): Base operational currency (default `"NGN"`, supports `"USD"`, `"GBP"`, `"EUR"`).
+
+### 10.2 Executive Admin Onboarding Requirements
+Under the **Strict 3-Role Architecture**, executive onboarding is strictly reserved for `SUPER_ADMIN` and `GMD` *(Staff accounts register exclusively via self-service mobile app)*:
+1. `legalName` (string, required): Full legal name with title (e.g., *"Engr. Michael Adeyemi"*).
+2. `workEmail` (string, required): Official company email address (e.g., *"adeyemi@bemsgroup.com"*).
+3. `phone` (string, required): Direct Nigerian or international mobile phone (e.g., *"+234 803 000 1122"*).
+4. `role` (string, required): Must strictly be `"SUPER_ADMIN"` or `"GMD"`. Any other role is rejected.
+5. `subsidiaryId` (string, optional): Target subsidiary ID. Defaults to Holdings HQ if omitted.
+
+### 10.3 Bank Account Registration Requirements
+Before linking a disbursement or corporate account:
+1. `accountType` (enum, required): `"STAFF"`, `"SUBSIDIARY"`, or `"VENDOR"`.
+2. `targetQuery` (string, required): Staff email or name, Subsidiary shortcode, or Vendor corporate name.
+3. `bankName` (string, required): Recognized Nigerian bank or fintech (e.g., *"GTBank"*, *"Kuda Bank"*, *"Zenith"*, *"Access"*, *"OPay"*, *"Moniepoint"*).
+4. `accountNumber` (string, required): Exactly 10-digit NUBAN account number.
+5. `accountName` (string, required): Verified beneficiary name matching NIBSS records.
+
+
