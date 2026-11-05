@@ -32,6 +32,7 @@ import {
   Sparkles,
   ChevronDown,
   Info,
+  LogOut,
 } from 'lucide-react';
 
 interface HrUser {
@@ -97,6 +98,31 @@ export function HrDashboardClient({ user }: { user: HrUser }) {
   // Chat state
   const [chatThreads, setChatThreads] = useState<any[]>([]);
   const [activeChatStaffId, setActiveChatStaffId] = useState<string | null>(null);
+
+  const handleLogout = async () => {
+    try {
+      if (typeof document !== 'undefined') {
+        document.cookie = 'bems_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Max-Age=0;';
+        document.cookie = 'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Max-Age=0;';
+      }
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+      }
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      if (typeof window !== 'undefined') {
+        window.location.replace('/');
+      }
+    }
+  };
   const [activeChatMessages, setActiveChatMessages] = useState<any[]>([]);
   const [chatInputText, setChatInputText] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -566,6 +592,28 @@ export function HrDashboardClient({ user }: { user: HrUser }) {
                 <div style={{ fontSize: '10px', color: '#4f46e5', fontWeight: 600 }}>{user.role}</div>
               </div>
             </div>
+
+            <button
+              onClick={handleLogout}
+              title="Sign Out of BEMS HR Workspace"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                color: '#dc2626',
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <LogOut size={14} />
+              <span>Log out</span>
+            </button>
           </div>
         </div>
 
