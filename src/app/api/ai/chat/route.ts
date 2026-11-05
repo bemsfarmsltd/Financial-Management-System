@@ -90,13 +90,19 @@ export async function POST(req: NextRequest) {
           queryText = `[User clicked element: "${targetElement.label}" with value "${targetElement.value || 'N/A'}" under section "${targetElement.section || 'General'}" on page "${targetElement.page}" for subsidiary "${targetElement.subsidiary}"]: ${message}`;
         }
 
+        const effectiveRole = hasAnyRole(actor, ['GMD'])
+          ? 'GMD'
+          : hasAnyRole(actor, ['SUPER_ADMIN', 'SYSTEM_ADMIN', 'HR'])
+            ? 'SYSTEM_ADMIN'
+            : 'STAFF';
+
         const n8nPayload = {
           session_id: sessionId,
           user: {
             id: actor.id,
             name: actor.legalName,
-            title: (actor as any).jobTitle || (actor.role === 'GMD' ? 'Group Managing Director' : actor.role === 'AI_ANALYST' ? 'AI Financial Analyst (Read-Only)' : 'System Admin'),
-            role: actor.role,
+            title: (actor as any).jobTitle || (effectiveRole === 'GMD' ? 'Group Managing Director' : effectiveRole === 'SYSTEM_ADMIN' ? 'System Admin' : 'Staff'),
+            role: effectiveRole,
             permissions: isReadOnlyUser ? ['read_only_inquiry', 'data_analytics'] : ['all'],
             can_execute_actions: !isReadOnlyUser,
           },
@@ -173,7 +179,14 @@ title: "<Chart Title>"
         } else {
           const errData = await n8nRes.json().catch(() => ({}));
           console.warn(`n8n webhook responded with status ${n8nRes.status}:`, errData);
-          // Gracefully fall back to internal PostgreSQL database engine
+          if (errData.reply) {
+            return NextResponse.json({
+              message: errData.reply,
+              actionCard: null,
+              timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+            });
+          }
+          // Otherwise fall back to internal PostgreSQL database engine
         }
       } catch (n8nErr: any) {
         console.warn(`n8n webhook unreachable (${n8nErr.message}). Gracefully falling back to internal engine.`);
