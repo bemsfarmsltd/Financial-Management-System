@@ -213,13 +213,13 @@ export async function GET(request: Request) {
         }
       }
 
-      const deductionPercent = rec?.deductionPercent
+      const deductionPercent = rec?.isManualOverride
         ? rec.deductionPercent
         : morningStatus === 'LATE'
         ? (policy.latenessDeductionPercent ?? 5.0)
         : morningStatus === 'ABSENT'
-        ? 100.0
-        : 0;
+        ? (policy.absenceDeductionPercent ?? 100.0)
+        : (rec?.deductionPercent || 0);
 
       return {
         employeeId: emp.id,

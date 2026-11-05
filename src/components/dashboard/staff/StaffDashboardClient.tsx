@@ -9,6 +9,7 @@ import { InAppChatPushToast } from '@/components/chat/InAppChatPushToast';
 import { StaffInformationUpdateGateModal } from '@/components/dashboard/staff/StaffInformationUpdateGateModal';
 import {
   Home,
+  LayoutGrid,
   Receipt,
   Plus,
   Timer,
@@ -38,6 +39,10 @@ import {
   ShieldCheck,
   Lock,
   ArrowRight,
+  ArrowLeft,
+  Truck,
+  Lightbulb,
+  Sparkles,
   TrendingUp,
   FileText,
   DollarSign,
@@ -110,6 +115,7 @@ interface StaffDashboardClientProps {
 }
 
 type TabType = 'HOME' | 'REQUESTS' | 'RETIREMENT' | 'PROFILE';
+export type ModuleWorkstation = 'HUB' | 'FINANCE' | 'HR' | 'ACCOUNTABILITY' | 'OPERATIONS' | 'INNOVATION' | 'PROJECTS';
 
 export function StaffDashboardClient({
   user,
@@ -120,6 +126,37 @@ export function StaffDashboardClient({
 }: StaffDashboardClientProps) {
   // Navigation State - STRICTLY DEFAULTS TO HOME
   const [activeTab, setActiveTab] = useState<TabType>('HOME');
+
+  // Workstation Module Gallery Navigation - STRICTLY DEFAULTS TO 'HUB' (Gallery Landing)
+  const [activeWorkstation, setActiveWorkstation] = useState<ModuleWorkstation>('HUB');
+  // 4-Slide Financial Card Carousel Index (0: Ever Requested, 1: Approved Undisbursed, 2: Yet To Be Approved, 3: Total Salary Ever Collected)
+  const [financialSlideIndex, setFinancialSlideIndex] = useState<number>(0);
+
+  // Innovation Module State (Direct Pitch to GMD)
+  const [submittedIdeas, setSubmittedIdeas] = useState<any[]>([
+    {
+      id: 'idea-1',
+      title: 'Solar & Inverter Micro-Grid at Studio Arella',
+      summary: 'Automate switchover during grid drops to cut Starlink downtime & generator diesel expense by 40%.',
+      category: 'OPERATIONS & ENERGY',
+      status: 'UNDER_REVIEW',
+      submittedAt: 'Today, 09:30 AM',
+    },
+    {
+      id: 'idea-2',
+      title: 'Client Proofing Portal for Media Delivery',
+      summary: 'Direct client review pipeline with watermarked video drafts to shorten approval cycles.',
+      category: 'TECH & MEDIA',
+      status: 'APPROVED_FOR_PILOT',
+      submittedAt: '2 days ago',
+    },
+  ]);
+  const [isNewIdeaModalOpen, setIsNewIdeaModalOpen] = useState(false);
+  const [newIdeaTitle, setNewIdeaTitle] = useState('');
+  const [newIdeaCategory, setNewIdeaCategory] = useState('OPERATIONS & PROCESS');
+  const [newIdeaProposal, setNewIdeaProposal] = useState('');
+  const [submittingIdea, setSubmittingIdea] = useState(false);
+  const [ideaNotice, setIdeaNotice] = useState<string | null>(null);
 
   // Desktop View Toggle: 'MOBILE' (exact phone frame) or 'EXPANDED' (full desktop width)
   const [isExpandedView, setIsExpandedView] = useState(false);
@@ -664,6 +701,70 @@ export function StaffDashboardClient({
     }
     return `₦${totalExpenditureValue.toFixed(0)}`;
   }, [totalExpenditureValue]);
+
+  // =========================================================================
+  // 4-SLIDE FINANCIAL CAROUSEL COMPUTATIONS
+  // Slide 0: Total Amount Ever Requested
+  // Slide 1: Approved Yet To Be Disbursed (Approved by GMD, awaiting treasury payment)
+  // Slide 2: Yet To Be Approved (Pending Review in workflow)
+  // Slide 3: Total Salary Ever Collected + Next Pending Salary
+  // =========================================================================
+  const financialSlideMetrics = useMemo(() => {
+    // 1. Total Ever Requested
+    const totalEverRequestedAmount = requests.reduce((sum, r) => sum + (Number(r.amountMinor || 0) / 100), 0);
+    const totalEverRequestedCount = requests.length;
+
+    // 2. Approved Yet To Be Disbursed
+    const approvedUndisbursedList = requests.filter(r => {
+      const isApproved = r.approvalStatus === 'APPROVED' || r.status === 'APPROVED';
+      const isDisbursed =
+        r.paymentStatus === 'PAID' ||
+        r.paymentStatus === 'RECIPIENT_CONFIRMED' ||
+        r.accountabilityStatus === 'EVIDENCE_SUBMITTED' ||
+        r.accountabilityStatus === 'CLOSED' ||
+        r.accountabilityStatus === 'VERIFIED';
+      return isApproved && !isDisbursed;
+    });
+    const approvedUndisbursedAmount = approvedUndisbursedList.reduce((sum, r) => sum + (Number(r.amountMinor || 0) / 100), 0);
+    const approvedUndisbursedCount = approvedUndisbursedList.length;
+
+    // 3. Yet To Be Approved (Pending Review)
+    const pendingApprovalList = requests.filter(r => {
+      const isApproved = r.approvalStatus === 'APPROVED' || r.status === 'APPROVED';
+      const isRejected = r.approvalStatus === 'REJECTED' || r.status === 'REJECTED';
+      return !isApproved && !isRejected;
+    });
+    const pendingApprovalAmount = pendingApprovalList.reduce((sum, r) => sum + (Number(r.amountMinor || 0) / 100), 0);
+    const pendingApprovalCount = pendingApprovalList.length;
+
+    // 4. Total Salary Ever Collected & Next Pending Salary
+    let salaryCollected = 0;
+    if (payslips && payslips.length > 0) {
+      salaryCollected = payslips.reduce((sum, p) => sum + (Number(p.netMinor || p.grossMinor || 0) / 100), 0);
+    } else if (allDisbursements && allDisbursements.length > 0) {
+      const salaryDisbs = allDisbursements.filter(d => d.type === 'SALARY' || d.category === 'SALARY');
+      salaryCollected = salaryDisbs.reduce((sum, d) => sum + (Number(d.amountMinor || 0) / 100), 0);
+    }
+
+    // Base Monthly Salary from Employment Agreement
+    const baseMinor = Number(compensationData?.grossMinor || currentStaff?.grossMinor || 0);
+    const baseMonthly = baseMinor > 0 ? baseMinor / 100 : 0;
+    const activeDeductionPct = todayAttendance?.deductionPercent || 0;
+    const estDailyDeduction = (activeDeductionPct / 100) * (baseMonthly / 22);
+    const nextPendingSalary = Math.max(0, baseMonthly - estDailyDeduction);
+
+    return {
+      totalEverRequestedAmount,
+      totalEverRequestedCount,
+      approvedUndisbursedAmount,
+      approvedUndisbursedCount,
+      pendingApprovalAmount,
+      pendingApprovalCount,
+      salaryCollected,
+      nextPendingSalary: nextPendingSalary > 0 ? nextPendingSalary : baseMonthly,
+      baseMonthly,
+    };
+  }, [requests, payslips, allDisbursements, userProfile, currentStaff, todayAttendance]);
 
   // Smart Attendance Visibility:
   // 1. If not checked in today -> SHOW (to clock in)
@@ -1271,27 +1372,33 @@ export function StaffDashboardClient({
           {/* Center: Desktop Navigation Tabs (Spreads Across from Left to Right) */}
           <nav className="hidden md:flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200">
             <button
-              onClick={() => setActiveTab('HOME')}
+              onClick={() => {
+                setActiveTab('HOME');
+                setActiveWorkstation('HUB');
+              }}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                activeTab === 'HOME'
+                activeTab === 'HOME' && activeWorkstation === 'HUB'
                   ? 'bg-white text-[#EA580C] shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Home className="w-4 h-4" />
-              <span>Home</span>
+              <LayoutGrid className="w-4 h-4" />
+              <span>Module Gallery</span>
             </button>
 
             <button
-              onClick={() => setActiveTab('REQUESTS')}
+              onClick={() => {
+                setActiveTab('HOME');
+                setActiveWorkstation('FINANCE');
+              }}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all relative ${
-                activeTab === 'REQUESTS'
+                activeTab === 'HOME' && activeWorkstation === 'FINANCE'
                   ? 'bg-white text-[#EA580C] shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Receipt className="w-4 h-4" />
-              <span>Requisitions</span>
+              <Wallet className="w-4 h-4" />
+              <span>Financial Hub</span>
               {requests.length > 0 && (
                 <span className="px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-black">
                   {requests.length}
@@ -1308,14 +1415,17 @@ export function StaffDashboardClient({
             </button>
 
             <button
-              onClick={() => setActiveTab('RETIREMENT')}
+              onClick={() => {
+                setActiveTab('HOME');
+                setActiveWorkstation('ACCOUNTABILITY');
+              }}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                activeTab === 'RETIREMENT'
+                activeTab === 'HOME' && activeWorkstation === 'ACCOUNTABILITY'
                   ? 'bg-white text-[#EA580C] shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Timer className="w-4 h-4" />
+              <ShieldCheck className="w-4 h-4" />
               <span>72h SLA</span>
               {pendingRetirements.length > 0 && (
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
@@ -1428,521 +1538,1230 @@ export function StaffDashboardClient({
           {/* TAB 0: HOME SCREEN                                        */}
           {/* ========================================================= */}
           {activeTab === 'HOME' && (
-            <div className="animate-fade-in">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                
-                {/* LEFT & CENTER COLUMN: WIDE DESKTOP CARDS (COLS 1 TO 8) */}
-                <div className="lg:col-span-7 xl:col-span-8 space-y-6">
+            <div className="animate-fade-in space-y-6">
 
-              {/* CARD 2: HERO ADVANCE CARD (BEMS CORPORATE ORANGE GRADIENT) */}
-              <div className="rounded-[26px] bg-gradient-to-br from-[#EA580C] via-[#C2410C] to-[#9A3412] text-white p-5 shadow-xl shadow-[#EA580C]/25 relative overflow-hidden">
-                {/* Ambient Glow */}
-                <div className="absolute -bottom-10 -left-10 w-36 h-36 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
-
-                <div className="relative z-10 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-white/90 flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-white"></span>
-                      OPERATIONAL ADVANCE HELD
-                    </span>
-
-                    <button
-                      onClick={() => setHideBalance(!hideBalance)}
-                      className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white"
-                      title={hideBalance ? 'Show Balance' : 'Hide Balance'}
-                    >
-                      {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-
-                  <div>
-                    <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight">
-                      {hideBalance ? '₦ ••••••••' : formatNaira(activeAdvanceAmount)}
-                    </h2>
-                    {submittedUnderReviewCases.length > 0 && (
-                      <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-amber-100 bg-amber-950/60 border border-amber-400/40 px-3 py-1 rounded-full w-fit backdrop-blur-sm shadow-sm">
-                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                        <span>
-                          {pendingRetirements.length === 0
-                            ? 'Evidence Submitted · Awaiting Finance Clearance'
-                            : `${submittedUnderReviewCases.length} In Review · ${pendingRetirements.length} Pending Retirement`}
+              {/* --------------------------------------------------------- */}
+              {/* VIEW 0: ENTERPRISE MODULE GALLERY (OUTSIDE FINANCIAL HUB) */}
+              {/* --------------------------------------------------------- */}
+              {activeWorkstation === 'HUB' && (
+                <div className="space-y-6 animate-fade-in">
+                  {/* Clean Portal Welcome Hero */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border border-slate-700/60 shadow-xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
+                    <div className="relative z-10 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-black text-orange-400 uppercase tracking-wider">
+                          BEMS Enterprise Gateway
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          ● System Active
                         </span>
                       </div>
-                    )}
-                    <p className="text-[11.5px] text-white/85 mt-1.5 flex items-center gap-1">
-                      <CreditCard className="w-3.5 h-3.5 text-white/70" />
-                      Bank: {userProfile.bankName || 'Access Bank'} ({userProfile.accountNumber || '—'})
-                    </p>
-                  </div>
-
-                  {/* Two Buttons: Request Funds (White) & Retire 72h (Amber) */}
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    <button
-                      onClick={() => setIsNewRequestOpen(true)}
-                      className="py-3 px-3 bg-white hover:bg-slate-50 text-[#EA580C] font-black text-xs rounded-2xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-                    >
-                      <ArrowUpRight className="w-4 h-4 text-[#EA580C]" />
-                      <span>Request Funds</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        const targetCase = pendingRetirements.length > 0 ? pendingRetirements[0] : activeAdvanceCases[0];
-                        if (targetCase) {
-                          setActiveRetirementCase(targetCase);
-                          setActualSpentAmount(Number(targetCase.request?.amountMinor || targetCase.amountMinor || 0) / 100);
-                        } else {
-                          setActiveTab('RETIREMENT');
-                        }
-                      }}
-                      className="py-3 px-3 bg-[#EA580C] hover:bg-orange-700 text-white font-black text-xs rounded-2xl shadow-md shadow-[#EA580C]/40 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-                    >
-                      <ArrowDownLeft className="w-4 h-4 text-white" />
-                      <span>{pendingRetirements.length > 0 ? 'Retire 72h' : submittedUnderReviewCases.length > 0 ? 'Evidence In Review' : 'Retire 72h'}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-
-
-              {/* CARD 4: DUAL-KEY MAKER-CHECKER (If disbursements awaiting confirmation) */}
-              {disbursementsAwaiting.length > 0 && (
-                <div className="space-y-2.5">
-                  {disbursementsAwaiting.map((disb: any) => (
-                    <div
-                      key={disb.id}
-                      className="p-4 bg-[#ECFDF5] border border-[#A7F3D0] rounded-[20px] space-y-2 text-xs"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-[#065F46] text-xs">
-                          Treasury Payout Received
-                        </span>
-                        <span className="font-black text-[#065F46] text-sm">
-                          {formatNaira(Number(disb.amountMinor || 0) / 100)}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[#047857] font-medium">
-                        {disb.request?.title || 'Advance Disbursement'} (Ref: {disb.externalReference})
+                      <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                        Welcome, {user.fullName?.split(' ')[0] || 'Staff'} 👋
+                      </h2>
+                      <p className="text-xs text-slate-300 max-w-xl">
+                        Select a department workstation from the gallery below to access your dedicated workspace without clutter.
                       </p>
-                      <div className="pt-2 flex gap-2">
+                    </div>
+
+                    <div className="relative z-10 flex items-center gap-3">
+                      {todayAttendance ? (
+                        <div className="px-4 py-2.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-2 shadow-sm">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span>Clocked In · {todayAttendance.checkInTime ? new Date(todayAttendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active'}</span>
+                        </div>
+                      ) : (
                         <button
-                          disabled={confirmingDisbursementId === disb.id}
-                          onClick={() => handleConfirmDisbursement(disb.id)}
-                          className="flex-1 py-2 bg-[#059669] hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs"
+                          onClick={() => {
+                            setPunchStatusMessage(null);
+                            setScannerPunchSuccessRecord(null);
+                            setIsAttendanceScanModalOpen(true);
+                          }}
+                          className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98]"
                         >
-                          {confirmingDisbursementId === disb.id ? 'Confirming...' : 'Confirm Received'}
+                          <MapPin className="w-4 h-4" />
+                          <span>Clock In (Scanner)</span>
                         </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Enterprise Module Gallery */}
+                  <div className="space-y-4 pt-1">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xl font-black text-[#0F172A] tracking-tight">
+                          Enterprise Module Gallery
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Select a department module workstation to enter your dedicated workstation without clutter
+                        </p>
                       </div>
                     </div>
-                  ))}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {/* CARD 1: FINANCE & REQUISITIONS */}
+                      <div
+                        onClick={() => {
+                          setActiveWorkstation('FINANCE');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-orange-300 hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between space-y-4 relative overflow-hidden"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 group-hover:bg-[#EA580C] text-[#EA580C] group-hover:text-white transition-all flex items-center justify-center shadow-sm">
+                            <Wallet className="w-6 h-6 stroke-[2.2]" />
+                          </div>
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-orange-100 text-orange-800 border border-orange-200">
+                            {requests.length} REQUISITIONS
+                          </span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <h4 className="text-base font-black text-[#0F172A] group-hover:text-[#EA580C] transition-colors">
+                            Finance & Requisitions Desk
+                          </h4>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            Operational fund requests, vendor budgets, approval pipeline & disbursement claims.
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-[#EA580C]">
+                          <span>Enter Workstation</span>
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </div>
+
+                      {/* CARD 2: HUMAN RESOURCES & ATTENDANCE */}
+                      <div
+                        onClick={() => {
+                          setActiveWorkstation('HR');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-emerald-300 hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between space-y-4 relative overflow-hidden"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 group-hover:bg-emerald-600 text-emerald-600 group-hover:text-white transition-all flex items-center justify-center shadow-sm">
+                            <Clock className="w-6 h-6 stroke-[2.2]" />
+                          </div>
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${
+                            todayAttendance
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                              : 'bg-amber-100 text-amber-800 border-amber-200'
+                          }`}>
+                            {todayAttendance ? 'CHECKED IN' : 'CLOCK-IN DUE'}
+                          </span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <h4 className="text-base font-black text-[#0F172A] group-hover:text-emerald-700 transition-colors">
+                            HR & Attendance Desk
+                          </h4>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            Starlink & GPS timekeeping scanner, shift roster, leaves, timesheets & monthly payslips.
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-emerald-700">
+                          <span>Enter Workstation</span>
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </div>
+
+                      {/* CARD 3: ACCOUNTABILITY & 72H VAULT */}
+                      <div
+                        onClick={() => {
+                          setActiveWorkstation('ACCOUNTABILITY');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-rose-300 hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between space-y-4 relative overflow-hidden"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 group-hover:bg-rose-600 text-rose-600 group-hover:text-white transition-all flex items-center justify-center shadow-sm">
+                            <ShieldCheck className="w-6 h-6 stroke-[2.2]" />
+                          </div>
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+                            72H POLICY · {activeAdvanceCases.length} ADVANCES
+                          </span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <h4 className="text-base font-black text-[#0F172A] group-hover:text-rose-600 transition-colors">
+                            Accountability & 72h Vault
+                          </h4>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            Retire operational cash advances, photograph store receipts & vendor invoices to prevent SLA lock.
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-rose-600">
+                          <span>Enter Workstation</span>
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </div>
+
+                      {/* CARD 4: OPERATIONS & FLEET */}
+                      <div
+                        onClick={() => {
+                          setActiveWorkstation('OPERATIONS');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-sky-300 hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between space-y-4 relative overflow-hidden"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-100 group-hover:bg-sky-600 text-sky-600 group-hover:text-white transition-all flex items-center justify-center shadow-sm">
+                            <Truck className="w-6 h-6 stroke-[2.2]" />
+                          </div>
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-sky-100 text-sky-800 border border-sky-200">
+                            LOGISTICS & FLEET
+                          </span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <h4 className="text-base font-black text-[#0F172A] group-hover:text-sky-600 transition-colors">
+                            Operations & Fleet Desk
+                          </h4>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            Field task assignments, equipment allocation, fleet vehicle tracking & operational checklists.
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-sky-600">
+                          <span>Enter Workstation</span>
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </div>
+
+                      {/* CARD 5: INNOVATION & R&D INCUBATOR */}
+                      <div
+                        onClick={() => {
+                          setActiveWorkstation('INNOVATION');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-purple-300 hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between space-y-4 relative overflow-hidden"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 group-hover:bg-purple-600 text-purple-600 group-hover:text-white transition-all flex items-center justify-center shadow-sm">
+                            <Lightbulb className="w-6 h-6 stroke-[2.2]" />
+                          </div>
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200">
+                            DIRECT TO GMD
+                          </span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <h4 className="text-base font-black text-[#0F172A] group-hover:text-purple-600 transition-colors">
+                            Innovation & R&D Incubator
+                          </h4>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            Pitch disruptive ideas, operational optimizations & tech improvements directly to Group Leadership.
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-purple-600">
+                          <span>Enter Workstation</span>
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </div>
+
+                      {/* CARD 6: PROJECTS & DELIVERABLES */}
+                      <div
+                        onClick={() => {
+                          setActiveWorkstation('PROJECTS');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-teal-300 hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between space-y-4 relative overflow-hidden"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 group-hover:bg-teal-600 text-teal-600 group-hover:text-white transition-all flex items-center justify-center shadow-sm">
+                            <Target className="w-6 h-6 stroke-[2.2]" />
+                          </div>
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-teal-100 text-teal-800 border border-teal-200">
+                            DELIVERABLES & SLA
+                          </span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <h4 className="text-base font-black text-[#0F172A] group-hover:text-teal-600 transition-colors">
+                            Projects & Deliverables
+                          </h4>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            Client engagements, task deadlines, cross-subsidiary milestones & deliverable sign-offs.
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-teal-600">
+                          <span>Enter Workstation</span>
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* SECTION: 6 QUICK ACTION PASTEL TILES (Exact Flutter Colors & Typography) */}
-              <div>
-                <h3 className="text-sm font-black text-[#0F172A] mb-3">
-                  Quick Actions
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-                  {/* 1. New Request */}
-                  <div
-                    onClick={() => setIsNewRequestOpen(true)}
-                    className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#EA580C]/10 group-hover:border-[#EA580C]/20 text-slate-800 group-hover:text-[#EA580C] transition-all flex items-center justify-center">
-                      <Plus className="w-5 h-5 stroke-[2.5]" />
+              {/* --------------------------------------------------------- */}
+              {/* VIEW 1: INSIDE THE FINANCIAL HUB WORKSTATION              */}
+              {/* --------------------------------------------------------- */}
+              {activeWorkstation === 'FINANCE' && (
+                <div className="space-y-6 animate-fade-in">
+                  {/* Financial Hub Workstation Top Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900 text-white border border-orange-500/30 shadow-xl">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          setActiveWorkstation('HUB');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all border border-white/10"
+                        title="Back to Module Gallery"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Module Gallery</span>
+                      </button>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                            💰 FINANCIAL HUB
+                          </span>
+                        </div>
+                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1">
+                          Financial Hub & Requisitions Desk
+                        </h2>
+                        <p className="text-xs text-slate-300">
+                          Multi-metric price card, historical spend analytics & treasury release tracking.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-xs font-black text-[#0F172A]">New Request</h4>
-                      <p className="text-[10.5px] font-semibold text-slate-500">Operational</p>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setIsNewRequestOpen(true)}
+                        className="px-4 py-2.5 bg-gradient-to-r from-orange-600 to-amber-500 hover:opacity-95 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-orange-500/20 active:scale-[0.98] transition-all"
+                      >
+                        <Plus className="w-4 h-4 stroke-[3]" />
+                        <span>+ New Request</span>
+                      </button>
                     </div>
                   </div>
 
-                  {/* 2. Confirm Funds */}
-                  <div
-                    onClick={() => {
-                      if (disbursementsAwaiting.length > 0) {
-                        handleConfirmDisbursement(disbursementsAwaiting[0].id);
-                      } else {
-                        setAlertNotice('No pending disbursements to confirm at this time.');
-                        setTimeout(() => setAlertNotice(null), 3000);
-                      }
-                    }}
-                    className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#EA580C]/10 group-hover:border-[#EA580C]/20 text-slate-800 group-hover:text-[#EA580C] transition-all flex items-center justify-center">
-                      <CheckCheck className="w-5 h-5 stroke-[2.5]" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-[#0F172A]">Confirm Funds</h4>
-                      <p className="text-[10.5px] font-semibold text-slate-500">Dual-Key Auth</p>
-                    </div>
-                  </div>
-
-                  {/* 3. 72h Evidence */}
-                  <div
-                    onClick={() => setActiveTab('RETIREMENT')}
-                    className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#EA580C]/10 group-hover:border-[#EA580C]/20 text-slate-800 group-hover:text-[#EA580C] transition-all flex items-center justify-center">
-                      <Receipt className="w-5 h-5 stroke-[2.5]" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-[#0F172A]">72h Evidence</h4>
-                      <p className="text-[10.5px] font-semibold text-slate-500">Retire Advance</p>
-                    </div>
-                  </div>
-
-                  {/* 4. My Profile */}
-                  <div
-                    onClick={() => setActiveTab('PROFILE')}
-                    className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#EA580C]/10 group-hover:border-[#EA580C]/20 text-slate-800 group-hover:text-[#EA580C] transition-all flex items-center justify-center">
-                      <User className="w-5 h-5 stroke-[2.5]" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-[#0F172A]">My Profile</h4>
-                      <p className="text-[10.5px] font-semibold text-slate-500">Bank Details</p>
-                    </div>
-                  </div>
-
-                  {/* 5. Admin Helpdesk */}
-                  <div
-                    onClick={() => setIsAdminChatOpen(true)}
-                    className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#EA580C]/10 group-hover:border-[#EA580C]/20 text-slate-800 group-hover:text-[#EA580C] transition-all flex items-center justify-center">
-                      <MessageSquare className="w-5 h-5 stroke-[2.5]" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-[#0F172A]">Admin Helpdesk</h4>
-                      <p className="text-[10.5px] font-semibold text-slate-500">Chat With Admin</p>
-                    </div>
-                  </div>
-
-                  {/* 6. Requisitions */}
-                  <div
-                    onClick={() => setActiveTab('REQUESTS')}
-                    className="p-4 rounded-[20px] bg-white border border-slate-200/90 hover:border-slate-300 transition-all cursor-pointer space-y-2.5 shadow-sm hover:shadow-md group"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-[#EA580C]/10 group-hover:border-[#EA580C]/20 text-slate-800 group-hover:text-[#EA580C] transition-all flex items-center justify-center">
-                      <FileText className="w-5 h-5 stroke-[2.5]" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-[#0F172A]">Requisitions</h4>
-                      <p className="text-[10.5px] font-semibold text-slate-500">View All & Chat</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION: UPLOAD PROOF OF EXPENDITURE BANNER */}
-              <div className="p-5 bg-white rounded-[24px] border border-slate-200/90 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center font-black">
-                      <Receipt className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-[#0F172A]">Upload Proof of Expenditure</h4>
-                      <p className="text-[11px] text-[#64748B]">Photograph physical receipts or attach vendor invoice PDFs</p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-orange-50 text-[#EA580C] border border-orange-200">
-                    🛡️ 72H POLICY
-                  </span>
-                </div>
-                <p className="text-[11px] text-[#64748B] leading-relaxed">
-                  Photograph original physical store receipts or attach vendor invoice PDFs to retire outstanding advances and clear your SLA window.
-                </p>
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <button
-                    onClick={() => {
-                      if (pendingRetirements.length > 0) {
-                        setActiveRetirementCase(pendingRetirements[0]);
-                        setActualSpentAmount(Number(pendingRetirements[0].request?.amountMinor || 0) / 100);
-                      } else {
-                        setActiveTab('RETIREMENT');
-                      }
-                    }}
-                    className="py-2.5 px-3 bg-[#EA580C] hover:bg-[#C2410C] text-white font-black text-xs rounded-xl shadow-md shadow-[#EA580C]/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-                  >
-                    <Camera className="w-3.5 h-3.5" />
-                    <span>Snap Picture</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (pendingRetirements.length > 0) {
-                        setActiveRetirementCase(pendingRetirements[0]);
-                        setActualSpentAmount(Number(pendingRetirements[0].request?.amountMinor || 0) / 100);
-                      } else {
-                        setActiveTab('RETIREMENT');
-                      }
-                    }}
-                    className="py-2.5 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>Upload Doc / PDF</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* SECTION: REQUISITIONS & SPEND ANALYTICS (Exact Mobile Bar Chart Replica) */}
-              <div className="p-5 bg-white rounded-[24px] border border-[#E2E8F0] shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-black text-[#0F172A]">Requisitions & Spend Analytics</h3>
-                    <p className="text-[11px] text-[#64748B]">Dynamic Requisition Volume & Spend Trend</p>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-lg text-[9.5px] font-black bg-slate-100 text-slate-700 border border-slate-200">
-                    ANALYTICS
-                  </span>
-                </div>
-
-                {requests.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-slate-400">
-                    <BarChart2 className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                    No requisition data recorded yet.
-                  </div>
-                ) : (
-                  <div className="space-y-4 pt-2">
-                    {/* Bar Chart */}
-                    <div className="h-40 flex items-end justify-around gap-2 px-2 pb-2 border-b border-slate-100">
-                      {requests.slice(0, 5).reverse().map((r: any, idx: number, arr: any[]) => {
-                        const amt = Number(r.amountMinor || 0) / 100;
-                        const maxVal = Math.max(...arr.map((item) => Number(item.amountMinor || 0) / 100), 1);
-                        const heightPct = Math.max(20, Math.min(100, Math.round((amt / maxVal) * 100)));
-                        const isLast = idx === arr.length - 1;
-                        const labelAmt =
-                          amt >= 1000000
-                            ? `₦${(amt / 1000000).toFixed(1)}M`
-                            : amt >= 1000
-                            ? `₦${Math.round(amt / 1000)}k`
-                            : `₦${amt}`;
-
-                        return (
-                          <div key={r.id || idx} className="flex-1 flex flex-col items-center justify-end h-full">
-                            <span className={`text-[9px] font-black mb-1 truncate max-w-[70px] ${
-                              isLast ? 'text-[#EA580C]' : 'text-slate-400'
-                            }`}>
-                              {labelAmt}
+                  {/* CARD 2: 4-SLIDE FINANCIAL CAROUSEL (Ever Requested, Approved Not Disbursed, Pending Approval, Salary Collected) */}
+                  <div className="relative rounded-[26px] overflow-hidden shadow-xl border border-slate-800/10">
+                    {/* SLIDE 0: TOTAL AMOUNT EVER REQUESTED */}
+                    {financialSlideIndex === 0 && (
+                      <div className="rounded-t-[26px] bg-gradient-to-br from-[#EA580C] via-[#C2410C] to-[#9A3412] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300">
+                        <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+                        <div className="relative z-10 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-extrabold uppercase tracking-wider text-white/95 flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                              SLIDE 1/4 · TOTAL AMOUNT EVER REQUESTED
                             </span>
-                            <div
-                              style={{ height: `${heightPct}%` }}
-                              className={`w-full max-w-[36px] rounded-t-lg transition-all ${
-                                isLast
-                                  ? 'bg-gradient-to-t from-[#EA580C] to-[#FB923C] shadow-sm shadow-orange-800/20'
-                                  : 'bg-gradient-to-t from-slate-400 to-slate-300'
-                              }`}
-                            />
-                            <span className={`text-[10px] font-black mt-1.5 truncate max-w-[60px] ${
-                              isLast ? 'text-[#EA580C]' : 'text-slate-500'
-                            }`}>
-                              {r.requestNumber ? r.requestNumber.slice(-4) : `REQ-${idx + 1}`}
+                            <button
+                              onClick={() => setHideBalance(!hideBalance)}
+                              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white"
+                              title={hideBalance ? 'Show Balance' : 'Hide Balance'}
+                            >
+                              {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+
+                          <div>
+                            <span className="text-xs font-semibold text-white/80 block mb-1">
+                              All-Time Operational & Expense Requisitions
+                            </span>
+                            <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                              {hideBalance ? '₦ ••••••••' : formatNaira(financialSlideMetrics.totalEverRequestedAmount)}
+                            </h2>
+                            <div className="mt-2 flex items-center gap-2 text-xs text-white/90">
+                              <span className="px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-sm font-bold border border-white/20">
+                                {financialSlideMetrics.totalEverRequestedCount} Requisitions
+                              </span>
+                              <span className="text-white/75">· Lifetime Submissions</span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            <button
+                              onClick={() => setIsNewRequestOpen(true)}
+                              className="py-3 px-3 bg-white hover:bg-slate-50 text-[#EA580C] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                            >
+                              <Plus className="w-4 h-4 text-[#EA580C]" />
+                              <span>New Request</span>
+                            </button>
+                            <button
+                              onClick={() => setIsAdminChatOpen(true)}
+                              className="py-3 px-3 bg-white/15 hover:bg-white/25 text-white font-black text-xs rounded-xl border border-white/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                            >
+                              <span>Finance Chat →</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* SLIDE 1: APPROVED YET TO BE DISBURSED */}
+                    {financialSlideIndex === 1 && (
+                      <div className="rounded-t-[26px] bg-gradient-to-br from-[#4338CA] via-[#3730A3] to-[#1E1B4B] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300">
+                        <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-indigo-400/10 rounded-full blur-2xl pointer-events-none" />
+                        <div className="relative z-10 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-200 flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-indigo-300 animate-pulse" />
+                              SLIDE 2/4 · APPROVED (YET TO BE DISBURSED)
+                            </span>
+                            <button
+                              onClick={() => setHideBalance(!hideBalance)}
+                              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white"
+                              title={hideBalance ? 'Show Balance' : 'Hide Balance'}
+                            >
+                              {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+
+                          <div>
+                            <span className="text-xs font-semibold text-indigo-200 block mb-1">
+                              Approved by GMD · Awaiting Treasury Release
+                            </span>
+                            <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                              {hideBalance ? '₦ ••••••••' : formatNaira(financialSlideMetrics.approvedUndisbursedAmount)}
+                            </h2>
+                            <div className="mt-2 flex items-center gap-2 text-xs text-indigo-200">
+                              <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/30 backdrop-blur-sm font-bold border border-indigo-400/30">
+                                {financialSlideMetrics.approvedUndisbursedCount} Approved Claims
+                              </span>
+                              <span className="text-indigo-300/80">· Enqueued for Payout</span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            <button
+                              onClick={() => {
+                                setStatusFilter('APPROVED');
+                              }}
+                              className="py-3 px-3 bg-white hover:bg-slate-50 text-[#4338CA] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                            >
+                              <span>Filter Approved</span>
+                            </button>
+                            <button
+                              onClick={() => setIsAdminChatOpen(true)}
+                              className="py-3 px-3 bg-white/15 hover:bg-white/25 text-white font-black text-xs rounded-xl border border-white/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                            >
+                              <span>Treasury Chat</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* SLIDE 2: TOTAL AMOUNT YET TO BE APPROVED */}
+                    {financialSlideIndex === 2 && (
+                      <div className="rounded-t-[26px] bg-gradient-to-br from-[#D97706] via-[#B45309] to-[#78350F] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300">
+                        <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-amber-400/10 rounded-full blur-2xl pointer-events-none" />
+                        <div className="relative z-10 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-200 flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-amber-300 animate-pulse" />
+                              SLIDE 3/4 · TOTAL AMOUNT YET TO BE APPROVED
+                            </span>
+                            <button
+                              onClick={() => setHideBalance(!hideBalance)}
+                              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white"
+                              title={hideBalance ? 'Show Balance' : 'Hide Balance'}
+                            >
+                              {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+
+                          <div>
+                            <span className="text-xs font-semibold text-amber-200 block mb-1">
+                              Under Management Review & Verification
+                            </span>
+                            <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                              {hideBalance ? '₦ ••••••••' : formatNaira(financialSlideMetrics.pendingApprovalAmount)}
+                            </h2>
+                            <div className="mt-2 flex items-center gap-2 text-xs text-amber-200">
+                              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/30 backdrop-blur-sm font-bold border border-amber-400/30">
+                                {financialSlideMetrics.pendingApprovalCount} Requisitions In Review
+                              </span>
+                              <span className="text-amber-300/80">· Workflow In Progress</span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            <button
+                              onClick={() => setStatusFilter('PENDING')}
+                              className="py-3 px-3 bg-white hover:bg-slate-50 text-[#D97706] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                            >
+                              <span>Filter Pending</span>
+                            </button>
+                            <button
+                              onClick={() => setIsNewRequestOpen(true)}
+                              className="py-3 px-3 bg-white/15 hover:bg-white/25 text-white font-black text-xs rounded-xl border border-white/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                            >
+                              <span>+ New Request</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* SLIDE 3: TOTAL SALARY EVER COLLECTED & NEXT PENDING SALARY */}
+                    {financialSlideIndex === 3 && (
+                      <div className="rounded-t-[26px] bg-gradient-to-br from-[#059669] via-[#047857] to-[#064E3B] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300">
+                        <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none" />
+                        <div className="relative z-10 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-200 flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-300 animate-pulse" />
+                              SLIDE 4/4 · TOTAL SALARY EVER COLLECTED
+                            </span>
+                            <button
+                              onClick={() => setHideBalance(!hideBalance)}
+                              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white"
+                              title={hideBalance ? 'Show Balance' : 'Hide Balance'}
+                            >
+                              {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+
+                          <div>
+                            <span className="text-xs font-semibold text-emerald-200 block mb-1">
+                              Accumulated Staff Payroll Disbursed to Date
+                            </span>
+                            <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                              {hideBalance ? '₦ ••••••••' : formatNaira(financialSlideMetrics.salaryCollected)}
+                            </h2>
+
+                            {/* UNDER IT: NEXT PENDING SALARY SUB-CARD */}
+                            <div className="mt-3 p-3 bg-emerald-950/60 border border-emerald-400/40 rounded-xl backdrop-blur-sm flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                              <div>
+                                <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider block">
+                                  NEXT PENDING SALARY (EST.)
+                                </span>
+                                <span className="text-base sm:text-lg font-black text-white">
+                                  {hideBalance ? '₦ ••••••••' : formatNaira(financialSlideMetrics.nextPendingSalary)}
+                                </span>
+                              </div>
+                              <div className="text-left sm:text-right text-[11px] text-emerald-200 font-medium">
+                                <span>Monthly Base: {formatNaira(financialSlideMetrics.baseMonthly)}</span>
+                                {todayAttendance?.deductionPercent > 0 && (
+                                  <span className="block text-red-300 font-bold">-{todayAttendance.deductionPercent}% Lateness Penalty</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            <button
+                              onClick={() => setIsPayslipsModalOpen(true)}
+                              className="py-3 px-3 bg-white hover:bg-slate-50 text-[#059669] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                            >
+                              <span>View Payslips</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setActiveWorkstation('HR');
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                              className="py-3 px-3 bg-white/15 hover:bg-white/25 text-white font-black text-xs rounded-xl border border-white/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                            >
+                              <span>HR Desk →</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* CAROUSEL BOTTOM CONTROLS: PREV / NEXT ARROWS & 4 DOTS */}
+                    <div className="px-5 py-3 bg-slate-950 text-white flex items-center justify-between border-t border-white/10">
+                      <button
+                        onClick={() => setFinancialSlideIndex((prev) => (prev > 0 ? prev - 1 : 3))}
+                        className="p-1.5 px-3 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-white flex items-center gap-1.5 text-xs font-bold"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        <span className="hidden sm:inline">Prev</span>
+                      </button>
+
+                      {/* 4 Interactive Dot Indicators */}
+                      <div className="flex items-center gap-2">
+                        {[0, 1, 2, 3].map((idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setFinancialSlideIndex(idx)}
+                            className={`transition-all rounded-full ${
+                              financialSlideIndex === idx
+                                ? 'w-6 h-2 bg-[#EA580C]'
+                                : 'w-2 h-2 bg-white/40 hover:bg-white/70'
+                            }`}
+                            title={`Slide ${idx + 1}`}
+                          />
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={() => setFinancialSlideIndex((prev) => (prev < 3 ? prev + 1 : 0))}
+                        className="p-1.5 px-3 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-white flex items-center gap-1.5 text-xs font-bold"
+                      >
+                        <span className="hidden sm:inline">Next</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* DUAL-KEY MAKER-CHECKER (If disbursements awaiting confirmation) */}
+                  {disbursementsAwaiting.length > 0 && (
+                    <div className="space-y-2.5">
+                      {disbursementsAwaiting.map((disb: any) => (
+                        <div
+                          key={disb.id}
+                          className="p-4 bg-[#ECFDF5] border border-[#A7F3D0] rounded-[20px] space-y-2 text-xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-[#065F46] text-xs">
+                              Treasury Payout Received
+                            </span>
+                            <span className="font-black text-[#065F46] text-sm">
+                              {formatNaira(Number(disb.amountMinor || 0) / 100)}
                             </span>
                           </div>
+                          <p className="text-[11px] text-[#047857] font-medium">
+                            {disb.request?.title || 'Advance Disbursement'} (Ref: {disb.externalReference})
+                          </p>
+                          <div className="pt-2 flex gap-2">
+                            <button
+                              disabled={confirmingDisbursementId === disb.id}
+                              onClick={() => handleConfirmDisbursement(disb.id)}
+                              className="flex-1 py-2 bg-[#059669] hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs"
+                            >
+                              {confirmingDisbursementId === disb.id ? 'Confirming...' : 'Confirm Received'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* SECTION: REQUISITIONS & SPEND ANALYTICS */}
+                  <div className="p-5 bg-white rounded-[24px] border border-[#E2E8F0] shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-black text-[#0F172A]">Requisitions & Spend Analytics</h3>
+                        <p className="text-[11px] text-[#64748B]">Dynamic Requisition Volume & Spend Trend</p>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-lg text-[9.5px] font-black bg-slate-100 text-slate-700 border border-slate-200">
+                        ANALYTICS
+                      </span>
+                    </div>
+
+                    {requests.length === 0 ? (
+                      <div className="p-8 text-center text-xs text-slate-400">
+                        <BarChart2 className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                        No requisition data recorded yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-4 pt-2">
+                        {/* Bar Chart */}
+                        <div className="h-40 flex items-end justify-around gap-2 px-2 pb-2 border-b border-slate-100">
+                          {requests.slice(0, 5).reverse().map((r: any, idx: number, arr: any[]) => {
+                            const amt = Number(r.amountMinor || 0) / 100;
+                            const maxVal = Math.max(...arr.map((item) => Number(item.amountMinor || 0) / 100), 1);
+                            const heightPct = Math.max(20, Math.min(100, Math.round((amt / maxVal) * 100)));
+                            const isLast = idx === arr.length - 1;
+                            const labelAmt =
+                              amt >= 1000000
+                                ? `₦${(amt / 1000000).toFixed(1)}M`
+                                : amt >= 1000
+                                ? `₦${Math.round(amt / 1000)}k`
+                                : `₦${amt}`;
+
+                            return (
+                              <div key={r.id || idx} className="flex-1 flex flex-col items-center justify-end h-full">
+                                <span className={`text-[9px] font-black mb-1 truncate max-w-[70px] ${
+                                  isLast ? 'text-[#EA580C]' : 'text-slate-400'
+                                }`}>
+                                  {labelAmt}
+                                </span>
+                                <div
+                                  style={{ height: `${heightPct}%` }}
+                                  className={`w-full max-w-[36px] rounded-t-lg transition-all ${
+                                    isLast
+                                      ? 'bg-gradient-to-t from-[#EA580C] to-[#FB923C] shadow-sm shadow-orange-800/20'
+                                      : 'bg-gradient-to-t from-slate-400 to-slate-300'
+                                  }`}
+                                />
+                                <span className={`text-[10px] font-black mt-1.5 truncate max-w-[60px] ${
+                                  isLast ? 'text-[#EA580C]' : 'text-slate-500'
+                                }`}>
+                                  {r.requestNumber ? r.requestNumber.slice(-4) : `REQ-${idx + 1}`}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Category Distribution Bar */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                            <span>Category Distribution</span>
+                            <span className="text-[#0F172A] font-extrabold">{formatNaira(totalExpenditureValue)}</span>
+                          </div>
+                          <div className="h-2.5 rounded-full overflow-hidden flex bg-slate-100">
+                            {expenditureSegments.map((seg, i) => {
+                              const pct = totalExpenditureValue > 0 ? (seg.value / totalExpenditureValue) * 100 : 0;
+                              return (
+                                <div
+                                  key={i}
+                                  style={{ width: `${pct}%`, backgroundColor: seg.color }}
+                                  title={`${seg.label}: ${formatNaira(seg.value)} (${pct.toFixed(0)}%)`}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* SECTION: UPLOAD PROOF OF EXPENDITURE BANNER */}
+                  <div className="p-5 bg-white rounded-[24px] border border-slate-200/90 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center font-black">
+                          <Receipt className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-[#0F172A]">Upload Proof of Expenditure</h4>
+                          <p className="text-[11px] text-[#64748B]">Photograph physical receipts or attach vendor invoice PDFs</p>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-orange-50 text-[#EA580C] border border-orange-200">
+                        🛡️ 72H POLICY
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#64748B] leading-relaxed">
+                      Photograph original physical store receipts or attach vendor invoice PDFs to retire outstanding advances and clear your SLA window.
+                    </p>
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <button
+                        onClick={() => {
+                          if (pendingRetirements.length > 0) {
+                            setActiveRetirementCase(pendingRetirements[0]);
+                            setActualSpentAmount(Number(pendingRetirements[0].request?.amountMinor || 0) / 100);
+                          } else {
+                            setActiveTab('RETIREMENT');
+                          }
+                        }}
+                        className="py-2.5 px-3 bg-[#EA580C] hover:bg-[#C2410C] text-white font-black text-xs rounded-xl shadow-md shadow-[#EA580C]/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>Snap Picture</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (pendingRetirements.length > 0) {
+                            setActiveRetirementCase(pendingRetirements[0]);
+                            setActualSpentAmount(Number(pendingRetirements[0].request?.amountMinor || 0) / 100);
+                          } else {
+                            setActiveTab('RETIREMENT');
+                          }
+                        }}
+                        className="py-2.5 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Upload Doc / PDF</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* SECTION: EXPENDITURE REQUISITIONS DESK */}
+                  <div className="space-y-4 pt-1">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-black text-[#0F172A] tracking-tight">Requisition Registry</h3>
+                        <p className="text-xs text-[#64748B]">Procurement & operational fund requests ({requests.length})</p>
+                      </div>
+                      <button
+                        onClick={() => setIsNewRequestOpen(true)}
+                        className="px-3.5 py-1.5 bg-[#EA580C] hover:bg-orange-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-orange-500/20 active:scale-[0.98] transition-all"
+                      >
+                        <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>New</span>
+                      </button>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                      <input
+                        type="text"
+                        placeholder="Search by REQ code, vendor, or item..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 bg-white border border-[#E2E8F0] rounded-2xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 shadow-sm"
+                      />
+                    </div>
+
+                    {/* Status Filter Chips */}
+                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none text-xs">
+                      {(['ALL', 'PENDING', 'APPROVED', 'PAID', 'RECURRING'] as const).map((code) => {
+                        const isSelected = statusFilter === code;
+                        const label =
+                          code === 'ALL'
+                            ? `All Requests (${requests.length})`
+                            : code === 'PENDING'
+                            ? 'In Review'
+                            : code === 'APPROVED'
+                            ? 'Approved'
+                            : code === 'PAID'
+                            ? 'Disbursed'
+                            : '🔁 Recurring';
+                        return (
+                          <button
+                            key={code}
+                            onClick={() => setStatusFilter(code)}
+                            className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all ${
+                              isSelected
+                                ? 'bg-[#EA580C] text-white shadow-sm shadow-orange-500/25 border border-[#EA580C]'
+                                : 'bg-white border border-[#E2E8F0] text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            {label}
+                          </button>
                         );
                       })}
                     </div>
 
-                    {/* Category Distribution Bar */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                        <span>Category Distribution</span>
-                        <span className="text-[#0F172A] font-extrabold">{formatNaira(totalExpenditureValue)}</span>
+                    {/* Requisitions List Cards */}
+                    {filteredRequests.length === 0 ? (
+                      <div className="p-12 bg-white rounded-3xl border border-dashed border-slate-300 text-center space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#EA580C] flex items-center justify-center mx-auto font-black">
+                          <Receipt className="w-6 h-6" />
+                        </div>
+                        <h4 className="text-sm font-black text-slate-800">No requisitions match your filter</h4>
+                        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                          Submit an operational expenditure or project fund request using the button below.
+                        </p>
+                        <button
+                          onClick={() => setIsNewRequestOpen(true)}
+                          className="px-4 py-2 bg-[#EA580C] text-white font-black text-xs rounded-xl shadow-md inline-flex items-center gap-1.5"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Create Requisition</span>
+                        </button>
                       </div>
-                      <div className="h-2.5 rounded-full overflow-hidden flex bg-slate-100">
-                        {expenditureSegments.map((seg, i) => {
-                          const pct = totalExpenditureValue > 0 ? (seg.value / totalExpenditureValue) * 100 : 0;
+                    ) : (
+                      <div className="space-y-3">
+                        {filteredRequests.map((r: any) => {
+                          const amt = Number(r.amountMinor || 0) / 100;
+                          const isDisbursed = r.status === 'DISBURSED' || r.status === 'PAID';
+                          const isApproved = r.status === 'APPROVED';
+                          const isRejected = r.status === 'REJECTED';
+
                           return (
                             <div
-                              key={i}
-                              style={{ width: `${pct}%`, backgroundColor: seg.color }}
-                              title={`${seg.label}: ${formatNaira(seg.value)} (${pct.toFixed(0)}%)`}
-                            />
+                              key={r.id}
+                              onClick={() => setSelectedRequestDetail(r)}
+                              className="p-4 bg-white rounded-2xl border border-slate-200/90 hover:border-orange-300 hover:shadow-md transition-all cursor-pointer space-y-3"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="space-y-1 flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-mono text-xs font-black text-[#EA580C]">
+                                      {r.requestNumber || 'REQ'}
+                                    </span>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                                      {r.category || 'EXPENSE'}
+                                    </span>
+                                    {r.isUrgent && (
+                                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-red-100 text-red-700">
+                                        URGENT
+                                      </span>
+                                    )}
+                                  </div>
+                                  <h4 className="font-black text-sm text-[#0F172A] truncate">
+                                    {r.title}
+                                  </h4>
+                                  <p className="text-xs text-slate-500 line-clamp-1">
+                                    {r.description || 'No description provided'}
+                                  </p>
+                                </div>
+
+                                <div className="text-right flex-shrink-0">
+                                  <span className="font-black text-sm text-[#0F172A]">{formatNaira(amt)}</span>
+                                  <div className="flex items-center justify-end gap-1 mt-1">
+                                    {isDisbursed ? (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span>DISBURSED</span>
+                                      </span>
+                                    ) : isApproved ? (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                                        <span>Approved</span>
+                                      </span>
+                                    ) : isRejected ? (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                                        <span>Declined</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                                        <span>In Review</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsAdminChatOpen(true);
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-[#FFF7ED] border border-[#FED7AA] text-[#EA580C] text-[11px] font-extrabold flex items-center gap-1.5 hover:bg-orange-100 transition-all"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5" />
+                                  <span>Request Chat</span>
+                                </button>
+
+                                <button
+                                  onClick={() => setSelectedRequestDetail(r)}
+                                  className="text-xs font-bold text-slate-400 hover:text-[#EA580C] flex items-center gap-1 transition-all"
+                                >
+                                  <span>Details & Audit</span>
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
                           );
                         })}
                       </div>
-                    </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              )}
 
-            {/* ========================================================= */}
-            {/* RIGHT COLUMN: ATTENDANCE, PAYROLL & BANKING (COLS 9 TO 12) */}
-            {/* ========================================================= */}
-            <div className="lg:col-span-5 xl:col-span-4 space-y-6">
-
-              {/* CARD 1: DAILY ATTENDANCE & PRESENCE (Smart Visibility: Hides when punched, reappears at 5PM for clock-out) */}
-              {shouldShowAttendanceCard && (
-                <div className="p-5 bg-white rounded-[24px] border border-slate-200 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className={`p-2 rounded-xl flex items-center justify-center ${
-                          todayAttendance ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'
-                        }`}
+              {/* --------------------------------------------------------- */}
+              {/* VIEW 2: HR & ATTENDANCE WORKSTATION                       */}
+              {/* --------------------------------------------------------- */}
+              {activeWorkstation === 'HR' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900 text-white border border-emerald-500/30 shadow-xl">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          setActiveWorkstation('HUB');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all border border-white/10"
+                        title="Back to Module Gallery"
                       >
-                        <Clock className="w-4 h-4" />
-                      </div>
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Module Gallery</span>
+                      </button>
                       <div>
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#64748B] block">
-                          DAILY ATTENDANCE & PRESENCE
-                        </span>
-                        <span
-                          className={`text-sm font-black ${
-                            todayAttendance ? 'text-emerald-800' : 'text-[#0F172A]'
-                          }`}
-                        >
-                          {todayAttendance
-                            ? todayAttendance.checkOutTime
-                              ? 'Workday Completed'
-                              : 'Ready for Clock Out'
-                            : 'Not Checked In Today'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            👥 HR & TIMEKEEPING
+                          </span>
+                        </div>
+                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1">
+                          HR & Attendance Desk
+                        </h2>
+                        <p className="text-xs text-slate-300">
+                          Starlink Wi-Fi & GPS geofenced clock-in, shift calendar, and monthly payslips.
+                        </p>
                       </div>
                     </div>
-
-                    <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded border ${
-                        todayAttendance
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                          : 'bg-slate-100 text-slate-700 border-slate-200'
-                      }`}
-                    >
-                      {todayAttendance ? 'CLOCK-OUT DUE' : 'UNPUNCHED'}
-                    </span>
                   </div>
 
-                  {/* Attendance Action Buttons */}
-                  <div className="space-y-2 pt-1">
-                    <button
-                      disabled={punching}
-                      onClick={() => {
-                        setPunchStatusMessage(null);
-                        setScannerPunchSuccessRecord(null);
-                        setIsAttendanceScanModalOpen(true);
-                      }}
-                      className="w-full py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] bg-[#EA580C] hover:bg-[#C2410C] text-white"
-                    >
-                      {punching ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <MapPin className="w-4 h-4" />
-                      )}
-                      <span>
-                        {punching
-                          ? 'Verifying Location...'
-                          : todayAttendance
-                          ? 'CLOCK OUT (SCANNER)'
-                          : 'CLOCK IN (GPS + QR)'}
+                  <div className="p-6 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-black text-[#0F172A]">Real-Time Attendance Clock-In</h3>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                        todayAttendance ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {todayAttendance ? '● Clocked In' : 'Pending Arrival'}
                       </span>
-                    </button>
+                    </div>
 
+                    <p className="text-xs text-slate-500">
+                      Scan the corporate reception kiosk QR code or click below to launch your camera scanner.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                      <button
+                        onClick={() => {
+                          setPunchStatusMessage(null);
+                          setScannerPunchSuccessRecord(null);
+                          setIsAttendanceScanModalOpen(true);
+                        }}
+                        className="py-3 px-4 bg-[#EA580C] hover:bg-orange-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all"
+                      >
+                        <MapPin className="w-4 h-4" />
+                        <span>{todayAttendance ? 'CLOCK OUT (SCANNER)' : 'CLOCK IN (SCANNER)'}</span>
+                      </button>
+                      <button
+                        onClick={() => setIsPayslipsModalOpen(true)}
+                        className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-black flex items-center justify-center gap-2 border border-slate-200 active:scale-[0.98] transition-all"
+                      >
+                        <FileText className="w-4 h-4 text-emerald-600" />
+                        <span>View Monthly Payslips</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* --------------------------------------------------------- */}
+              {/* VIEW 3: ACCOUNTABILITY & 72H VAULT WORKSTATION            */}
+              {/* --------------------------------------------------------- */}
+              {activeWorkstation === 'ACCOUNTABILITY' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900 text-white border border-rose-500/30 shadow-xl">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          setActiveWorkstation('HUB');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all border border-white/10"
+                        title="Back to Module Gallery"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Module Gallery</span>
+                      </button>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                            🛡️ ACCOUNTABILITY VAULT
+                          </span>
+                        </div>
+                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1">
+                          Accountability & 72h SLA Vault
+                        </h2>
+                        <p className="text-xs text-slate-300">
+                          Retire operational cash advances, photograph store receipts & vendor invoices.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-6 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-black text-[#0F172A]">Outstanding Operational Advances</h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800">
+                        {activeAdvanceCases.length} Active Advances
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-500">
+                      All cash advances must be settled within 72 hours of disbursement to keep your account in good standing.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                      <button
+                        onClick={() => {
+                          const targetCase = pendingRetirements.length > 0 ? pendingRetirements[0] : activeAdvanceCases[0];
+                          if (targetCase) {
+                            setActiveRetirementCase(targetCase);
+                            setActualSpentAmount(Number(targetCase.request?.amountMinor || targetCase.amountMinor || 0) / 100);
+                          } else {
+                            setActiveTab('RETIREMENT');
+                          }
+                        }}
+                        className="py-3 px-4 bg-[#EA580C] hover:bg-orange-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>Retire Outstanding Advance</span>
+                      </button>
+                      <button
+                        onClick={() => setIsAdminChatOpen(true)}
+                        className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-black flex items-center justify-center gap-2 border border-slate-200 active:scale-[0.98] transition-all"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <span>Request SLA Extension</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* --------------------------------------------------------- */}
+              {/* VIEW 4: OPERATIONS & FLEET WORKSTATION                    */}
+              {/* --------------------------------------------------------- */}
+              {activeWorkstation === 'OPERATIONS' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900 text-white border border-sky-500/30 shadow-xl">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          setActiveWorkstation('HUB');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all border border-white/10"
+                        title="Back to Module Gallery"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Module Gallery</span>
+                      </button>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                            ⚡ OPERATIONS & FLEET
+                          </span>
+                        </div>
+                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1">
+                          Operations & Fleet Desk
+                        </h2>
+                        <p className="text-xs text-slate-300">
+                          Field task assignments, equipment allocation, fleet vehicle tracking & operational checklists.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-6 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-4">
+                    <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+                      <Truck className="w-5 h-5 text-sky-600" />
+                      <span>Active Field Operations Log</span>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Field vehicles, generator diesel requisitions, and equipment dispatch are coordinated via the Operations Desk.
+                    </p>
                     <button
-                      onClick={() => setIsTimesheetModalOpen(true)}
-                      className="w-full py-2.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[#0F172A] rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
+                      onClick={() => setIsNewRequestOpen(true)}
+                      className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1.5 shadow-md active:scale-[0.98] transition-all"
                     >
-                      <Calendar className="w-3.5 h-3.5 text-slate-600" />
-                      <span>View Monthly Attendance Calendar</span>
+                      <Plus className="w-4 h-4" />
+                      <span>+ Operations Requisition</span>
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* CARD 2: MONTHLY SALARY & PAYSLIPS QUICK CARD */}
-              <div className="p-5 bg-white rounded-[24px] border border-slate-200 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center font-black">
-                      <Wallet className="w-5 h-5" />
+              {/* --------------------------------------------------------- */}
+              {/* VIEW 5: INNOVATION & R&D INCUBATOR WORKSTATION            */}
+              {/* --------------------------------------------------------- */}
+              {activeWorkstation === 'INNOVATION' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900 text-white border border-purple-500/30 shadow-xl">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          setActiveWorkstation('HUB');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all border border-white/10"
+                        title="Back to Module Gallery"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Module Gallery</span>
+                      </button>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                            💡 INNOVATION INCUBATOR
+                          </span>
+                        </div>
+                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1">
+                          Innovation & R&D Incubator
+                        </h2>
+                        <p className="text-xs text-slate-300">
+                          Pitch disruptive ideas and operational optimizations directly to Group Leadership.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-sm font-extrabold text-[#0F172A] leading-tight">
-                        Monthly Salary & Payslips
-                      </h3>
-                      <p className="text-[11px] font-medium text-[#64748B] mt-0.5">
-                        Scheduled Payday: 3rd of Month
-                      </p>
+
+                    <button
+                      onClick={() => setIsNewIdeaModalOpen(true)}
+                      className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-purple-500/20 active:scale-[0.98] transition-all"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>Pitch Idea to GMD</span>
+                    </button>
+                  </div>
+
+                  {ideaNotice && (
+                    <div className="p-3.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 rounded-2xl text-xs font-bold">
+                      {ideaNotice}
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-black text-[#0F172A]">Submitted Ideas & Concepts</h3>
+                    {submittedIdeas.length === 0 ? (
+                      <div className="p-8 bg-white rounded-2xl border border-dashed border-slate-300 text-center text-xs text-slate-400">
+                        No idea pitched yet. Click "Pitch Idea to GMD" to submit your concept.
+                      </div>
+                    ) : (
+                      submittedIdeas.map((idea) => (
+                        <div key={idea.id} className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-sm space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black text-slate-900">{idea.title}</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200">
+                              {idea.status}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500">{idea.summary}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* --------------------------------------------------------- */}
+              {/* VIEW 6: PROJECTS & DELIVERABLES WORKSTATION               */}
+              {/* --------------------------------------------------------- */}
+              {activeWorkstation === 'PROJECTS' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900 text-white border border-teal-500/30 shadow-xl">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          setActiveWorkstation('HUB');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all border border-white/10"
+                        title="Back to Module Gallery"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Module Gallery</span>
+                      </button>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-teal-500/20 text-teal-400 border border-teal-500/30">
+                            🎯 PROJECTS & DELIVERABLES
+                          </span>
+                        </div>
+                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1">
+                          Projects & Deliverables Desk
+                        </h2>
+                        <p className="text-xs text-slate-300">
+                          Client engagements, task deadlines, cross-subsidiary milestones & deliverable sign-offs.
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => setIsPayslipsModalOpen(true)}
-                    className="px-3.5 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-bold transition-all shadow-sm"
-                  >
-                    View Slips
-                  </button>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-600 font-medium space-y-1">
-                  <div className="flex justify-between">
-                    <span>Salary NUBAN:</span>
-                    <span className="font-bold text-[#0F172A]">
-                      {userProfile.salaryAccountNumber || userProfile.accountNumber || '—'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Designated Bank:</span>
-                    <span className="font-bold text-[#0F172A]">
-                      {userProfile.salaryBankName || userProfile.bankName || 'Access Bank PLC'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* CARD 3: CORPORATE DUAL BANKING CONFIGURE CARD */}
-              <div className="p-5 bg-white rounded-[24px] border border-slate-200 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
-                      <CreditCard className="w-4 h-4" />
+                  <div className="p-6 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800">Media Production & Conglomerate Client Deliverables</span>
+                      <span className="text-teal-600 font-extrabold">80% COMPLETE</span>
                     </div>
-                    <div>
-                      <h4 className="text-xs font-extrabold text-[#0F172A]">Corporate Dual Banking</h4>
-                      <p className="text-[10px] text-slate-500">Dual separation: Advances vs Salary</p>
+                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                      <div className="bg-teal-500 h-2.5 rounded-full" style={{ width: '80%' }} />
                     </div>
+                    <p className="text-slate-500 text-[11.5px]">
+                      Task deliverables are synced with executive sign-off workflows.
+                    </p>
                   </div>
-                  <button
-                    onClick={() => setIsDualBankingOpen(true)}
-                    className="text-xs font-bold text-[#EA580C] hover:underline"
-                  >
-                    Configure
-                  </button>
                 </div>
-              </div>
-
-              {/* CARD 4: DIRECT ADMIN HELPDESK BANNER */}
-              <div
-                onClick={() => setIsAdminChatOpen(true)}
-                className="p-5 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-[24px] shadow-md cursor-pointer hover:shadow-lg transition-all space-y-2"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-emerald-400" />
-                    <span className="text-xs font-extrabold tracking-wide uppercase text-slate-300">Admin Helpdesk</span>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    Online
-                  </span>
-                </div>
-                <p className="text-xs text-slate-300">
-                  Need disbursement help, SLA extension, or requisition queries? Chat directly with Super Admin.
-                </p>
-                <div className="pt-1 flex items-center gap-1 text-xs font-bold text-emerald-400">
-                  <span>Open Desk Chat</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </div>
-              </div>
-
+              )}
             </div>
-
-          </div>
-        </div>
-      )}
+          )}
 
           {/* ========================================================= */}
           {/* TAB 1: REQUISITIONS DESK (Exact Mobile App Replica)        */}
@@ -2847,26 +3666,32 @@ export function StaffDashboardClient({
         {/* BOTTOM NAVIGATION BAR (Exact Flutter Replica)              */}
         {/* ========================================================= */}
         <nav className="fixed md:hidden bottom-0 left-0 right-0 bg-white border-t border-[#E2E8F0] px-4 py-2 flex items-center justify-around z-40 shadow-lg">
-          {/* Home */}
+          {/* Module Gallery (Home) */}
           <button
-            onClick={() => setActiveTab('HOME')}
+            onClick={() => {
+              setActiveTab('HOME');
+              setActiveWorkstation('HUB');
+            }}
             className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
-              activeTab === 'HOME' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
+              activeTab === 'HOME' && activeWorkstation === 'HUB' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
             }`}
           >
-            <Home className="w-5 h-5" />
-            <span className="text-[11px]">Home</span>
+            <LayoutGrid className="w-5 h-5" />
+            <span className="text-[11px]">Gallery</span>
           </button>
 
-          {/* Requests */}
+          {/* Financial Hub */}
           <button
-            onClick={() => setActiveTab('REQUESTS')}
+            onClick={() => {
+              setActiveTab('HOME');
+              setActiveWorkstation('FINANCE');
+            }}
             className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all relative ${
-              activeTab === 'REQUESTS' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
+              activeTab === 'HOME' && activeWorkstation === 'FINANCE' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
             }`}
           >
-            <Receipt className="w-5 h-5" />
-            <span className="text-[11px]">Requests</span>
+            <Wallet className="w-5 h-5" />
+            <span className="text-[11px]">Finance</span>
             {requests.length > 0 && (
               <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-[#EA580C]"></span>
             )}
@@ -2883,9 +3708,12 @@ export function StaffDashboardClient({
 
           {/* 72h SLA */}
           <button
-            onClick={() => setActiveTab('RETIREMENT')}
+            onClick={() => {
+              setActiveTab('HOME');
+              setActiveWorkstation('ACCOUNTABILITY');
+            }}
             className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all relative ${
-              activeTab === 'RETIREMENT' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
+              activeTab === 'HOME' && activeWorkstation === 'ACCOUNTABILITY' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
             }`}
           >
             <Timer className="w-5 h-5" />
@@ -3868,6 +4696,115 @@ export function StaffDashboardClient({
               loadData(true);
             }}
           />
+        )}
+        {/* Innovation Modal: Pitch Idea Directly to GMD */}
+        {isNewIdeaModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-3xl w-full max-w-lg p-6 shadow-2xl border border-purple-200 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">Pitch Idea Directly to GMD</h3>
+                    <p className="text-[11px] text-slate-500">Executive innovation incubator & proposal desk</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsNewIdeaModalOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newIdeaTitle.trim() || !newIdeaProposal.trim()) return;
+                  setSubmittingIdea(true);
+                  setTimeout(() => {
+                    setSubmittedIdeas((prev) => [
+                      {
+                        id: `idea-${Date.now()}`,
+                        title: newIdeaTitle,
+                        summary: newIdeaProposal,
+                        category: newIdeaCategory,
+                        status: 'UNDER_REVIEW',
+                        submittedAt: 'Just now',
+                      },
+                      ...prev,
+                    ]);
+                    setNewIdeaTitle('');
+                    setNewIdeaProposal('');
+                    setSubmittingIdea(false);
+                    setIsNewIdeaModalOpen(false);
+                    setIdeaNotice('Your proposal has been securely dispatched directly to the GMD executive review desk!');
+                    setTimeout(() => setIdeaNotice(null), 6000);
+                  }, 600);
+                }}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">PROPOSAL TITLE</label>
+                  <input
+                    type="text"
+                    required
+                    value={newIdeaTitle}
+                    onChange={(e) => setNewIdeaTitle(e.target.value)}
+                    placeholder="e.g. Solar inverter microgrid at Studio Arella..."
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">DEPARTMENT / CATEGORY</label>
+                  <select
+                    value={newIdeaCategory}
+                    onChange={(e) => setNewIdeaCategory(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-600"
+                  >
+                    <option value="OPERATIONS & LOGISTICS">Operations & Logistics</option>
+                    <option value="TECH & MEDIA">Tech, Studio & Media</option>
+                    <option value="ENERGY & COST-SAVING">Energy & Cost-Saving</option>
+                    <option value="CLIENT ACQUISITION">Client Acquisition & Sales</option>
+                    <option value="INTERNAL PROCESS">Internal Process & Governance</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">EXECUTIVE SUMMARY & EXPECTED IMPACT</label>
+                  <textarea
+                    rows={4}
+                    required
+                    value={newIdeaProposal}
+                    onChange={(e) => setNewIdeaProposal(e.target.value)}
+                    placeholder="Describe how this improves conglomerate revenue, cuts downtime, or boosts staff efficiency..."
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-600 leading-relaxed"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsNewIdeaModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingIdea}
+                    className="px-5 py-2.5 rounded-xl text-xs font-black bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/25 flex items-center gap-1.5 transition-all"
+                  >
+                    {submittingIdea ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    <span>Submit to GMD</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
         <InAppChatPushToast />
       </div>

@@ -5244,9 +5244,15 @@ export default function Home() {
     return updated;
   });
 
-  // 1. Session verification in progress: zero reload screen
+  // 1. Session verification in progress: branded loading screen
   if (authStatus === 'checking') {
-    return null;
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0a101d', color: '#fff', fontFamily: 'system-ui, sans-serif' }}>
+        <img src="/bems-group-logo.png?v=20261024" alt="BEMS" style={{ width: 56, height: 56, marginBottom: 16 }} />
+        <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.1em', color: '#f97316' }}>BEMS ENTERPRISE SYSTEM</div>
+        <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>Connecting to workspace session...</p>
+      </div>
+    );
   }
 
   // 2. Unauthenticated or signed out: strictly present sign-in / registration

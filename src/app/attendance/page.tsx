@@ -563,6 +563,8 @@ export default function AttendanceDeskPage() {
       setNotice('Attendance policy & lateness deduction percentages updated successfully!');
       setTimeout(() => setNotice(null), 4000);
       setIsSaving(false);
+      // Immediately reload daily roster so table updates with new percentage
+      loadDailyRoster();
     } catch (err: any) {
       alert(err.message);
       setIsSaving(false);

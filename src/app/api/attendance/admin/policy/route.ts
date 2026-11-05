@@ -186,6 +186,23 @@ export async function POST(request: Request) {
       );
     }
 
+    // Update all subsidiary attendance policies in conglomerate to keep policies synchronized
+    await prisma.attendancePolicy.updateMany({
+      data: {
+        earliestCheckInTime: earliestCheckInTime || '07:00',
+        resumptionTime: resumptionTime || '08:00',
+        closingTime: closingTime || '17:00',
+        gracePeriodMinutes: Number(gracePeriodMinutes ?? 15),
+        ...(isExecutive && latenessDeductionPercent !== undefined ? { latenessDeductionPercent: Number(latenessDeductionPercent) } : {}),
+        ...(isExecutive && absenceDeductionPercent !== undefined ? { absenceDeductionPercent: Number(absenceDeductionPercent) } : {}),
+        requireGeofence: requireGeofence !== undefined ? Boolean(requireGeofence) : true,
+        requireQrScan: requireQrScan !== undefined ? Boolean(requireQrScan) : true,
+        requireStarlinkIp: requireStarlinkIp !== undefined ? Boolean(requireStarlinkIp) : true,
+        starlinkIpAddresses: starlinkIpAddresses !== undefined ? String(starlinkIpAddresses).trim() : undefined,
+        starlinkPowerOutageMode: starlinkPowerOutageMode !== undefined ? Boolean(starlinkPowerOutageMode) : undefined,
+      },
+    });
+
     const policy = await prisma.attendancePolicy.upsert({
       where: { organizationId: org.id },
       update: {
@@ -216,6 +233,22 @@ export async function POST(request: Request) {
         starlinkPowerOutageMode: starlinkPowerOutageMode ? Boolean(starlinkPowerOutageMode) : false,
       },
     });
+
+    // Retroactively update today's non-overridden late records if lateness deduction percent changed
+    if (latenessDeductionPercent !== undefined) {
+      const { getLagosTime } = await import('@/lib/attendance/token');
+      const { workDate: todayStr } = getLagosTime();
+      await prisma.attendanceRecord.updateMany({
+        where: {
+          workDate: todayStr,
+          status: 'LATE',
+          isManualOverride: false,
+        },
+        data: {
+          deductionPercent: Number(latenessDeductionPercent),
+        },
+      });
+    }
 
     return NextResponse.json({
       success: true,

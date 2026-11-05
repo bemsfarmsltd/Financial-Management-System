@@ -12,7 +12,7 @@ const roleOptions = [
 ];
 
 function isDevEnabled(): boolean {
-  return process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_ROLE_SWITCHER === 'true';
+  return process.env.NODE_ENV === 'development' || process.env.ENABLE_DEV_ROLE_SWITCHER === 'true';
 }
 
 export async function GET() {
