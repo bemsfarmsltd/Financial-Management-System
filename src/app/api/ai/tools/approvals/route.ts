@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
 import { generateDisbursementLinks } from '@/lib/bank-utils';
+import { stageAction, executeStagedAction } from '@/lib/staged-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,7 @@ export async function GET(req: NextRequest) {
   if (errorResponse) return errorResponse;
 
   const url = new URL(req.url);
-  const statusFilter = url.searchParams.get('status') || 'PENDING'; // PENDING | APPROVED | ALL
+  const statusFilter = url.searchParams.get('status') || 'PENDING';
   const limit = Math.min(Number(url.searchParams.get('limit')) || 20, 50);
 
   const whereClause: any = {};
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
 
   if (!actor?.isExecutive) {
     return NextResponse.json(
-      { ok: false, error_code: 'FORBIDDEN', message: 'Only GMD or Super Admin can record approval decisions.' },
+      { ok: false, error_code: 'FORBIDDEN', message: 'Only GMD or Super Admin can stage or execute approvals.' },
       { status: 403 }
     );
   }
@@ -110,7 +111,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const identifier: string = (body.requestId || body.requestNumber || body.id || '').trim();
   const decision: string = (body.decision || 'APPROVE').toUpperCase().trim();
-  const comment: string = (body.comment || body.reason || body.note || 'Approved via AI Copilot Automation').trim();
+  const comment: string = (body.comment || body.reason || body.note || 'Authorized via BEMS AI Automation').trim();
+  const isDirectExecution = Boolean(body.confirmed_by_gmd || body.auto_confirm);
 
   if (!identifier) {
     return NextResponse.json(
@@ -126,7 +128,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const isApprove = decision === 'APPROVE' || decision === 'APPROVED';
+  const canonicalDecision = (decision === 'APPROVE' || decision === 'APPROVED') ? 'APPROVE' : 'DECLINE';
 
   // Find expenditure request
   const expReq = await prisma.expenditureRequest.findFirst({
@@ -162,57 +164,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const newStatus = isApprove ? 'APPROVED' : 'REJECTED';
-  const timestamp = new Date();
-
-  // Update request status
-  await prisma.expenditureRequest.update({
-    where: { id: expReq.id },
-    data: {
-      approvalStatus: newStatus,
-      updatedAt: timestamp,
-    },
-  });
-
-  // Update pending approval step
-  const pendingStep = expReq.approvalSteps.find((s) => s.status === 'PENDING');
-  if (pendingStep) {
-    await prisma.approvalStep.update({
-      where: { id: pendingStep.id },
-      data: {
-        status: newStatus,
-        decidedAt: timestamp,
-        decisionReason: comment,
-        approverId: actor.id,
-        approverName: actor.legalName,
-      },
-    });
-  }
-
-  // Create audit event
-  try {
-    await prisma.auditEvent.create({
-      data: {
-        actorId: actor.id,
-        actorName: actor.legalName,
-        actorRole: actor.role,
-        groupId: expReq.subsidiaryId,
-        subsidiaryId: expReq.subsidiaryId,
-        targetType: 'REQUEST',
-        targetId: expReq.id,
-        action: newStatus,
-        correlationId: `ai_approval_${Date.now()}`,
-        metadata: JSON.stringify({
-          requestNumber: expReq.requestNumber,
-          decision: newStatus,
-          comment,
-          amountMinor: Number(expReq.amountMinor),
-          via: 'AI_AGENT_TOOL',
-        }),
-      },
-    });
-  } catch {}
-
   const amountNaira = Number(expReq.amountMinor) / 100;
   const baseUrl = req.nextUrl.origin || 'https://bemserp.work';
 
@@ -242,22 +193,101 @@ export async function POST(req: NextRequest) {
       })
     : null;
 
+  // -------------------------------------------------------------
+  // GOVERNANCE PROTOCOL: THE AI NEVER APPROVES DIRECTLY — IT ONLY STAGES.
+  // The backend creates a cryptographic staged action with a button
+  // for the GMD to click "Authorize & Execute Action".
+  // -------------------------------------------------------------
+  const staged = await stageAction({
+    userId: actor.id,
+    actionType: 'approval_decision',
+    materialPayload: {
+      request_id: expReq.id,
+      request_number: expReq.requestNumber,
+      decision: canonicalDecision,
+      reason: comment,
+      amount_minor: Number(expReq.amountMinor),
+    },
+    summary: `${canonicalDecision === 'APPROVE' ? 'Authorize disbursement for' : 'Decline'} ${expReq.requestNumber} (${expReq.title}) — ₦${amountNaira.toLocaleString()}`,
+    preview: {
+      request_number: expReq.requestNumber,
+      title: expReq.title,
+      amount: `₦${amountNaira.toLocaleString()}`,
+      requester: expReq.requester.legalName,
+      subsidiary: expReq.subsidiary?.legalName || 'BEMS Group',
+      decision_to_apply: canonicalDecision,
+      reason: comment,
+      beneficiary_name: beneficiary.name,
+      beneficiary_bank: beneficiary.bankName,
+      beneficiary_account: beneficiary.accountNumber,
+      quick_pay_link: disbursementPayload?.quickPayUrl || `${baseUrl}/pay/${expReq.requestNumber}`,
+    },
+  });
+
+  // If the user or n8n explicitly confirms the execution (e.g. GMD clicked the button in chat/Slack)
+  if (isDirectExecution) {
+    const executed = await executeStagedAction({
+      actionId: staged.staged_action_id,
+      confirmationHash: staged.confirmation_hash,
+      actor: {
+        id: actor.id,
+        legalName: actor.legalName,
+        role: actor.role,
+      },
+    });
+
+    return NextResponse.json({
+      ok: executed.ok,
+      status: 'APPROVED',
+      isExecuted: true,
+      message: `Request ${expReq.requestNumber} has been officially approved and confirmed by GMD ${actor.legalName}.`,
+      request: {
+        id: expReq.id,
+        requestNumber: expReq.requestNumber,
+        title: expReq.title,
+        amount: amountNaira,
+        formattedAmount: `₦${amountNaira.toLocaleString()}`,
+        status: canonicalDecision === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        subsidiary: expReq.subsidiary?.legalName || 'BEMS Group',
+        requester: expReq.requester.legalName,
+      },
+      beneficiary,
+      disbursement: disbursementPayload,
+      gmdActionLink: disbursementPayload?.quickPayUrl || `${baseUrl}/pay/${expReq.requestNumber}`,
+    });
+  }
+
+  // By default, return the staged action with the interactive approval button
   return NextResponse.json({
     ok: true,
-    decision: newStatus,
-    message: `Request ${expReq.requestNumber} has been ${newStatus.toLowerCase()} successfully.`,
+    status: 'AWAITING_CONFIRMATION',
+    requires_gmd_action: true,
+    message: `Approval action for ${expReq.requestNumber} has been staged. In accordance with BEMS security governance, the AI cannot approve directly — the GMD must click the confirmation button to execute.`,
+    staged_action_id: staged.staged_action_id,
+    confirmation_hash: staged.confirmation_hash,
+    confirmation_button: {
+      label: 'Authorize & Execute Approval (GMD)',
+      action_type: 'CONFIRM_STAGED_ACTION',
+      endpoint: `/api/ai/staged-actions/${staged.staged_action_id}/confirm`,
+      confirm_url: `${baseUrl}/api/ai/staged-actions/${staged.staged_action_id}/confirm`,
+      method: 'POST',
+      payload: {
+        confirmed_by: actor.legalName,
+        confirmation_hash: staged.confirmation_hash,
+      },
+    },
     request: {
       id: expReq.id,
       requestNumber: expReq.requestNumber,
       title: expReq.title,
       amount: amountNaira,
       formattedAmount: `₦${amountNaira.toLocaleString()}`,
-      status: newStatus,
+      status: expReq.approvalStatus,
       subsidiary: expReq.subsidiary?.legalName || 'BEMS Group',
       requester: expReq.requester.legalName,
     },
     beneficiary,
     disbursement: disbursementPayload,
-    gmdActionLink: disbursementPayload?.quickPayUrl || `${baseUrl}/requests/${expReq.requestNumber}`,
+    gmdActionLink: disbursementPayload?.quickPayUrl || `${baseUrl}/pay/${expReq.requestNumber}`,
   });
 }

@@ -96,17 +96,16 @@ curl -X POST "https://bemserp.work/api/ai/tools/subsidiary" \
 
 ## 3. Tool 2: Approvals & Bank App Quick-Disbursement
 
-This tool approves/rejects expenditure requests and **immediately extracts the staff or vendor bank account details**, returning:
-1. Exact recipient account number, account name, and bank name.
-2. A direct **BEMS Quick-Pay Action Portal Link** (`https://bemserp.work/pay/[REQ_ID]`).
-3. Native mobile app URI schemes (`gtworld://`, `kuda://`, `zenithbank://`, `opay://`, `moniepoint://`).
-4. A 1-tap USSD fast transfer dialer string (`tel:*737*2*<amount>*<acc>#`).
+> **Mandatory BEMS Security Governance Protocol:**  
+> **The AI never approves directly — it ONLY stages the action.**  
+> When the AI or automation triggers an approval, the backend creates a cryptographic **Staged Action** and generates an interactive **Confirmation Button** sent to the frontend chatbot (or Slack/WhatsApp via n8n).  
+> Only when the GMD physically clicks **"Authorize & Execute Approval"** does the backend execute the ledger mutation and commit the approval.
 
 ### A. Query Pending Approvals Queue
 - **Method:** `GET`
 - **Endpoint:** `/api/ai/tools/approvals?status=PENDING&limit=20`
 
-### B. Approve Request & Generate Banking Intent
+### B. Stage Approval Decision (AI Copilot / n8n)
 - **Method:** `POST`
 - **Endpoint:** `/api/ai/tools/approvals`
 - **Request Body:**
@@ -114,7 +113,7 @@ This tool approves/rejects expenditure requests and **immediately extracts the s
 {
   "requestId": "REQ-2026-0005",   // Can be REQ number or UUID ID
   "decision": "APPROVE",          // APPROVE | REJECT
-  "comment": "Approved by GMD via n8n voice assistant"
+  "comment": "Recommended by AI after budget inspection"
 }
 ```
 - **cURL Example:**
@@ -125,19 +124,78 @@ curl -X POST "https://bemserp.work/api/ai/tools/approvals" \
   -d '{
     "requestId": "REQ-2026-0005",
     "decision": "APPROVE",
-    "comment": "Executive approval granted"
+    "comment": "Recommended approval"
   }'
 ```
-- **Response Schema:**
+- **Response Schema (Staged with Interactive Button for GMD):**
 ```json
 {
   "ok": true,
-  "decision": "APPROVED",
-  "message": "Request REQ-2026-0005 has been approved successfully.",
+  "status": "AWAITING_CONFIRMATION",
+  "requires_gmd_action": true,
+  "message": "Approval action for REQ-2026-0005 has been staged. In accordance with BEMS security governance, the AI cannot approve directly — the GMD must click the confirmation button to execute.",
+  "staged_action_id": "sa_4a7b21903e1f",
+  "confirmation_hash": "sha256:7e8d2...",
+  "confirmation_button": {
+    "label": "Authorize & Execute Approval (GMD)",
+    "action_type": "CONFIRM_STAGED_ACTION",
+    "endpoint": "/api/ai/staged-actions/sa_4a7b21903e1f/confirm",
+    "confirm_url": "https://bemserp.work/api/ai/staged-actions/sa_4a7b21903e1f/confirm",
+    "method": "POST",
+    "payload": {
+      "confirmed_by": "GMD Executive",
+      "confirmation_hash": "sha256:7e8d2..."
+    }
+  },
   "request": {
     "id": "e0b1f234-5678-4321-9abc-def012345678",
     "requestNumber": "REQ-2026-0005",
     "title": "Starlink High-Speed Router Replacement",
+    "amount": 150000,
+    "formattedAmount": "₦150,000",
+    "status": "SUBMITTED",
+    "subsidiary": "BEMS Group",
+    "requester": "Babatunde Diekolayomi"
+  },
+  "beneficiary": {
+    "name": "Babatunde Diekolayomi",
+    "bankName": "Kuda Microfinance Bank",
+    "accountNumber": "2001928374",
+    "type": "STAFF"
+  },
+  "disbursement": {
+    "beneficiaryName": "Babatunde Diekolayomi",
+    "accountNumber": "2001928374",
+    "bankName": "Kuda Microfinance Bank",
+    "amount": 150000,
+    "formattedAmount": "₦150,000",
+    "reference": "REQ-2026-0005",
+    "quickPayUrl": "https://bemserp.work/pay/REQ-2026-0005",
+    "ussdDialer": "tel:*737*2*150000*2001928374#",
+    "ussdRaw": "*737*2*150000*2001928374#",
+    "bankingApps": [
+      { "name": "GTWorld (GTBank)", "scheme": "gtworld://" },
+      { "name": "Kuda Bank", "scheme": "kuda://" },
+      { "name": "OPay", "scheme": "opay://" },
+      { "name": "Moniepoint", "scheme": "moniepoint://" },
+      { "name": "Zenith Bank", "scheme": "zenithbank://" },
+      { "name": "Access More", "scheme": "accessmore://" }
+    ]
+  },
+  "gmdActionLink": "https://bemserp.work/pay/REQ-2026-0005"
+}
+```
+
+### C. GMD Confirmation Click Execution
+When the GMD taps the button in the chatbot (or in Slack/WhatsApp), the client calls:
+- **POST** `/api/ai/staged-actions/{staged_action_id}/confirm`
+```json
+{
+  "confirmed_by": "The Group Managing Director",
+  "confirmation_hash": "sha256:7e8d2..."
+}
+```
+*The request status transitions to `APPROVED` on the ledger, an audit event is logged, and the GMD can tap the Bank Quick-Pay link to disburse!*
     "amount": 150000,
     "formattedAmount": "₦150,000",
     "status": "APPROVED",
@@ -458,3 +516,4 @@ https://bemserp.work/pay/REQ-2026-0005
 📞 *Fast Phone USSD:*
 *737*2*150000*2001928374#
 ```
+
