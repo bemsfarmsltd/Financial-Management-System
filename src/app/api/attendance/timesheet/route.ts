@@ -100,6 +100,10 @@ export async function GET(request: Request) {
         } else if (isOffDay) {
           status = 'OFF_DAY';
           offDayCount++;
+        } else if (dateStr < '2026-11-03') {
+          // Pre-launch: System attendance tracking officially commenced on 2026-11-03
+          status = 'EXCUSED';
+          excusedCount++;
         } else if (isFuture) {
           status = 'UPCOMING';
         } else {
@@ -178,9 +182,13 @@ export async function GET(request: Request) {
         summary: {
           totalDaysInMonth,
           present: presentCount,
+          presentDays: presentCount,
           late: lateCount,
+          lateDays: lateCount,
           absent: absentCount,
+          absentDays: absentCount,
           excused: excusedCount,
+          excusedDays: excusedCount,
           offDays: offDayCount,
           totalPunches: records.length,
           totalDeductionPercent,

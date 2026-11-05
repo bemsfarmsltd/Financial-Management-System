@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     const targetDayOfWeek = targetDateObj.getDay(); // 0 = Sun, 6 = Sat
 
     // Fetch employees, policy, and attendance records in parallel
-    const [employees, records, rawPolicy, rawSubsidiaries] = await Promise.all([
+    const [employees, records, rawPolicies, rawSubsidiaries] = await Promise.all([
       prisma.employee.findMany({
         where: {
           status: 'ACTIVE',
@@ -55,7 +55,7 @@ export async function GET(request: Request) {
         where: { workDate: targetDate },
         include: { station: { select: { name: true, code: true } } },
       }),
-      prisma.attendancePolicy.findFirst(),
+      prisma.attendancePolicy.findMany(),
       prisma.organization.findMany({
         where: { status: 'ACTIVE' },
         select: { id: true, legalName: true, code: true },
@@ -63,7 +63,8 @@ export async function GET(request: Request) {
       }),
     ]);
 
-    const policy = rawPolicy || {
+    const policyMap = new Map(rawPolicies.map(p => [p.organizationId, p]));
+    const policy = rawPolicies[0] || {
       earliestCheckInTime: '07:00',
       resumptionTime: '08:00',
       closingTime: '17:00',
@@ -205,7 +206,10 @@ export async function GET(request: Request) {
         }
       } else {
         // No record
-        if (isTargetPast || (isTargetToday && currentTimeStr > (policy.closingTime || '17:00'))) {
+        if (targetDate < '2026-11-03') {
+          // Pre-launch: Attendance officially started on 2026-11-03
+          morningStatus = 'EXCUSED';
+        } else if (isTargetPast || (isTargetToday && currentTimeStr > (policy.closingTime || '17:00'))) {
           morningStatus = 'ABSENT';
           absentCount++;
         } else {
@@ -213,12 +217,14 @@ export async function GET(request: Request) {
         }
       }
 
+      const empPolicy = (primaryAssignment?.subsidiary?.id ? policyMap.get(primaryAssignment.subsidiary.id) : null) || policy;
+
       const deductionPercent = rec?.isManualOverride
         ? rec.deductionPercent
         : morningStatus === 'LATE'
-        ? (policy.latenessDeductionPercent ?? 5.0)
+        ? (empPolicy.latenessDeductionPercent ?? 5.0)
         : morningStatus === 'ABSENT'
-        ? (policy.absenceDeductionPercent ?? 100.0)
+        ? (empPolicy.absenceDeductionPercent ?? 100.0)
         : (rec?.deductionPercent || 0);
 
       return {

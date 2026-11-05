@@ -1731,7 +1731,7 @@ export default function AttendanceDeskPage() {
                     <CheckCircle2 size={14} color="#059669" /> PRESENT ON-TIME
                   </div>
                   <div style={{ fontSize: '24px', fontWeight: 900, color: '#059669', marginTop: '4px' }}>
-                    {calendarData.summary.presentDays} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>days</span>
+                    {calendarData.summary.presentDays ?? calendarData.summary.present ?? 0} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>days</span>
                   </div>
                   <div style={{ fontSize: '11px', color: '#94a3b8' }}>Resumed before 08:15 AM</div>
                 </div>
@@ -1741,7 +1741,7 @@ export default function AttendanceDeskPage() {
                     <AlertTriangle size={14} color="#ea580c" /> LATE ARRIVALS
                   </div>
                   <div style={{ fontSize: '24px', fontWeight: 900, color: '#ea580c', marginTop: '4px' }}>
-                    {calendarData.summary.lateDays} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>days</span>
+                    {calendarData.summary.lateDays ?? calendarData.summary.late ?? 0} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>days</span>
                   </div>
                   <div style={{ fontSize: '11px', color: '#94a3b8' }}>
                     Cumulative lateness penalty
@@ -1753,7 +1753,7 @@ export default function AttendanceDeskPage() {
                     <UserX size={14} color="#dc2626" /> UNEXCUSED ABSENCES
                   </div>
                   <div style={{ fontSize: '24px', fontWeight: 900, color: '#dc2626', marginTop: '4px' }}>
-                    {calendarData.summary.absentDays} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>days</span>
+                    {calendarData.summary.absentDays ?? calendarData.summary.absent ?? 0} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>days</span>
                   </div>
                   <div style={{ fontSize: '11px', color: '#94a3b8' }}>100% daily deduction</div>
                 </div>
@@ -1775,7 +1775,9 @@ export default function AttendanceDeskPage() {
                   <div style={{ fontSize: '24px', fontWeight: 900, color: calendarData.summary.totalDeductionPercent > 0 ? '#dc2626' : '#059669', marginTop: '4px' }}>
                     {calendarData.summary.totalDeductionPercent > 0 ? `-${calendarData.summary.totalDeductionPercent.toFixed(1)}%` : '0.0%'}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Deducted from monthly pay</div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    {calendarData.summary.totalDeductionPercent > 0 ? `Daily wage penalty (daily rate / 22)` : 'Full wage preserved'}
+                  </div>
                 </div>
               </div>
             )}
