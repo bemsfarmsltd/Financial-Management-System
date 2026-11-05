@@ -53,6 +53,18 @@ export async function GET(req: NextRequest) {
         methods: ['GET', 'POST'],
         description: 'Inspect live daily attendance, excuse penalties, clock in/out staff, and configure policy.',
       },
+      {
+        name: 'vendors',
+        endpoint: '/api/ai/tools/vendors',
+        methods: ['GET', 'POST'],
+        description: 'Vendor & supplier master registry, NUBAN bank check, and automated 3-way matching engine (PO vs GRN vs Invoice).',
+      },
+      {
+        name: 'intercompany',
+        endpoint: '/api/ai/tools/intercompany',
+        methods: ['GET', 'POST'],
+        description: 'Automated intercompany debit/credit note generation, cross-entity recharge matrix, and GMD netting settlement.',
+      },
     ],
   });
 }

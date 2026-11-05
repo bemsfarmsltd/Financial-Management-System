@@ -219,6 +219,8 @@ def build_pdf(filename="docs/BEMS_AI_AUTOMATION_N8N_ENGINEER_GUIDE.pdf"):
         [Paragraph("<b>Executive Onboarding</b>", body_style), Paragraph("<code>POST /api/ai/tools/admin-onboarding</code>", code_style), Paragraph("Onboard SUPER_ADMIN or GMD via cryptographic invitation email dispatch", body_style)],
         [Paragraph("<b>Full Payroll Operations</b>", body_style), Paragraph("<code>GET /api/ai/tools/payroll</code><br/><code>POST /api/ai/tools/payroll</code>", code_style), Paragraph("Run payroll calculation with attendance deductions; lock batch; mark paid", body_style)],
         [Paragraph("<b>Attendance & Timekeeping</b>", body_style), Paragraph("<code>GET /api/ai/tools/attendance</code><br/><code>POST /api/ai/tools/attendance</code>", code_style), Paragraph("Inspect daily master roster; excuse penalty; clock in/out; update shift policy", body_style)],
+        [Paragraph("<b>Vendor & 3-Way Match</b>", body_style), Paragraph("<code>GET /api/ai/tools/vendors</code><br/><code>POST /api/ai/tools/vendors</code>", code_style), Paragraph("Master vendor registry, NUBAN check, and 3-way match verification (PO vs GRN vs Invoice)", body_style)],
+        [Paragraph("<b>Intercompany Ledger</b>", body_style), Paragraph("<code>GET /api/ai/tools/intercompany</code><br/><code>POST /api/ai/tools/intercompany</code>", code_style), Paragraph("Automated paired Debit/Credit notes, cross-entity matrix, and GMD netting settlement", body_style)],
         [Paragraph("<b>Conversational Chatbot</b>", body_style), Paragraph("<code>POST /api/ai/chat</code>", code_style), Paragraph("Direct natural language command execution & checklist generator", body_style)]
     ]
     t_end = Table(endpoints_rows, colWidths=[120, 190, 194])
@@ -374,6 +376,61 @@ def build_pdf(filename="docs/BEMS_AI_AUTOMATION_N8N_ENGINEER_GUIDE.pdf"):
         ('PADDING', (0,0), (-1,-1), 6),
     ]))
     story.append(t_code6)
+    story.append(Spacer(1, 10))
+
+    # Section 8.1: Vendor Registry & 3-Way Matching
+    story.append(Paragraph("8.1. Vendor Registry & Automated 3-Way Match Verification", h1_style))
+    story.append(Paragraph(
+        "<b>Endpoint:</b> <code>POST https://bemserp.work/api/ai/tools/vendors</code><br/>"
+        "Verifies Purchase Order against Goods Receipt Note (GRN) acceptance and Vendor Invoice billed amount. 0% tolerance on unapproved overage.",
+        body_style
+    ))
+    v_payload = """// Action 1: Check 3-Way Match Status on PO
+{ "action": "CHECK_MATCH", "requestId": "REQ-2026-0005" }
+
+// Action 2: Register Verified Vendor with NUBAN Bank Account
+{
+  "action": "REGISTER",
+  "name": "Mikano International Ltd",
+  "category": "FACILITIES",
+  "bankName": "Guaranty Trust Bank",
+  "accountNumber": "0123456789",
+  "accountName": "Mikano International Ltd"
+}"""
+    t_code_v = Table([[Paragraph(v_payload.replace("\n", "<br/>").replace(" ", "&nbsp;"), code_style)]], colWidths=[504])
+    t_code_v.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), code_bg),
+        ('BOX', (0,0), (-1,-1), 0.5, border_color),
+        ('PADDING', (0,0), (-1,-1), 6),
+    ]))
+    story.append(t_code_v)
+    story.append(Spacer(1, 10))
+
+    # Section 8.2: Automated Intercompany Ledger & Netting
+    story.append(Paragraph("8.2. Automated Intercompany Debit/Credit Ledger & Netting", h1_style))
+    story.append(Paragraph(
+        "<b>Endpoint:</b> <code>POST https://bemserp.work/api/ai/tools/intercompany</code><br/>"
+        "Generates paired Debit/Credit notes when one entity pays on behalf of another entity. Stages netting settlements for GMD confirmation.",
+        body_style
+    ))
+    ic_payload = """// Action 1: Generate Paired Operational Debit/Credit Notes
+{
+  "action": "CREATE_NOTE",
+  "source": "BEMS-GROUP",
+  "target": "ACS",
+  "amount": 350000,
+  "description": "Cross-charge: Q4 Starlink Equipment Allocation"
+}
+
+// Action 2: Stage Netting Settlement for GMD Authorization
+{ "action": "STAGE_SETTLEMENT", "noteIds": ["note-uuid-1", "note-uuid-2"] }"""
+    t_code_ic = Table([[Paragraph(ic_payload.replace("\n", "<br/>").replace(" ", "&nbsp;"), code_style)]], colWidths=[504])
+    t_code_ic.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), code_bg),
+        ('BOX', (0,0), (-1,-1), 0.5, border_color),
+        ('PADDING', (0,0), (-1,-1), 6),
+    ]))
+    story.append(t_code_ic)
 
     story.append(PageBreak())
 

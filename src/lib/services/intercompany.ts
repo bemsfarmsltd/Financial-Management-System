@@ -182,3 +182,163 @@ export async function getIntercompanyMatrix() {
 
   return summary;
 }
+
+/**
+ * Automatically generates paired Debit and Credit notes when an operational expenditure
+ * or vendor payment is made by one entity on behalf of another entity.
+ */
+export async function generateOperationalIntercompanyNotes(params: {
+  requestId?: string;
+  sourceEntityId: string; // The funding/paying entity (holds the receivable)
+  targetEntityId: string; // The beneficiary entity (holds the liability/payable)
+  amountMinor: number | bigint;
+  currency?: string;
+  description: string;
+  actor: { id: string; legalName: string; role: string };
+}) {
+  const { sourceEntityId, targetEntityId, amountMinor, currency = 'NGN', description, actor } = params;
+
+  if (sourceEntityId === targetEntityId) {
+    throw new Error('Intercompany notes cannot be issued between the same entity.');
+  }
+
+  const [sourceOrg, targetOrg] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: sourceEntityId } }),
+    prisma.organization.findUnique({ where: { id: targetEntityId } }),
+  ]);
+
+  if (!sourceOrg) throw new Error(`Source entity ${sourceEntityId} not found.`);
+  if (!targetOrg) throw new Error(`Target entity ${targetEntityId} not found.`);
+
+  const now = new Date();
+  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const randomSuffix = randomUUID().slice(0, 6).toUpperCase();
+
+  const debitNoteNumber = `DN-${yearMonth}-${randomSuffix}`;
+  const creditNoteNumber = `CN-${yearMonth}-${randomSuffix}`;
+
+  const bigAmount = BigInt(amountMinor);
+
+  const [debitNote, creditNote] = await prisma.$transaction(async (tx) => {
+    // 1. Debit Note: Issued by Source Org against Target Org (Source is Debiting Target = Target owes Source)
+    const dn = await tx.intercompanyNote.create({
+      data: {
+        sourceEntityId,
+        targetEntityId,
+        noteType: 'DEBIT_NOTE',
+        noteNumber: debitNoteNumber,
+        totalAmountMinor: bigAmount,
+        currency,
+        description: `[DEBIT] ${description} (Cross-charge to ${targetOrg.legalName})`,
+        status: 'ISSUED',
+      },
+    });
+
+    // 2. Credit Note: Issued to acknowledge liability/recharge from Target Org perspective
+    const cn = await tx.intercompanyNote.create({
+      data: {
+        sourceEntityId: targetEntityId,
+        targetEntityId: sourceEntityId,
+        noteType: 'CREDIT_NOTE',
+        noteNumber: creditNoteNumber,
+        totalAmountMinor: bigAmount,
+        currency,
+        description: `[CREDIT] ${description} (Funded by ${sourceOrg.legalName})`,
+        status: 'ISSUED',
+      },
+    });
+
+    // Audit Event
+    await tx.auditEvent.create({
+      data: {
+        actorId: actor.id,
+        actorName: actor.legalName,
+        actorRole: actor.role,
+        groupId: sourceOrg.parentGroupId || sourceOrg.id,
+        subsidiaryId: targetEntityId,
+        targetType: 'DISBURSEMENT',
+        targetId: dn.id,
+        action: 'INTERCOMPANY_NOTE_CREATED',
+        correlationId: `CORR-OP-ICN-${dn.id}`,
+        metadata: JSON.stringify({
+          debitNoteNumber,
+          creditNoteNumber,
+          source: sourceOrg.legalName,
+          target: targetOrg.legalName,
+          amountMinor: bigAmount.toString(),
+          description,
+        }),
+      },
+    });
+
+    return [dn, cn];
+  });
+
+  return {
+    ok: true,
+    debitNote: {
+      id: debitNote.id,
+      noteNumber: debitNote.noteNumber,
+      source: sourceOrg.legalName,
+      target: targetOrg.legalName,
+      amountMinor: Number(debitNote.totalAmountMinor),
+      status: debitNote.status,
+    },
+    creditNote: {
+      id: creditNote.id,
+      noteNumber: creditNote.noteNumber,
+      source: targetOrg.legalName,
+      target: sourceOrg.legalName,
+      amountMinor: Number(creditNote.totalAmountMinor),
+      status: creditNote.status,
+    },
+  };
+}
+
+/**
+ * Reconciles / Clears Intercompany Notes upon GMD authorization
+ */
+export async function reconcileIntercompanyNotes(params: {
+  noteIds: string[];
+  settlementReference?: string;
+  actor: { id: string; legalName: string; role: string };
+}) {
+  const { noteIds, settlementReference = 'GMD_NETTING_SETTLEMENT', actor } = params;
+
+  if (!noteIds.length) {
+    throw new Error('At least one intercompany note ID is required for reconciliation.');
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const res = await tx.intercompanyNote.updateMany({
+      where: { id: { in: noteIds } },
+      data: { status: 'RECONCILED' },
+    });
+
+    await tx.auditEvent.create({
+      data: {
+        actorId: actor.id,
+        actorName: actor.legalName,
+        actorRole: actor.role,
+        groupId: 'BEMS-HOLDINGS',
+        targetType: 'DISBURSEMENT',
+        targetId: noteIds[0],
+        action: 'CLOSED',
+        correlationId: `SETTLE-ICN-${Date.now()}`,
+        metadata: JSON.stringify({
+          reconciledCount: res.count,
+          settlementReference,
+          noteIds,
+        }),
+      },
+    });
+
+    return res;
+  });
+
+  return {
+    ok: true,
+    reconciledCount: updated.count,
+    settlementReference,
+  };
+}

@@ -722,6 +722,72 @@ title: "<Chart Title>"
         };
       }
     } else if (
+      normalized.includes('3-way match') ||
+      normalized.includes('3 way match') ||
+      normalized.includes('three way match') ||
+      normalized.includes('vendor invoice') ||
+      normalized.includes('matching')
+    ) {
+      const matchRecords = await prisma.threeWayMatchRecord.findMany({
+        take: 5,
+        orderBy: { matchedAt: 'desc' },
+        include: {
+          request: { select: { requestNumber: true, title: true, vendor: { select: { name: true } } } },
+          invoice: { select: { invoiceNumber: true } },
+          grn: { select: { grnNumber: true, status: true } },
+        },
+      });
+
+      if (!matchRecords.length) {
+        reply = `**Automated 3-Way Matching Engine (PO vs GRN vs Invoice):**\n\n` +
+          `• **Status:** Active & Enforced\n` +
+          `• **Protocol:** Every vendor expenditure automatically cross-verifies Purchase Order rate, physical Goods Receipt Note (GRN) acceptance, and Vendor Invoice billed amount.\n` +
+          `• **Tolerance Gate:** 0% unapproved price variance. Deliveries flagged as DAMAGED or PARTIAL block automated payment release until authorized by the GMD.`;
+      } else {
+        const rows = matchRecords
+          .map((m) => {
+            const statusIcon = m.status === 'MATCH_CONFIRMED' ? '✅' : '⚠️';
+            const poN = (Number(m.poAmountMinor) / 100).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
+            const invN = (Number(m.invoiceAmountMinor) / 100).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
+            return `• ${statusIcon} **${m.request.requestNumber}** (${m.request.vendor?.name || 'Vendor'}):\n  - PO: ${poN} | Inv #${m.invoice.invoiceNumber}: ${invN}\n  - GRN: ${m.grn?.grnNumber || 'Awaiting GRN'} (${m.grn?.status || 'Pending'})\n  - Status: \`${m.status}\``;
+          })
+          .join('\n\n');
+
+        reply = `**BEMS Group 3-Way Match Verification Radar:**\n\n${rows}\n\n*Invoices with \`MATCH_CONFIRMED\` are pre-cleared for GMD disbursement.*`;
+      }
+    } else if (
+      normalized.includes('intercompany') ||
+      normalized.includes('debit note') ||
+      normalized.includes('credit note') ||
+      normalized.includes('netting')
+    ) {
+      const notes = await prisma.intercompanyNote.findMany({
+        where: { status: 'ISSUED' },
+        include: {
+          sourceEntity: { select: { legalName: true } },
+          targetEntity: { select: { legalName: true } },
+        },
+        take: 5,
+        orderBy: { generatedAt: 'desc' },
+      });
+
+      if (!notes.length) {
+        reply = `**Automated Intercompany Clearing & Netting Ledger:**\n\n` +
+          `• **Status:** All intercompany obligations are currently balanced.\n` +
+          `• **Protocol:** When Central Treasury or any subsidiary incurs expenditure or payroll on behalf of another entity, bilateral Debit/Credit notes are generated automatically with zero double-counting.\n` +
+          `• **GMD Netting:** Bilateral balances can be offset and settled with 1-click GMD authorization.`;
+      } else {
+        const noteList = notes
+          .map((n) => {
+            const amountN = (Number(n.totalAmountMinor) / 100).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
+            const typePill = n.noteType === 'DEBIT_NOTE' ? '🔴 DEBIT' : '🟢 CREDIT';
+            return `• ${typePill} **${n.noteNumber}**: ${amountN}\n  - *${n.sourceEntity.legalName}* ➔ *${n.targetEntity.legalName}*\n  - Purpose: ${n.description}`;
+          })
+          .join('\n\n');
+
+        reply = `**Active Intercompany Balance & Netting Matrix:**\n\n${noteList}\n\n💬 *You can instruct me to stage a netting settlement across these notes for your authorization.*`;
+      }
+    } else if (
       normalized.includes('subsidiary') ||
       normalized.includes('entities') ||
       normalized.includes('company') ||

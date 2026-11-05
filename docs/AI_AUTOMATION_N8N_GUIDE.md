@@ -463,6 +463,92 @@ Waives lateness deductions or excuses absences:
 
 ---
 
+## 7.5. Tool 7: Vendor & Supplier Registry + 3-Way Matching
+
+### A. Check 3-Way Match on a Purchase Order
+- **Method:** `POST`
+- **Endpoint:** `/api/ai/tools/vendors`
+- **Request Body:**
+```json
+{
+  "action": "CHECK_MATCH",
+  "requestId": "REQ-2026-0005"
+}
+```
+**Response Output:**
+```json
+{
+  "ok": true,
+  "matchStatus": "MATCH_CONFIRMED",
+  "summary": {
+    "requestNumber": "REQ-2026-0005",
+    "vendorName": "Mikano International Ltd",
+    "poAmountMinor": 15000000,
+    "invoiceAmountMinor": 15000000,
+    "varianceMinor": 0,
+    "invoiceNumber": "INV-MIK-901",
+    "grnNumber": "GRN-2026-0012",
+    "grnStatus": "ACCEPTED",
+    "canDisburse": true,
+    "recommendation": "3-way match verified. PO rate, GRN acceptance, and Invoice are fully aligned."
+  }
+}
+```
+
+### B. Register Verified Vendor (NUBAN Bank Check)
+- **Method:** `POST`
+- **Endpoint:** `/api/ai/tools/vendors`
+- **Request Body:**
+```json
+{
+  "action": "REGISTER",
+  "name": "Mikano International Ltd",
+  "category": "FACILITIES",
+  "bankName": "Guaranty Trust Bank",
+  "accountNumber": "0123456789",
+  "accountName": "Mikano International Ltd",
+  "contactPhone": "+2348020003344",
+  "contactEmail": "billing@mikano.com"
+}
+```
+
+---
+
+## 7.6. Tool 8: Automated Intercompany Debit/Credit Ledger & Netting
+
+### A. Query Conglomerate Netting Matrix
+- **Method:** `GET`
+- **Endpoint:** `/api/ai/tools/intercompany`
+- **Description:** Returns live bilateral intercompany balances across all active subsidiaries.
+
+### B. Generate Operational Paired Debit/Credit Notes
+- **Method:** `POST`
+- **Endpoint:** `/api/ai/tools/intercompany`
+- **Request Body:**
+```json
+{
+  "action": "CREATE_NOTE",
+  "source": "BEMS-GROUP",
+  "target": "ACS",
+  "amount": 350000,
+  "description": "Cross-charge: Q4 Starlink Equipment Allocation"
+}
+```
+
+### C. Stage Intercompany Netting Settlement for GMD
+- **Method:** `POST`
+- **Endpoint:** `/api/ai/tools/intercompany`
+- **Request Body:**
+```json
+{
+  "action": "STAGE_SETTLEMENT",
+  "noteIds": ["note-uuid-1", "note-uuid-2"]
+}
+```
+*(In accordance with BEMS Staged-Action security governance, returns a confirmation card and button for GMD authorization).*
+
+---
+
 ## 8. n8n HTTP Request Node Template
 
 Below is the standard JSON structure to paste into an n8n **HTTP Request** node:

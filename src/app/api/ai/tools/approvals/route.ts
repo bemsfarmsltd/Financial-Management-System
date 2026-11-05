@@ -153,6 +153,7 @@ export async function POST(req: NextRequest) {
       vendor: {
         select: { id: true, name: true, bankName: true, accountNumber: true, accountName: true },
       },
+      threeWayMatch: true,
       approvalSteps: { orderBy: { stageIndex: 'asc' } },
     },
   });
@@ -253,6 +254,13 @@ export async function POST(req: NextRequest) {
       },
       beneficiary,
       disbursement: disbursementPayload,
+      threeWayMatch: expReq.threeWayMatch
+        ? {
+            status: expReq.threeWayMatch.status,
+            varianceMinor: Number(expReq.threeWayMatch.varianceMinor),
+            matchedAt: expReq.threeWayMatch.matchedAt.toISOString(),
+          }
+        : null,
       gmdActionLink: disbursementPayload?.quickPayUrl || `${baseUrl}/pay/${expReq.requestNumber}`,
     });
   }
@@ -288,6 +296,13 @@ export async function POST(req: NextRequest) {
     },
     beneficiary,
     disbursement: disbursementPayload,
+    threeWayMatch: expReq.threeWayMatch
+      ? {
+          status: expReq.threeWayMatch.status,
+          varianceMinor: Number(expReq.threeWayMatch.varianceMinor),
+          matchedAt: expReq.threeWayMatch.matchedAt.toISOString(),
+        }
+      : null,
     gmdActionLink: disbursementPayload?.quickPayUrl || `${baseUrl}/pay/${expReq.requestNumber}`,
   });
 }
