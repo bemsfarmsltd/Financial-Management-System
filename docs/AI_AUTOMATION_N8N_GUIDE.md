@@ -527,14 +527,15 @@ The AI and automated workflows must **NEVER invent, guess, or use dummy/placehol
 If an API request is received with missing required parameters, the backend strictly rejects it with `HTTP 400` and `error_code: "INCOMPLETE_PARAMETERS"`, returning a ready-to-display `conversational_prompt` and `missing_fields` list.
 
 ### 10.1 Subsidiary Creation Requirements
+*(Note: File uploads including corporate logos, registration certificates, and receipts are strictly excluded from AI tools and are managed normally directly on the Web Dashboard).*
+
 Before creating a subsidiary, the AI must collect:
 1. `name` (string, required): Legal registered name (e.g., *"Studio Arella Ltd"*, *"Arella Agribusiness SPV"*).
-2. `brandColor` (hex string, required): Primary brand color (e.g., `"#EA580C"`, `"#2563EB"`, `"#059669"`).
+2. `brandColor` (hex string, required): Primary brand hex color (e.g., `"#EA580C"`, `"#2563EB"`, `"#059669"`).
 3. `industry` (string, required): Primary business sector (e.g., *"Creative Media & Video Production"*).
 4. `headquarters` (string, required): Physical operating location or state (e.g., *"14 Admiralty Way, Lekki Phase 1, Lagos"*).
-5. `logoUrl` (string, optional/recommended): Publicly accessible corporate logo image URL.
-6. `code` (string, optional): 3-4 letter entity ticker (e.g., `"SAL"`, `"AAS"`). Auto-derived if omitted.
-7. `currency` (string, optional): Base operational currency (default `"NGN"`, supports `"USD"`, `"GBP"`, `"EUR"`).
+5. `code` (string, optional): 3-4 letter entity ticker (e.g., `"SAL"`, `"AAS"`). Auto-derived if omitted.
+6. `currency` (string, optional): Base operational currency (default `"NGN"`, supports `"USD"`, `"GBP"`, `"EUR"`).
 
 ### 10.2 Executive Admin Onboarding Requirements
 Under the **Strict 3-Role Architecture**, executive onboarding is strictly reserved for `SUPER_ADMIN` and `GMD` *(Staff accounts register exclusively via self-service mobile app)*:
@@ -551,5 +552,20 @@ Before linking a disbursement or corporate account:
 3. `bankName` (string, required): Recognized Nigerian bank or fintech (e.g., *"GTBank"*, *"Kuda Bank"*, *"Zenith"*, *"Access"*, *"OPay"*, *"Moniepoint"*).
 4. `accountNumber` (string, required): Exactly 10-digit NUBAN account number.
 5. `accountName` (string, required): Verified beneficiary name matching NIBSS records.
+
+---
+
+## 11. System Scope & Boundary Guarantees
+
+1. **File Upload Exclusion**:
+   - The AI & n8n automation bridge operates strictly on text, numeric, and structured JSON payloads.
+   - All physical file uploads (logos, vendor invoice PDFs, photo receipts, CAC certificates) are performed normally through the web dashboard.
+2. **Approval Staging Guarantee**:
+   - The AI **never directly approves** any fund expenditure.
+   - It stages the action and dispatches a secure authorization card containing deep links to banking apps, USSD dialer strings, and an interactive confirmation button for the GMD.
+3. **Strict 3-Role Architecture**:
+   - Only 3 roles exist in the system: `SUPER_ADMIN`, `GMD`, and `STAFF`.
+   - Staff accounts cannot be onboarded via executive invitations; they register exclusively through the self-service portal/mobile app.
+
 
 

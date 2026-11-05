@@ -88,11 +88,11 @@ export async function POST(req: NextRequest) {
           { field: 'code', label: 'Shortcode (Optional)', example: 'SAL' },
           { field: 'type', label: 'Entity Structure', example: 'OPERATING_SUBSIDIARY' },
           { field: 'currency', label: 'Operating Currency', example: 'NGN' },
-          { field: 'logoUrl', label: 'Logo URL (Optional)', example: 'https://.../logo.png' },
         ],
+        note: 'File uploads (logos, certificates, brand assets) are excluded from AI tools and handled directly on the Web Dashboard.',
         conversational_prompt: `To create this subsidiary, please provide the following details:\n` +
           missing.map((m, i) => `${i + 1}. **${m}**`).join('\n') +
-          `\n\n*(Optional: Shortcode, Entity Structure, and Logo URL).*`,
+          `\n\n*(Optional: Shortcode, Entity Structure, and Operating Currency. Logo and file uploads are managed on the web dashboard).*`,
       },
       { status: 400 }
     );

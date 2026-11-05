@@ -656,20 +656,20 @@ title: "<Chart Title>"
         reply = `🔒 **Executive Authority Required:** Corporate entity formation and subsidiary provisioning can only be authorized by the Group Managing Director or System Administrator.`;
       } else {
         reply = `🏛️ **Corporate Subsidiary Provisioning Specification**\n\n` +
-          `To configure and launch a new operating subsidiary on BEMS, all operational parameters are required:\n\n` +
+          `To configure and launch a new operating subsidiary on BEMS, the following corporate parameters are required:\n\n` +
           `1. **Corporate Legal Name**: Official registered name (e.g., *Arella Creative Studio Ltd*)\n` +
           `2. **Brand Hex Color**: Primary identity color (e.g., \`#EA580C\` Orange, \`#2563EB\` Blue, \`#0D8A70\` Emerald)\n` +
           `3. **Industry / Operational Sector**: Primary business focus (e.g., *Media Production*, *Agribusiness & Logistics*, *Tech IP*)\n` +
           `4. **Headquarters Location**: Physical base / State (e.g., *14 Admiralty Way, Lekki Phase 1, Lagos*)\n` +
-          `5. **Corporate Logo URL**: Link to official logo asset (e.g., *https://.../logo.png*)\n` +
-          `6. **Shortcode (Optional)**: 3–4 letter code (e.g., *SAL*, *ACS* - will be auto-generated if omitted)\n` +
-          `7. **Functional Currency**: Default is \`NGN\` (or \`USD\`, \`GBP\`, \`EUR\`)\n\n` +
+          `5. **Shortcode (Optional)**: 3–4 letter code (e.g., *SAL*, *ACS* - will be auto-generated if omitted)\n` +
+          `6. **Functional Currency**: Default is \`NGN\` (or \`USD\`, \`GBP\`, \`EUR\`)\n\n` +
+          `*(Note: File uploads including corporate logos, registration certificates, and brand assets are excluded from AI tools and uploaded directly via the Web Dashboard).*\n\n` +
           `💬 *Please reply with these details, and I will prepare the complete subsidiary dossier for your authorization.*`;
         
         actionCard = {
           type: 'SPECIFICATION_CHECKLIST',
           title: 'Subsidiary Creation Checklist',
-          fields: ['Corporate Legal Name', 'Brand Color (Hex)', 'Industry Sector', 'Headquarters City/State', 'Logo URL', 'Shortcode'],
+          fields: ['Corporate Legal Name', 'Brand Color (Hex)', 'Industry Sector', 'Headquarters City/State', 'Shortcode'],
         };
       }
     } else if (
