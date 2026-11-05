@@ -1498,7 +1498,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                             },
                             borderRadius: BorderRadius.circular(14),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFF7ED),
                                 borderRadius: BorderRadius.circular(14),
@@ -1506,18 +1506,72 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                               ),
                               child: const Column(
                                 children: [
-                                  Icon(Icons.camera_alt_rounded, color: Color(0xFFEA580C), size: 26),
-                                  SizedBox(height: 6),
-                                  Text('Snap Picture', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF9A3412))),
+                                  Icon(Icons.camera_alt_rounded, color: Color(0xFFEA580C), size: 22),
+                                  SizedBox(height: 5),
+                                  Text('Camera', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFF9A3412))),
                                   SizedBox(height: 2),
-                                  Text('Open device camera', style: TextStyle(fontSize: 9.5, color: Color(0xFFB45309))),
+                                  Text('Live snapshot', style: TextStyle(fontSize: 8.5, color: Color(0xFFB45309))),
                                 ],
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        // Option 2: Upload Document or Gallery Image
+                        const SizedBox(width: 6),
+                        // Option 2: Choose from Photo Gallery
+                        Expanded(
+                          child: InkWell(
+                            onTap: () async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              try {
+                                final picker = ImagePicker();
+                                final photo = await picker.pickImage(
+                                  source: ImageSource.gallery,
+                                  maxWidth: 1600,
+                                  maxHeight: 1600,
+                                  imageQuality: 85,
+                                );
+                                if (photo != null) {
+                                  final bytes = await photo.readAsBytes();
+                                  final sizeKb = (bytes.length / 1024).round();
+                                  final sizeStr = sizeKb > 1024 ? '${(sizeKb / 1024).toStringAsFixed(1)} MB' : '$sizeKb KB';
+                                  setModalState(() {
+                                    uploadedAttachments.add({
+                                      'name': photo.name,
+                                      'type': 'PHOTO',
+                                      'size': sizeStr,
+                                      'bytes': bytes,
+                                      'contentType': 'image/jpeg',
+                                    });
+                                  });
+                                }
+                              } catch (err) {
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text('Gallery error: $err'), backgroundColor: const Color(0xFFDC2626)),
+                                );
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF0FDF4),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: const Color(0xFFBBF7D0)),
+                              ),
+                              child: const Column(
+                                children: [
+                                  Icon(Icons.photo_library_rounded, color: Color(0xFF16A34A), size: 22),
+                                  SizedBox(height: 5),
+                                  Text('Photo Gallery', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFF15803D))),
+                                  SizedBox(height: 2),
+                                  Text('Select photo', style: TextStyle(fontSize: 8.5, color: Color(0xFF166534))),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Option 3: Upload Document or PDF
                         Expanded(
                           child: InkWell(
                             onTap: () async {
@@ -1555,7 +1609,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                             },
                             borderRadius: BorderRadius.circular(14),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFEFF6FF),
                                 borderRadius: BorderRadius.circular(14),
@@ -1563,11 +1617,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                               ),
                               child: const Column(
                                 children: [
-                                  Icon(Icons.upload_file_rounded, color: Color(0xFF2563EB), size: 26),
-                                  SizedBox(height: 6),
-                                  Text('Upload File', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF1E40AF))),
+                                  Icon(Icons.upload_file_rounded, color: Color(0xFF2563EB), size: 22),
+                                  SizedBox(height: 5),
+                                  Text('Doc / PDF', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFF1E40AF))),
                                   SizedBox(height: 2),
-                                  Text('Gallery or PDF file', style: TextStyle(fontSize: 9.5, color: Color(0xFF1D4ED8))),
+                                  Text('Attach invoice', style: TextStyle(fontSize: 8.5, color: Color(0xFF1D4ED8))),
                                 ],
                               ),
                             ),
@@ -3267,6 +3321,70 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             }),
           ],
 
+          // Interactive 4-Slide Journey Guide Card (Tap anytime to launch onboarding slides)
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const StaffOnboardingCarouselScreen(isReplay: true),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFF7ED), Color(0xFFFEF3C7)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFFED7AA)),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFEA580C).withOpacity(0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEA580C).withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.view_carousel_rounded, color: Color(0xFFEA580C), size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Explore BEMS Staff Portal Journey',
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF9A3412)),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Tap here to view the 4-slide interactive feature guide',
+                          style: TextStyle(fontSize: 10, color: Color(0xFFB45309)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: Color(0xFFEA580C), size: 20),
+                ],
+              ),
+            ),
+          ),
+
           // Quick Actions Grid (Clean, unified executive cards)
           const Text('Quick Actions', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
           const SizedBox(height: 12),
@@ -3516,20 +3634,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    if (_pendingRetirementCases.isNotEmpty) {
-                      _showRetirementEvidenceDialog(_pendingRetirementCases.first);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('All clear! You have no pending advances requiring evidence retirement.'),
-                          backgroundColor: Color(0xFF059669),
-                        ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
-                  label: const Text('Snap Picture', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white)),
+                  onPressed: () => _openProofOfExpenditure(source: 'camera'),
+                  icon: const Icon(Icons.camera_alt_rounded, size: 15, color: Colors.white),
+                  label: const Text('Camera', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Colors.white)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFEA580C),
                     elevation: 0,
@@ -3538,23 +3645,28 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 6),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    if (_pendingRetirementCases.isNotEmpty) {
-                      _showRetirementEvidenceDialog(_pendingRetirementCases.first);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('All clear! You have no pending advances requiring evidence retirement.'),
-                          backgroundColor: Color(0xFF059669),
-                        ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.upload_file_rounded, size: 16, color: Color(0xFF0F172A)),
-                  label: const Text('Upload Doc / PDF', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF0F172A))),
+                  onPressed: () => _openProofOfExpenditure(source: 'gallery'),
+                  icon: const Icon(Icons.photo_library_rounded, size: 15, color: Color(0xFF15803D)),
+                  label: const Text('Gallery', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFF15803D))),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF0FDF4),
+                    foregroundColor: const Color(0xFF15803D),
+                    elevation: 0,
+                    side: const BorderSide(color: Color(0xFFBBF7D0)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _openProofOfExpenditure(source: 'document'),
+                  icon: const Icon(Icons.upload_file_rounded, size: 15, color: Color(0xFF0F172A)),
+                  label: const Text('Doc / PDF', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFF0F172A))),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFF8FAFC),
                     foregroundColor: const Color(0xFF0F172A),
@@ -3568,6 +3680,204 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  void _openProofOfExpenditure({required String source}) {
+    if (_pendingRetirementCases.isNotEmpty) {
+      _showRetirementEvidenceDialog(_pendingRetirementCases.first);
+      return;
+    }
+    _showGeneralEvidenceUploadSheet(initialSource: source);
+  }
+
+  void _showGeneralEvidenceUploadSheet({required String initialSource}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Expenditure Evidence Scanner', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+                          Text('Capture or upload receipt proofs from your phone', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFF0284C7)),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'You have ₦0 pending advances requiring 72h retirement. Choose Camera, Photo Gallery, or Document to test or stage proof of store receipts.',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF334155), height: 1.35),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          final picker = ImagePicker();
+                          final photo = await picker.pickImage(source: ImageSource.camera, maxWidth: 1600, maxHeight: 1600, imageQuality: 85);
+                          if (photo != null && mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Camera snapshot captured: ${photo.name}'),
+                                backgroundColor: const Color(0xFF059669),
+                              ),
+                            );
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF7ED),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFFED7AA)),
+                          ),
+                          child: const Column(
+                            children: [
+                              Icon(Icons.camera_alt_rounded, color: Color(0xFFEA580C), size: 24),
+                              SizedBox(height: 6),
+                              Text('Snap Camera', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5, color: Color(0xFF9A3412))),
+                              SizedBox(height: 2),
+                              Text('Live snapshot', style: TextStyle(fontSize: 9, color: Color(0xFFB45309))),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          final picker = ImagePicker();
+                          final photo = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1600, maxHeight: 1600, imageQuality: 85);
+                          if (photo != null && mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Photo selected from Gallery: ${photo.name}'),
+                                backgroundColor: const Color(0xFF059669),
+                              ),
+                            );
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFBBF7D0)),
+                          ),
+                          child: const Column(
+                            children: [
+                              Icon(Icons.photo_library_rounded, color: Color(0xFF16A34A), size: 24),
+                              SizedBox(height: 6),
+                              Text('Photo Gallery', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5, color: Color(0xFF15803D))),
+                              SizedBox(height: 2),
+                              Text('Choose photo', style: TextStyle(fontSize: 9, color: Color(0xFF166534))),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          final result = await FilePicker.platform.pickFiles(
+                            type: FileType.custom,
+                            allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+                          );
+                          if (result != null && result.files.isNotEmpty && mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Document chosen: ${result.files.first.name}'),
+                                backgroundColor: const Color(0xFF059669),
+                              ),
+                            );
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: const Column(
+                            children: [
+                              Icon(Icons.upload_file_rounded, color: Color(0xFF2563EB), size: 24),
+                              SizedBox(height: 6),
+                              Text('Doc / PDF', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5, color: Color(0xFF1E40AF))),
+                              SizedBox(height: 2),
+                              Text('Attach PDF', style: TextStyle(fontSize: 9, color: Color(0xFF1D4ED8))),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

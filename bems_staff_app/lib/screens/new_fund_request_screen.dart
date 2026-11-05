@@ -98,6 +98,42 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
     }
   }
 
+  Future<void> _pickAttachmentGallery() async {
+    try {
+      final picker = ImagePicker();
+      final photo = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (photo == null) return;
+
+      setState(() => _isUploadingAttachment = true);
+      final bytes = await photo.readAsBytes();
+      final url = await StaffApiService.uploadAvatar(
+        bytes: bytes,
+        filename: photo.name,
+      );
+
+      final sizeKb = (bytes.length / 1024).round();
+      final sizeStr = sizeKb > 1024 ? '${(sizeKb / 1024).toStringAsFixed(1)} MB' : '$sizeKb KB';
+
+      setState(() {
+        _attachments.add({
+          'fileName': photo.name,
+          'fileUrl': url,
+          'contentType': 'image/jpeg',
+          'size': sizeStr,
+        });
+      });
+    } catch (e) {
+      _showError('Gallery upload failed: $e');
+    } finally {
+      if (mounted) setState(() => _isUploadingAttachment = false);
+    }
+  }
+
   Future<void> _pickAttachmentFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -782,8 +818,8 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: _isUploadingAttachment ? null : _pickAttachmentCamera,
-                          icon: const Icon(Icons.camera_alt_rounded, size: 16, color: Color(0xFFEA580C)),
-                          label: const Text('Snap Quote', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFEA580C))),
+                          icon: const Icon(Icons.camera_alt_rounded, size: 15, color: Color(0xFFEA580C)),
+                          label: const Text('Camera', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFEA580C))),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Color(0xFFFED7AA)),
                             backgroundColor: const Color(0xFFFFF7ED),
@@ -792,12 +828,26 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _isUploadingAttachment ? null : _pickAttachmentGallery,
+                          icon: const Icon(Icons.photo_library_rounded, size: 15, color: Color(0xFF16A34A)),
+                          label: const Text('Gallery', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF15803D))),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFBBF7D0)),
+                            backgroundColor: const Color(0xFFF0FDF4),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: _isUploadingAttachment ? null : _pickAttachmentFile,
-                          icon: const Icon(Icons.attach_file_rounded, size: 16, color: Color(0xFF0F172A)),
-                          label: const Text('Attach File', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                          icon: const Icon(Icons.attach_file_rounded, size: 15, color: Color(0xFF0F172A)),
+                          label: const Text('Doc / PDF', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Color(0xFFCBD5E1)),
                             backgroundColor: Colors.white,
