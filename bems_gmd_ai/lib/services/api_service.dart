@@ -10,7 +10,7 @@ class ApiService {
   static const String fallbackBaseUrl = 'https://pink-horse-318730.hostingersite.com';
   static String _activeBaseUrl = primaryBaseUrl;
 
-  static const String appVersion = '1.3.2';
+  static const String appVersion = '1.3.3';
   static const String appId = 'GMD_APP';
 
   // Active user session attributes
@@ -274,7 +274,7 @@ class ApiService {
               history.map((m) => {'role': m.sender, 'content': m.content}).toList(),
         }),
       ),
-      timeout: const Duration(seconds: 25),
+      timeout: const Duration(seconds: 120),
     );
 
     if (response.statusCode == 200) {

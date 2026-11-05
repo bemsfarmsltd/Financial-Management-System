@@ -13,6 +13,7 @@ import 'attendance_scan_screen.dart';
 import 'attendance_monthly_screen.dart';
 import '../widgets/bems_pie_chart.dart';
 import '../services/staff_biometric_service.dart';
+import 'staff_module_gallery_screen.dart';
 
 class StaffMainScreen extends StatefulWidget {
   final StaffUser user;
@@ -49,6 +50,17 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     final s = c.status.toUpperCase();
     return s == 'EVIDENCE_SUBMITTED';
   }).toList();
+
+  void _openEnterpriseGallery() {
+    if (widget.fromGallery && Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => StaffModuleGalleryScreen(user: _currentUser)),
+      );
+    }
+  }
 
   // Smart Attendance Visibility:
   // 1. If unpunched today -> SHOW (to clock in)
@@ -2762,35 +2774,69 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
         children: [
-          if (widget.fromGallery) ...[
-            InkWell(
-              onTap: () => Navigator.pop(context),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 14),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 6, offset: const Offset(0, 2)),
-                  ],
+          // Universal Enterprise Hub Switcher Banner
+          InkWell(
+            onTap: _openEnterpriseGallery,
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.arrow_back_ios_new_rounded, size: 13, color: Color(0xFFEA580C)),
-                    SizedBox(width: 8),
-                    Text(
-                      'Back to Enterprise Module Gallery',
-                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEA580C).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ],
-                ),
+                    child: const Icon(Icons.grid_view_rounded, size: 16, color: Color(0xFFFB923C)),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ENTERPRISE WORKSTATION HUB',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF94A3B8),
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                        SizedBox(height: 1),
+                        Text(
+                          'Switch Enterprise Module Gallery',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: Color(0xFF94A3B8)),
+                ],
               ),
             ),
-          ],
+          ),
 
           // Header
           Row(
@@ -2842,16 +2888,48 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   ),
                 ],
               ),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.notifications_none_rounded, size: 20, color: Color(0xFF0F172A)),
-                  onPressed: _showNotificationsDialog,
-                ),
+              Row(
+                children: [
+                  InkWell(
+                    onTap: _openEnterpriseGallery,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEA580C).withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.2)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.grid_view_rounded, size: 15, color: Color(0xFFEA580C)),
+                          SizedBox(width: 5),
+                          Text(
+                            'Modules Hub',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFFEA580C),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.notifications_none_rounded, size: 20, color: Color(0xFF0F172A)),
+                      onPressed: _showNotificationsDialog,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -3242,6 +3320,34 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   iconColor: const Color(0xFF0F172A),
                   iconBgColor: const Color(0xFFF1F5F9),
                   onTap: () => setState(() => _currentIndex = 1),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionTile(
+                  title: 'Enterprise Hub',
+                  subtitle: 'All 8 Workstations',
+                  icon: Icons.grid_view_rounded,
+                  iconColor: const Color(0xFFEA580C),
+                  iconBgColor: const Color(0xFFFFF7ED),
+                  onTap: _openEnterpriseGallery,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildActionTile(
+                  title: 'Monthly Payslips',
+                  subtitle: 'Voucher & Breakdown',
+                  icon: Icons.receipt_long_rounded,
+                  iconColor: const Color(0xFF2563EB),
+                  iconBgColor: const Color(0xFFEFF6FF),
+                  onTap: _showMyPayslipsModal,
                 ),
               ),
             ],
@@ -5393,7 +5499,22 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ),
         ),
 
-        const SizedBox(height: 28),
+        const SizedBox(height: 24),
+
+        // Enterprise Workstation Gallery Switcher
+        OutlinedButton.icon(
+          onPressed: _openEnterpriseGallery,
+          icon: const Icon(Icons.grid_view_rounded, size: 16, color: Color(0xFF0F172A)),
+          label: const Text('Open Enterprise Modules Gallery', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A))),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Color(0xFFCBD5E1)),
+            backgroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
+
+        const SizedBox(height: 14),
 
         // Logout
         OutlinedButton.icon(

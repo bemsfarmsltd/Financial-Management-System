@@ -1506,7 +1506,7 @@ export function StaffDashboardClient({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-white tracking-wide">BEMS STAFF APP v1.3.2 AVAILABLE</span>
+                  <span className="text-xs font-black text-white tracking-wide">BEMS STAFF APP v1.3.3 AVAILABLE</span>
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Latest</span>
                 </div>
                 <p className="text-[11.5px] text-slate-300">
@@ -1516,12 +1516,12 @@ export function StaffDashboardClient({
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
               <a
-                href="/downloads/staff-app.apk"
-                download="BEMS-Staff-App-v1.3.2.apk"
+                href="/downloads/BEMS-Staff-Portal-v1.3.3.apk"
+                download="BEMS-Staff-App-v1.3.3.apk"
                 className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#EA580C] to-[#C2410C] hover:from-[#C2410C] hover:to-[#9A3412] text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all flex items-center gap-1.5"
               >
                 <Download className="w-3.5 h-3.5" />
-                Download App (v1.3.2)
+                Download App (v1.3.3)
               </a>
               <button
                 onClick={() => setHideAppBanner(true)}

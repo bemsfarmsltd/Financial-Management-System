@@ -14,6 +14,8 @@ function formatNaira(amount: number): string {
   }).format(amount);
 }
 
+export const maxDuration = 120; // Allow up to 120 seconds for multi-step AI reasoning and tool calls
+
 export async function POST(req: NextRequest) {
   try {
     const gateBlock = await enforceMobileVersionGate(req);
@@ -42,7 +44,7 @@ export async function POST(req: NextRequest) {
     if (n8nWebhookUrl && actor) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 35000);
+        const timeout = setTimeout(() => controller.abort(), 120000); // 120 seconds for deep reasoning
 
         const correlationId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const sessionId = `conv_${actor.id}`;
