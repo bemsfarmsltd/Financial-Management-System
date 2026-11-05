@@ -309,12 +309,39 @@ export async function executeStagedAction(params: {
         JSON.stringify(disbursement, (_, v) => (typeof v === 'bigint' ? Number(v) : v))
       );
     } else if (action.actionType === 'salary_change') {
-      const { employee_id, amount, effective_date, reason } = materialPayload;
+      const employee_id = materialPayload.employee_id;
+      const amount = Number(materialPayload.amount ?? materialPayload.new_base_salary ?? 0);
+      const effective_date = materialPayload.effective_date;
+      const reason = materialPayload.reason;
 
-      const agreement = await tx.employmentAgreement.findFirst({
+      let agreement = await tx.employmentAgreement.findFirst({
         where: { employeeId: employee_id, status: 'ACTIVE' },
         orderBy: { startDate: 'desc' },
       });
+
+      if (!agreement) {
+        agreement = await tx.employmentAgreement.findFirst({
+          where: { employeeId: employee_id },
+          orderBy: { startDate: 'desc' },
+        });
+      }
+
+      if (!agreement) {
+        const emp = await tx.employee.findUnique({ where: { id: employee_id } });
+        if (emp) {
+          const orgId = emp.organizationId || emp.operatingEntityId || (await tx.organization.findFirst({ select: { id: true } }))?.id;
+          if (orgId) {
+            agreement = await tx.employmentAgreement.create({
+              data: {
+                employeeId: emp.id,
+                employerEntityId: orgId,
+                agreementType: 'PERMANENT',
+                status: 'ACTIVE',
+              },
+            });
+          }
+        }
+      }
 
       if (agreement) {
         await tx.compensationAgreement.create({
@@ -322,6 +349,7 @@ export async function executeStagedAction(params: {
             employmentAgreementId: agreement.id,
             version: 2,
             grossMinor: BigInt(Math.round(amount * 100)),
+            currency: 'NGN',
             effectiveFrom: effective_date ? new Date(effective_date) : new Date(),
             changeReason: reason || 'Executive AI salary modification',
             approvedBy: actor.id,

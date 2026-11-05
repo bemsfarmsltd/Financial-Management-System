@@ -125,11 +125,11 @@ export async function getAuthenticatedEmployee(req?: Request): Promise<Authentic
       if (tokenBuf.length === secretBuf.length && timingSafeEqual(tokenBuf, secretBuf)) {
         let targetUserId: string | null = null;
         if (req) {
-          targetUserId = req.headers.get('x-user-id');
+          targetUserId = req.headers.get('x-user-id') || req.headers.get('x-employee-id');
         } else {
           try {
             const hs = await headers();
-            targetUserId = hs.get('x-user-id');
+            targetUserId = hs.get('x-user-id') || hs.get('x-employee-id');
           } catch {}
         }
 

@@ -179,17 +179,23 @@ title: "<Chart Title>"
         } else {
           const errData = await n8nRes.json().catch(() => ({}));
           console.warn(`n8n webhook responded with status ${n8nRes.status}:`, errData);
-          if (errData.reply) {
+          if (errData.reply || errData.message) {
             return NextResponse.json({
-              message: errData.reply,
+              message: errData.reply || errData.message,
               actionCard: null,
               timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
             });
           }
-          // Otherwise fall back to internal PostgreSQL database engine
         }
       } catch (n8nErr: any) {
-        console.warn(`n8n webhook unreachable (${n8nErr.message}). Gracefully falling back to internal engine.`);
+        console.warn(`n8n webhook unreachable (${n8nErr.message}).`);
+        if (n8nErr.name === 'AbortError') {
+          return NextResponse.json({
+            message: 'The AI assistant took longer than 120 seconds to process this operation. Please retry or break the instruction into a simpler step.',
+            actionCard: null,
+            timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+          });
+        }
       }
     }
 
@@ -811,8 +817,11 @@ title: "<Chart Title>"
       const orgNames = orgs.length ? orgs.map((o) => `• **${o.legalName}** (${o.type})`).join('\n') : '• **BEMS Group Holdings (HQ)**';
       reply = `**BEMS Group Multi-Subsidiary Architecture:**\n\n${orgNames}\n\nAll intercompany transactions generate automated bilateral Debit/Credit notes with zero double-counting.`;
     } else {
-      // General financial advisor intelligence
-      reply = `I am your **BEMS Executive Financial AI Copilot**, grounded with live database ledger telemetry across BEMS Group.\n\nYou can ask me:\n` +
+      // General financial advisor intelligence fallback
+      const hasSpecificQuery = message.length > 15 && !normalized.includes('hello') && !normalized.includes('hi');
+      reply = `I am your **BEMS Executive Financial AI Copilot**, grounded with live database ledger telemetry across BEMS Group.\n\n` +
+        (hasSpecificQuery ? `I noted your instruction: *"${message}"*.\n\n` : '') +
+        `You can ask me:\n` +
         `• *"What is our total cash balance across bank accounts?"*\n` +
         `• *"Are there any fund requests pending my approval?"*\n` +
         `• *"Give me the morning executive briefing."*\n` +
