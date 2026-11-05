@@ -77,13 +77,17 @@ export async function POST(request: Request) {
     }) || await prisma.attendancePolicy.findFirst();
 
     const requireGeofence = policy?.requireGeofence ?? true;
-    const isInsideGeofence = !requireGeofence || distanceMeters <= station.radiusMeters;
-
-    const clientIp = extractClientIp(request);
     const requireStarlink = policy?.requireStarlinkIp ?? true;
     const powerOutageMode = policy?.starlinkPowerOutageMode ?? false;
     const starlinkIps = policy?.starlinkIpAddresses ?? '';
     const earliestCheckInTime = policy?.earliestCheckInTime ?? '07:00';
+
+    const effectiveRadius = (powerOutageMode || !requireStarlink)
+      ? Math.max(station.radiusMeters, 250)
+      : station.radiusMeters;
+    const isInsideGeofence = !requireGeofence || distanceMeters <= effectiveRadius;
+
+    const clientIp = extractClientIp(request);
 
     const { currentTimeStr } = getLagosTime();
     const timeWindowCheck = validateCheckInTimeWindow(currentTimeStr, earliestCheckInTime);

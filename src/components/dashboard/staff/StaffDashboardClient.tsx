@@ -3074,7 +3074,7 @@ export function StaffDashboardClient({
                 {/* Starlink Network Pill */}
                 <div className="px-2.5 py-1 rounded-full bg-[#ECFDF5] border border-[#A7F3D0] text-[#059669] text-[10px] font-extrabold flex items-center gap-1.5 shadow-sm">
                   <Wifi className="w-3 h-3" />
-                  <span>Starlink Office Network</span>
+                  <span>Network Access Active</span>
                 </div>
               </div>
 

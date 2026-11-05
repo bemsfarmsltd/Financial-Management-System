@@ -312,7 +312,7 @@ export default function MobileAttendanceScannerPage() {
     } catch (err: any) {
       setPunchResult({
         success: false,
-        message: err.message || 'Failed to clock in. Ensure you are connected to Starlink Wi-Fi.',
+        message: err.message || 'Failed to clock in. Please check your network and physical location.',
       });
       setIsPunching(false);
       // Resume scanning on failure
@@ -674,7 +674,7 @@ export default function MobileAttendanceScannerPage() {
             }}
           >
             <Wifi size={12} />
-            <span>Starlink Wi-Fi Enforced</span>
+            <span>Network Verified</span>
           </div>
 
           <div

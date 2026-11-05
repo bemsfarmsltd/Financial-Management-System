@@ -63,6 +63,7 @@ export async function GET(request: Request) {
       expiresInSeconds,
       powerOutageMode: policy?.starlinkPowerOutageMode ?? false,
       requireStarlinkIp: policy?.requireStarlinkIp ?? true,
+      requireGeofence: policy?.requireGeofence ?? true,
       earliestCheckInTime: policy?.earliestCheckInTime || '07:00',
       resumptionTime: policy?.resumptionTime || '08:00',
       gracePeriodMinutes: policy?.gracePeriodMinutes || 15,

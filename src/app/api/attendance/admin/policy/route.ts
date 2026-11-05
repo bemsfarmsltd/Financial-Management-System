@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { extractClientIp } from '@/lib/attendance/token';
-import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole, isHrAuthorizedEmployee } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
     const user = await getAuthenticatedEmployee(request);
-    if (!user || !hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
-      return NextResponse.json({ error: 'Unauthorized: Executive access required' }, { status: 401 });
+    const isHr = await isHrAuthorizedEmployee(user);
+    const isExecutive = hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
+    if (!user || (!isExecutive && !isHr)) {
+      return NextResponse.json({ error: 'Unauthorized: Administrative access required' }, { status: 401 });
     }
 
     let policy = await prisma.attendancePolicy.findFirst();
@@ -45,15 +47,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await getAuthenticatedEmployee(request);
-    if (!user || !hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
-      return NextResponse.json({ error: 'Unauthorized: Executive access required' }, { status: 401 });
-    }
+    const isHr = await isHrAuthorizedEmployee(user);
     const isExecutive = hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
-    if (!isExecutive) {
-      return NextResponse.json(
-        { error: 'Deduction rules and attendance policy percentages are strictly controlled by the GMD / Super Admin. HR has read-only access to deduction settings.' },
-        { status: 403 }
-      );
+    if (!user || (!isExecutive && !isHr)) {
+      return NextResponse.json({ error: 'Unauthorized: Administrative access required' }, { status: 401 });
     }
 
     const body = await request.json();
@@ -70,6 +67,9 @@ export async function POST(request: Request) {
       starlinkIpAddresses,
       starlinkPowerOutageMode,
       togglePowerOutage,
+      toggleStarlink,
+      toggleGeofence,
+      radiusMeters,
     } = body;
 
     const org = await prisma.organization.findFirst();
@@ -77,7 +77,41 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No organization found' }, { status: 404 });
     }
 
-    // Quick Action: 1-Click Power Outage Toggle
+    // Quick Action 1: Instant 1-Click Starlink Wi-Fi Bypass Toggle
+    if (toggleStarlink !== undefined || (requireStarlinkIp !== undefined && Object.keys(body).length <= 2)) {
+      const current = await prisma.attendancePolicy.findFirst({
+        where: { organizationId: org.id },
+      });
+      const newStarlinkState = requireStarlinkIp !== undefined
+        ? Boolean(requireStarlinkIp)
+        : !(current?.requireStarlinkIp ?? true);
+
+      const updated = await prisma.attendancePolicy.upsert({
+        where: { organizationId: org.id },
+        update: {
+          requireStarlinkIp: newStarlinkState,
+          // When bypassing Starlink lock, ensure outage mode is also set so all gateways allow scans
+          ...(newStarlinkState === false ? { starlinkPowerOutageMode: true } : { starlinkPowerOutageMode: false }),
+        },
+        create: {
+          organizationId: org.id,
+          requireStarlinkIp: newStarlinkState,
+          starlinkPowerOutageMode: newStarlinkState === false,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        requireStarlinkIp: updated.requireStarlinkIp,
+        starlinkPowerOutageMode: updated.starlinkPowerOutageMode,
+        message: updated.requireStarlinkIp
+          ? '🟢 Strict Starlink Wi-Fi Network Lock ENFORCED.'
+          : '⚡ Starlink Network Lock BYPASSED: Staff can now scan and clock in using any network / mobile data.',
+        policy: updated,
+      });
+    }
+
+    // Quick Action 2: 1-Click Power Outage Toggle
     if (togglePowerOutage) {
       const current = await prisma.attendancePolicy.findFirst({
         where: { organizationId: org.id },
@@ -85,21 +119,71 @@ export async function POST(request: Request) {
       const newOutageState = !(current?.starlinkPowerOutageMode ?? false);
       const updated = await prisma.attendancePolicy.upsert({
         where: { organizationId: org.id },
-        update: { starlinkPowerOutageMode: newOutageState },
+        update: {
+          starlinkPowerOutageMode: newOutageState,
+          // If turning outage mode on, also disable requireStarlinkIp to guarantee zero friction
+          ...(newOutageState === true ? { requireStarlinkIp: false } : { requireStarlinkIp: true }),
+        },
         create: {
           organizationId: org.id,
           starlinkPowerOutageMode: newOutageState,
+          requireStarlinkIp: !newOutageState,
         },
       });
 
       return NextResponse.json({
         success: true,
         starlinkPowerOutageMode: updated.starlinkPowerOutageMode,
+        requireStarlinkIp: updated.requireStarlinkIp,
         message: updated.starlinkPowerOutageMode
-          ? '⚡ Power Outage Mode ACTIVATED: Starlink Wi-Fi verification is temporarily bypassed. Staff can clock in using GPS Location & Kiosk QR code.'
-          : '🟢 Normal Power Restored: Strict 3-Way Starlink Wi-Fi verification is re-enforced.',
+          ? '⚡ Power Outage Mode ACTIVATED: Starlink Wi-Fi requirement is disabled. Staff can clock in using any network connection.'
+          : '🟢 Normal Starlink Wi-Fi Restored: Strict Starlink security is re-enforced.',
         policy: updated,
       });
+    }
+
+    // Quick Action 3: 1-Click GPS Geofence Bypass Toggle
+    if (toggleGeofence !== undefined || (requireGeofence !== undefined && Object.keys(body).length <= 2)) {
+      const current = await prisma.attendancePolicy.findFirst({
+        where: { organizationId: org.id },
+      });
+      const newGeofenceState = requireGeofence !== undefined
+        ? Boolean(requireGeofence)
+        : !(current?.requireGeofence ?? true);
+
+      const updated = await prisma.attendancePolicy.upsert({
+        where: { organizationId: org.id },
+        update: { requireGeofence: newGeofenceState },
+        create: {
+          organizationId: org.id,
+          requireGeofence: newGeofenceState,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        requireGeofence: updated.requireGeofence,
+        message: updated.requireGeofence
+          ? '📍 Strict GPS Geofencing ENFORCED.'
+          : '🌐 GPS Geofence BYPASSED: Staff can scan from any location.',
+        policy: updated,
+      });
+    }
+
+    // Update station perimeter radius buffer if provided
+    if (radiusMeters !== undefined && Number(radiusMeters) > 0) {
+      await prisma.attendanceStation.updateMany({
+        where: { organizationId: org.id },
+        data: { radiusMeters: Number(radiusMeters) },
+      });
+    }
+
+    // For changing payroll deduction percentages, enforce executive role
+    if (!isExecutive && (latenessDeductionPercent !== undefined || absenceDeductionPercent !== undefined)) {
+      return NextResponse.json(
+        { error: 'Deduction rules and attendance policy percentages are strictly controlled by the GMD / Super Admin.' },
+        { status: 403 }
+      );
     }
 
     const policy = await prisma.attendancePolicy.upsert({
@@ -109,8 +193,8 @@ export async function POST(request: Request) {
         resumptionTime: resumptionTime || '08:00',
         closingTime: closingTime || '17:00',
         gracePeriodMinutes: Number(gracePeriodMinutes ?? 15),
-        latenessDeductionPercent: Number(latenessDeductionPercent ?? 5.0),
-        absenceDeductionPercent: Number(absenceDeductionPercent ?? 100.0),
+        ...(isExecutive && latenessDeductionPercent !== undefined ? { latenessDeductionPercent: Number(latenessDeductionPercent) } : {}),
+        ...(isExecutive && absenceDeductionPercent !== undefined ? { absenceDeductionPercent: Number(absenceDeductionPercent) } : {}),
         requireGeofence: requireGeofence !== undefined ? Boolean(requireGeofence) : true,
         requireQrScan: requireQrScan !== undefined ? Boolean(requireQrScan) : true,
         requireStarlinkIp: requireStarlinkIp !== undefined ? Boolean(requireStarlinkIp) : true,

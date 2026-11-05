@@ -100,6 +100,8 @@ export default function AttendanceDeskPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isTogglingPower, setIsTogglingPower] = useState<boolean>(false);
+  const [isTogglingStarlink, setIsTogglingStarlink] = useState<boolean>(false);
+  const [isTogglingGeofence, setIsTogglingGeofence] = useState<boolean>(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [callerIp, setCallerIp] = useState<string>('');
 
@@ -384,6 +386,56 @@ export default function AttendanceDeskPage() {
     } catch (err: any) {
       alert(err.message);
       setIsTogglingPower(false);
+    }
+  };
+
+  // Instant 1-click Starlink Wi-Fi Lock toggle (persists immediately to DB)
+  const handleToggleStarlinkLock = async (targetValue?: boolean) => {
+    try {
+      setIsTogglingStarlink(true);
+      const newValue = targetValue !== undefined ? targetValue : !policy.requireStarlinkIp;
+      setPolicy(prev => ({ ...prev, requireStarlinkIp: newValue }));
+
+      const res = await fetch('/api/attendance/admin/policy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toggleStarlink: true, requireStarlinkIp: newValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to toggle Starlink lock');
+      if (data.policy) setPolicy(data.policy);
+      setNotice(data.message);
+      setTimeout(() => setNotice(null), 5000);
+    } catch (err: any) {
+      alert(err.message);
+      loadPolicy();
+    } finally {
+      setIsTogglingStarlink(false);
+    }
+  };
+
+  // Instant 1-click GPS Geofence Lock toggle (persists immediately to DB)
+  const handleToggleGeofenceLock = async (targetValue?: boolean) => {
+    try {
+      setIsTogglingGeofence(true);
+      const newValue = targetValue !== undefined ? targetValue : !policy.requireGeofence;
+      setPolicy(prev => ({ ...prev, requireGeofence: newValue }));
+
+      const res = await fetch('/api/attendance/admin/policy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toggleGeofence: true, requireGeofence: newValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to toggle Geofence lock');
+      if (data.policy) setPolicy(data.policy);
+      setNotice(data.message);
+      setTimeout(() => setNotice(null), 5000);
+    } catch (err: any) {
+      alert(err.message);
+      loadPolicy();
+    } finally {
+      setIsTogglingGeofence(false);
     }
   };
 
@@ -701,49 +753,50 @@ export default function AttendanceDeskPage() {
             marginBottom: '20px',
             padding: '16px 20px',
             borderRadius: '12px',
-            border: policy.starlinkPowerOutageMode ? '1.5px solid #f59e0b' : '1px solid #cbd5e1',
-            background: policy.starlinkPowerOutageMode
+            border: (!policy.requireStarlinkIp || policy.starlinkPowerOutageMode || !policy.requireGeofence) ? '1.5px solid #f59e0b' : '1px solid #cbd5e1',
+            background: (!policy.requireStarlinkIp || policy.starlinkPowerOutageMode || !policy.requireGeofence)
               ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
               : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '16px',
-            boxShadow: policy.starlinkPowerOutageMode ? '0 4px 14px rgba(245, 158, 11, 0.15)' : 'none',
+            flexWrap: 'wrap',
+            boxShadow: (!policy.requireStarlinkIp || policy.starlinkPowerOutageMode || !policy.requireGeofence) ? '0 4px 14px rgba(245, 158, 11, 0.15)' : 'none',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: '300px' }}>
             <div
               style={{
-                width: 42,
-                height: 42,
+                width: 44,
+                height: 44,
                 borderRadius: '10px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: policy.starlinkPowerOutageMode ? '#f59e0b' : '#059669',
+                background: (!policy.requireStarlinkIp || policy.starlinkPowerOutageMode) ? '#f59e0b' : '#059669',
                 color: '#ffffff',
-                boxShadow: policy.starlinkPowerOutageMode
+                boxShadow: (!policy.requireStarlinkIp || policy.starlinkPowerOutageMode)
                   ? '0 2px 8px rgba(245, 158, 11, 0.4)'
                   : '0 2px 8px rgba(5, 150, 105, 0.3)',
               }}
             >
-              {policy.starlinkPowerOutageMode ? <Zap size={22} /> : <Wifi size={22} />}
+              {(!policy.requireStarlinkIp || policy.starlinkPowerOutageMode) ? <Zap size={22} /> : <Wifi size={22} />}
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <span
                   style={{
                     fontSize: '11px',
                     fontWeight: 900,
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
-                    color: policy.starlinkPowerOutageMode ? '#b45309' : '#047857',
+                    color: (!policy.requireStarlinkIp || policy.starlinkPowerOutageMode) ? '#b45309' : '#047857',
                   }}
                 >
-                  {policy.starlinkPowerOutageMode
-                    ? '⚡ POWER OUTAGE FALLBACK MODE ACTIVE'
-                    : '🟢 NORMAL STARLINK WI-FI ENFORCED'}
+                  {(!policy.requireStarlinkIp || policy.starlinkPowerOutageMode)
+                    ? '⚡ STARLINK REQUIREMENT BYPASSED (ALL NETWORKS ALLOWED)'
+                    : '🟢 STRICT STARLINK WI-FI ENFORCED'}
                 </span>
                 <span
                   style={{
@@ -751,30 +804,30 @@ export default function AttendanceDeskPage() {
                     fontWeight: 800,
                     padding: '2px 8px',
                     borderRadius: '12px',
-                    background: policy.starlinkPowerOutageMode ? '#fde68a' : '#d1fae5',
-                    color: policy.starlinkPowerOutageMode ? '#92400e' : '#065f46',
+                    background: policy.requireGeofence ? '#d1fae5' : '#fee2e2',
+                    color: policy.requireGeofence ? '#065f46' : '#991b1b',
                   }}
                 >
-                  {policy.starlinkPowerOutageMode ? 'Location GPS Only' : 'Strict 3-Way Security'}
+                  {policy.requireGeofence ? '📍 GPS Geofence Active' : '🌐 GPS Geofence Bypassed'}
                 </span>
               </div>
               <p style={{ margin: '3px 0 0', fontSize: '13px', color: '#334155', fontWeight: 600 }}>
-                {policy.starlinkPowerOutageMode
-                  ? 'Starlink connection requirement is temporarily bypassed because office power is down. Staff can scan with GPS location alone.'
-                  : `Staff must be connected to company Starlink Wi-Fi and inside office geofence to scan attendance.`}
+                {(!policy.requireStarlinkIp || policy.starlinkPowerOutageMode)
+                  ? 'Starlink connection requirement is turned OFF. Staff can scan attendance using any mobile network, personal hotspot, or office Wi-Fi.'
+                  : 'Staff must be connected to company Starlink Wi-Fi router to scan attendance.'}
               </p>
               <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                Arrival Window: <strong>{policy.earliestCheckInTime || '07:00'} AM – {policy.resumptionTime} AM</strong> (Grace up to 08:15 AM) · No check-in permitted before {policy.earliestCheckInTime || '07:00'} AM
+                Arrival Window: <strong>{policy.earliestCheckInTime || '07:00'} AM – {policy.resumptionTime} AM</strong> (Grace up to 08:15 AM)
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <Link
               href="/attendance/kiosk"
               target="_blank"
               style={{
-                padding: '10px 16px',
+                padding: '9px 14px',
                 borderRadius: '8px',
                 background: '#ffffff',
                 border: '1px solid #cbd5e1',
@@ -790,17 +843,18 @@ export default function AttendanceDeskPage() {
               }}
             >
               <QrCode size={14} color="#059669" />
-              <span>Launch Reception Kiosk</span>
+              <span>Reception Kiosk</span>
               <ExternalLink size={12} color="#64748b" />
             </Link>
 
+            {/* Instant Starlink Toggle Button */}
             <button
-              onClick={handleTogglePowerOutage}
-              disabled={isTogglingPower}
+              onClick={() => handleToggleStarlinkLock()}
+              disabled={isTogglingStarlink}
               style={{
-                padding: '10px 18px',
+                padding: '9px 16px',
                 borderRadius: '8px',
-                background: policy.starlinkPowerOutageMode ? '#059669' : 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
+                background: (!policy.requireStarlinkIp || policy.starlinkPowerOutageMode) ? '#059669' : '#ea580c',
                 color: '#ffffff',
                 fontSize: '12px',
                 fontWeight: 800,
@@ -808,24 +862,51 @@ export default function AttendanceDeskPage() {
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
+                gap: '6px',
                 whiteSpace: 'nowrap',
-                boxShadow: policy.starlinkPowerOutageMode
-                  ? '0 2px 8px rgba(5, 150, 105, 0.3)'
-                  : '0 2px 8px var(--brand-shadow-color, rgba(13, 138, 112, 0.3))',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
               }}
             >
-              {isTogglingPower ? (
-                <RefreshCw size={14} className="animate-spin" />
-              ) : policy.starlinkPowerOutageMode ? (
-                <Wifi size={14} />
+              {isTogglingStarlink ? (
+                <RefreshCw size={13} className="animate-spin" />
+              ) : (!policy.requireStarlinkIp || policy.starlinkPowerOutageMode) ? (
+                <Wifi size={13} />
               ) : (
-                <Zap size={14} />
+                <Zap size={13} />
               )}
               <span>
-                {policy.starlinkPowerOutageMode
-                  ? 'Restore Starlink Wi-Fi Mode'
-                  : 'Activate Power Outage Mode (Starlink Off)'}
+                {(!policy.requireStarlinkIp || policy.starlinkPowerOutageMode)
+                  ? 'Enforce Starlink Lock'
+                  : 'Turn Off Starlink Requirement'}
+              </span>
+            </button>
+
+            {/* Instant Geofence Toggle Button */}
+            <button
+              onClick={() => handleToggleGeofenceLock()}
+              disabled={isTogglingGeofence}
+              style={{
+                padding: '9px 14px',
+                borderRadius: '8px',
+                background: policy.requireGeofence ? '#f1f5f9' : '#1e293b',
+                color: policy.requireGeofence ? '#334155' : '#ffffff',
+                border: '1px solid #cbd5e1',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {isTogglingGeofence ? (
+                <RefreshCw size={13} className="animate-spin" />
+              ) : (
+                <MapPin size={13} />
+              )}
+              <span>
+                {policy.requireGeofence ? 'Bypass GPS Geofence' : 'Enforce GPS Geofence'}
               </span>
             </button>
           </div>
@@ -2923,7 +3004,8 @@ export default function AttendanceDeskPage() {
                   <input
                     type="checkbox"
                     checked={policy.requireStarlinkIp}
-                    onChange={e => setPolicy(prev => ({ ...prev, requireStarlinkIp: e.target.checked }))}
+                    onChange={e => handleToggleStarlinkLock(e.target.checked)}
+                    disabled={isTogglingStarlink}
                     style={{ width: 20, height: 20, accentColor: '#ea580c', cursor: 'pointer' }}
                   />
                 </div>
@@ -3030,7 +3112,8 @@ export default function AttendanceDeskPage() {
                   <input
                     type="checkbox"
                     checked={policy.requireGeofence}
-                    onChange={e => setPolicy(prev => ({ ...prev, requireGeofence: e.target.checked }))}
+                    onChange={e => handleToggleGeofenceLock(e.target.checked)}
+                    disabled={isTogglingGeofence}
                     style={{ width: 18, height: 18, accentColor: '#ea580c', cursor: 'pointer' }}
                   />
                 </div>

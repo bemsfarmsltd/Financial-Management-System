@@ -88,14 +88,40 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Dual-Factor Check 1: Geofence Verification
+    // 3. Load Organization & System Attendance Policy
+    const orgId = employee.assignments[0]?.subsidiaryId;
+    let policy = null;
+    if (orgId) {
+      policy = await prisma.attendancePolicy.findUnique({
+        where: { organizationId: orgId },
+      });
+    }
+    if (!policy) {
+      policy = await prisma.attendancePolicy.findFirst();
+    }
+
+    const requireGeofence = policy?.requireGeofence ?? true;
+    const requireStarlink = policy?.requireStarlinkIp ?? true;
+    const powerOutageMode = policy?.starlinkPowerOutageMode ?? false;
+    const starlinkIps = policy?.starlinkIpAddresses ?? '';
+    const earliestCheckInTime = policy?.earliestCheckInTime || '07:00';
+    const resumptionTime = policy?.resumptionTime || '08:00';
+    const closingTime = policy?.closingTime || '17:00';
+    const graceMinutes = policy?.gracePeriodMinutes ?? 15;
+    const latenessDeductionPercent = policy?.latenessDeductionPercent ?? 5.0;
+
+    // Dual-Factor Check 1: Geofence Verification (Honors policy bypass & outage buffer)
     const distanceMeters = calculateHaversineDistance(latNum, lngNum, station.latitude, station.longitude);
-    if (distanceMeters > station.radiusMeters) {
+    const effectiveMaxRadius = powerOutageMode || !requireStarlink
+      ? Math.max(station.radiusMeters, 250) // generous buffer for GPS drift when emergency/power mode is active
+      : station.radiusMeters;
+
+    if (requireGeofence && distanceMeters > effectiveMaxRadius) {
       return NextResponse.json(
         {
-          error: `Geofence check failed: You are ${distanceMeters}m away from ${station.name}. You must be physically within ${station.radiusMeters}m to clock in.`,
+          error: `Geofence check failed: You are ${distanceMeters}m away from ${station.name}. You must be physically within ${effectiveMaxRadius}m to clock in.`,
           distanceMeters,
-          allowedRadiusMeters: station.radiusMeters,
+          allowedRadiusMeters: effectiveMaxRadius,
         },
         { status: 403 }
       );
@@ -115,27 +141,6 @@ export async function POST(request: Request) {
     // 5. Time & Shift Evaluation (Africa/Lagos)
     const now = new Date();
     const { workDate, currentTimeStr, dayOfWeek, hours, minutes } = getLagosTime(now);
-
-    // Get Organization Policy
-    const orgId = employee.assignments[0]?.subsidiaryId;
-    let policy = null;
-    if (orgId) {
-      policy = await prisma.attendancePolicy.findUnique({
-        where: { organizationId: orgId },
-      });
-    }
-    if (!policy) {
-      policy = await prisma.attendancePolicy.findFirst();
-    }
-
-    const earliestCheckInTime = policy?.earliestCheckInTime || '07:00';
-    const resumptionTime = policy?.resumptionTime || '08:00';
-    const closingTime = policy?.closingTime || '17:00';
-    const graceMinutes = policy?.gracePeriodMinutes ?? 15;
-    const latenessDeductionPercent = policy?.latenessDeductionPercent ?? 5.0;
-    const requireStarlink = policy?.requireStarlinkIp ?? true;
-    const powerOutageMode = policy?.starlinkPowerOutageMode ?? false;
-    const starlinkIps = policy?.starlinkIpAddresses ?? '';
 
     // Gate 1: Starlink Wi-Fi Connection (or Power Outage Bypassed)
     const clientIp = extractClientIp(request);

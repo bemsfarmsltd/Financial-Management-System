@@ -732,8 +732,8 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen>
                   _buildStatusPill(
                     icon: Icons.wifi_rounded,
                     label: _isVerifyingGates
-                        ? 'Verifying Wi-Fi...'
-                        : (_isStarlinkConnected ? 'Starlink Wi-Fi Verified' : 'Starlink IP Required'),
+                        ? 'Verifying Network...'
+                        : (_isStarlinkConnected ? 'Network Access Verified' : 'Starlink IP Required'),
                     isOk: _isStarlinkConnected,
                   ),
                   _buildStatusPill(

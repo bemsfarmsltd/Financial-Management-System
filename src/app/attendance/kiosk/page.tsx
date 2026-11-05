@@ -36,6 +36,7 @@ interface StationData {
   expiresInSeconds: number;
   powerOutageMode?: boolean;
   requireStarlinkIp?: boolean;
+  requireGeofence?: boolean;
   earliestCheckInTime?: string;
   resumptionTime?: string;
   gracePeriodMinutes?: number;
@@ -666,20 +667,20 @@ export default function AttendanceKioskPage() {
                     fontWeight: 800,
                     padding: '2px 8px',
                     borderRadius: '12px',
-                    background: stationData?.powerOutageMode ? '#fffbeb' : '#ecfdf5',
-                    color: stationData?.powerOutageMode ? '#b45309' : '#059669',
-                    border: stationData?.powerOutageMode ? '1px solid #fde68a' : '1px solid #a7f3d0',
+                    background: (!stationData?.requireStarlinkIp || stationData?.powerOutageMode) ? '#fffbeb' : '#ecfdf5',
+                    color: (!stationData?.requireStarlinkIp || stationData?.powerOutageMode) ? '#b45309' : '#059669',
+                    border: (!stationData?.requireStarlinkIp || stationData?.powerOutageMode) ? '1px solid #fde68a' : '1px solid #a7f3d0',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '4px',
                   }}
                 >
-                  {stationData?.powerOutageMode ? <Zap size={10} /> : <Wifi size={10} />}
-                  {stationData?.powerOutageMode ? 'Outage Mode' : 'Starlink Wi-Fi'}
+                  {(!stationData?.requireStarlinkIp || stationData?.powerOutageMode) ? <Zap size={10} /> : <Wifi size={10} />}
+                  {(!stationData?.requireStarlinkIp || stationData?.powerOutageMode) ? 'Starlink Bypassed (All Networks)' : 'Starlink Wi-Fi Enforced'}
                 </span>
               </div>
               <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginTop: '2px' }}>
-                {stationData?.radiusMeters || 100}m Geofence
+                {stationData?.requireGeofence === false ? 'Any Location Allowed' : `${stationData?.radiusMeters || 100}m Geofence`}
               </span>
             </div>
           </div>
