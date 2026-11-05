@@ -11,7 +11,6 @@ import 'request_chat_screen.dart';
 import 'staff_admin_chat_screen.dart';
 import 'attendance_scan_screen.dart';
 import 'attendance_monthly_screen.dart';
-import 'staff_onboarding_carousel_screen.dart';
 import '../widgets/bems_pie_chart.dart';
 import '../services/staff_biometric_service.dart';
 
@@ -3149,70 +3148,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             }),
           ],
 
-          // Interactive 4-Slide Journey Guide Card (Tap anytime to launch onboarding slides)
-          InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const StaffOnboardingCarouselScreen(isReplay: true),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 18),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFFF7ED), Color(0xFFFEF3C7)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFFED7AA)),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFEA580C).withOpacity(0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEA580C).withOpacity(0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.view_carousel_rounded, color: Color(0xFFEA580C), size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Explore BEMS Staff Portal Journey',
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF9A3412)),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Tap here to view the 4-slide interactive feature guide',
-                          style: TextStyle(fontSize: 10, color: Color(0xFFB45309)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right_rounded, color: Color(0xFFEA580C), size: 20),
-                ],
-              ),
-            ),
-          ),
-
           // Quick Actions Grid (Clean, unified executive cards)
           const Text('Quick Actions', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
           const SizedBox(height: 12),
@@ -5453,27 +5388,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 subtitle: Text('Advance: ${_currentUser.bankName} · ${_currentUser.accountNumber}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                 trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
                 onTap: _showUpdateBankAccountsDialog,
-              ),
-              const Divider(color: Color(0xFFF1F5F9)),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
-                  child: const Icon(Icons.view_carousel_rounded, color: Color(0xFFEA580C), size: 20),
-                ),
-                title: const Text('Replay Staff App Journey', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
-                subtitle: const Text('Interactive 4-slide guide to Requisitions, QR Attendance & Payroll', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const StaffOnboardingCarouselScreen(isReplay: true),
-                    ),
-                  );
-                },
               ),
             ],
           ),

@@ -1506,22 +1506,22 @@ export function StaffDashboardClient({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-white tracking-wide">BEMS STAFF APP v1.3.0 AVAILABLE</span>
+                  <span className="text-xs font-black text-white tracking-wide">BEMS STAFF APP v1.3.1 AVAILABLE</span>
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Latest</span>
                 </div>
                 <p className="text-[11.5px] text-slate-300">
-                  Updated with Enterprise Module Gallery landing workstation, 4-slide multi-metric financial carousel, and photo gallery picker.
+                  Updated with Universal Enterprise Module Workstations across all subsidiaries, Multi-Metric Financial Carousel, and Photo Gallery picker.
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
               <a
                 href="/downloads/staff-app.apk"
-                download="BEMS-Staff-App-v1.3.0.apk"
+                download="BEMS-Staff-App-v1.3.1.apk"
                 className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#EA580C] to-[#C2410C] hover:from-[#C2410C] hover:to-[#9A3412] text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all flex items-center gap-1.5"
               >
                 <Download className="w-3.5 h-3.5" />
-                Download App (v1.3.0)
+                Download App (v1.3.1)
               </a>
               <button
                 onClick={() => setHideAppBanner(true)}

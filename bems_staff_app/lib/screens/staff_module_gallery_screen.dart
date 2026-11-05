@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import '../models/staff_models.dart';
 import '../services/staff_storage_service.dart';
 import 'staff_main_screen.dart';
-import 'staff_onboarding_carousel_screen.dart';
 import 'staff_login_screen.dart';
 import 'staff_admin_chat_screen.dart';
 import 'modules/staff_hr_hub_screen.dart';
@@ -223,46 +222,6 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
 
                     const SizedBox(height: 16),
 
-                    // Interactive App Journey Guide Pill
-                    InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const StaffOnboardingCarouselScreen(isReplay: true),
-                          ),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(14),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFFFF7ED), Color(0xFFFEF3C7)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFFED7AA)),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.view_carousel_rounded, color: Color(0xFFEA580C), size: 18),
-                            SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'View Interactive 4-Slide Feature Guide',
-                                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF9A3412)),
-                              ),
-                            ),
-                            Icon(Icons.chevron_right_rounded, color: Color(0xFFEA580C), size: 18),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 18),
-
                     // Search input
                     TextField(
                       controller: _searchController,
@@ -446,12 +405,12 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
 
   List<_ModuleItem> _getEnterpriseModules(StaffUser user) {
     return [
-      // 1. Finance & Fund Hub
+      // 1. Finance & Fund Hub (Universal Core Workstation)
       _ModuleItem(
         id: 'finance',
         eyebrow: 'FINANCIAL MANAGEMENT',
         title: 'Finance & Fund Hub',
-        description: 'Requisitions, 72h cash advance retirement, and spend analytics.',
+        description: 'Requisitions, 72h cash advance retirement, proformas, and spend analytics.',
         badgeText: 'CORE HUB',
         badgeColor: const Color(0xFFEA580C),
         icon: Icons.account_balance_wallet_rounded,
@@ -464,13 +423,13 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
         },
       ),
 
-      // 2. HR & People Hub
+      // 2. HR & People Hub (Universal Attendance & Personnel)
       _ModuleItem(
         id: 'hr',
         eyebrow: 'PEOPLE & CULTURE',
         title: 'HR & People Hub',
-        description: 'Geofence clock-in, daily shift roster, payslips, and helpdesk chat.',
-        badgeText: 'HR ACTIVE',
+        description: 'Geofence clock-in, daily shift rosters, payslips, and HR helpdesk.',
+        badgeText: 'ACTIVE',
         badgeColor: const Color(0xFF2563EB),
         icon: Icons.people_alt_rounded,
         gradient: [const Color(0xFF2563EB), const Color(0xFF1D4ED8)],
@@ -482,12 +441,12 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
         },
       ),
 
-      // 3. Operations & Logistics Hub
+      // 3. Operations & Logistics Hub (Universal Supply & Assets)
       _ModuleItem(
         id: 'operations',
-        eyebrow: 'SUPPLY CHAIN & FLEET',
-        title: 'Operations & Fleet',
-        description: 'Fleet transport dispatches, vehicle fuel logs, and warehouse manifests.',
+        eyebrow: 'OPERATIONS & ASSETS',
+        title: 'Operations & Logistics',
+        description: 'Operational task flows, fleet transport, inventory, and facility maintenance.',
         badgeText: 'ONLINE',
         badgeColor: const Color(0xFF059669),
         icon: Icons.local_shipping_rounded,
@@ -501,24 +460,24 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                 config: const ModuleConfig(
                   id: 'operations',
                   eyebrow: 'OPERATIONS & LOGISTICS WORKSTATION',
-                  title: 'Operations & Fleet Logistics',
-                  subtitle: 'Transport, Fleet & Warehouse Management',
-                  description: 'Track fleet vehicle dispatches, logistics waybills, and warehouse goods receipts across BEMS Group facilities.',
+                  title: 'Operations & Logistics Hub',
+                  subtitle: 'Operational Task Flows, Fleet & Asset Logistics',
+                  description: 'Track operations workflows, vehicle dispatches, logistics manifests, and facility asset maintenance across all corporate units.',
                   icon: Icons.local_shipping_rounded,
                   gradientColors: [Color(0xFF059669), Color(0xFF047857)],
-                  statusText: 'Fleet Ready',
+                  statusText: 'Operations Normal',
                   quickActions: [
-                    {'title': 'Log Vehicle Dispatch', 'desc': 'Record vehicle departure and trip odometer', 'icon': Icons.directions_car_rounded, 'color': Color(0xFF059669)},
-                    {'title': 'Warehouse Waybill Receipt', 'desc': 'Confirm incoming delivery manifest', 'icon': Icons.inventory_2_rounded, 'color': Color(0xFF0284C7)},
-                    {'title': 'Equipment Maintenance Request', 'desc': 'Report faulty plant machinery or vehicle', 'icon': Icons.build_rounded, 'color': Color(0xFFD97706)},
+                    {'title': 'Log Operational Dispatch', 'desc': 'Record transport departure and trip logs', 'icon': Icons.directions_car_rounded, 'color': Color(0xFF059669)},
+                    {'title': 'Waybill & Manifest Receipt', 'desc': 'Confirm incoming delivery manifests and materials', 'icon': Icons.inventory_2_rounded, 'color': Color(0xFF0284C7)},
+                    {'title': 'Facility Maintenance Request', 'desc': 'Report plant, equipment, or office repairs', 'icon': Icons.build_rounded, 'color': Color(0xFFD97706)},
                   ],
                   metricCards: [
-                    {'label': 'ACTIVE FLEET', 'value': '14 Units', 'sub': '100% Operational'},
-                    {'label': 'DISPATCHES TODAY', 'value': '6 Trips', 'sub': 'On Schedule'},
+                    {'label': 'OPERATIONAL UNITS', 'value': '100% Active', 'sub': 'All Systems Ready'},
+                    {'label': 'DISPATCHES TODAY', 'value': 'On Schedule', 'sub': 'Routine Routes'},
                   ],
                   sampleTasks: [
-                    {'task': 'Waybill WB-2026-081 Verified', 'details': 'Delivered to BEMS Central Warehouse', 'time': '09:45 AM'},
-                    {'task': 'Vehicle Truck-04 Fuel Logged', 'details': 'Diesel top-up approved', 'time': '08:20 AM'},
+                    {'task': 'Logistics Manifest WB-2026-081 Cleared', 'details': 'Delivered to corporate facility', 'time': '09:45 AM'},
+                    {'task': 'Operational Fleet Inspection Completed', 'details': 'Vehicle safety check sign-off', 'time': '08:20 AM'},
                   ],
                 ),
               ),
@@ -527,16 +486,16 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
         },
       ),
 
-      // 4. Agribusiness & Farm Hub
+      // 4. Procurement & Vendor Desk (Universal 3-Way Matching & PO)
       _ModuleItem(
-        id: 'agri',
-        eyebrow: 'FARM ENTERPRISE',
-        title: 'Agribusiness & Farm',
-        description: 'Cultivation plots, crop harvests, feed stock, and livestock tracking.',
-        badgeText: 'HARVEST SEASON',
-        badgeColor: const Color(0xFF16A34A),
-        icon: Icons.agriculture_rounded,
-        gradient: [const Color(0xFF16A34A), const Color(0xFF15803D)],
+        id: 'procurement',
+        eyebrow: 'PROCUREMENT & SUPPLY',
+        title: 'Procurement & Vendors',
+        description: 'Purchase orders, goods receipt notes (GRN), and 3-way matching clearance.',
+        badgeText: 'DESK OPEN',
+        badgeColor: const Color(0xFF0D9488),
+        icon: Icons.shopping_bag_rounded,
+        gradient: [const Color(0xFF0D9488), const Color(0xFF0F766E)],
         onTap: (ctx) {
           Navigator.push(
             ctx,
@@ -544,26 +503,26 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
               builder: (_) => StaffModuleWorkstationScreen(
                 user: user,
                 config: const ModuleConfig(
-                  id: 'agribusiness',
-                  eyebrow: 'AGRIBUSINESS & PLANTATIONS',
-                  title: 'Agribusiness & Farm Operations',
-                  subtitle: 'Cultivation, Feeds, Irrigation & Livestock',
-                  description: 'Manage crop growth cycles, daily feed allocations, irrigation pumps, and harvest weighbridge tallies.',
-                  icon: Icons.agriculture_rounded,
-                  gradientColors: [Color(0xFF16A34A), Color(0xFF15803D)],
-                  statusText: 'Farm Online',
+                  id: 'procurement',
+                  eyebrow: 'PROCUREMENT & VENDOR DESK',
+                  title: 'Procurement & Vendor Desk',
+                  subtitle: 'Purchase Orders, GRN & 3-Way Matching',
+                  description: 'Manage vetted vendor directories, generate purchase orders, log goods received notes (GRN), and clear automated 3-way matching.',
+                  icon: Icons.shopping_bag_rounded,
+                  gradientColors: [Color(0xFF0D9488), Color(0xFF0F766E)],
+                  statusText: 'Vendors Verified',
                   quickActions: [
-                    {'title': 'Log Daily Feed Consumption', 'desc': 'Record bags distributed per livestock unit', 'icon': Icons.egg_rounded, 'color': Color(0xFF16A34A)},
-                    {'title': 'Weighbridge Harvest Intake', 'desc': 'Record fresh crop metric tons logged', 'icon': Icons.scale_rounded, 'color': Color(0xFF0284C7)},
-                    {'title': 'Irrigation & Pump Status', 'desc': 'Report pump maintenance or fuel hours', 'icon': Icons.water_drop_rounded, 'color': Color(0xFF059669)},
+                    {'title': 'Create Purchase Order', 'desc': 'Issue official procurement orders to vetted suppliers', 'icon': Icons.receipt_long_rounded, 'color': Color(0xFF0D9488)},
+                    {'title': 'Log Goods Received (GRN)', 'desc': 'Inspect and confirm incoming supplier shipments', 'icon': Icons.fact_check_rounded, 'color': Color(0xFF0284C7)},
+                    {'title': '3-Way Match Verification', 'desc': 'Match purchase order vs delivery note vs invoice', 'icon': Icons.rule_rounded, 'color': Color(0xFF059669)},
                   ],
                   metricCards: [
-                    {'label': 'ACTIVE ACRES', 'value': '250 Ha', 'sub': 'Cultivated'},
-                    {'label': 'TODAYS YIELD', 'value': '4.8 Tons', 'sub': 'Processed'},
+                    {'label': 'VETTED VENDORS', 'value': 'Active Registry', 'sub': 'Compliance Verified'},
+                    {'label': 'MATCHING ACCURACY', 'value': '100%', 'sub': 'Audit Cleared'},
                   ],
                   sampleTasks: [
-                    {'task': 'Block C Maize Inspection Done', 'details': 'Soil moisture within target threshold', 'time': '10:15 AM'},
-                    {'task': 'Poultry Section 2 Feed Dispatched', 'details': '40 bags distributed', 'time': '07:30 AM'},
+                    {'task': 'Purchase Order PO-2026-114 Approved', 'details': 'Dispatched to verified supplier', 'time': '10:15 AM'},
+                    {'task': 'Goods Received Note GRN-882 Signed', 'details': 'Items inspected against PO specs', 'time': '07:30 AM'},
                   ],
                 ),
               ),
@@ -572,15 +531,15 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
         },
       ),
 
-      // 5. Projects & Production Hub
+      // 5. Projects & Deliverables Hub (Universal Cross-Subsidiary Milestones)
       _ModuleItem(
-        id: 'production',
-        eyebrow: 'MANUFACTURING',
-        title: 'Projects & Plant',
-        description: 'Factory lines, batch processing, packaging logs, and work orders.',
-        badgeText: 'PLANT ACTIVE',
+        id: 'projects',
+        eyebrow: 'PROJECTS & DELIVERY',
+        title: 'Projects & Deliverables',
+        description: 'Cross-subsidiary project milestones, deliverables, and work orders.',
+        badgeText: 'ON TRACK',
         badgeColor: const Color(0xFF7C3AED),
-        icon: Icons.precision_manufacturing_rounded,
+        icon: Icons.assignment_turned_in_rounded,
         gradient: [const Color(0xFF7C3AED), const Color(0xFF6D28D9)],
         onTap: (ctx) {
           Navigator.push(
@@ -589,26 +548,26 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
               builder: (_) => StaffModuleWorkstationScreen(
                 user: user,
                 config: const ModuleConfig(
-                  id: 'production',
-                  eyebrow: 'PRODUCTION & INDUSTRIAL PLANT',
-                  title: 'Projects & Production Hub',
-                  subtitle: 'Processing Lines, Batches & Quality Assurance',
-                  description: 'Monitor factory batch production, material input conversion ratios, and final packaging quality assurance.',
-                  icon: Icons.precision_manufacturing_rounded,
+                  id: 'projects',
+                  eyebrow: 'STRATEGIC PROJECTS & EXECUTION',
+                  title: 'Projects & Deliverables Hub',
+                  subtitle: 'Milestones, Work Orders & Performance Deliverables',
+                  description: 'Track strategic cross-subsidiary initiatives, assign operational work orders, and log milestone deliverables against approved budgets.',
+                  icon: Icons.assignment_turned_in_rounded,
                   gradientColors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
-                  statusText: 'Line 1 Running',
+                  statusText: 'Deliverables Active',
                   quickActions: [
-                    {'title': 'Log Batch Production', 'desc': 'Submit batch code, start time & output units', 'icon': Icons.factory_rounded, 'color': Color(0xFF7C3AED)},
-                    {'title': 'Quality Assurance Pass', 'desc': 'Inspect finished goods for standards', 'icon': Icons.fact_check_rounded, 'color': Color(0xFF10B981)},
-                    {'title': 'Report Machine Downtime', 'desc': 'Alert maintenance technicians immediately', 'icon': Icons.warning_amber_rounded, 'color': Color(0xFFDC2626)},
+                    {'title': 'Log Milestone Deliverable', 'desc': 'Submit completed milestone deliverable for sign-off', 'icon': Icons.task_alt_rounded, 'color': Color(0xFF7C3AED)},
+                    {'title': 'Work Order Tracker', 'desc': 'Monitor team operational task assignments & deadlines', 'icon': Icons.checklist_rounded, 'color': Color(0xFF10B981)},
+                    {'title': 'Quality Standards Check', 'desc': 'Inspect work order outputs against corporate benchmarks', 'icon': Icons.verified_user_rounded, 'color': Color(0xFF0284C7)},
                   ],
                   metricCards: [
-                    {'label': 'OUTPUT TODAY', 'value': '1,240 Pks', 'sub': '98.5% Efficiency'},
-                    {'label': 'ACTIVE LINES', 'value': '2 of 2', 'sub': 'Full Capacity'},
+                    {'label': 'ACTIVE MILESTONES', 'value': '8 Milestones', 'sub': 'Execution Phase'},
+                    {'label': 'ON-TIME RATE', 'value': '98.5%', 'sub': 'Within Schedule'},
                   ],
                   sampleTasks: [
-                    {'task': 'Batch BATCH-2026-44 Completed', 'details': 'QA inspection passed', 'time': '11:00 AM'},
-                    {'task': 'Packaging Conveyor Sanitized', 'details': 'Shift cleaning sign-off', 'time': '06:45 AM'},
+                    {'task': 'Phase 2 Milestone Deliverable Signed Off', 'details': 'Executive verification completed', 'time': '11:00 AM'},
+                    {'task': 'Operational Work Order Assigned', 'details': 'Allocated to subsidiary task team', 'time': '08:30 AM'},
                   ],
                 ),
               ),
@@ -617,13 +576,13 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
         },
       ),
 
-      // 6. Innovation & Systems Hub
+      // 6. Innovation & Digital Systems Hub (Universal AI & IT Systems)
       _ModuleItem(
         id: 'innovation',
         eyebrow: 'TECH & AUTOMATION',
         title: 'Innovation & Systems',
-        description: 'BEMS AI automation, ERP workflows, digital tools, and IT support.',
-        badgeText: 'AI POWERED',
+        description: 'BEMS AI automations, ERP workflows, digital tools, and IT support.',
+        badgeText: 'AI CONNECTED',
         badgeColor: const Color(0xFF0284C7),
         icon: Icons.auto_awesome_rounded,
         gradient: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
@@ -637,23 +596,23 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                   id: 'innovation',
                   eyebrow: 'INNOVATION & DIGITAL WORKSPACE',
                   title: 'Innovation & Systems Hub',
-                  subtitle: 'AI Tools, ERP Integrations & Tech Helpdesk',
-                  description: 'Access BEMS Group digital tools, automated n8n workflows, system logs, and corporate IT support channels.',
+                  subtitle: 'AI Tools, ERP Workflows & Tech Helpdesk',
+                  description: 'Access BEMS Group digital workflows, automated notification bridges, system health logs, and corporate IT support channels.',
                   icon: Icons.auto_awesome_rounded,
                   gradientColors: [Color(0xFF0284C7), Color(0xFF0369A1)],
                   statusText: 'All Systems Up',
                   quickActions: [
                     {'title': 'Log IT Support Ticket', 'desc': 'Report hardware, network or ERP issues', 'icon': Icons.support_rounded, 'color': Color(0xFF0284C7)},
-                    {'title': 'AI Assistant Diagnostics', 'desc': 'Check bot notifications & SLA status', 'icon': Icons.psychology_rounded, 'color': Color(0xFF7C3AED)},
-                    {'title': 'Digital Systems Directory', 'desc': 'View single sign-on app endpoints', 'icon': Icons.apps_rounded, 'color': Color(0xFF059669)},
+                    {'title': 'AI Automation Diagnostics', 'desc': 'Check notification bot bridges and workflow SLAs', 'icon': Icons.psychology_rounded, 'color': Color(0xFF7C3AED)},
+                    {'title': 'Digital Systems Directory', 'desc': 'Single sign-on corporate tools & dashboards', 'icon': Icons.apps_rounded, 'color': Color(0xFF059669)},
                   ],
                   metricCards: [
-                    {'label': 'UPTIME', 'value': '99.98%', 'sub': 'Hosting Normal'},
-                    {'label': 'AI AUTOMATIONS', 'value': '12 Flows', 'sub': 'Active n8n'},
+                    {'label': 'SYSTEM UPTIME', 'value': '99.98%', 'sub': 'All Services Healthy'},
+                    {'label': 'AI AUTOMATIONS', 'value': '12 Flows', 'sub': 'Active Automated Bridges'},
                   ],
                   sampleTasks: [
-                    {'task': 'Database Backup Completed', 'details': 'Automated Supabase sync', 'time': '04:00 AM'},
-                    {'task': 'Mobile Version Gate 1.3.0 Live', 'details': 'Enforced for all staff', 'time': 'Yesterday'},
+                    {'task': 'Database Backup Synchronized', 'details': 'Automated backup snapshot healthy', 'time': '04:00 AM'},
+                    {'task': 'Mobile App Version Gate Verified', 'details': 'Enforced across all subsidiaries', 'time': 'Yesterday'},
                   ],
                 ),
               ),
@@ -662,13 +621,13 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
         },
       ),
 
-      // 7. Sales & Commercial Hub
+      // 7. Sales & Commercial Hub (Universal Revenue & Billing)
       _ModuleItem(
         id: 'sales',
         eyebrow: 'COMMERCIAL DESK',
         title: 'Sales & Commercial',
-        description: 'Wholesale clients, order dispatches, sales proformas, and receipts.',
-        badgeText: 'COMMERCIAL',
+        description: 'Client invoicing, order fulfillment, customer accounts, and receipts.',
+        badgeText: 'ACTIVE',
         badgeColor: const Color(0xFFE11D48),
         icon: Icons.point_of_sale_rounded,
         gradient: [const Color(0xFFE11D48), const Color(0xFFBE123C)],
@@ -682,23 +641,23 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                   id: 'sales',
                   eyebrow: 'SALES & COMMERCIAL DESK',
                   title: 'Sales & Commercial Hub',
-                  subtitle: 'Distributor Orders, Invoicing & Field Receipts',
-                  description: 'Record customer purchases, issue official sales waybills, and track wholesale distributor payment reconciliations.',
+                  subtitle: 'Client Invoicing, Order Dispatch & Account Settlement',
+                  description: 'Record customer sales, issue commercial delivery notes, manage wholesale customer credit terms, and reconcile settlements.',
                   icon: Icons.point_of_sale_rounded,
                   gradientColors: [Color(0xFFE11D48), Color(0xFFBE123C)],
-                  statusText: 'Desk Open',
+                  statusText: 'Commercial Open',
                   quickActions: [
-                    {'title': 'Create Sales Order', 'desc': 'Book wholesale farm produce or products', 'icon': Icons.receipt_rounded, 'color': Color(0xFFE11D48)},
-                    {'title': 'Customer Account Lookup', 'desc': 'Verify distributor credit limits & history', 'icon': Icons.badge_rounded, 'color': Color(0xFF0284C7)},
-                    {'title': 'Issue Sales Delivery Receipt', 'desc': 'Generate dispatch clearance for customer truck', 'icon': Icons.check_circle_rounded, 'color': Color(0xFF059669)},
+                    {'title': 'Create Commercial Invoice', 'desc': 'Issue sales orders across subsidiary product lines', 'icon': Icons.receipt_rounded, 'color': Color(0xFFE11D48)},
+                    {'title': 'Customer Account Lookup', 'desc': 'Verify customer credit limits & payment terms', 'icon': Icons.badge_rounded, 'color': Color(0xFF0284C7)},
+                    {'title': 'Issue Delivery Clearance', 'desc': 'Generate official sales dispatch and gate pass', 'icon': Icons.check_circle_rounded, 'color': Color(0xFF059669)},
                   ],
                   metricCards: [
-                    {'label': 'TODAYS SALES', 'value': '₦1.45M', 'sub': '+12% vs Target'},
-                    {'label': 'ORDERS BOOKED', 'value': '8 Invoices', 'sub': 'Dispatched'},
+                    {'label': 'ORDER FULFILLMENT', 'value': 'Active', 'sub': 'Processing Orders'},
+                    {'label': 'INVOICES BOOKED', 'value': 'Up to Date', 'sub': 'Reconciled Ledger'},
                   ],
                   sampleTasks: [
-                    {'task': 'Distributor Order INV-984 Cleared', 'details': '₦850,000 confirmed paid', 'time': '11:45 AM'},
-                    {'task': 'Waybill Signed by Driver', 'details': 'Customer: Sunrise Mart Ltd', 'time': '09:10 AM'},
+                    {'task': 'Commercial Invoice INV-2026-984 Cleared', 'details': 'Customer payment verified', 'time': '11:45 AM'},
+                    {'task': 'Delivery Clearance Handed to Dispatch', 'details': 'Approved for fulfillment', 'time': '09:10 AM'},
                   ],
                 ),
               ),
@@ -707,11 +666,11 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
         },
       ),
 
-      // 8. Risk & Internal Audit Hub
+      // 8. Risk & Internal Audit Hub (Universal Governance & 72h SLA)
       _ModuleItem(
         id: 'risk',
         eyebrow: 'GOVERNANCE & AUDIT',
-        title: 'Risk & Audit Hub',
+        title: 'Risk & Internal Audit',
         description: '72h SLA compliance scorecard, internal controls, and audit trails.',
         badgeText: '100% SLA',
         badgeColor: const Color(0xFF475569),
@@ -727,23 +686,23 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                   id: 'risk',
                   eyebrow: 'RISK MANAGEMENT & AUDIT CONTROL',
                   title: 'Risk & Internal Audit Hub',
-                  subtitle: '72h SLA Tracking, Compliance & Integrity',
-                  description: 'Review corporate spending accountability compliance, 3-way matching verifications, and audit log histories.',
+                  subtitle: '72h SLA Tracking, Compliance & Integrity Governance',
+                  description: 'Review corporate spending accountability compliance, 3-way matching audit trails, and multi-subsidiary governance logs.',
                   icon: Icons.gavel_rounded,
                   gradientColors: [Color(0xFF475569), Color(0xFF334155)],
                   statusText: '100% Compliant',
                   quickActions: [
-                    {'title': 'View 72h SLA Scorecard', 'desc': 'Review your retirement compliance rate', 'icon': Icons.timer_rounded, 'color': Color(0xFF059669)},
-                    {'title': '3-Way Match Verification Logs', 'desc': 'Audit PO vs GRN vs Vendor Invoices', 'icon': Icons.rule_rounded, 'color': Color(0xFF0284C7)},
-                    {'title': 'Report Compliance Irregularity', 'desc': 'Confidential whistleblowing channel', 'icon': Icons.shield_rounded, 'color': Color(0xFFDC2626)},
+                    {'title': 'View 72h SLA Scorecard', 'desc': 'Review your advance retirement compliance rate', 'icon': Icons.timer_rounded, 'color': Color(0xFF059669)},
+                    {'title': 'Audit Trail Verification', 'desc': 'Audit transaction approvals and disbursement matching', 'icon': Icons.rule_rounded, 'color': Color(0xFF0284C7)},
+                    {'title': 'Report Compliance Issue', 'desc': 'Confidential internal control communication', 'icon': Icons.shield_rounded, 'color': Color(0xFFDC2626)},
                   ],
                   metricCards: [
-                    {'label': 'SLA GRADE', 'value': 'Tier 1', 'sub': '100% On-Time'},
-                    {'label': 'OPEN RETIREMENTS', 'value': '0 Cases', 'sub': 'All Retired'},
+                    {'label': 'SLA GRADE', 'value': 'Tier 1', 'sub': '100% On-Time Retirement'},
+                    {'label': 'AUDIT STATUS', 'value': 'Compliant', 'sub': 'Zero Flagged Exceptions'},
                   ],
                   sampleTasks: [
-                    {'task': 'Quarterly Audit Check Passed', 'details': 'Zero unretired advances logged', 'time': 'Nov 1'},
-                    {'task': 'Dual-Key Payment Verification Clean', 'details': 'All payouts matched to GMD approval', 'time': 'Nov 3'},
+                    {'task': 'Corporate Audit Review Completed', 'details': 'Zero unretired advances logged', 'time': 'Nov 1'},
+                    {'task': 'Dual-Key Payment Match Confirmed', 'details': 'Matched to GMD executive approval', 'time': 'Nov 3'},
                   ],
                 ),
               ),
