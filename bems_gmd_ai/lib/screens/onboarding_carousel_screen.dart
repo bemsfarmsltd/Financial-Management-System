@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/bemi_voice_service.dart';
 import '../services/chat_storage_service.dart';
+import '../services/api_service.dart';
 import 'login_screen.dart';
 
 class _GmdOnboardingSlide {
@@ -122,7 +123,7 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
   Future<void> _completeJourney() async {
     HapticFeedback.mediumImpact();
     await BemiVoiceService.stop();
-    await ChatStorageService.setSeenOnboardingCarousel(true);
+    await ChatStorageService.setSeenOnboardingCarousel(true, version: ApiService.appVersion);
     if (!mounted) return;
 
     if (widget.isReplay) {

@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/staff_storage_service.dart';
+import '../services/staff_api_service.dart';
 import 'staff_login_screen.dart';
 
 class _StaffOnboardingSlide {
@@ -119,7 +120,7 @@ class _StaffOnboardingCarouselScreenState extends State<StaffOnboardingCarouselS
 
   Future<void> _completeJourney() async {
     HapticFeedback.mediumImpact();
-    await StaffStorageService.setSeenOnboardingCarousel(true);
+    await StaffStorageService.setSeenOnboardingCarousel(true, version: StaffApiService.appVersion);
     if (!mounted) return;
 
     if (widget.isReplay) {

@@ -29,7 +29,9 @@ class _BemiSplashScreenState extends State<BemiSplashScreen> {
     // 1. Check version gate concurrently with session bootstrap
     final gateFuture = ApiService.checkVersionGate();
     final user = await ChatStorageService.getUser();
-    final hasSeenOnboarding = await ChatStorageService.hasSeenOnboardingCarousel();
+    final hasSeenOnboarding = await ChatStorageService.hasSeenOnboardingCarousel(
+      version: ApiService.appVersion,
+    );
     final isBioConfigured = await ChatStorageService.isBiometricConfigured();
     final isBioEnabled = await ChatStorageService.isBiometricEnabled();
 

@@ -7,6 +7,7 @@ class ChatStorageService {
   static const String _keyUser = 'bems_auth_user';
   static const String _keySeenWelcome = 'bems_seen_first_welcome';
   static const String _keySeenOnboardingCarousel = 'bems_seen_onboarding_carousel_v1';
+  static const String _keyLastSeenJourneyVersion = 'bems_gmd_last_seen_journey_version';
   static const String _keySessions = 'bems_chat_sessions';
   static const String _keyActiveSessionId = 'bems_active_session_id';
 
@@ -45,14 +46,21 @@ class ChatStorageService {
   }
 
   // --- First Launch Onboarding Carousel Journey ---
-  static Future<bool> hasSeenOnboardingCarousel() async {
+  static Future<bool> hasSeenOnboardingCarousel({String? version}) async {
     final prefs = await SharedPreferences.getInstance();
+    if (version != null && version.isNotEmpty) {
+      final lastVersion = prefs.getString(_keyLastSeenJourneyVersion);
+      return lastVersion == version;
+    }
     return prefs.getBool(_keySeenOnboardingCarousel) ?? false;
   }
 
-  static Future<void> setSeenOnboardingCarousel(bool seen) async {
+  static Future<void> setSeenOnboardingCarousel(bool seen, {String? version}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keySeenOnboardingCarousel, seen);
+    if (version != null && version.isNotEmpty) {
+      await prefs.setString(_keyLastSeenJourneyVersion, version);
+    }
   }
 
   // --- Chat Sessions ---

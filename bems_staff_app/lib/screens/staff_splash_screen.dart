@@ -26,7 +26,9 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
     final startTime = DateTime.now();
     final gateFuture = StaffApiService.checkVersionGate();
     final user = await StaffStorageService.getUser();
-    final hasSeenOnboarding = await StaffStorageService.hasSeenOnboardingCarousel();
+    final hasSeenOnboarding = await StaffStorageService.hasSeenOnboardingCarousel(
+      version: StaffApiService.appVersion,
+    );
     final isBioConfigured = await StaffStorageService.isBiometricConfigured();
     final isBioEnabled = await StaffStorageService.isBiometricEnabled();
 
