@@ -185,7 +185,7 @@ title: "<Chart Title>"
         where: { approvalStatus: { in: ['SUBMITTED', 'IN_REVIEW'] } },
         take: 5,
         orderBy: { createdAt: 'desc' },
-        include: { requester: true },
+        include: { requester: true, vendor: true },
       }).catch(() => []),
       prisma.employee.count({ where: { status: 'ACTIVE', role: 'STAFF' } }).catch(() => 0),
       prisma.organization.findMany({ where: { status: 'ACTIVE' } }).catch(() => []),
@@ -295,6 +295,12 @@ title: "<Chart Title>"
         ) || pendingRequests[0];
 
       if (matched && actor) {
+        const reqAmountNaira = Number(matched.amountMinor) / 100;
+        const bankName = matched.vendor?.bankName || matched.requester?.bankName || 'Not Set';
+        const accountNumber = matched.vendor?.accountNumber || matched.requester?.accountNumber || 'Not Set';
+        const accountName = matched.vendor?.accountName || matched.requester?.accountName || matched.requester?.legalName || 'Staff';
+        const payUrl = `https://bemserp.work/pay/${matched.requestNumber}`;
+
         const staged = await stageAction({
           userId: actor.id,
           actionType: 'approval_decision',
@@ -305,18 +311,28 @@ title: "<Chart Title>"
             reason: 'Authorized via AI Copilot',
             amount_minor: Number(matched.amountMinor),
           },
-          summary: `Authorize disbursement for ${matched.requestNumber} (${matched.title}) — ₦${(Number(matched.amountMinor) / 100).toLocaleString()}`,
+          summary: `Authorize disbursement for ${matched.requestNumber} (${matched.title}) — ₦${reqAmountNaira.toLocaleString()}`,
           preview: {
             request_number: matched.requestNumber,
             title: matched.title,
-            amount: `₦${(Number(matched.amountMinor) / 100).toLocaleString()}`,
+            amount: `₦${reqAmountNaira.toLocaleString()}`,
             requester: matched.requester?.legalName || 'Staff',
             decision_to_apply: 'APPROVE',
             reason: 'Executive authorization',
+            beneficiary_bank: `${bankName} · ${accountNumber} (${accountName})`,
+            disbursement_quick_link: payUrl,
           },
         });
 
-        reply = `I have staged the executive authorization for **${matched.requestNumber}** (**₦${(Number(matched.amountMinor) / 100).toLocaleString()}**). In accordance with the BEMS Staged-Action security policy, no write has been committed yet.\n\nPlease review the cryptographic preview card below and click **Authorize & Execute Action** to commit the decision to the ledger.`;
+        reply = `I have staged the executive authorization for **${matched.requestNumber}** (**₦${reqAmountNaira.toLocaleString()}**).\n\n` +
+          `💳 **Beneficiary Bank Details for Disbursement:**\n` +
+          `• **Beneficiary:** ${accountName}\n` +
+          `• **Bank Name:** ${bankName}\n` +
+          `• **Account Number:** \`${accountNumber}\`\n` +
+          `• **Payable Amount:** **₦${reqAmountNaira.toLocaleString()}**\n\n` +
+          `📲 **Direct Bank App Quick-Pay Link:**\n` +
+          `[👉 Click to Open Bank App & Disburse](${payUrl})\n\n` +
+          `Please review the cryptographic preview card below and click **Authorize & Execute Action** to commit the decision to the ledger.`;
         actionCard = {
           cardType: 'STAGED_ACTION',
           ...staged,
@@ -560,6 +576,97 @@ title: "<Chart Title>"
       normalized.includes('chart')
     ) {
       reply = `Here is the consolidated financial overview of BEMS Group presented as an interactive histogram:\n\n\`\`\`chart:histogram\ntitle: "Consolidated Group Financial Metrics"\nLiquid Cash Reserves: ${totalCash}\nPending Approvals: ${pendingSum}\nApproved Unpaid: 450000\nOpen Advances: 1200000\n\`\`\`\n\nYou can toggle between the histogram and the table view using the button in the chart header.`;
+    } else if (
+      normalized.includes('payroll') ||
+      normalized.includes('deduction') ||
+      normalized.includes('salary')
+    ) {
+      if (!isExecutive) {
+        reply = `🔒 **Executive Confidentiality:** Group payroll, salary registers, and staff deduction details are strictly restricted to Executive Leadership.`;
+      } else {
+        const latestPeriod = await prisma.payrollPeriod.findFirst({
+          orderBy: [{ year: 'desc' }, { month: 'desc' }],
+          include: {
+            batches: {
+              orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
+              take: 1,
+            },
+          },
+        });
+
+        const batch = latestPeriod?.batches[0];
+        const monthName = latestPeriod ? new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(latestPeriod.year, latestPeriod.month - 1, 1)) : 'Current Month';
+
+        const netNaira = batch ? Number(batch.totalNetMinor) / 100 : 0;
+        const grossNaira = batch ? Number(batch.totalGrossMinor) / 100 : 0;
+        const deductionsNaira = Math.max(0, grossNaira - netNaira);
+
+        reply = `**BEMS Group Executive Payroll Status:**\n\n` +
+          `• **Current Active Period:** **${monthName} ${latestPeriod?.year || new Date().getFullYear()}**\n` +
+          `• **Batch Status:** **${batch?.status || 'NOT_PREPARED'}** (Version ${batch?.version || 1})\n` +
+          `• **Total Net Payout:** **${formatNaira(netNaira)}**\n` +
+          `• **Total Deductions:** **${formatNaira(deductionsNaira)}**\n\n` +
+          `*To prepare or recalculate payroll with attendance absence/lateness penalties factored in, use the Payroll Desk or submit a request to the AI Automation Gateway.*`;
+
+        actionCard = {
+          type: 'PAYROLL',
+          title: `Payroll Overview (${monthName})`,
+          period: `${monthName} ${latestPeriod?.year || new Date().getFullYear()}`,
+          status: batch?.status || 'NOT_PREPARED',
+          netTotal: formatNaira(netNaira),
+          deductions: formatNaira(deductionsNaira),
+        };
+      }
+    } else if (
+      normalized.includes('attendance') ||
+      normalized.includes('roster') ||
+      normalized.includes('lateness') ||
+      normalized.includes('timesheet') ||
+      normalized.includes('clock in') ||
+      normalized.includes('excuse')
+    ) {
+      const todayDateStr = new Date().toISOString().split('T')[0];
+      const todayRecords = await prisma.attendanceRecord.findMany({
+        where: { workDate: todayDateStr },
+      });
+      const onTime = todayRecords.filter((r) => r.status === 'PRESENT' && !r.isManualOverride).length;
+      const late = todayRecords.filter((r) => r.status === 'LATE').length;
+      const excused = todayRecords.filter((r) => r.status === 'EXCUSED' || r.isManualOverride).length;
+
+      reply = `**BEMS Group Live Attendance & Timekeeping Intelligence (${todayDateStr}):**\n\n` +
+        `• **Official System Launch:** Attendance tracking officially commenced on **November 3, 2026**.\n` +
+        `• **Today's Presence:** **${todayRecords.length} staff checked in** (${onTime} on-time, ${late} late, ${excused} excused/override).\n` +
+        `• **Policy Threshold:** Resumption 08:00 AM + 15m Grace (08:15 AM cut-off). Deductions: -5% pro-rated daily wage for lateness, -100% for unexcused absence.\n\n` +
+        `*GMD / Super Admin can excuse or override any lateness penalty directly from the Attendance Master desk or via AI Automation tools.*`;
+
+      actionCard = {
+        type: 'ATTENDANCE',
+        title: `Attendance Radar (${todayDateStr})`,
+        punches: todayRecords.length,
+        onTime,
+        late,
+        excused,
+      };
+    } else if (
+      normalized.includes('create subsidiary') ||
+      normalized.includes('new subsidiary') ||
+      normalized.includes('add subsidiary')
+    ) {
+      if (!isExecutive) {
+        reply = `🔒 **Executive Authority Required:** Corporate entity formation and subsidiary provisioning can only be authorized by the Group Managing Director or System Administrator.`;
+      } else {
+        reply = `**Subsidiary Provisioning:**\n\nYou can create new operating entities directly in the system. The entity will be automatically assigned an enterprise shortcode, currency register, and default attendance policy.\n\nTo provision a subsidiary via chat or automation, pass the legal name, state/headquarters, and operational sector (e.g. \`Studio Arella Ltd\`, \`Arella Farms SPV\`).`;
+      }
+    } else if (
+      normalized.includes('onboard admin') ||
+      normalized.includes('create admin') ||
+      normalized.includes('new admin')
+    ) {
+      if (!isExecutive) {
+        reply = `🔒 **Executive Authority Required:** Only the GMD or Super Admin can provision executive accounts.`;
+      } else {
+        reply = `**Strict 3-Role Architecture Admin Onboarding:**\n\nUnder system governance rules, only two executive roles can be invited via administration:\n1. **The Group Managing Director (GMD)**\n2. **Super Admin (SYSTEM_ADMIN / SUPER_ADMIN)**\n\n*(Staff onboarding is strictly self-service on the BEMS Staff Mobile App and Portal).* To invite an executive, provide their legal name, corporate work email, and selected role.`;
+      }
     } else if (
       normalized.includes('subsidiary') ||
       normalized.includes('entities') ||
