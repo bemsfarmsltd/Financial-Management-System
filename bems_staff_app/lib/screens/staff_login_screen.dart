@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
-import 'staff_main_screen.dart';
+import 'staff_module_gallery_screen.dart';
 import 'staff_register_screen.dart';
 import 'staff_forgot_password_screen.dart';
 import 'staff_onboarding_carousel_screen.dart';
@@ -90,7 +90,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
   void _navigateToMain(StaffUser user) {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => StaffMainScreen(user: user)),
+      MaterialPageRoute(builder: (_) => StaffModuleGalleryScreen(user: user)),
     );
   }
 

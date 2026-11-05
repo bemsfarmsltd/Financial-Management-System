@@ -17,8 +17,9 @@ import '../services/staff_biometric_service.dart';
 
 class StaffMainScreen extends StatefulWidget {
   final StaffUser user;
+  final bool fromGallery;
 
-  const StaffMainScreen({super.key, required this.user});
+  const StaffMainScreen({super.key, required this.user, this.fromGallery = false});
 
   @override
   State<StaffMainScreen> createState() => _StaffMainScreenState();
@@ -69,6 +70,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   bool _isBiometricConfigured = false;
   bool _isBiometricEnabled = false;
   bool _isProfileUpdateGateActive = false;
+  final PageController _priceCardController = PageController();
+  int _priceCardPage = 0;
 
   @override
   void initState() {
@@ -76,6 +79,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     _currentUser = widget.user;
     _loadData();
     _loadBiometricSettings();
+  }
+
+  @override
+  void dispose() {
+    _priceCardController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadBiometricSettings() async {
@@ -2754,6 +2763,36 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
         children: [
+          if (widget.fromGallery) ...[
+            InkWell(
+              onTap: () => Navigator.pop(context),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 6, offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.arrow_back_ios_new_rounded, size: 13, color: Color(0xFFEA580C)),
+                    SizedBox(width: 8),
+                    Text(
+                      'Back to Enterprise Module Gallery',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+
           // Header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2981,219 +3020,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             const SizedBox(height: 16),
           ],
 
-          // Hero Advance Card - Aligned with BEMS Corporate Brand
-          Container(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFEA580C), Color(0xFFC2410C), Color(0xFF9A3412)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(26),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFEA580C).withOpacity(0.32),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(26),
-              child: Stack(
-                children: [
-                  // Subtle ambient brand glow circle
-                  Positioned(
-                    bottom: -35,
-                    left: -35,
-                    child: Container(
-                      width: 140,
-                      height: 140,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFFEA580C).withOpacity(0.18),
-                      ),
-                    ),
-                  ),
-
-                  // Company Brand Picture / Watermark Mark
-                  Positioned(
-                    top: -18,
-                    right: -18,
-                    child: Opacity(
-                      opacity: 0.14,
-                      child: Image.asset(
-                        'assets/images/bems-mark.png',
-                        width: 155,
-                        height: 155,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
-
-                  // Main Content
-                  Padding(
-                    padding: const EdgeInsets.all(22),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(3),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Image.asset(
-                                    'assets/images/bems-mark.png',
-                                    width: 13,
-                                    height: 13,
-                                    errorBuilder: (_, __, ___) => Container(
-                                      width: 6,
-                                      height: 6,
-                                      decoration: const BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'OPERATIONAL ADVANCE HELD',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.8,
-                                    color: Colors.white.withOpacity(0.9),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            GestureDetector(
-                              onTap: () => setState(() => _hideBalance = !_hideBalance),
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.12),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  _hideBalance ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-                                  color: Colors.white,
-                                  size: 17,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _hideBalance ? '₦ ••••••••' : formatter.format(activeAdvanceAmount),
-                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.8),
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(Icons.account_balance_rounded, size: 13, color: Colors.white.withOpacity(0.75)),
-                            const SizedBox(width: 5),
-                            Text(
-                              'Bank: ${_currentUser.bankName} (${_currentUser.accountNumber})',
-                              style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.85), fontWeight: FontWeight.w500),
-                            ),
-                          ],
-                        ),
-                        if (_submittedUnderReviewCases.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFC2410C).withOpacity(0.85),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: const Color(0xFFFDBA74).withOpacity(0.4)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: const BoxDecoration(color: Color(0xFFFED7AA), shape: BoxShape.circle),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  _pendingRetirementCases.isEmpty
-                                      ? 'Evidence Submitted · Awaiting Finance Clearance'
-                                      : '${_submittedUnderReviewCases.length} In Review · ${_pendingRetirementCases.length} Pending Retirement',
-                                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFFFFEDD5)),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 20),
-
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: _openNewRequestModal,
-                                icon: const Icon(Icons.arrow_upward_rounded, size: 16, color: Color(0xFFEA580C)),
-                                label: const Text(
-                                  'Request Funds',
-                                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: Color(0xFFEA580C)),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  elevation: 2,
-                                  shadowColor: Colors.black.withOpacity(0.2),
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () {
-                                  final targetCase = _pendingRetirementCases.isNotEmpty
-                                      ? _pendingRetirementCases.first
-                                      : (_activeAdvanceCases.isNotEmpty ? _activeAdvanceCases.first : null);
-                                  if (targetCase != null) {
-                                    _showRetirementEvidenceDialog(targetCase);
-                                  } else {
-                                    setState(() => _currentIndex = 2);
-                                  }
-                                },
-                                icon: const Icon(Icons.arrow_downward_rounded, size: 16, color: Colors.white),
-                                label: Text(
-                                  _pendingRetirementCases.isNotEmpty
-                                      ? 'Retire 72h'
-                                      : (_submittedUnderReviewCases.isNotEmpty ? 'Evidence In Review' : 'Retire 72h'),
-                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFEA580C),
-                                  elevation: 2,
-                                  shadowColor: const Color(0xFFEA580C).withOpacity(0.4),
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          // Multi-Metric Financial Carousel (Replaces Single Hero Card)
+          _buildMultiMetricFinancialCarousel(formatter, activeAdvanceAmount),
 
           const SizedBox(height: 16),
 
@@ -5711,6 +5539,361 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildMultiMetricFinancialCarousel(NumberFormat formatter, double activeAdvanceAmount) {
+    final lifetimeRaised = _requests.fold<double>(0.0, (acc, r) => acc + r.amountNaira);
+    final approvedCount = _requests.where((r) => r.approvalStatus.toUpperCase() == 'APPROVED' || r.approvalStatus.toUpperCase() == 'SETTLED' || r.paymentStatus.toUpperCase() == 'DISBURSED').length;
+    final rejectedCount = _requests.where((r) => r.approvalStatus.toUpperCase() == 'REJECTED').length;
+
+    final pendingCases = _requests.where((r) => r.approvalStatus.toUpperCase() == 'PENDING' || r.approvalStatus.toUpperCase() == 'SUBMITTED' || r.approvalStatus.toUpperCase() == 'APPROVED_AWAITING_DISBURSEMENT').toList();
+    final pendingValue = pendingCases.fold<double>(0.0, (acc, r) => acc + r.amountNaira);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 236,
+          child: PageView(
+            controller: _priceCardController,
+            onPageChanged: (idx) => setState(() => _priceCardPage = idx),
+            children: [
+              // Slide 1: Operational Advance Held
+              _buildHeroCardContainer(
+                gradientColors: const [Color(0xFFEA580C), Color(0xFFC2410C), Color(0xFF9A3412)],
+                shadowColor: const Color(0xFFEA580C).withOpacity(0.32),
+                title: 'OPERATIONAL ADVANCE HELD',
+                canHideBalance: true,
+                valueText: _hideBalance ? '₦ ••••••••' : formatter.format(activeAdvanceAmount),
+                subText: 'Bank: ${_currentUser.bankName.isNotEmpty ? _currentUser.bankName : "Corporate Primary"} (${_currentUser.accountNumber.isNotEmpty ? _currentUser.accountNumber : "Default"})',
+                statusBadge: _submittedUnderReviewCases.isNotEmpty
+                    ? (_pendingRetirementCases.isEmpty
+                        ? 'Evidence Submitted · Awaiting Clearance'
+                        : '${_submittedUnderReviewCases.length} In Review · ${_pendingRetirementCases.length} Pending Retirement')
+                    : (_pendingRetirementCases.isNotEmpty ? '${_pendingRetirementCases.length} Pending 72h Retirement' : null),
+                primaryActionLabel: 'Request Funds',
+                primaryActionIcon: Icons.arrow_upward_rounded,
+                primaryActionColor: const Color(0xFFEA580C),
+                onPrimaryAction: _openNewRequestModal,
+                secondaryActionLabel: _pendingRetirementCases.isNotEmpty
+                    ? 'Retire 72h'
+                    : (_submittedUnderReviewCases.isNotEmpty ? 'Evidence In Review' : 'Retire 72h'),
+                secondaryActionIcon: Icons.arrow_downward_rounded,
+                onSecondaryAction: () {
+                  final targetCase = _pendingRetirementCases.isNotEmpty
+                      ? _pendingRetirementCases.first
+                      : (_activeAdvanceCases.isNotEmpty ? _activeAdvanceCases.first : null);
+                  if (targetCase != null) {
+                    _showRetirementEvidenceDialog(targetCase);
+                  } else {
+                    setState(() => _currentIndex = 2);
+                  }
+                },
+              ),
+
+              // Slide 2: Lifetime Requests Raised
+              _buildHeroCardContainer(
+                gradientColors: const [Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155)],
+                shadowColor: const Color(0xFF0F172A).withOpacity(0.35),
+                title: 'LIFETIME REQUISITIONS RAISED',
+                canHideBalance: true,
+                valueText: _hideBalance ? '₦ ••••••••' : formatter.format(lifetimeRaised),
+                subText: '$approvedCount Approved · $rejectedCount Rejected · ${_requests.length} Total Raised',
+                statusBadge: '${_requests.length} Total Submissions in Career',
+                primaryActionLabel: 'New Request',
+                primaryActionIcon: Icons.add_circle_outline_rounded,
+                primaryActionColor: const Color(0xFF0F172A),
+                onPrimaryAction: _openNewRequestModal,
+                secondaryActionLabel: 'View History',
+                secondaryActionIcon: Icons.history_rounded,
+                onSecondaryAction: () => setState(() => _currentIndex = 1),
+              ),
+
+              // Slide 3: Pending Pipeline Value
+              _buildHeroCardContainer(
+                gradientColors: const [Color(0xFF0369A1), Color(0xFF0284C7), Color(0xFF0EA5E9)],
+                shadowColor: const Color(0xFF0284C7).withOpacity(0.32),
+                title: 'PENDING PIPELINE VALUE',
+                canHideBalance: true,
+                valueText: _hideBalance ? '₦ ••••••••' : formatter.format(pendingValue),
+                subText: '${pendingCases.length} in transit awaiting GMD / Treasury action',
+                statusBadge: pendingCases.isNotEmpty ? 'Awaiting Action' : 'All Clear · No Pending Requests',
+                primaryActionLabel: 'Track Pipeline',
+                primaryActionIcon: Icons.timeline_rounded,
+                primaryActionColor: const Color(0xFF0284C7),
+                onPrimaryAction: () => setState(() => _currentIndex = 1),
+                secondaryActionLabel: 'Confirm Funds',
+                secondaryActionIcon: Icons.price_check_rounded,
+                onSecondaryAction: () {
+                  if (_disbursementsAwaiting.isNotEmpty) {
+                    _handleConfirmPayment(_disbursementsAwaiting.first);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('No pending disbursements to confirm at this time.')),
+                    );
+                  }
+                },
+              ),
+
+              // Slide 4: Monthly Remuneration & Payroll
+              _buildHeroCardContainer(
+                gradientColors: const [Color(0xFF065F46), Color(0xFF047857), Color(0xFF059669)],
+                shadowColor: const Color(0xFF047857).withOpacity(0.32),
+                title: 'MONTHLY REMUNERATION & PAYROLL',
+                canHideBalance: false,
+                valueText: 'Payday: 3rd',
+                subText: 'Bank: ${_currentUser.salaryBankName.isNotEmpty ? _currentUser.salaryBankName : (_currentUser.bankName.isNotEmpty ? _currentUser.bankName : "Corporate Payroll")}',
+                statusBadge: 'Verified Payroll Account',
+                primaryActionLabel: 'View Payslips',
+                primaryActionIcon: Icons.receipt_long_rounded,
+                primaryActionColor: const Color(0xFF047857),
+                onPrimaryAction: _showMyPayslipsModal,
+                secondaryActionLabel: 'Update Bank',
+                secondaryActionIcon: Icons.account_balance_wallet_rounded,
+                onSecondaryAction: () => setState(() => _currentIndex = 3),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        // Dots Indicator
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(4, (index) {
+            final isActive = _priceCardPage == index;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              width: isActive ? 22 : 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: isActive ? const Color(0xFFEA580C) : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeroCardContainer({
+    required List<Color> gradientColors,
+    required Color shadowColor,
+    required String title,
+    required bool canHideBalance,
+    required String valueText,
+    required String subText,
+    String? statusBadge,
+    required String primaryActionLabel,
+    required IconData primaryActionIcon,
+    required Color primaryActionColor,
+    required VoidCallback onPrimaryAction,
+    required String secondaryActionLabel,
+    required IconData secondaryActionIcon,
+    required VoidCallback onSecondaryAction,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: gradientColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: Stack(
+          children: [
+            Positioned(
+              bottom: -35,
+              left: -35,
+              child: Container(
+                width: 140,
+                height: 140,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.08),
+                ),
+              ),
+            ),
+            Positioned(
+              top: -18,
+              right: -18,
+              child: Opacity(
+                opacity: 0.14,
+                child: Image.asset(
+                  'assets/images/bems-mark.png',
+                  width: 155,
+                  height: 155,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Image.asset(
+                              'assets/images/bems-mark.png',
+                              width: 13,
+                              height: 13,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (canHideBalance)
+                        GestureDetector(
+                          onTap: () => setState(() => _hideBalance = !_hideBalance),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              _hideBalance ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                              color: Colors.white,
+                              size: 17,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    valueText,
+                    style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.8),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.account_balance_rounded, size: 13, color: Colors.white.withOpacity(0.75)),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          subText,
+                          style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.85), fontWeight: FontWeight.w500),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (statusBadge != null) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.16),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white.withOpacity(0.25)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            statusBadge,
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: onPrimaryAction,
+                          icon: Icon(primaryActionIcon, size: 16, color: primaryActionColor),
+                          label: Text(
+                            primaryActionLabel,
+                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11.5, color: primaryActionColor),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            elevation: 2,
+                            shadowColor: Colors.black.withOpacity(0.2),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: onSecondaryAction,
+                          icon: Icon(secondaryActionIcon, size: 16, color: Colors.white),
+                          label: Text(
+                            secondaryActionLabel,
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5, color: Colors.white),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white.withOpacity(0.22),
+                            elevation: 0,
+                            side: BorderSide(color: Colors.white.withOpacity(0.35)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

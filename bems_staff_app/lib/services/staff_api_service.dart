@@ -9,7 +9,7 @@ class StaffApiService {
   static const String fallbackBaseUrl = 'https://pink-horse-318730.hostingersite.com';
   static String _activeBaseUrl = primaryBaseUrl;
 
-  static const String appVersion = '1.2.1';
+  static const String appVersion = '1.3.0';
   static const String appId = 'STAFF_APP';
 
   // Global callbacks for app-level interception

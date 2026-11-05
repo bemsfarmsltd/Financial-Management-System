@@ -3,7 +3,7 @@ import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
 import '../widgets/kinetic_torus_iris.dart';
 import 'staff_login_screen.dart';
-import 'staff_main_screen.dart';
+import 'staff_module_gallery_screen.dart';
 import 'staff_biometric_auth_screen.dart';
 import 'app_upgrade_screen.dart';
 import 'staff_onboarding_carousel_screen.dart';
@@ -68,7 +68,7 @@ class _StaffSplashScreenState extends State<StaffSplashScreen> {
       } else if (isBioConfigured && isBioEnabled) {
         postOnboardingScreen = StaffBiometricAuthScreen(user: user);
       } else {
-        postOnboardingScreen = StaffMainScreen(user: user);
+        postOnboardingScreen = StaffModuleGalleryScreen(user: user);
       }
 
       if (!hasSeenOnboarding) {
