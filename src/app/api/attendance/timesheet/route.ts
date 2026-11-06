@@ -214,6 +214,7 @@ export async function GET(request: Request) {
         where: {
           status: 'ACTIVE',
           role: 'STAFF',
+          isAttendanceExempt: false,
         },
         select: {
           id: true,

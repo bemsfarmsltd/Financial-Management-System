@@ -129,6 +129,7 @@ model Employee {
 
   // Offline / Field Staff Support (HR Manual Enrollment)
   isOfflineStaff        Boolean   @default(false)
+  isAttendanceExempt    Boolean   @default(false) // When true, staff is exempt from signing attendance and excluded from daily roster
   kioskPin              String?   // 4-digit PIN for /attendance/kiosk check-in without a smartphone
   onboardedById         String?
 

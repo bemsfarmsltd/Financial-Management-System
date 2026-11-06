@@ -187,6 +187,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
       nextOfKinRelationship: employee.nextOfKinRelationship,
       nextOfKinAddress: employee.nextOfKinAddress,
       isOfflineStaff: employee.isOfflineStaff,
+      isAttendanceExempt: employee.isAttendanceExempt,
       kioskPin: employee.kioskPin,
       assignment: employee.assignments[0] ? {
         positionName: employee.assignments[0].positionName,
@@ -249,7 +250,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ em
 
   const { employeeId } = await params;
   const body = await request.json().catch(() => ({}));
-  const { avatarUrl, jobTitle, phone, residentialAddress, cityState } = body;
+  const { avatarUrl, jobTitle, phone, residentialAddress, cityState, isAttendanceExempt } = body;
 
   const updated = await prisma.employee.update({
     where: { id: employeeId },
@@ -259,8 +260,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ em
       ...(typeof phone === 'string' ? { phone } : {}),
       ...(typeof residentialAddress === 'string' ? { residentialAddress } : {}),
       ...(typeof cityState === 'string' ? { cityState } : {}),
+      ...(typeof isAttendanceExempt === 'boolean' ? { isAttendanceExempt } : {}),
     }
   });
+
+  if (typeof isAttendanceExempt === 'boolean') {
+    await prisma.staffWorkSchedule.upsert({
+      where: { employeeId },
+      update: { isExempt: isAttendanceExempt },
+      create: {
+        employeeId,
+        weeklyOffDays: '0,6',
+        isExempt: isAttendanceExempt,
+      },
+    }).catch(() => {});
+  }
 
   return NextResponse.json({ message: 'Profile updated successfully.', employee: updated });
 }

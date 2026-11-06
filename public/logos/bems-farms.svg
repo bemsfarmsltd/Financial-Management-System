@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="farmGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#16a34a"/>
+      <stop offset="100%" stop-color="#14532d"/>
+    </linearGradient>
+    <filter id="farmShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#052e16" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <rect width="120" height="120" rx="26" fill="url(#farmGrad)"/>
+  <!-- Agro Sunburst & Furrows -->
+  <circle cx="60" cy="40" r="16" fill="#fef08a" opacity="0.35"/>
+  <path d="M 24 88 Q 60 76 96 88" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.3" fill="none"/>
+  <path d="M 28 95 Q 60 84 92 95" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.3" fill="none"/>
+  <!-- Central Sprout / Harvest Sheaf -->
+  <g filter="url(#farmShadow)">
+    <circle cx="60" cy="60" r="34" fill="#ffffff"/>
+    <!-- Left Leaf -->
+    <path d="M 60 72 C 46 64 42 46 56 42 C 58 52 56 64 60 72 Z" fill="#15803d"/>
+    <!-- Right Leaf -->
+    <path d="M 60 72 C 74 64 78 46 64 42 C 62 52 64 64 60 72 Z" fill="#22c55e"/>
+    <!-- Central Stalk & Sun Kernel -->
+    <path d="M 60 76 L 60 48" stroke="#14532d" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="60" cy="42" r="3.5" fill="#eab308"/>
+  </g>
+</svg>
+

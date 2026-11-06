@@ -32,6 +32,7 @@ export async function GET(request: Request) {
         where: {
           status: 'ACTIVE',
           role: 'STAFF',
+          isAttendanceExempt: false,
           ...(subsidiaryId && subsidiaryId !== 'ALL'
             ? { assignments: { some: { subsidiaryId } } }
             : {}),

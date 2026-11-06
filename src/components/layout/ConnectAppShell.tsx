@@ -346,12 +346,28 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
           <div className="side-brand" style={{ cursor: 'pointer' }} onClick={() => { if (typeof window !== 'undefined') window.location.href = '/finance'; }}>
             <span style={{ width: 32, height: 32, borderRadius: 7, background: '#ffffff', border: `1.5px solid ${activeBrandColor}50`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 2, flexShrink: 0 }}>
               {activeLogoUrl ? (
-                <img src={activeLogoUrl} alt={currentSub.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              ) : (
-                <span style={{ fontSize: 12, fontWeight: 900, color: activeBrandColor }}>
-                  {currentSub.initials || currentSub.name.slice(0, 2).toUpperCase()}
-                </span>
-              )}
+                <img
+                  src={activeLogoUrl}
+                  alt={currentSub.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const fallback = e.currentTarget.parentElement?.querySelector('.brand-logo-fallback') as HTMLElement | null;
+                    if (fallback) fallback.style.display = 'inline-block';
+                  }}
+                />
+              ) : null}
+              <span
+                className="brand-logo-fallback"
+                style={{
+                  fontSize: 12,
+                  fontWeight: 900,
+                  color: activeBrandColor,
+                  display: activeLogoUrl ? 'none' : 'inline-block',
+                }}
+              >
+                {currentSub.initials || currentSub.name.slice(0, 2).toUpperCase()}
+              </span>
             </span>
             <div className="brand-title-wrap" style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap', margin: 0, padding: 0 }}>
               <span className="brand-name" title={currentSub.name} style={{ display: 'block', fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif", fontSize: '15px', fontWeight: 850, letterSpacing: '-0.01em', color: '#ffffff', lineHeight: 1.2, margin: 0, padding: 0, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 155 }}>

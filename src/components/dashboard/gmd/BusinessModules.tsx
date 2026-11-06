@@ -814,6 +814,7 @@ type Staff = {
   avatarUrl?: string | null;
   phone?: string | null;
   isOfflineStaff?: boolean;
+  isAttendanceExempt?: boolean;
   kioskPin?: string | null;
   assignments: { subsidiary: { legalName: string }; department?: { name: string } | null; positionName: string }[];
   employmentAgreements: { compensations: { grossMinor: number; currency: string; recurrence: string; version: number; changeType?: string | null; changeReason?: string | null; effectiveFrom: string }[] }[];
@@ -839,6 +840,7 @@ type StaffDetail = {
     workEmail: string;
     phone: string | null;
     isOfflineStaff?: boolean;
+    isAttendanceExempt?: boolean;
     kioskPin?: string | null;
     gender?: string | null;
     dateOfBirth?: string | null;
@@ -1216,6 +1218,30 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
       await Promise.all([load(), selectedId ? open(selectedId) : Promise.resolve()]);
     } catch (e: any) {
       setError(e.message || 'Error updating status.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleAttendanceExemption = async (employeeId: string, exempt: boolean, name: string) => {
+    const confirmPrompt = exempt
+      ? `Remove ${name} from attendance signing?\n\nThey will no longer appear in the daily attendance list and will NOT be flagged as absent.`
+      : `Require ${name} to sign daily attendance?`;
+    if (!window.confirm(confirmPrompt)) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/employees/${encodeURIComponent(employeeId)}/attendance-exemption`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ isAttendanceExempt: exempt }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update attendance exemption.');
+      setNotice(data.message || (exempt ? `${name} is now exempt from attendance.` : `${name} now requires attendance.`));
+      await Promise.all([load(), open(employeeId)]);
+    } catch (e: any) {
+      setError(e.message || 'Error updating attendance exemption.');
     } finally {
       setSaving(false);
     }
@@ -1859,6 +1885,23 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                     {s.status === 'ACTIVE' ? 'Active' : 'Suspended'}
                   </span>
 
+                  {s.isAttendanceExempt && (
+                    <span
+                      style={{
+                        background: '#f3e8ff',
+                        border: '1px solid #e9d5ff',
+                        color: '#7e22ce',
+                        padding: '4px 9px',
+                        borderRadius: 6,
+                        fontWeight: 750,
+                        fontSize: 11,
+                      }}
+                      title="Exempt from attendance signing (not listed on daily attendance)"
+                    >
+                      Exempt
+                    </span>
+                  )}
+
                   <button
                     type="button"
                     style={{
@@ -2048,6 +2091,24 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                         >
                           {selected.employee.status === 'ACTIVE' ? 'Active & Cleared' : 'Suspended'}
                         </span>
+                        {selected.employee.isAttendanceExempt && (
+                          <>
+                            <span>·</span>
+                            <span
+                              style={{
+                                background: '#f3e8ff',
+                                border: '1px solid #e9d5ff',
+                                color: '#7e22ce',
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                                fontWeight: 750,
+                                fontSize: 11,
+                              }}
+                            >
+                              Attendance Exempt
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2117,6 +2178,38 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                       }}
                     >
                       <ListChecks size={13} /> Request Info Update
+                    </button>
+
+                    <button
+                      type="button"
+                      style={{
+                        background: selected.employee.isAttendanceExempt ? '#faf5ff' : '#f8fafc',
+                        border: selected.employee.isAttendanceExempt ? '1px solid #d8b4fe' : '1px solid #cbd5e1',
+                        color: selected.employee.isAttendanceExempt ? '#7e22ce' : '#334155',
+                        fontWeight: 700,
+                        fontSize: 12,
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                      }}
+                      title={
+                        selected.employee.isAttendanceExempt
+                          ? 'Staff is currently exempt from signing attendance. Click to require daily attendance.'
+                          : 'Staff currently signs daily attendance. Click to remove from daily attendance list.'
+                      }
+                      onClick={() =>
+                        toggleAttendanceExemption(
+                          selected.employee.id,
+                          !selected.employee.isAttendanceExempt,
+                          selected.employee.legalName
+                        )
+                      }
+                    >
+                      <Clock size={13} />
+                      {selected.employee.isAttendanceExempt ? 'Exempt from Attendance ✓' : 'Exempt from Attendance'}
                     </button>
 
                     <button

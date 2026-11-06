@@ -4692,12 +4692,28 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
           <div className="side-brand" style={{ cursor: 'pointer' }} onClick={() => { if (typeof window !== 'undefined') window.location.href = '/'; }}>
             <span style={{ width: 38, height: 38, borderRadius: 8, background: '#ffffff', border: `1.5px solid ${activeBrandColor}50`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 2, flexShrink: 0 }}>
               {activeLogoUrl ? (
-                <img src={activeLogoUrl} alt={current.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }}/>
-              ) : (
-                <span style={{ fontSize: 13, fontWeight: 900, color: activeBrandColor }}>
-                  {current.initials || current.name.slice(0, 2).toUpperCase()}
-                </span>
-              )}
+                <img
+                  src={activeLogoUrl}
+                  alt={current.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const fallback = e.currentTarget.parentElement?.querySelector('.brand-logo-fallback') as HTMLElement | null;
+                    if (fallback) fallback.style.display = 'inline-block';
+                  }}
+                />
+              ) : null}
+              <span
+                className="brand-logo-fallback"
+                style={{
+                  fontSize: 13,
+                  fontWeight: 900,
+                  color: activeBrandColor,
+                  display: activeLogoUrl ? 'none' : 'inline-block',
+                }}
+              >
+                {current.initials || current.name.slice(0, 2).toUpperCase()}
+              </span>
             </span>
             <div className="brand-title-wrap" style={{display:'inline-flex',alignItems:'center',minWidth:0,overflow:'hidden',whiteSpace:'nowrap',margin:0,padding:0}}>
               <span className="brand-name" title={current.name} style={{display:'block',fontFamily:"'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",fontSize:'15px',fontWeight:850,letterSpacing:'-0.01em',color:'#ffffff',lineHeight:1.2,margin:0,padding:0,overflow:'hidden',textOverflow:'ellipsis',maxWidth:155}}>
@@ -4789,12 +4805,28 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
                             }}
                           >
                             {subLogo ? (
-                              <img src={subLogo} alt={b.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                            ) : (
-                              <span style={{ fontSize: 11, fontWeight: 800, color: subColor }}>
-                                {b.initials || b.code?.slice(0, 2) || b.name.slice(0, 2).toUpperCase()}
-                              </span>
-                            )}
+                              <img
+                                src={subLogo}
+                                alt={b.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const fallback = e.currentTarget.parentElement?.querySelector('.sub-logo-fallback') as HTMLElement | null;
+                                  if (fallback) fallback.style.display = 'inline-block';
+                                }}
+                              />
+                            ) : null}
+                            <span
+                              className="sub-logo-fallback"
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 800,
+                                color: subColor,
+                                display: subLogo ? 'none' : 'inline-block',
+                              }}
+                            >
+                              {b.initials || b.code?.slice(0, 2) || b.name.slice(0, 2).toUpperCase()}
+                            </span>
                           </span>
 
                           <div style={{ flex: 1, minWidth: 0 }}>

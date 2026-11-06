@@ -55,6 +55,15 @@ export async function GET() {
         const brandColorSetting = o.settings.find(s => s.key === 'BRAND_COLOR');
         const logoUrlSetting = o.settings.find(s => s.key === 'BRAND_LOGO_URL');
 
+        const DEFAULT_LOGOS: Record<string, string> = {
+          'BEMS-GROUP': '/bems-group-logo.png?v=20261024',
+          'BBH': '/logos/bbh.svg',
+          'BTECH': '/logos/smartairs.svg',
+          'BSA': '/logos/studio-arella.svg',
+          'BEDU': '/logos/bedu.svg',
+          'BAGRO': '/logos/bems-farms.svg',
+        };
+
         const resolvedIndustry = industrySetting?.value || (
           o.type === 'GROUP' 
             ? 'Holding & Conglomerate HQ' 
@@ -66,7 +75,7 @@ export async function GET() {
         );
 
         const resolvedColor = o.brandColor || brandColorSetting?.value || (o.type === 'GROUP' ? '#ea580c' : '#0d8a70');
-        const resolvedLogo = o.logoUrl || logoUrlSetting?.value || (o.type === 'GROUP' ? '/bems-group-logo.png?v=20261024' : null);
+        const resolvedLogo = o.logoUrl || logoUrlSetting?.value || DEFAULT_LOGOS[o.code] || (o.type === 'GROUP' ? '/bems-group-logo.png?v=20261024' : null);
 
         return {
           id: o.id,
