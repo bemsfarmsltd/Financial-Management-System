@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getLagosTime, serializeAttendanceRecord } from '@/lib/attendance/token';
-import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { getAuthenticatedEmployee, getHrAuthorizationScope, hasAnyRole } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
     const user = await getAuthenticatedEmployee(request);
-    if (!user || !hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
-      return NextResponse.json({ error: 'Unauthorized: Executive or HR access required' }, { status: 401 });
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized: Sign in required' }, { status: 401 });
+    }
+    const isExecutive = hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
+    const hrScope = await getHrAuthorizationScope(user);
+    if (!isExecutive && !hrScope.authorized) {
+      return NextResponse.json({ error: 'Forbidden: Executive or HR access required' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -26,6 +31,17 @@ export async function GET(request: Request) {
     const targetDateObj = new Date(tYear, tMonth - 1, tDay);
     const targetDayOfWeek = targetDateObj.getDay(); // 0 = Sun, 6 = Sat
 
+    // Intersect subsidiary filter with HR scope
+    const scopedSubsidiaryIds = hrScope.isGlobal
+      ? subsidiaryId && subsidiaryId !== 'ALL'
+        ? [subsidiaryId]
+        : null
+      : subsidiaryId && subsidiaryId !== 'ALL'
+      ? hrScope.subsidiaryIds.includes(subsidiaryId)
+        ? [subsidiaryId]
+        : []
+      : hrScope.subsidiaryIds;
+
     // Fetch employees, policy, and attendance records in parallel
     const [employees, records, rawPolicies, rawSubsidiaries] = await Promise.all([
       prisma.employee.findMany({
@@ -33,11 +49,11 @@ export async function GET(request: Request) {
           status: 'ACTIVE',
           role: 'STAFF',
           isAttendanceExempt: false,
-          ...(subsidiaryId && subsidiaryId !== 'ALL'
-            ? { assignments: { some: { subsidiaryId } } }
+          ...(scopedSubsidiaryIds !== null
+            ? { assignments: { some: { subsidiaryId: { in: scopedSubsidiaryIds }, status: 'ACTIVE' } } }
             : {}),
           ...(departmentId && departmentId !== 'ALL'
-            ? { assignments: { some: { departmentId } } }
+            ? { assignments: { some: { departmentId, status: 'ACTIVE' } } }
             : {}),
         },
         include: {

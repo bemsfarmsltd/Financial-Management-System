@@ -1,38 +1,48 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee, hashPassword, publicEmployee } from '@/lib/auth';
+import {
+  getAuthenticatedEmployee,
+  getHrAuthorizationScope,
+  hasAnyRole,
+  hashPassword,
+  publicEmployee,
+} from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { sendStaffOnboardWelcomeEmail } from '@/lib/email';
+import { sendStaffLoginReadyEmail } from '@/lib/email';
+import { recordEmployeeAuditEvent } from '@/lib/employee-lifecycle';
 
 export const dynamic = 'force-dynamic';
 
-const VALID_ROLES = [
-  'SYSTEM_ADMIN',
-  'GMD',
-  'COO',
-  'HEAD_OF_ADMIN',
-  'FINANCE',
-  'VERIFIER',
-  'DEPT_HEAD',
-  'HR',
-  'STAFF',
-];
+// Strict 3-Role Architecture & Onboarding Channel Separation:
+// Direct onboarding via /api/staff/onboard is strictly reserved for STAFF profiles.
+// Executive accounts (GMD, SUPER_ADMIN / SYSTEM_ADMIN) MUST use the Executive Email Invitation flow (/api/staff/invite -> /api/staff/onboard/complete).
+const VALID_ROLES = ['STAFF'] as const;
 
 export async function POST(request: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
-    if (!actor || !['SYSTEM_ADMIN', 'GMD', 'HR'].includes(actor.role)) {
-      return NextResponse.json({ error: 'Administrative or HR authorization is required to onboard roles.' }, { status: 403 });
+    const actor = await getAuthenticatedEmployee(request);
+    if (!actor) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
+
+    const isExecutive = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
+    const hrScope = await getHrAuthorizationScope(actor);
+
+    if (!isExecutive && !hrScope.authorized) {
+      return NextResponse.json(
+        { error: 'Executive or authorized HR capability is required to onboard staff.' },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();
     const legalName = typeof body.legalName === 'string' ? body.legalName.trim() : '';
     const workEmail = typeof body.workEmail === 'string' ? body.workEmail.trim().toLowerCase() : '';
     const phone = typeof body.phone === 'string' ? body.phone.trim() : null;
-    const role = typeof body.role === 'string' ? body.role.trim() : '';
+    const requestedRole = typeof body.role === 'string' ? body.role.trim().toUpperCase() : 'STAFF';
     const password = typeof body.password === 'string' ? body.password : '';
     const subsidiaryId = typeof body.subsidiaryId === 'string' && body.subsidiaryId ? body.subsidiaryId : null;
     const departmentId = typeof body.departmentId === 'string' && body.departmentId ? body.departmentId : null;
-    const positionName = typeof body.positionName === 'string' && body.positionName.trim() ? body.positionName.trim() : role;
+    const positionName = typeof body.positionName === 'string' && body.positionName.trim() ? body.positionName.trim() : 'Staff';
 
     if (!legalName || legalName.length < 2) {
       return NextResponse.json({ error: 'Legal full name is required.' }, { status: 400 });
@@ -42,20 +52,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Valid work email is required.' }, { status: 400 });
     }
 
-    if (!VALID_ROLES.includes(role)) {
-      return NextResponse.json({ error: `Invalid role selected. Allowed roles: ${VALID_ROLES.join(', ')}` }, { status: 400 });
+    if (!VALID_ROLES.includes(requestedRole as any)) {
+      return NextResponse.json(
+        {
+          error:
+            'Direct onboarding is strictly reserved for STAFF. Executive roles (GMD and Super Admin) must be onboarded via Executive Email Invitations (/api/staff/invite).',
+        },
+        { status: 400 }
+      );
     }
 
-    if (role === 'GMD') {
-      const existingGmd = await prisma.employee.findFirst({
-        where: { role: 'GMD', status: 'ACTIVE', approvalStatus: 'APPROVED' },
-        select: { id: true, legalName: true, workEmail: true },
-      });
-      if (existingGmd) {
-        return NextResponse.json({
-          error: `The system can only have one Group Managing Director (GMD). An active GMD already exists: ${existingGmd.legalName} (${existingGmd.workEmail}).`,
-        }, { status: 409 });
-      }
+    if (!subsidiaryId) {
+      return NextResponse.json({ error: 'A subsidiary entity is required for staff onboarding.' }, { status: 400 });
+    }
+
+    if (!isExecutive && !hrScope.isGlobal && !hrScope.subsidiaryIds.includes(subsidiaryId)) {
+      return NextResponse.json(
+        { error: 'Forbidden: You can only onboard staff into your authorized subsidiary.' },
+        { status: 403 }
+      );
     }
 
     if (!password || password.length < 10) {
@@ -71,8 +86,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `An account already exists for ${workEmail}.` }, { status: 409 });
     }
 
-    const rolePrefix = role.replace(/_/g, '').slice(0, 3).toUpperCase();
-    const employeeNumber = `BEMS-${rolePrefix}-${Date.now().toString().slice(-4)}`;
+    const employeeNumber = `BEMS-STA-${Date.now().toString().slice(-4)}`;
     const passwordHash = await hashPassword(password);
 
     const employee = await prisma.$transaction(async (tx) => {
@@ -82,67 +96,75 @@ export async function POST(request: Request) {
           legalName,
           workEmail,
           phone,
-          role,
+          role: 'STAFF',
+          jobTitle: positionName,
           status: 'ACTIVE',
           approvalStatus: 'APPROVED',
           passwordHash,
         },
       });
 
-      if (subsidiaryId) {
-        await tx.employeeAssignment.create({
-          data: {
-            employeeId: created.id,
-            subsidiaryId,
-            departmentId: departmentId || null,
-            positionName,
-            isPrimary: true,
-          },
-        });
-      }
+      await tx.employeeAssignment.create({
+        data: {
+          employeeId: created.id,
+          subsidiaryId,
+          departmentId: departmentId || null,
+          positionName,
+          isPrimary: true,
+          status: 'ACTIVE',
+        },
+      });
 
       await tx.systemNotification.create({
         data: {
           employeeId: created.id,
           kind: 'ACCOUNT_ONBOARDED',
           title: 'Account Provisioned',
-          body: `Your ${role} profile has been initialized by System Administrator ${actor.legalName}.`,
+          body: `Your STAFF profile has been initialized by ${actor.legalName}.`,
         },
       });
 
       return created;
     });
 
-    try {
-      let subName = 'BEMS Group Holdings';
-      if (subsidiaryId) {
-        const org = await prisma.organization.findUnique({
-          where: { id: subsidiaryId },
-          select: { legalName: true },
-        });
-        if (org?.legalName) subName = org.legalName;
-      }
+    await recordEmployeeAuditEvent({
+      actor,
+      targetId: employee.id,
+      action: 'STAFF_ONBOARDED',
+      subsidiaryId,
+      metadata: { workEmail, employeeNumber, positionName },
+    });
 
-      await sendStaffOnboardWelcomeEmail({
+    // Security rule: Never email reusable plaintext account passwords.
+    try {
+      const org = await prisma.organization.findUnique({
+        where: { id: subsidiaryId },
+        select: { legalName: true },
+      });
+      const subName = org?.legalName || 'BEMS Group Holdings';
+
+      await sendStaffLoginReadyEmail({
         to: employee.workEmail,
-        name: employee.legalName,
+        staffName: employee.legalName,
         employeeNumber: employee.employeeNumber,
-        role: employee.role,
-        initialPassword: password,
+        roleTitle: positionName,
         subsidiaryName: subName,
       });
     } catch (emailErr) {
-      console.error('Failed to dispatch onboarding welcome email:', emailErr);
+      console.error('Failed to dispatch staff login ready email:', emailErr);
     }
 
-    return NextResponse.json({
-      success: true,
-      message: `Successfully onboarded ${employee.legalName} as ${employee.role}. Welcome email with credentials dispatched to ${employee.workEmail}.`,
-      employee: {
-        ...publicEmployee(employee),
-        employeeNumber: employee.employeeNumber,
+    return NextResponse.json(
+      {
+        success: true,
+        message: `Successfully onboarded ${employee.legalName} as STAFF. Activation notice dispatched to ${employee.workEmail}.`,
+        employee: {
+          ...publicEmployee(employee),
+          employeeNumber: employee.employeeNumber,
+        },
       },
-    }, { status: 201 });
+      { status: 201 }
+    );
   } catch (error: any) {
     console.error('Role onboarding error:', error);
     return NextResponse.json({ error: error.message || 'Failed to onboard account.' }, { status: 500 });

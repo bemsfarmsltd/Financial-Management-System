@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee, isHrAuthorizedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, getHrAuthorizationScope } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  approveEmployeeOnboarding,
+  LifecycleAuthorizationError,
+  rejectEmployeeOnboarding,
+  transitionEmployeeStatus,
+  verifyTargetEmployeeAccess,
+} from '@/lib/employee-lifecycle';
 
 export async function GET(req: Request) {
   try {
@@ -9,7 +16,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!(await isHrAuthorizedEmployee(actor))) {
+    const hrScope = await getHrAuthorizationScope(actor);
+    if (!hrScope.authorized) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -18,6 +26,11 @@ export async function GET(req: Request) {
     const subsidiaryId = searchParams.get('subsidiaryId');
     const approvalStatus = searchParams.get('approvalStatus');
     const status = searchParams.get('status');
+
+    // Intersect requested subsidiaryId with HR caller's authorized subsidiaryIds
+    if (subsidiaryId && !hrScope.isGlobal && !hrScope.subsidiaryIds.includes(subsidiaryId)) {
+      return NextResponse.json({ success: true, staff: [] });
+    }
 
     const whereClause: any = {
       role: 'STAFF',
@@ -39,6 +52,13 @@ export async function GET(req: Request) {
           status: 'ACTIVE',
         },
       };
+    } else if (!hrScope.isGlobal) {
+      whereClause.assignments = {
+        some: {
+          subsidiaryId: { in: hrScope.subsidiaryIds },
+          status: 'ACTIVE',
+        },
+      };
     }
 
     if (approvalStatus) {
@@ -51,7 +71,42 @@ export async function GET(req: Request) {
 
     const staffMembers = await prisma.employee.findMany({
       where: whereClause,
-      include: {
+      select: {
+        id: true,
+        employeeNumber: true,
+        legalName: true,
+        workEmail: true,
+        phone: true,
+        status: true,
+        approvalStatus: true,
+        avatarUrl: true,
+        jobTitle: true,
+        employmentType: true,
+        resumptionDate: true,
+        workLocation: true,
+        staffGrade: true,
+        gender: true,
+        dateOfBirth: true,
+        residentialAddress: true,
+        cityState: true,
+        maritalStatus: true,
+        stateOfOrigin: true,
+        lga: true,
+        nin: true,
+        bvn: true,
+        highestEducation: true,
+        isOfflineStaff: true,
+        bankName: true,
+        accountNumber: true,
+        accountName: true,
+        salaryBankName: true,
+        salaryAccountNumber: true,
+        salaryAccountName: true,
+        nextOfKinName: true,
+        nextOfKinPhone: true,
+        nextOfKinRelationship: true,
+        nextOfKinAddress: true,
+        createdAt: true,
         assignments: {
           where: { status: 'ACTIVE' },
           include: {
@@ -118,23 +173,19 @@ export async function GET(req: Request) {
         bvn: s.bvn,
         highestEducation: s.highestEducation,
         isOfflineStaff: s.isOfflineStaff,
-        kioskPin: s.kioskPin,
-        // Banking
+        // Least-field projection: never expose kioskPin or passwordHash
         bankName: s.bankName,
         accountNumber: s.accountNumber,
         accountName: s.accountName,
         salaryBankName: s.salaryBankName,
         salaryAccountNumber: s.salaryAccountNumber,
         salaryAccountName: s.salaryAccountName,
-        // Next of kin
         nextOfKinName: s.nextOfKinName,
         nextOfKinPhone: s.nextOfKinPhone,
         nextOfKinRelationship: s.nextOfKinRelationship,
         nextOfKinAddress: s.nextOfKinAddress,
-        // Assignments
         primaryAssignment: s.assignments.find((a) => a.isPrimary) || s.assignments[0] || null,
         assignments: s.assignments,
-        // Compensation
         currentGrossMinor: activeComp ? activeComp.grossMinor.toString() : '0',
         currency: activeComp?.currency || 'NGN',
         pendingProfileUpdates: s.profileUpdateRequests,
@@ -161,7 +212,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!(await isHrAuthorizedEmployee(actor))) {
+    const hrScope = await getHrAuthorizationScope(actor);
+    if (!hrScope.authorized) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -173,22 +225,11 @@ export async function POST(req: Request) {
     }
 
     if (action === 'APPROVE_ONBOARDING') {
-      const updated = await prisma.employee.update({
-        where: { id: employeeId },
-        data: {
-          approvalStatus: 'APPROVED',
-          status: 'ACTIVE',
-        },
-      });
-
-      await prisma.systemNotification.create({
-        data: {
-          employeeId,
-          kind: 'ONBOARDING',
-          title: 'Onboarding Approved',
-          body: 'Your staff onboarding has been approved by Human Resources. Welcome to BEMS Group!',
-          linkUrl: '/dashboard',
-        },
+      const updated = await approveEmployeeOnboarding({
+        actor,
+        targetEmployeeId: employeeId,
+        assignedRole: 'STAFF',
+        requireStaffRoleOnly: true,
       });
 
       return NextResponse.json({ success: true, employee: updated });
@@ -196,38 +237,28 @@ export async function POST(req: Request) {
 
     if (action === 'REJECT_ONBOARDING') {
       const { rejectionReason } = body;
-      const updated = await prisma.employee.update({
-        where: { id: employeeId },
-        data: {
-          approvalStatus: 'REJECTED',
-          status: 'TERMINATED',
-        },
-      });
-
-      await prisma.systemNotification.create({
-        data: {
-          employeeId,
-          kind: 'ONBOARDING',
-          title: 'Onboarding Update',
-          body: rejectionReason
-            ? `Your onboarding registration was not approved: ${rejectionReason}`
-            : 'Your onboarding registration was not approved. Please consult HR.',
-          linkUrl: '/dashboard',
-        },
+      const updated = await rejectEmployeeOnboarding({
+        actor,
+        targetEmployeeId: employeeId,
+        rejectionReason: rejectionReason || null,
+        requireStaffRoleOnly: true,
       });
 
       return NextResponse.json({ success: true, employee: updated });
     }
 
     if (action === 'UPDATE_STATUS') {
-      const { newStatus } = body;
-      if (!['ACTIVE', 'ON_LEAVE', 'TERMINATED'].includes(newStatus)) {
+      const { newStatus, reason } = body;
+      if (!['ACTIVE', 'ON_LEAVE', 'SUSPENDED', 'TERMINATED'].includes(newStatus)) {
         return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
       }
 
-      const updated = await prisma.employee.update({
-        where: { id: employeeId },
-        data: { status: newStatus },
+      const updated = await transitionEmployeeStatus({
+        actor,
+        targetEmployeeId: employeeId,
+        nextStatus: newStatus,
+        reason: reason || null,
+        requireStaffRoleOnly: true,
       });
 
       return NextResponse.json({ success: true, employee: updated });
@@ -238,6 +269,8 @@ export async function POST(req: Request) {
       if (!Array.isArray(requestedFields) || requestedFields.length === 0) {
         return NextResponse.json({ error: 'Please specify fields to update' }, { status: 400 });
       }
+
+      await verifyTargetEmployeeAccess(actor, employeeId, { allowExecutiveTarget: false });
 
       const newRequest = await prisma.staffProfileUpdateRequest.create({
         data: {
@@ -263,6 +296,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
+    if (error instanceof LifecycleAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error('HR Staff Action Error:', error);
     return NextResponse.json({ error: 'Failed to execute staff action' }, { status: 500 });
   }

@@ -47,9 +47,9 @@ export async function GET(request: Request) {
   const now = new Date();
   const { start, end, previousStart, previousEnd } = periodBounds(period, now);
 
-  const { resolveOrganizationScope } = await import('@/lib/organizations');
-  const scope = await resolveOrganizationScope(rawSubsidiary);
-  const subsidiaryFilter = scope.isGroup ? {} : { subsidiaryId: { in: scope.organizationIds } };
+  const { resolveAuthorizedOrganizationScope } = await import('@/lib/organizations');
+  const scope = await resolveAuthorizedOrganizationScope(actor, rawSubsidiary);
+  const subsidiaryFilter = { subsidiaryId: { in: scope.organizationIds } };
   const staffFilter = isStaff ? { requestedById: actor.id } : {};
   const requestFilters = { ...subsidiaryFilter, ...staffFilter, ...(category === 'ALL' ? {} : { category }), ...(status === 'ALL' ? {} : { approvalStatus: status }) };
   const requestWhere = (from: Date, to: Date) => ({ ...requestFilters, createdAt: { gte: from, lt: to } });

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { toSystemRequestId } from '@/lib/request-id';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,21 +12,34 @@ export async function GET(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to view recurring commitments.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR', 'COO', 'FINANCE', 'DIRECTOR', 'HEAD_OF_ADMIN', 'AI_ANALYST', 'FINANCE_CONTROLLER'])) {
-      return NextResponse.json({ error: 'You do not have access to group recurring commitments.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Executive access is required to view group recurring commitments.' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
     const subsidiary = searchParams.get('subsidiary') || searchParams.get('organization_id');
 
-    let whereClause: any = { isRecurring: true, approvalStatus: { not: 'REJECTED' } };
-    if (subsidiary && subsidiary !== 'ALL') {
-      const { resolveOrganizationScope } = await import('@/lib/organizations');
-      const scope = await resolveOrganizationScope(subsidiary);
-      if (!scope.isGroup) {
-        whereClause.subsidiaryId = { in: scope.organizationIds };
-      }
+    const scope = await resolveAuthorizedOrganizationScope(actor, subsidiary);
+    if (scope.organizationIds.length === 0) {
+      return NextResponse.json(
+        {
+          requests: [],
+          summary: {
+            approvedCount: 0,
+            pendingCount: 0,
+            annualRunRateMinor: '0',
+            nextDueRequestId: null,
+          },
+        },
+        { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' } }
+      );
     }
+
+    const whereClause: any = {
+      isRecurring: true,
+      approvalStatus: { not: 'REJECTED' },
+      subsidiaryId: { in: scope.organizationIds },
+    };
 
     const requests = await prisma.expenditureRequest.findMany({
       where: whereClause,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedEmployee, hasAnyRole, isHrAuthorizedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, getHrAuthorizationScope, hasAnyRole } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +8,8 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to prepare payroll.' }, { status: 401 });
-    const isAuthorized = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']) || (await isHrAuthorizedEmployee(actor));
+    const hrScope = await getHrAuthorizationScope(actor);
+    const isAuthorized = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']) || hrScope.authorized;
     if (!isAuthorized) {
       return NextResponse.json({ error: 'HR or Executive authority (GMD or Super Admin) required to prepare payroll.' }, { status: 403 });
     }

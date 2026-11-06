@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to view approval policies.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive access is required to view approval policies.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive access is required to view approval policies.' }, { status: 403 });
     const { searchParams } = new URL(request.url);
     const subsidiaryCode = searchParams.get('subsidiary');
 
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to manage approval policies.' }, { status: 401 });
-    if (actor.role !== 'SYSTEM_ADMIN') return NextResponse.json({ error: 'Only the System Admin can change approval policies.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Only an Executive or Super Admin can change approval policies.' }, { status: 403 });
     const body = await request.json();
     const { id, scopeSubsidiaryId, category, minAmount, maxAmount, requiredRole, priority, active } = body;
 

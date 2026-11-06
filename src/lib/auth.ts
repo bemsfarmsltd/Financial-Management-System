@@ -314,9 +314,6 @@ export function hasAnyRole(employee: AuthenticatedEmployee | null | undefined, r
     if (role === 'GMD' && (target === 'GMD' || target.includes('MANAGING DIRECTOR'))) {
       return true;
     }
-    if ((role === 'HR' || role === 'HR_ADMIN') && (target === 'HR' || target === 'HR_ADMIN' || target.includes('HUMAN RESOURCES'))) {
-      return true;
-    }
     if (role === 'STAFF' && target === 'STAFF') {
       return true;
     }
@@ -324,31 +321,136 @@ export function hasAnyRole(employee: AuthenticatedEmployee | null | undefined, r
   return false;
 }
 
-export async function isHrAuthorizedEmployee(employee: AuthenticatedEmployee | null | undefined): Promise<boolean> {
-  if (!employee) return false;
-  const role = (employee.role || '').toUpperCase();
-  if (role === 'HR' || role === 'HR_ADMIN') return true;
+export type HrAuthorizationScope = {
+  authorized: boolean;
+  isExecutive: boolean;
+  isGlobal: boolean;
+  subsidiaryIds: string[];
+};
 
-  if (employee.employeeNumber?.toUpperCase().includes('HR') || (employee as any).jobTitle?.toUpperCase().includes('HR')) {
-    return true;
+const OFFICIAL_HR_DEPT_CODES = new Set(['HR', 'HUMAN_RESOURCES', 'PEOPLE_OPS']);
+
+/**
+ * Evaluates explicit, revocable, entity-scoped HR capability for an authenticated employee.
+ * - Never infers HR authority from free-text substrings in employeeNumber, jobTitle, or department.name.
+ * - Restricts checked assignments strictly to active, non-expired assignments in active subsidiaries.
+ * - Supports explicit revocable capability grants via WorkspaceSetting (key: 'HR_CAPABILITY_GRANTS').
+ */
+export async function getHrAuthorizationScope(
+  employee: AuthenticatedEmployee | null | undefined
+): Promise<HrAuthorizationScope> {
+  if (!employee) {
+    return { authorized: false, isExecutive: false, isGlobal: false, subsidiaryIds: [] };
   }
 
   try {
     const empRecord = await prisma.employee.findUnique({
       where: { id: employee.id },
-      include: { assignments: { include: { department: true } } },
+      select: {
+        id: true,
+        role: true,
+        status: true,
+        approvalStatus: true,
+        assignments: {
+          where: {
+            status: 'ACTIVE',
+            OR: [{ endsOn: null }, { endsOn: { gt: new Date() } }],
+            subsidiary: { status: 'ACTIVE' },
+          },
+          select: {
+            subsidiaryId: true,
+            subsidiary: { select: { id: true, type: true } },
+            department: { select: { id: true, code: true } },
+          },
+        },
+      },
     });
-    if (empRecord?.jobTitle?.toUpperCase().includes('HR') || empRecord?.employeeNumber?.toUpperCase().includes('HR')) {
-      return true;
-    }
-    const inHrDept = empRecord?.assignments?.some((a) =>
-      a.department?.name?.toUpperCase().includes('HR') || a.department?.name?.toUpperCase().includes('HUMAN RESOURCE')
-    );
-    if (inHrDept) return true;
-  } catch (err) {
-    console.warn('Could not verify HR department assignment:', err);
-  }
 
-  return false;
+    if (!empRecord || empRecord.status !== 'ACTIVE' || empRecord.approvalStatus !== 'APPROVED') {
+      return { authorized: false, isExecutive: false, isGlobal: false, subsidiaryIds: [] };
+    }
+
+    const isExecutive = hasAnyRole(employee, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
+    if (isExecutive) {
+      const allActiveOrgs = await prisma.organization.findMany({
+        where: { status: 'ACTIVE' },
+        select: { id: true },
+      });
+      return {
+        authorized: true,
+        isExecutive: true,
+        isGlobal: true,
+        subsidiaryIds: allActiveOrgs.map((o) => o.id),
+      };
+    }
+
+    const authorizedSubsidiaryIds = new Set<string>();
+    let hasGroupLevelGrant = false;
+
+    // 1. Check active assignments in an official HR department (exact department code match only)
+    for (const assignment of empRecord.assignments) {
+      const deptCode = (assignment.department?.code || '').trim().toUpperCase();
+      if (deptCode && OFFICIAL_HR_DEPT_CODES.has(deptCode)) {
+        authorizedSubsidiaryIds.add(assignment.subsidiaryId);
+        if (assignment.subsidiary?.type === 'GROUP') {
+          hasGroupLevelGrant = true;
+        }
+      }
+    }
+
+    // 2. Check explicit revocable capability grants in WorkspaceSetting ('HR_CAPABILITY_GRANTS')
+    const grantSettings = await prisma.workspaceSetting.findMany({
+      where: { key: 'HR_CAPABILITY_GRANTS' },
+      select: { organizationId: true, value: true },
+    });
+
+    for (const setting of grantSettings) {
+      try {
+        const parsed = JSON.parse(setting.value);
+        const grantedIds: string[] = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed?.employeeIds)
+          ? parsed.employeeIds
+          : [];
+        if (grantedIds.includes(empRecord.id)) {
+          authorizedSubsidiaryIds.add(setting.organizationId);
+        }
+      } catch {
+        // Ignore malformed setting JSON
+      }
+    }
+
+    if (hasGroupLevelGrant) {
+      const allActiveOrgs = await prisma.organization.findMany({
+        where: { status: 'ACTIVE' },
+        select: { id: true },
+      });
+      for (const org of allActiveOrgs) {
+        authorizedSubsidiaryIds.add(org.id);
+      }
+    }
+
+    const subsidiaryIds = Array.from(authorizedSubsidiaryIds);
+    return {
+      authorized: subsidiaryIds.length > 0,
+      isExecutive: false,
+      isGlobal: hasGroupLevelGrant,
+      subsidiaryIds,
+    };
+  } catch (err) {
+    console.warn('Could not verify explicit HR capability scope:', err);
+    return { authorized: false, isExecutive: false, isGlobal: false, subsidiaryIds: [] };
+  }
 }
+
+export async function isHrAuthorizedEmployee(
+  employee: AuthenticatedEmployee | null | undefined,
+  targetSubsidiaryId?: string | null
+): Promise<boolean> {
+  const scope = await getHrAuthorizationScope(employee);
+  if (!scope.authorized) return false;
+  if (scope.isGlobal || !targetSubsidiaryId) return true;
+  return scope.subsidiaryIds.includes(targetSubsidiaryId);
+}
+
 

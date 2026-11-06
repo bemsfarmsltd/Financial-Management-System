@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee, isHrAuthorizedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, getHrAuthorizationScope } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -15,28 +15,45 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const channelParam = (searchParams.get('channel') || '').toUpperCase();
 
-    const isHr = await isHrAuthorizedEmployee(actor);
     const isGmd = actor.role === 'GMD';
     const isSuperAdmin = actor.role === 'SYSTEM_ADMIN' || actor.role === 'SUPER_ADMIN';
-    const isAdmin = isGmd || isSuperAdmin || isHr;
+    const isExecutive = isGmd || isSuperAdmin;
+    const hrScope = await getHrAuthorizationScope(actor);
+    const isHrOnly = !isExecutive && hrScope.authorized;
+    const isAdmin = isExecutive || isHrOnly;
 
     if (isAdmin) {
-      const channel = isHr ? 'HR' : (channelParam === 'HR' ? 'HR' : 'GMD');
+      if (isHrOnly && channelParam === 'GMD') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
+      // Executive role takes precedence over HR; executives can inspect GMD (default) or HR when requested
+      const channel = isExecutive ? (channelParam === 'HR' ? 'HR' : 'GMD') : 'HR';
+
+      const whereClause: any = {
+        channel,
+        isReadByAdmin: false,
+        senderRole: 'STAFF',
+      };
+
+      if (isHrOnly && !hrScope.isGlobal) {
+        whereClause.employee = {
+          role: 'STAFF',
+          assignments: {
+            some: {
+              subsidiaryId: { in: hrScope.subsidiaryIds },
+              status: 'ACTIVE',
+            },
+          },
+        };
+      }
 
       const [unreadCount, latest] = await Promise.all([
         prisma.staffAdminMessage.count({
-          where: {
-            channel,
-            isReadByAdmin: false,
-            senderRole: 'STAFF',
-          },
+          where: whereClause,
         }),
         prisma.staffAdminMessage.findFirst({
-          where: {
-            channel,
-            isReadByAdmin: false,
-            senderRole: 'STAFF',
-          },
+          where: whereClause,
           orderBy: { createdAt: 'desc' },
           include: {
             employee: {
@@ -109,7 +126,7 @@ export async function GET(req: Request) {
       return response;
     }
   } catch (error) {
-    console.error('Error fetching unread chat messages:', error);
-    return NextResponse.json({ unreadCount: 0, latestMessage: null }, { status: 500 });
+    console.error('Error fetching unread chat count:', error);
+    return NextResponse.json({ unreadCount: 0, latestMessage: null });
   }
 }

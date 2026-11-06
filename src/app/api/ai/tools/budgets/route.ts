@@ -8,6 +8,12 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
   if (errorResponse) return errorResponse;
+  if (!actor || !actor.isExecutive) {
+    return NextResponse.json(
+      { ok: false, error_code: 'FORBIDDEN', message: 'Executive access is required to view budgets.' },
+      { status: 403 }
+    );
+  }
 
   const { searchParams } = new URL(req.url);
   const organizationId = searchParams.get('organization_id') || searchParams.get('subsidiary_id');

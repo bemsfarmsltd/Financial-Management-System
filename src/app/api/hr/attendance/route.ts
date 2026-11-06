@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee, isHrAuthorizedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, getHrAuthorizationScope } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  LifecycleAuthorizationError,
+  verifyTargetEmployeeAccess,
+} from '@/lib/employee-lifecycle';
 
 export async function GET(req: Request) {
   try {
@@ -9,7 +13,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!(await isHrAuthorizedEmployee(actor))) {
+    const hrScope = await getHrAuthorizationScope(actor);
+    if (!hrScope.authorized) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -29,7 +34,21 @@ export async function GET(req: Request) {
 
     const workDate = dateParam || (monthParam ? undefined : todayStr);
 
-    const whereClause: any = {};
+    const whereClause: any = {
+      employee: {
+        role: 'STAFF',
+        ...(hrScope.isGlobal
+          ? {}
+          : {
+              assignments: {
+                some: {
+                  subsidiaryId: { in: hrScope.subsidiaryIds },
+                  status: 'ACTIVE',
+                },
+              },
+            }),
+      },
+    };
 
     if (workDate) {
       whereClause.workDate = workDate;
@@ -122,18 +141,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!(await isHrAuthorizedEmployee(actor))) {
+    const hrScope = await getHrAuthorizationScope(actor);
+    if (!hrScope.authorized) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const body = await req.json();
-    const { action, attendanceRecordId, employeeId, workDate } = body;
+    const { action, attendanceRecordId } = body;
 
     if (action === 'SUBMIT_EXCUSE_REQUEST') {
       const { excuseNote } = body;
       if (!attendanceRecordId || !excuseNote) {
         return NextResponse.json({ error: 'Missing record id or excuse note' }, { status: 400 });
       }
+
+      const existingRecord = await prisma.attendanceRecord.findUnique({
+        where: { id: attendanceRecordId },
+        select: { id: true, employeeId: true },
+      });
+      if (!existingRecord) {
+        return NextResponse.json({ error: 'Attendance record not found' }, { status: 404 });
+      }
+
+      await verifyTargetEmployeeAccess(actor, existingRecord.employeeId, { allowExecutiveTarget: false });
 
       const updated = await prisma.attendanceRecord.update({
         where: { id: attendanceRecordId },
@@ -150,7 +180,7 @@ export async function POST(req: Request) {
       // Notify GMD and Super Admins
       const gmdsAndAdmins = await prisma.employee.findMany({
         where: {
-          role: { in: ['GMD', 'SYSTEM_ADMIN'] },
+          role: { in: ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] },
           status: 'ACTIVE',
         },
         select: { id: true },
@@ -183,6 +213,16 @@ export async function POST(req: Request) {
       let updatedRecord;
 
       if (attendanceRecordId) {
+        const existingRecord = await prisma.attendanceRecord.findUnique({
+          where: { id: attendanceRecordId },
+          select: { id: true, employeeId: true },
+        });
+        if (!existingRecord) {
+          return NextResponse.json({ error: 'Attendance record not found' }, { status: 404 });
+        }
+
+        await verifyTargetEmployeeAccess(actor, existingRecord.employeeId, { allowExecutiveTarget: false });
+
         updatedRecord = await prisma.attendanceRecord.update({
           where: { id: attendanceRecordId },
           data: {
@@ -196,6 +236,8 @@ export async function POST(req: Request) {
         if (!empId || !dateStr) {
           return NextResponse.json({ error: 'Missing employee or date for manual punch' }, { status: 400 });
         }
+
+        await verifyTargetEmployeeAccess(actor, empId, { allowExecutiveTarget: false });
 
         updatedRecord = await prisma.attendanceRecord.upsert({
           where: {
@@ -227,6 +269,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
+    if (error instanceof LifecycleAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error('HR Attendance Action Error:', error);
     return NextResponse.json({ error: 'Failed to record attendance action' }, { status: 500 });
   }

@@ -21,6 +21,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error_code: 'UNAUTHORIZED', message: 'Unauthorized' }, { status: 401 });
   }
   const isExecutive = actor.isExecutive;
+  if (!isExecutive) {
+    return NextResponse.json(
+      { ok: false, error_code: 'FORBIDDEN', message: 'Executive access is required to inspect the vendor banking registry and 3-way match dossiers.' },
+      { status: 403 }
+    );
+  }
 
   const { searchParams } = new URL(req.url);
   const requestId = searchParams.get('requestId') || '';

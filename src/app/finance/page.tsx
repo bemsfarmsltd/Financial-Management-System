@@ -4115,8 +4115,11 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
   const toggleInspectMode = useCallback(() => setIsInspectMode((prev) => !prev), []);
   const isAiAuthorized = !isStaff && (
     currentRole === 'GMD' ||
+    currentRole === 'SYSTEM_ADMIN' ||
+    currentRole === 'SUPER_ADMIN' ||
     (safeUser.role as string) === 'GMD' ||
     (safeUser.role as string) === 'SYSTEM_ADMIN' ||
+    (safeUser.role as string) === 'SUPER_ADMIN' ||
     (isAiOnly && allowAiAnalystChat)
   );
 
@@ -4481,11 +4484,11 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
     if(target==='HR Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p}/>;
     if(target==='Executive briefing') return <ExecutiveBriefingModule business={current} setNotice={setNotice} onNavigate={(p)=>setActive(p)}/>;
     if(target==='Subsidiary portfolio') return <Businesses businesses={businesses} current={current} onSelect={selectBusiness} onAdd={onAddBusiness} onEdit={onEditBusiness}/>;
-    if(target==='Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={currentRole !== 'GMD' && currentRole !== 'SYSTEM_ADMIN'}/>;
+    if(target==='Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={currentRole !== 'GMD' && currentRole !== 'SYSTEM_ADMIN' && currentRole !== 'SUPER_ADMIN'}/>;
     if(target==='Approvals & payments'||target==='Approvals & Policy Hub'||target==='Approvals desk') return <FundFlowWorkspace businessName={current.name} userName={safeUser.fullName} scope={activeScope} businessId={current.id} businessCode={(current as any).code} onNavigate={setActive} onSelectBusiness={selectBusiness}/>;
     if(target==='New fund request') {
-      if (currentRole === 'GMD' || currentRole === 'SYSTEM_ADMIN') {
-        setNotice('GMD and System Admin accounts are executive governance roles and do not submit fund requests.');
+      if (currentRole === 'GMD' || currentRole === 'SYSTEM_ADMIN' || currentRole === 'SUPER_ADMIN') {
+        setNotice('GMD and Super Admin accounts are executive governance roles and do not submit fund requests.');
         return null;
       }
       if (typeof window !== 'undefined') window.location.href = '/requests/new';

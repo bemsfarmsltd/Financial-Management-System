@@ -2,9 +2,14 @@ import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sendStaffLoginReadyEmail } from '@/lib/email';
+import {
+  approveEmployeeOnboarding,
+  LifecycleAuthorizationError,
+  rejectEmployeeOnboarding,
+} from '@/lib/employee-lifecycle';
 
-export async function GET() {
-  const actor = await getAuthenticatedEmployee();
+export async function GET(request: Request) {
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor || !hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
     return NextResponse.json({ error: 'Executive or System Admin access required.' }, { status: 403 });
   }
@@ -36,7 +41,7 @@ export async function GET() {
             subsidiaryId: true,
             departmentId: true,
             positionName: true,
-          }
+          },
         },
         createdAt: true,
       },
@@ -60,7 +65,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const actor = await getAuthenticatedEmployee();
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor || !hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
     return NextResponse.json({ error: 'Executive or System Admin access required.' }, { status: 403 });
   }
@@ -69,7 +74,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const employeeId = typeof body.employeeId === 'string' ? body.employeeId : '';
     const decision = body.decision;
-    const candidateRole = typeof body.role === 'string' && body.role ? body.role : 'STAFF';
+    const candidateRole = typeof body.role === 'string' && body.role ? body.role.toUpperCase() : 'STAFF';
     const allowedRoles = ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN', 'STAFF'];
     const assignedRole = allowedRoles.includes(candidateRole) ? candidateRole : 'STAFF';
     const subsidiaryId = typeof body.subsidiaryId === 'string' && body.subsidiaryId ? body.subsidiaryId : null;
@@ -79,83 +84,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Choose an account and approve or reject it.' }, { status: 400 });
     }
 
-    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
-    if (!employee || employee.approvalStatus !== 'PENDING_APPROVAL') {
-      return NextResponse.json({ error: 'Pending signup not found.' }, { status: 404 });
-    }
-
-    const approved = decision === 'APPROVE';
-
-    if (approved && assignedRole === 'GMD') {
-      const existingGmd = await prisma.employee.findFirst({
-        where: { role: 'GMD', status: 'ACTIVE', approvalStatus: 'APPROVED', id: { not: employee.id } },
-        select: { id: true, legalName: true, workEmail: true },
-      });
-      if (existingGmd) {
-        return NextResponse.json({
-          error: `The system can only have one Group Managing Director (GMD). Active GMD is ${existingGmd.legalName} (${existingGmd.workEmail}).`,
-        }, { status: 409 });
-      }
-    }
-
-    const officialEmpNum = employee.employeeNumber.startsWith('PENDING-')
-      ? (approved ? `BEMS-${assignedRole.slice(0, 3)}-${Date.now().toString().slice(-4)}` : employee.employeeNumber)
-      : employee.employeeNumber;
-
-    await prisma.$transaction(async (tx) => {
-      await tx.employee.update({
-        where: { id: employee.id },
-        data: {
-          employeeNumber: officialEmpNum,
-          role: assignedRole,
-          approvalStatus: approved ? 'APPROVED' : 'REJECTED',
-          status: approved ? 'ACTIVE' : 'TERMINATED',
-        },
+    if (decision === 'APPROVE') {
+      const updated = await approveEmployeeOnboarding({
+        actor,
+        targetEmployeeId: employeeId,
+        assignedRole,
+        subsidiaryId,
+        departmentId,
+        positionName: body.positionName || null,
       });
 
-      if (approved) {
-        // Find existing primary assignment created during registration
-        const existingAssignment = await tx.employeeAssignment.findFirst({
-          where: { employeeId: employee.id, isPrimary: true },
-        });
-
-        if (existingAssignment) {
-          await tx.employeeAssignment.update({
-            where: { id: existingAssignment.id },
-            data: {
-              status: 'ACTIVE',
-              ...(subsidiaryId ? { subsidiaryId } : {}),
-              ...(departmentId ? { departmentId } : {}),
-              ...(body.positionName ? { positionName: body.positionName } : {}),
-            },
-          });
-        } else if (subsidiaryId) {
-          await tx.employeeAssignment.create({
-            data: {
-              employeeId: employee.id,
-              subsidiaryId,
-              departmentId: departmentId || null,
-              positionName: body.positionName || employee.jobTitle || assignedRole,
-              isPrimary: true,
-              status: 'ACTIVE',
-            },
-          });
-        }
-      }
-
-      await tx.systemNotification.create({
-        data: {
-          employeeId: employee.id,
-          kind: approved ? 'SIGNUP_APPROVED' : 'SIGNUP_REJECTED',
-          title: approved ? 'Account Approved' : 'Signup Declined',
-          body: approved
-            ? `Your account has been approved with role ${assignedRole}. You can now sign in.`
-            : 'Your signup was declined by the System Administrator.',
-        },
-      });
-    });
-
-    if (approved) {
       try {
         let subName = 'BEMS Group Holdings';
         if (subsidiaryId) {
@@ -163,22 +101,38 @@ export async function POST(request: Request) {
           if (org?.legalName) subName = org.legalName;
         }
         await sendStaffLoginReadyEmail({
-          to: employee.workEmail,
-          staffName: employee.legalName,
-          employeeNumber: officialEmpNum,
-          roleTitle: employee.jobTitle || assignedRole,
+          to: updated.workEmail,
+          staffName: updated.legalName,
+          employeeNumber: updated.employeeNumber,
+          roleTitle: updated.jobTitle || assignedRole,
           subsidiaryName: subName,
         });
       } catch (emailErr) {
         console.error('Failed to dispatch staff login ready email:', emailErr);
       }
-    }
 
-    return NextResponse.json({
-      success: true,
-      message: approved ? `Account for ${employee.legalName} approved as ${assignedRole}.` : 'Signup declined.',
-    });
+      return NextResponse.json({
+        success: true,
+        message: `Account for ${updated.legalName} approved as ${updated.role}.`,
+        employee: updated,
+      });
+    } else {
+      const updated = await rejectEmployeeOnboarding({
+        actor,
+        targetEmployeeId: employeeId,
+        rejectionReason: typeof body.reason === 'string' ? body.reason : null,
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: 'Signup declined.',
+        employee: updated,
+      });
+    }
   } catch (error: any) {
+    if (error instanceof LifecycleAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error('Signup approval error:', error);
     return NextResponse.json({ error: error.message || 'Could not update this signup.' }, { status: 500 });
   }

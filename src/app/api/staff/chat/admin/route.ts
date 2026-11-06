@@ -1,9 +1,62 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee, isHrAuthorizedEmployee } from '@/lib/auth';
+import {
+  getAuthenticatedEmployee,
+  getHrAuthorizationScope,
+  hasAnyRole,
+} from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sendChatMessageEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Shared channel & role resolution for Helpdesk Chat:
+ * - Executive roles (GMD, SUPER_ADMIN, SYSTEM_ADMIN) ALWAYS take precedence over inferred HR capability.
+ * - Executives can read and send on either 'GMD' (default) or 'HR' (when explicitly requested via channel='HR').
+ * - Scoped HR staff (!isExecutive && hrScope.authorized) can ONLY read and send on 'HR', and ONLY for STAFF in their authorized subsidiaryIds.
+ * - Regular STAFF can read and send on their own thread on either 'GMD' or 'HR'.
+ */
+async function resolveChatContext(actor: NonNullable<Awaited<ReturnType<typeof getAuthenticatedEmployee>>>, rawChannel?: string | null) {
+  const isGmd = actor.role === 'GMD';
+  const isSuperAdmin = actor.role === 'SYSTEM_ADMIN' || actor.role === 'SUPER_ADMIN';
+  const isExecutive = isGmd || isSuperAdmin;
+  const hrScope = await getHrAuthorizationScope(actor);
+  const isHrOnly = !isExecutive && hrScope.authorized;
+  const isAdmin = isExecutive || isHrOnly;
+
+  const requestedChannel = (rawChannel || '').trim().toUpperCase();
+
+  if (isHrOnly && requestedChannel === 'GMD') {
+    return {
+      error: 'Access denied: The GMD Executive channel is strictly confidential and inaccessible to HR.',
+      statusCode: 403,
+    } as const;
+  }
+
+  let effectiveChannel: 'GMD' | 'HR' = 'GMD';
+  let senderRole: 'GMD' | 'SYSTEM_ADMIN' | 'HR' | 'STAFF' = 'STAFF';
+
+  if (isExecutive) {
+    effectiveChannel = requestedChannel === 'HR' ? 'HR' : 'GMD';
+    senderRole = isGmd ? 'GMD' : 'SYSTEM_ADMIN';
+  } else if (isHrOnly) {
+    effectiveChannel = 'HR';
+    senderRole = 'HR';
+  } else {
+    effectiveChannel = requestedChannel === 'HR' ? 'HR' : 'GMD';
+    senderRole = 'STAFF';
+  }
+
+  return {
+    error: null,
+    isExecutive,
+    isHrOnly,
+    isAdmin,
+    hrScope,
+    effectiveChannel,
+    senderRole,
+  } as const;
+}
 
 export async function GET(req: Request) {
   try {
@@ -15,37 +68,36 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const requestedEmployeeId = searchParams.get('employeeId');
-    const channelParam = (searchParams.get('channel') || '').toUpperCase();
+    const channelParam = searchParams.get('channel');
 
-    const isHr = await isHrAuthorizedEmployee(actor);
-    const isGmd = actor.role === 'GMD';
-    const isSuperAdmin = actor.role === 'SYSTEM_ADMIN' || actor.role === 'SUPER_ADMIN';
-    const isAdmin = isGmd || isSuperAdmin || isHr;
-
-    // Strict Pipeline Security Enforcement:
-    // 1. HR can NEVER access the GMD executive channel under any circumstances.
-    if (isHr && channelParam === 'GMD') {
-      return NextResponse.json(
-        { error: 'Access denied: The GMD Executive channel is strictly confidential and inaccessible to HR.' },
-        { status: 403 }
-      );
+    const ctx = await resolveChatContext(actor, channelParam);
+    if (ctx.error) {
+      return NextResponse.json({ error: ctx.error }, { status: ctx.statusCode });
     }
 
-    // Determine effective channel
-    let effectiveChannel = 'GMD';
-    if (isHr) {
-      effectiveChannel = 'HR';
-    } else if (channelParam === 'HR') {
-      effectiveChannel = 'HR';
-    } else {
-      effectiveChannel = 'GMD';
-    }
+    const { isExecutive, isHrOnly, isAdmin, hrScope, effectiveChannel } = ctx;
 
     // Scenario A: Admin viewing thread list for their designated channel
     if (isAdmin && !requestedEmployeeId) {
-      // Fetch messages strictly matching this channel
+      const whereClause: any = {
+        channel: effectiveChannel,
+      };
+
+      // Scope HR thread list strictly to STAFF in their authorized subsidiaries
+      if (isHrOnly && !hrScope.isGlobal) {
+        whereClause.employee = {
+          role: 'STAFF',
+          assignments: {
+            some: {
+              subsidiaryId: { in: hrScope.subsidiaryIds },
+              status: 'ACTIVE',
+            },
+          },
+        };
+      }
+
       const recentMessages = await prisma.staffAdminMessage.findMany({
-        where: { channel: effectiveChannel },
+        where: whereClause,
         orderBy: { createdAt: 'desc' },
         include: {
           employee: {
@@ -55,19 +107,25 @@ export async function GET(req: Request) {
               employeeNumber: true,
               workEmail: true,
               avatarUrl: true,
-              assignments: { select: { isPrimary: true, subsidiary: { select: { legalName: true, code: true } } } },
+              assignments: {
+                where: { status: 'ACTIVE' },
+                select: { isPrimary: true, subsidiaryId: true, subsidiary: { select: { legalName: true, code: true } } },
+              },
             },
           },
         },
         take: 500,
       });
 
-      const threadMap = new Map<string, {
-        employee: any;
-        lastMessage: any;
-        unreadCount: number;
-        channel: string;
-      }>();
+      const threadMap = new Map<
+        string,
+        {
+          employee: any;
+          lastMessage: any;
+          unreadCount: number;
+          channel: string;
+        }
+      >();
 
       for (const msg of recentMessages) {
         if (!threadMap.has(msg.employeeId)) {
@@ -96,7 +154,49 @@ export async function GET(req: Request) {
     }
 
     // Scenario B: Specific conversation thread
+    // Non-admins cannot read another employee's thread
+    if (!isAdmin && requestedEmployeeId && requestedEmployeeId !== actor.id) {
+      return NextResponse.json({ error: 'Forbidden: You can only view your own helpdesk conversation.' }, { status: 403 });
+    }
+
     const targetEmployeeId = isAdmin && requestedEmployeeId ? requestedEmployeeId : actor.id;
+
+    const targetEmployee = await prisma.employee.findUnique({
+      where: { id: targetEmployeeId },
+      select: {
+        id: true,
+        role: true,
+        legalName: true,
+        employeeNumber: true,
+        workEmail: true,
+        avatarUrl: true,
+        assignments: {
+          where: { status: 'ACTIVE' },
+          select: { isPrimary: true, subsidiaryId: true, subsidiary: { select: { legalName: true, code: true } } },
+        },
+      },
+    });
+
+    if (!targetEmployee) {
+      return NextResponse.json({ error: 'Target employee not found.' }, { status: 404 });
+    }
+
+    // If HR-only admin is accessing a specific employee's thread, enforce STAFF role and subsidiary scope
+    if (isHrOnly && targetEmployeeId !== actor.id) {
+      if (targetEmployee.role !== 'STAFF') {
+        return NextResponse.json({ error: 'Forbidden: HR cannot access executive helpdesk threads.' }, { status: 403 });
+      }
+      if (!hrScope.isGlobal) {
+        const empSubIds = targetEmployee.assignments.map((a) => a.subsidiaryId);
+        const inScope = empSubIds.some((id) => hrScope.subsidiaryIds.includes(id));
+        if (!inScope) {
+          return NextResponse.json(
+            { error: 'Forbidden: Employee is outside your authorized HR subsidiary scope.' },
+            { status: 403 }
+          );
+        }
+      }
+    }
 
     const messages = await prisma.staffAdminMessage.findMany({
       where: {
@@ -107,8 +207,9 @@ export async function GET(req: Request) {
       take: 200,
     });
 
-    // Mark messages as read based on who is reading
-    if (isAdmin) {
+    // Mark messages as read based on whether caller is reading as Admin or Staff owner
+    const readingAsAdmin = isAdmin && targetEmployeeId !== actor.id;
+    if (readingAsAdmin || (isExecutive && requestedEmployeeId === actor.id)) {
       await prisma.staffAdminMessage.updateMany({
         where: {
           employeeId: targetEmployeeId,
@@ -127,18 +228,6 @@ export async function GET(req: Request) {
         data: { isReadByStaff: true },
       });
     }
-
-    const targetEmployee = await prisma.employee.findUnique({
-      where: { id: targetEmployeeId },
-      select: {
-        id: true,
-        legalName: true,
-        employeeNumber: true,
-        workEmail: true,
-        avatarUrl: true,
-        assignments: { select: { isPrimary: true, subsidiary: { select: { legalName: true, code: true } } } },
-      },
-    });
 
     const response = NextResponse.json({
       success: true,
@@ -169,67 +258,74 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Message cannot be empty.' }, { status: 400 });
     }
 
-    const isHr = await isHrAuthorizedEmployee(actor);
-    const isGmd = actor.role === 'GMD';
-    const isSuperAdmin = actor.role === 'SYSTEM_ADMIN' || actor.role === 'SUPER_ADMIN';
-    const isAdmin = isGmd || isSuperAdmin || isHr;
-
-    // Strict Pipeline Validation:
-    // HR is restricted to HR channel only
-    if (isHr && body.channel === 'GMD') {
-      return NextResponse.json(
-        { error: 'Forbidden: HR accounts cannot send messages on the GMD Executive channel.' },
-        { status: 403 }
-      );
+    const ctx = await resolveChatContext(actor, body.channel);
+    if (ctx.error) {
+      return NextResponse.json({ error: ctx.error }, { status: ctx.statusCode });
     }
 
-    let targetChannel = 'GMD';
-    let senderRole = 'STAFF';
+    const { isHrOnly, isAdmin, hrScope, effectiveChannel: targetChannel, senderRole } = ctx;
 
-    if (isHr) {
-      targetChannel = 'HR';
-      senderRole = 'HR';
-    } else if (isGmd) {
-      targetChannel = 'GMD';
-      senderRole = 'GMD';
-    } else if (isSuperAdmin) {
-      targetChannel = body.channel === 'HR' ? 'HR' : 'GMD';
-      senderRole = 'SYSTEM_ADMIN';
-    } else {
-      // Staff sender: Can address GMD or HR
-      targetChannel = body.channel === 'HR' ? 'HR' : 'GMD';
-      senderRole = 'STAFF';
+    if (!isAdmin && body.employeeId && body.employeeId !== actor.id) {
+      return NextResponse.json({ error: 'Forbidden: You can only send messages in your own helpdesk thread.' }, { status: 403 });
     }
 
     const targetEmployeeId = isAdmin && body.employeeId ? body.employeeId : actor.id;
+    const sendingAsAdmin = isAdmin && Boolean(body.employeeId) && (body.employeeId !== actor.id || hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']));
 
-    // Verify employee exists
     const employee = await prisma.employee.findUnique({
       where: { id: targetEmployeeId },
-      select: { id: true, legalName: true, workEmail: true },
+      select: {
+        id: true,
+        role: true,
+        legalName: true,
+        workEmail: true,
+        assignments: {
+          where: { status: 'ACTIVE' },
+          select: { subsidiaryId: true },
+        },
+      },
     });
 
     if (!employee) {
       return NextResponse.json({ error: 'Target employee not found.' }, { status: 404 });
     }
 
+    // Enforce HR target role & subsidiary scope
+    if (isHrOnly && targetEmployeeId !== actor.id) {
+      if (employee.role !== 'STAFF') {
+        return NextResponse.json({ error: 'Forbidden: HR cannot message executive accounts on the helpdesk.' }, { status: 403 });
+      }
+      if (!hrScope.isGlobal) {
+        const empSubIds = employee.assignments.map((a) => a.subsidiaryId);
+        const inScope = empSubIds.some((id) => hrScope.subsidiaryIds.includes(id));
+        if (!inScope) {
+          return NextResponse.json(
+            { error: 'Forbidden: Target employee is outside your authorized HR subsidiary scope.' },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
+    const effectiveSenderRole = sendingAsAdmin ? senderRole : 'STAFF';
+
     const newMessage = await prisma.staffAdminMessage.create({
       data: {
         employeeId: targetEmployeeId,
         channel: targetChannel,
-        senderRole,
+        senderRole: effectiveSenderRole,
         senderId: actor.id,
         senderName: actor.legalName,
         message: messageText,
         attachmentUrl: body.attachmentUrl || null,
         attachmentName: body.attachmentName || null,
-        isReadByStaff: !isAdmin, // if staff sent it, staff already read it
-        isReadByAdmin: isAdmin,  // if admin sent it, admin already read it
+        isReadByStaff: !sendingAsAdmin,
+        isReadByAdmin: sendingAsAdmin,
       },
     });
 
     // Pipeline-Aware Notification & Email Dispatch:
-    if (isAdmin) {
+    if (sendingAsAdmin) {
       const channelLabel = targetChannel === 'GMD' ? 'Executive Desk (GMD)' : 'HR Operations Desk';
       await prisma.systemNotification.create({
         data: {
@@ -246,7 +342,7 @@ export async function POST(req: Request) {
           to: employee.workEmail,
           recipientName: employee.legalName,
           senderName: actor.legalName,
-          senderRole: actor.role,
+          senderRole: effectiveSenderRole,
           messageText,
           attachmentName: body.attachmentName || null,
           contextTitle: `BEMS ${channelLabel}`,
@@ -254,9 +350,8 @@ export async function POST(req: Request) {
         }).catch((err) => console.error('Failed to email staff on admin message:', err));
       }
     } else {
-      // Message sent by Staff: Route STRICTLY according to targetChannel
+      // Message sent by Staff: Route STRICTLY according to targetChannel and subsidiary scope
       if (targetChannel === 'GMD') {
-        // Route EXCLUSIVELY to GMD - Never to HR!
         const gmds = await prisma.employee.findMany({
           where: {
             role: 'GMD',
@@ -295,19 +390,27 @@ export async function POST(req: Request) {
           }
         }
       } else {
-        // Route EXCLUSIVELY to HR - Never to GMD!
-        const hrPersonnel = await prisma.employee.findMany({
+        // Route to HR-authorized personnel in the employee's subsidiary
+        const empSubIds = employee.assignments.map((a) => a.subsidiaryId);
+        const hrCandidates = await prisma.employee.findMany({
           where: {
-            role: 'HR',
+            role: 'STAFF',
             status: 'ACTIVE',
             approvalStatus: 'APPROVED',
+            assignments: {
+              some: {
+                status: 'ACTIVE',
+                department: { code: { in: ['HR', 'HUMAN_RESOURCES', 'PEOPLE_OPS'] } },
+                ...(empSubIds.length > 0 ? { subsidiaryId: { in: empSubIds } } : {}),
+              },
+            },
           },
           select: { id: true, legalName: true, workEmail: true },
         });
 
-        if (hrPersonnel.length > 0) {
+        if (hrCandidates.length > 0) {
           await prisma.systemNotification.createMany({
-            data: hrPersonnel.map((hr) => ({
+            data: hrCandidates.map((hr) => ({
               employeeId: hr.id,
               kind: 'CHAT',
               title: `HR Helpdesk Inquiry from ${actor.legalName}`,
@@ -316,8 +419,8 @@ export async function POST(req: Request) {
             })),
           });
 
-          for (let i = 0; i < hrPersonnel.length; i++) {
-            const hr = hrPersonnel[i];
+          for (let i = 0; i < hrCandidates.length; i++) {
+            const hr = hrCandidates[i];
             if (hr.workEmail) {
               if (i > 0) await new Promise((r) => setTimeout(r, 600));
               await sendChatMessageEmail({

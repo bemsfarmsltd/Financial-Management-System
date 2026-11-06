@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import {
+  LifecycleAuthorizationError,
+  recordEmployeeAuditEvent,
+  verifyTargetEmployeeAccess,
+} from '@/lib/employee-lifecycle';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,9 +21,11 @@ export async function POST(
 
     const { employeeId } = await params;
     const isOwner = actor.id === employeeId;
-    const isPrivileged = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN' || actor.role === 'FINANCE_CONTROLLER';
-    if (!isOwner && !isPrivileged) {
-      return NextResponse.json({ error: 'Forbidden. You can only update your own bank details.' }, { status: 403 });
+    const isExecutive = hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
+
+    if (!isOwner && !isExecutive) {
+      // Allow scoped HR only for STAFF targets in their subsidiary
+      await verifyTargetEmployeeAccess(actor, employeeId, { allowExecutiveTarget: false });
     }
 
     const body = await request.json();
@@ -55,6 +62,13 @@ export async function POST(
       },
     });
 
+    await recordEmployeeAuditEvent({
+      actor,
+      targetId: employeeId,
+      action: 'BANKING_UPDATED',
+      metadata: { bankName, accountNumberMasked: `***${accountNumber.slice(-4)}` },
+    });
+
     return NextResponse.json({
       success: true,
       message: 'Dual corporate banking accounts updated successfully.',
@@ -69,6 +83,9 @@ export async function POST(
       },
     });
   } catch (error) {
+    if (error instanceof LifecycleAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error('Failed to update banking accounts:', error);
     return NextResponse.json({ error: 'Could not update banking accounts.' }, { status: 500 });
   }

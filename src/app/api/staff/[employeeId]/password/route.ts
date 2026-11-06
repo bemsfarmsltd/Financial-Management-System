@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedEmployee, hashPassword, verifyPassword } from '@/lib/auth';
+import {
+  getAuthenticatedEmployee,
+  hasAnyRole,
+  hashPassword,
+  invalidateSessionCache,
+  verifyPassword,
+} from '@/lib/auth';
+import { recordEmployeeAuditEvent } from '@/lib/employee-lifecycle';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,8 +23,9 @@ export async function POST(
 
     const { employeeId } = await params;
     const isOwner = actor.id === employeeId;
-    const isPrivileged = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN';
-    if (!isOwner && !isPrivileged) {
+    const isExecutive = hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
+
+    if (!isOwner && !isExecutive) {
       return NextResponse.json({ error: 'Forbidden. You can only change your own password.' }, { status: 403 });
     }
 
@@ -38,7 +46,24 @@ export async function POST(
       return NextResponse.json({ error: 'Staff member not found.' }, { status: 404 });
     }
 
-    if (employee.passwordHash && oldPassword) {
+    // Prevent non-Super Admin from resetting a Super Admin's password
+    const isTargetSuperAdmin = ['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes((employee.role || '').toUpperCase());
+    const isActorSuperAdmin = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN']);
+    if (!isOwner && isTargetSuperAdmin && !isActorSuperAdmin) {
+      return NextResponse.json(
+        { error: 'Only a Super Admin can reset another Super Admin password.' },
+        { status: 403 }
+      );
+    }
+
+    // Owner changing their own password MUST provide their valid current password
+    if (isOwner && employee.passwordHash) {
+      if (!oldPassword) {
+        return NextResponse.json(
+          { error: 'Current password is required to change your password.' },
+          { status: 400 }
+        );
+      }
       const match = await verifyPassword(oldPassword, employee.passwordHash);
       if (!match) {
         return NextResponse.json({ error: 'Current password is incorrect.' }, { status: 401 });
@@ -46,9 +71,26 @@ export async function POST(
     }
 
     const newHash = await hashPassword(newPassword);
-    await prisma.employee.update({
-      where: { id: employeeId },
-      data: { passwordHash: newHash },
+    await prisma.$transaction(async (tx) => {
+      await tx.employee.update({
+        where: { id: employeeId },
+        data: { passwordHash: newHash },
+      });
+
+      // Revoke sessions on password reset by another admin
+      if (!isOwner) {
+        await tx.authSession.deleteMany({
+          where: { employeeId },
+        });
+      }
+    });
+
+    invalidateSessionCache();
+
+    await recordEmployeeAuditEvent({
+      actor,
+      targetId: employeeId,
+      action: isOwner ? 'PASSWORD_CHANGED_SELF' : 'PASSWORD_RESET_BY_ADMIN',
     });
 
     return NextResponse.json({

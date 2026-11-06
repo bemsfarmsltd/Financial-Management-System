@@ -3,15 +3,21 @@ import crypto from 'node:crypto';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sendAdminInvitationEmail } from '@/lib/email';
+import {
+  assertSingleActiveGmd,
+  LifecycleAuthorizationError,
+  recordEmployeeAuditEvent,
+} from '@/lib/employee-lifecycle';
 
 export const dynamic = 'force-dynamic';
 
+// Strict 3-Role Architecture & Onboarding Channel Separation:
+// Executive Email Invitations are strictly reserved for Super admin (SYSTEM_ADMIN / SUPER_ADMIN) and GMD.
 const ALLOWED_INVITE_ROLES = [
   'SYSTEM_ADMIN',
   'SUPER_ADMIN',
   'GMD',
-  'HR',
-];
+] as const;
 
 // GET: Validate an invitation token OR list pending invitations for administrators
 export async function GET(request: Request) {
@@ -32,7 +38,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ valid: false, error: 'Invitation link was not found or has expired.' }, { status: 404 });
       }
 
-      if (invitation.status === 'COMPLETED') {
+      if (invitation.status === 'COMPLETED' || invitation.status === 'ACCEPTED') {
         return NextResponse.json({ valid: false, error: 'This invitation has already been completed. Please proceed to sign in.' }, { status: 400 });
       }
 
@@ -42,6 +48,10 @@ export async function GET(request: Request) {
 
       if (new Date() > invitation.expiresAt) {
         return NextResponse.json({ valid: false, error: 'This invitation link expired after 7 days. Please request a new invite.' }, { status: 410 });
+      }
+
+      if (!ALLOWED_INVITE_ROLES.includes(invitation.role as any)) {
+        return NextResponse.json({ valid: false, error: 'This invitation specifies a non-executive role and is no longer valid.' }, { status: 403 });
       }
 
       let departmentName = '';
@@ -69,8 +79,8 @@ export async function GET(request: Request) {
       });
     }
 
-    // 2. Otherwise, this is an authenticated admin fetching the pending invitations list
-    const actor = await getAuthenticatedEmployee();
+    // 2. Otherwise, this is an authenticated executive fetching the pending invitations list
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor || !hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
       return NextResponse.json({ error: 'Administrative access required to list invitations.' }, { status: 403 });
     }
@@ -78,7 +88,17 @@ export async function GET(request: Request) {
     const invitations = await prisma.adminInvitation.findMany({
       orderBy: { createdAt: 'desc' },
       take: 50,
-      include: {
+      select: {
+        id: true,
+        workEmail: true,
+        role: true,
+        subsidiaryId: true,
+        departmentId: true,
+        positionName: true,
+        invitedById: true,
+        status: true,
+        expiresAt: true,
+        createdAt: true,
         subsidiary: { select: { id: true, legalName: true } },
       },
     });
@@ -93,9 +113,9 @@ export async function GET(request: Request) {
 // POST: Create and dispatch an Executive / Admin invitation email
 export async function POST(request: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor || !hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
-      return NextResponse.json({ error: 'Administrative authorization is required to send role invitations.' }, { status: 403 });
+      return NextResponse.json({ error: 'Executive authorization is required to send role invitations.' }, { status: 403 });
     }
 
     const body = await request.json().catch(() => ({}));
@@ -109,10 +129,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'A valid corporate work email address is required.' }, { status: 400 });
     }
 
-    if (!ALLOWED_INVITE_ROLES.includes(role)) {
+    if (!ALLOWED_INVITE_ROLES.includes(role as any)) {
       return NextResponse.json({
         error: `Invalid role selected for executive invitation. Allowed roles: ${ALLOWED_INVITE_ROLES.join(', ')}`,
       }, { status: 400 });
+    }
+
+    // Role escalation safeguard: Only a Super Admin can invite another Super Admin
+    const isActorSuperAdmin = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN']);
+    if ((role === 'SYSTEM_ADMIN' || role === 'SUPER_ADMIN') && !isActorSuperAdmin) {
+      return NextResponse.json(
+        { error: 'Only a Super Admin can invite another Super Admin.' },
+        { status: 403 }
+      );
     }
 
     if (!subsidiaryId) {
@@ -121,15 +150,7 @@ export async function POST(request: Request) {
 
     // Single active GMD enforcement
     if (role === 'GMD') {
-      const existingGmd = await prisma.employee.findFirst({
-        where: { role: 'GMD', status: 'ACTIVE', approvalStatus: 'APPROVED' },
-        select: { id: true, legalName: true, workEmail: true },
-      });
-      if (existingGmd) {
-        return NextResponse.json({
-          error: `The system only permits one Group Managing Director (GMD). An active GMD already exists: ${existingGmd.legalName} (${existingGmd.workEmail}).`,
-        }, { status: 409 });
-      }
+      await assertSingleActiveGmd();
     }
 
     // Check if an active account already exists with this email
@@ -188,6 +209,14 @@ export async function POST(request: Request) {
       },
     });
 
+    await recordEmployeeAuditEvent({
+      actor,
+      targetId: invitation.id,
+      action: 'EXECUTIVE_INVITE_CREATED',
+      subsidiaryId,
+      metadata: { workEmail, role, positionName },
+    });
+
     // Dispatch formal invitation email
     try {
       await sendAdminInvitationEmail({
@@ -215,6 +244,9 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    if (error instanceof LifecycleAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error('Error in POST /api/staff/invite:', error);
     return NextResponse.json({ error: 'Could not send executive invitation. Please try again.' }, { status: 500 });
   }
@@ -223,9 +255,9 @@ export async function POST(request: Request) {
 // DELETE: Revoke a pending invitation
 export async function DELETE(request: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
-    if (!actor || !['SYSTEM_ADMIN', 'GMD', 'COO', 'HEAD_OF_ADMIN', 'HR', 'DIRECTOR'].includes(actor.role)) {
-      return NextResponse.json({ error: 'Administrative authorization is required.' }, { status: 403 });
+    const actor = await getAuthenticatedEmployee(request);
+    if (!actor || !hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Executive authorization is required.' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -235,9 +267,22 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Invitation ID is required.' }, { status: 400 });
     }
 
+    const existing = await prisma.adminInvitation.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: 'Invitation not found.' }, { status: 404 });
+    }
+
     await prisma.adminInvitation.update({
       where: { id },
       data: { status: 'REVOKED' },
+    });
+
+    await recordEmployeeAuditEvent({
+      actor,
+      targetId: id,
+      action: 'EXECUTIVE_INVITE_REVOKED',
+      subsidiaryId: existing.subsidiaryId,
+      metadata: { workEmail: existing.workEmail, role: existing.role },
     });
 
     return NextResponse.json({ success: true, message: 'Invitation has been revoked.' });

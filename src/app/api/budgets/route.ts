@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,28 +9,33 @@ export async function GET(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view budgets.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR'])) return NextResponse.json({ error: 'Executive or HR access is required to view budgets.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Executive access is required to view budgets.' }, { status: 403 });
+    }
     const { searchParams } = new URL(req.url);
     const organizationId = searchParams.get('organizationId') || searchParams.get('subsidiary');
 
-    const whereClause: any = {};
-    if (organizationId && organizationId !== 'ALL') {
-      const { resolveOrganizationScope } = await import('@/lib/organizations');
-      const scope = await resolveOrganizationScope(organizationId);
-      if (!scope.isGroup) {
-        whereClause.organizationId = { in: scope.organizationIds };
-      }
+    const scope = await resolveAuthorizedOrganizationScope(actor, organizationId);
+    if (scope.organizationIds.length === 0) {
+      return NextResponse.json(
+        { budgets: [] },
+        { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' } }
+      );
     }
+
+    const whereClause: any = {
+      organizationId: { in: scope.organizationIds },
+    };
 
     const budgets = await prisma.budget.findMany({
       where: whereClause,
       include: {
         organization: {
-          select: { id: true, legalName: true, code: true }
+          select: { id: true, legalName: true, code: true },
         },
-        lines: true
+        lines: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     return NextResponse.json(
@@ -45,7 +51,9 @@ export async function POST(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to manage budgets.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Only the System Admin or GMD can create budgets.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Only an Executive (GMD or Super Admin) can create budgets.' }, { status: 403 });
+    }
     const body = await req.json();
     const {
       organizationId,
@@ -54,7 +62,7 @@ export async function POST(req: Request) {
       periodName,
       totalAmount,
       warningThreshold,
-      lines
+      lines,
     } = body;
 
     if (!organizationId || !periodName || !totalAmount) {
@@ -81,14 +89,14 @@ export async function POST(req: Request) {
             allocatedAmount: parseFloat(l.allocatedAmount || 0),
             committedAmount: 0,
             spentAmount: 0,
-            status: 'ACTIVE'
-          }))
-        }
+            status: 'ACTIVE',
+          })),
+        },
       },
       include: {
         organization: true,
-        lines: true
-      }
+        lines: true,
+      },
     });
 
     return NextResponse.json({ budget }, { status: 201 });

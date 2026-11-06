@@ -9,6 +9,12 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
   if (errorResponse) return errorResponse;
+  if (!actor || !actor.isExecutive) {
+    return NextResponse.json(
+      { ok: false, error_code: 'FORBIDDEN', message: 'Executive access is required to view approval queues and disbursement links.' },
+      { status: 403 }
+    );
+  }
 
   const url = new URL(req.url);
   const statusFilter = url.searchParams.get('status') || 'PENDING';

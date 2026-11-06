@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import {
+  LifecycleAuthorizationError,
+  transitionEmployeeStatus,
+} from '@/lib/employee-lifecycle';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +13,7 @@ export async function PATCH(
 ) {
   try {
     const actor = await getAuthenticatedEmployee(request);
-    if (!actor || !hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN'])) {
+    if (!actor || !hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
       return NextResponse.json({ error: 'Executive authorization required.' }, { status: 403 });
     }
 
@@ -20,9 +23,9 @@ export async function PATCH(
     }
 
     const body = await request.json().catch(() => ({}));
-    const { status } = body;
+    const { status, reason } = body;
 
-    const validStatuses = ['ACTIVE', 'SUSPENDED', 'TERMINATED'];
+    const validStatuses = ['ACTIVE', 'SUSPENDED', 'TERMINATED'] as const;
     if (!status || !validStatuses.includes(status)) {
       return NextResponse.json(
         { error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` },
@@ -30,51 +33,19 @@ export async function PATCH(
       );
     }
 
-    const targetEmployee = await prisma.employee.findUnique({
-      where: { id: employeeId },
-      include: { assignments: { include: { subsidiary: true } } },
+    const updated = await transitionEmployeeStatus({
+      actor,
+      targetEmployeeId: employeeId,
+      nextStatus: status,
+      reason: typeof reason === 'string' ? reason : null,
+      requireStaffRoleOnly: false,
     });
 
-    if (!targetEmployee) {
-      return NextResponse.json({ error: 'Employee or Administrator account not found.' }, { status: 404 });
-    }
-
-    // Safety Safeguard: Cannot suspend yourself
-    if (actor.id === targetEmployee.id || actor.workEmail.toLowerCase() === targetEmployee.workEmail.toLowerCase()) {
-      return NextResponse.json(
-        { error: 'Action denied: You cannot suspend or deactivate your own active account.' },
-        { status: 400 }
-      );
-    }
-
-    // Safety Safeguard: Only GMD or SYSTEM_ADMIN can suspend other executives/admins
-    const isTargetExecutive = ['GMD', 'SYSTEM_ADMIN'].includes(targetEmployee.role);
-    if (isTargetExecutive && !['GMD', 'SYSTEM_ADMIN'].includes(actor.role)) {
-      return NextResponse.json(
-        { error: 'Only the Group Managing Director (GMD) or a System Administrator can suspend leadership accounts.' },
-        { status: 403 }
-      );
-    }
-
-    // Update the employee status
-    const updated = await prisma.employee.update({
-      where: { id: employeeId },
-      data: { status },
-    });
-
-    // If suspended or terminated, purge all active auth sessions so they are immediately logged out
-    if (status === 'SUSPENDED' || status === 'TERMINATED') {
-      await prisma.authSession.deleteMany({
-        where: { employeeId },
-      });
-    }
-
-    // Log an audit trail or notification if needed
-    const actionLabel = status === 'ACTIVE' ? 'reactivated' : 'suspended';
+    const actionLabel = status === 'ACTIVE' ? 'reactivated' : status === 'TERMINATED' ? 'terminated' : 'suspended';
 
     return NextResponse.json({
       success: true,
-      message: `Account for ${targetEmployee.legalName} (${targetEmployee.workEmail}) has been successfully ${actionLabel}.`,
+      message: `Account for ${updated.legalName} (${updated.workEmail}) has been successfully ${actionLabel}.`,
       employee: {
         id: updated.id,
         legalName: updated.legalName,
@@ -84,6 +55,9 @@ export async function PATCH(
       },
     });
   } catch (error: any) {
+    if (error instanceof LifecycleAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error('Error in PATCH /api/admin/employees/[employeeId]/status:', error);
     return NextResponse.json({ error: error.message || 'Failed to update account status.' }, { status: 500 });
   }

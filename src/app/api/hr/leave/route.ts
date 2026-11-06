@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee, isHrAuthorizedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, getHrAuthorizationScope } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  LifecycleAuthorizationError,
+  transitionEmployeeStatus,
+  verifyTargetEmployeeAccess,
+} from '@/lib/employee-lifecycle';
 
 export async function GET(req: Request) {
   try {
@@ -9,14 +14,29 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!(await isHrAuthorizedEmployee(actor))) {
+    const hrScope = await getHrAuthorizationScope(actor);
+    if (!hrScope.authorized) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
 
-    const whereClause: any = {};
+    const whereClause: any = {
+      employee: {
+        role: 'STAFF',
+        ...(hrScope.isGlobal
+          ? {}
+          : {
+              assignments: {
+                some: {
+                  subsidiaryId: { in: hrScope.subsidiaryIds },
+                  status: 'ACTIVE',
+                },
+              },
+            }),
+      },
+    };
     if (status && status !== 'ALL') {
       whereClause.status = status;
     }
@@ -85,7 +105,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!(await isHrAuthorizedEmployee(actor))) {
+    const hrScope = await getHrAuthorizationScope(actor);
+    if (!hrScope.authorized) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -97,6 +118,8 @@ export async function POST(req: Request) {
       if (!leaveType || !startDate || !endDate || !reason) {
         return NextResponse.json({ error: 'Missing required leave fields' }, { status: 400 });
       }
+
+      await verifyTargetEmployeeAccess(actor, targetEmpId, { allowExecutiveTarget: false });
 
       const newLeave = await prisma.leaveRequest.create({
         data: {
@@ -118,6 +141,16 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Missing leaveId' }, { status: 400 });
       }
 
+      const existingLeave = await prisma.leaveRequest.findUnique({
+        where: { id: leaveId },
+        select: { id: true, employeeId: true, status: true },
+      });
+      if (!existingLeave) {
+        return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
+      }
+
+      await verifyTargetEmployeeAccess(actor, existingLeave.employeeId, { allowExecutiveTarget: false });
+
       const updated = await prisma.leaveRequest.update({
         where: { id: leaveId },
         data: {
@@ -132,13 +165,17 @@ export async function POST(req: Request) {
         },
       });
 
-      // Update employee status to ON_LEAVE
-      await prisma.employee.update({
-        where: { id: updated.employeeId },
-        data: { status: 'ON_LEAVE' },
-      });
+      // Update employee status to ON_LEAVE via shared lifecycle service (unless actor is approving their own leave)
+      if (actor.id !== updated.employeeId) {
+        await transitionEmployeeStatus({
+          actor,
+          targetEmployeeId: updated.employeeId,
+          nextStatus: 'ON_LEAVE',
+          reason: `Approved leave (${updated.startDate} to ${updated.endDate})`,
+          requireStaffRoleOnly: true,
+        });
+      }
 
-      // Notify employee
       await prisma.systemNotification.create({
         data: {
           employeeId: updated.employeeId,
@@ -156,6 +193,16 @@ export async function POST(req: Request) {
       if (!leaveId) {
         return NextResponse.json({ error: 'Missing leaveId' }, { status: 400 });
       }
+
+      const existingLeave = await prisma.leaveRequest.findUnique({
+        where: { id: leaveId },
+        select: { id: true, employeeId: true, status: true },
+      });
+      if (!existingLeave) {
+        return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
+      }
+
+      await verifyTargetEmployeeAccess(actor, existingLeave.employeeId, { allowExecutiveTarget: false });
 
       const updated = await prisma.leaveRequest.update({
         where: { id: leaveId },
@@ -183,6 +230,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
+    if (error instanceof LifecycleAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error('HR Leave Action Error:', error);
     return NextResponse.json({ error: 'Failed to process leave action' }, { status: 500 });
   }

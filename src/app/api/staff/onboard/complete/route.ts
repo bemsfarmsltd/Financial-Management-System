@@ -1,8 +1,15 @@
+import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createEmployeeSession, hashPassword, publicEmployee } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  assertSingleActiveGmd,
+  LifecycleAuthorizationError,
+} from '@/lib/employee-lifecycle';
 
 export const dynamic = 'force-dynamic';
+
+const ALLOWED_INVITE_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'] as const;
 
 export async function POST(request: Request) {
   try {
@@ -42,7 +49,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invitation link was not found or has expired.' }, { status: 404 });
     }
 
-    if (invitation.status === 'COMPLETED') {
+    if (invitation.status === 'COMPLETED' || invitation.status === 'ACCEPTED') {
       return NextResponse.json({ error: 'This invitation has already been completed. Please sign in directly.' }, { status: 400 });
     }
 
@@ -52,6 +59,13 @@ export async function POST(request: Request) {
 
     if (new Date() > invitation.expiresAt) {
       return NextResponse.json({ error: 'This invitation has expired after 7 days. Please request a new invite.' }, { status: 410 });
+    }
+
+    if (!ALLOWED_INVITE_ROLES.includes(invitation.role as any)) {
+      return NextResponse.json(
+        { error: 'This invitation specifies a non-executive role and cannot be completed here.' },
+        { status: 403 }
+      );
     }
 
     // 2. Prevent duplicate account creation
@@ -66,23 +80,37 @@ export async function POST(request: Request) {
 
     // 3. Single GMD enforcement
     if (invitation.role === 'GMD') {
-      const existingGmd = await prisma.employee.findFirst({
-        where: { role: 'GMD', status: 'ACTIVE', approvalStatus: 'APPROVED' },
-        select: { id: true, legalName: true },
-      });
-      if (existingGmd) {
-        return NextResponse.json({
-          error: `An active Group Managing Director (GMD) already exists (${existingGmd.legalName}).`,
-        }, { status: 409 });
-      }
+      await assertSingleActiveGmd();
     }
 
-    // 4. Create Employee and Assignment in a transaction
+    // 4. Create Employee, Assignment, consume Invitation, and write AuditEvent in a transaction
     const rolePrefix = invitation.role.replace(/_/g, '').slice(0, 3).toUpperCase();
     const employeeNumber = `BEMS-${rolePrefix}-${Date.now().toString().slice(-4)}`;
     const passwordHash = await hashPassword(password);
 
     const employee = await prisma.$transaction(async (tx) => {
+      // Re-check invitation status atomically inside transaction
+      const consumeResult = await tx.adminInvitation.updateMany({
+        where: { id: invitation.id, status: 'PENDING' },
+        data: { status: 'COMPLETED' },
+      });
+      if (consumeResult.count === 0) {
+        throw new LifecycleAuthorizationError('This invitation has already been consumed or revoked.', 409);
+      }
+
+      if (invitation.role === 'GMD') {
+        const activeGmd = await tx.employee.findFirst({
+          where: { role: 'GMD', status: 'ACTIVE', approvalStatus: 'APPROVED' },
+          select: { id: true, legalName: true },
+        });
+        if (activeGmd) {
+          throw new LifecycleAuthorizationError(
+            `An active Group Managing Director (GMD) already exists (${activeGmd.legalName}).`,
+            409
+          );
+        }
+      }
+
       const created = await tx.employee.create({
         data: {
           employeeNumber,
@@ -110,12 +138,28 @@ export async function POST(request: Request) {
           departmentId: invitation.departmentId || null,
           positionName: invitation.positionName || invitation.role,
           isPrimary: true,
+          status: 'ACTIVE',
         },
       });
 
-      await tx.adminInvitation.update({
-        where: { id: invitation.id },
-        data: { status: 'COMPLETED' },
+      await tx.auditEvent.create({
+        data: {
+          actorId: created.id,
+          actorName: created.legalName,
+          actorRole: created.role,
+          groupId: 'bems-group-hq',
+          subsidiaryId: invitation.subsidiaryId,
+          targetType: 'EMPLOYEE',
+          targetId: created.id,
+          action: 'EXECUTIVE_INVITE_COMPLETED',
+          metadata: JSON.stringify({
+            invitationId: invitation.id,
+            invitedById: invitation.invitedById,
+            role: created.role,
+            workEmail: created.workEmail,
+          }),
+          correlationId: crypto.randomUUID(),
+        },
       });
 
       return created;
@@ -140,6 +184,9 @@ export async function POST(request: Request) {
 
     return res;
   } catch (error) {
+    if (error instanceof LifecycleAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error('Error in POST /api/staff/onboard/complete:', error);
     return NextResponse.json({ error: 'Could not complete onboarding. Please try again.' }, { status: 500 });
   }

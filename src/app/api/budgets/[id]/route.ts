@@ -7,16 +7,18 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view budgets.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR'])) return NextResponse.json({ error: 'Executive or HR access is required to view budgets.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Executive access is required to view budgets.' }, { status: 403 });
+    }
     const { id } = await params;
     const budget = await prisma.budget.findUnique({
       where: { id },
       include: {
         organization: true,
-        lines: true
-      }
+        lines: true,
+      },
     });
 
     if (!budget) {
@@ -34,9 +36,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to manage budgets.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Only the System Admin or GMD can update budgets.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Only an Executive (GMD or Super Admin) can update budgets.' }, { status: 403 });
+    }
     const { id } = await params;
     const body = await req.json();
     const { status, warningThreshold, totalAmount, periodName } = body;
@@ -52,8 +56,8 @@ export async function PATCH(
       data,
       include: {
         organization: true,
-        lines: true
-      }
+        lines: true,
+      },
     });
 
     return NextResponse.json({ budget: updated });
@@ -67,12 +71,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to manage budgets.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Only the System Admin or GMD can delete budgets.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Only an Executive (GMD or Super Admin) can delete budgets.' }, { status: 403 });
+    }
     const { id } = await params;
     await prisma.budget.delete({
-      where: { id }
+      where: { id },
     });
     return NextResponse.json({ success: true });
   } catch (error: any) {

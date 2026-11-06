@@ -14,6 +14,9 @@ export async function GET(request: Request) {
     if (gateBlock) return gateBlock;
 
     const actor = await getAuthenticatedEmployee(request);
+    if (!actor) {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    }
     const { searchParams } = new URL(request.url);
 
     const status = searchParams.get("status");
@@ -26,15 +29,15 @@ export async function GET(request: Request) {
     const dateTo = searchParams.get("date_to");
     const limit = Math.min(Number(searchParams.get("limit") || 100), 200);
 
+    const isExecutive = hasAnyRole(actor, ["SYSTEM_ADMIN", "SUPER_ADMIN", "GMD"]);
+
     // Build Prisma where query
     const where: any = {};
 
     // If logged in as staff, restrict to their own requests unless privileged
-    if (actor && !hasAnyRole(actor, ["SYSTEM_ADMIN", "SUPER_ADMIN", "GMD"])) {
+    if (!isExecutive) {
       where.requestedById = actor.id;
-    }
-
-    if (requesterId) {
+    } else if (requesterId) {
       where.requestedById = requesterId;
     }
 
@@ -46,13 +49,9 @@ export async function GET(request: Request) {
       where.category = category;
     }
 
-    if (subsidiaryId && subsidiaryId !== 'ALL') {
-      const { resolveOrganizationScope } = await import('@/lib/organizations');
-      const scope = await resolveOrganizationScope(subsidiaryId);
-      if (!scope.isGroup) {
-        where.subsidiaryId = { in: scope.organizationIds };
-      }
-    }
+    const { resolveAuthorizedOrganizationScope } = await import('@/lib/organizations');
+    const scope = await resolveAuthorizedOrganizationScope(actor, subsidiaryId);
+    where.subsidiaryId = { in: scope.organizationIds };
 
     if (minAmount && !isNaN(minAmount)) {
       where.amountMinor = { gte: BigInt(Math.round(minAmount * 100)) };

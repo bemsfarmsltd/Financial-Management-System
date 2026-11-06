@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import {
+  LifecycleAuthorizationError,
+  recordEmployeeAuditEvent,
+  verifyTargetEmployeeAccess,
+} from '@/lib/employee-lifecycle';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,18 +16,17 @@ export async function POST(
   try {
     const { employeeId } = await params;
     const actor = await getAuthenticatedEmployee(request);
-    const headerEmployeeId = request.headers.get('x-employee-id')?.trim();
 
-    if (!actor && (!headerEmployeeId || headerEmployeeId !== employeeId)) {
+    if (!actor) {
       return NextResponse.json({ error: 'Sign in to update profile contact details.' }, { status: 401 });
     }
 
-    if (actor) {
-      const isOwner = actor.id === employeeId;
-      const isPrivileged = actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN';
-      if (!isOwner && !isPrivileged) {
-        return NextResponse.json({ error: 'Forbidden. You can only update your own profile details.' }, { status: 403 });
-      }
+    const isOwner = actor.id === employeeId;
+    const isExecutive = hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
+
+    if (!isOwner && !isExecutive) {
+      // Allow scoped HR only for STAFF targets in their subsidiary
+      await verifyTargetEmployeeAccess(actor, employeeId, { allowExecutiveTarget: false });
     }
 
     const body = await request.json();
@@ -51,6 +55,13 @@ export async function POST(
       data: updateData,
     });
 
+    await recordEmployeeAuditEvent({
+      actor,
+      targetId: employeeId,
+      action: 'CONTACT_UPDATED',
+      metadata: { updatedPhone: Boolean(updateData.phone), updatedAvatar: Boolean(updateData.avatarUrl) },
+    });
+
     return NextResponse.json({
       success: true,
       phone: updated.phone,
@@ -58,6 +69,9 @@ export async function POST(
       message: 'Staff profile updated successfully.',
     });
   } catch (error) {
+    if (error instanceof LifecycleAuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error('Failed to update phone number:', error);
     return NextResponse.json({ error: 'Could not update contact phone number.' }, { status: 500 });
   }

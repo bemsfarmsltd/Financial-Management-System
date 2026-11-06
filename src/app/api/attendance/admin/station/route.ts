@@ -1,26 +1,36 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
-import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { getAuthenticatedEmployee, getHrAuthorizationScope, hasAnyRole } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
     const user = await getAuthenticatedEmployee(request);
-    if (!user || !hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
-      return NextResponse.json({ error: 'Unauthorized: Executive access required' }, { status: 401 });
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized: Sign in required' }, { status: 401 });
+    }
+    const isExecutive = hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
+    const hrScope = await getHrAuthorizationScope(user);
+    if (!isExecutive && !hrScope.authorized) {
+      return NextResponse.json({ error: 'Forbidden: Executive or authorized HR access required' }, { status: 403 });
     }
 
     let station = await prisma.attendanceStation.findFirst({
-      where: { status: 'ACTIVE' },
+      where: {
+        status: 'ACTIVE',
+        ...(hrScope.isGlobal ? {} : { organizationId: { in: hrScope.subsidiaryIds } }),
+      },
       include: { organization: { select: { legalName: true } } },
     });
 
     if (!station) {
-      const org = await prisma.organization.findFirst();
+      const org = await prisma.organization.findFirst({
+        where: hrScope.isGlobal ? {} : { id: { in: hrScope.subsidiaryIds } },
+      });
       if (!org) {
-        return NextResponse.json({ error: 'No organization found' }, { status: 404 });
+        return NextResponse.json({ error: 'No organization found in your authorized scope' }, { status: 404 });
       }
 
       station = await prisma.attendanceStation.create({
@@ -48,8 +58,13 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await getAuthenticatedEmployee(request);
-    if (!user || !hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'HR', 'COO'])) {
-      return NextResponse.json({ error: 'Unauthorized: Executive or Admin access required' }, { status: 401 });
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized: Sign in required' }, { status: 401 });
+    }
+    const isExecutive = hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
+    const hrScope = await getHrAuthorizationScope(user);
+    if (!isExecutive && !hrScope.authorized) {
+      return NextResponse.json({ error: 'Forbidden: Executive or authorized HR access required' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -71,12 +86,17 @@ export async function POST(request: Request) {
     }
 
     let station = await prisma.attendanceStation.findFirst({
-      where: { status: 'ACTIVE' },
+      where: {
+        status: 'ACTIVE',
+        ...(hrScope.isGlobal ? {} : { organizationId: { in: hrScope.subsidiaryIds } }),
+      },
     });
 
-    const org = await prisma.organization.findFirst();
+    const org = await prisma.organization.findFirst({
+      where: hrScope.isGlobal ? {} : { id: { in: hrScope.subsidiaryIds } },
+    });
     if (!org) {
-      return NextResponse.json({ error: 'No organization found' }, { status: 404 });
+      return NextResponse.json({ error: 'No organization found in your authorized scope' }, { status: 404 });
     }
 
     if (!station) {

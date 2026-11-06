@@ -4,15 +4,16 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+// Strict 3-Role Architecture: Only GMD, SYSTEM_ADMIN (Super Admin), and STAFF exist.
 const roleOptions = [
   { role: 'GMD', label: 'GMD (Executive Command)', employeeNumber: 'LOCAL-DEMO-GMD', legalName: 'GMD Executive', workEmail: 'gmd@bemsgroup.com' },
-  { role: 'SYSTEM_ADMIN', label: 'System Admin (Shared Command)', employeeNumber: 'LOCAL-DEMO-SYSTEM-ADMIN', legalName: 'Bems system Admin', workEmail: 'bemssofthubltd@gmail.com' },
-  { role: 'HR', label: 'HR (Human Resources)', employeeNumber: 'LOCAL-DEMO-HR', legalName: 'Folake Adeleke (HR Lead)', workEmail: 'hr@bemsgroup.com' },
+  { role: 'SYSTEM_ADMIN', label: 'Super Admin (Shared Command)', employeeNumber: 'LOCAL-DEMO-SYSTEM-ADMIN', legalName: 'Bems system Admin', workEmail: 'bemssofthubltd@gmail.com' },
   { role: 'STAFF', label: 'Staff Member (Self-Registered)', employeeNumber: 'LOCAL-DEMO-STAFF', legalName: 'Chioma Adebayo', workEmail: 'chioma.staff@bemsgroup.com' },
 ];
 
+// Security rule: Never allow production activation of the development role switcher (even via environment variable).
 function isDevEnabled(): boolean {
-  return process.env.NODE_ENV === 'development' || process.env.ENABLE_DEV_ROLE_SWITCHER === 'true';
+  return process.env.NODE_ENV === 'development';
 }
 
 export async function GET() {
@@ -26,24 +27,16 @@ export async function POST(request: Request) {
     const body = await request.json();
     const role = typeof body.role === 'string' ? body.role : '';
     const option = roleOptions.find(item => item.role === role);
-    if (!option) return NextResponse.json({ error: 'Choose GMD, System Admin, HR, or Staff.' }, { status: 400 });
-    let employee = await prisma.employee.findFirst({
+    if (!option) return NextResponse.json({ error: 'Choose GMD, Super Admin, or Staff.' }, { status: 400 });
+    const employee = await prisma.employee.findFirst({
       where: { role, status: 'ACTIVE', approvalStatus: 'APPROVED' },
       orderBy: { employeeNumber: 'asc' },
     });
     if (!employee) {
-      employee = await prisma.employee.upsert({
-        where: { workEmail: option.workEmail },
-        update: { role, status: 'ACTIVE', approvalStatus: 'APPROVED' },
-        create: {
-          employeeNumber: option.employeeNumber,
-          legalName: option.legalName,
-          workEmail: option.workEmail,
-          role,
-          status: 'ACTIVE',
-          approvalStatus: 'APPROVED',
-        },
-      });
+      return NextResponse.json(
+        { error: `No active ${role} account found in the local development database.` },
+        { status: 404 }
+      );
     }
     await createEmployeeSession(employee.id);
     return NextResponse.json({ user: publicEmployee(employee) });

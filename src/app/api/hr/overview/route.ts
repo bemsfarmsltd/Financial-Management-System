@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee, isHrAuthorizedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, getHrAuthorizationScope } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(req: Request) {
@@ -9,7 +9,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });
     }
 
-    if (!(await isHrAuthorizedEmployee(actor))) {
+    const hrScope = await getHrAuthorizationScope(actor);
+    if (!hrScope.authorized) {
       return NextResponse.json({ error: 'Forbidden. HR workspace access required.' }, { status: 403 });
     }
 
@@ -22,6 +23,31 @@ export async function GET(req: Request) {
       day: '2-digit',
     }).format(now);
 
+    const staffSubFilter = hrScope.isGlobal
+      ? {}
+      : {
+          assignments: {
+            some: {
+              subsidiaryId: { in: hrScope.subsidiaryIds },
+              status: 'ACTIVE',
+            },
+          },
+        };
+
+    const employeeRelationSubFilter = hrScope.isGlobal
+      ? {}
+      : {
+          employee: {
+            role: 'STAFF',
+            assignments: {
+              some: {
+                subsidiaryId: { in: hrScope.subsidiaryIds },
+                status: 'ACTIVE',
+              },
+            },
+          },
+        };
+
     const [
       totalStaff,
       pendingOnboarding,
@@ -32,47 +58,47 @@ export async function GET(req: Request) {
       latestPayrollBatch,
       subsidiaries,
     ] = await Promise.all([
-      // Total active staff
       prisma.employee.count({
         where: {
           role: 'STAFF',
           status: 'ACTIVE',
+          ...staffSubFilter,
         },
       }),
 
-      // Pending onboarding
       prisma.employee.count({
         where: {
           role: 'STAFF',
           approvalStatus: 'PENDING_APPROVAL',
+          ...staffSubFilter,
         },
       }),
 
-      // Pending profile update requests
       prisma.staffProfileUpdateRequest.count({
         where: {
           status: 'PENDING',
+          ...employeeRelationSubFilter,
         },
       }),
 
-      // Pending leave requests
       prisma.leaveRequest.count({
         where: {
           status: 'PENDING',
+          ...employeeRelationSubFilter,
         },
       }),
 
-      // Pending excuse / waiver requests
       prisma.attendanceRecord.count({
         where: {
           excuseStatus: 'PENDING_GMD_APPROVAL',
+          ...employeeRelationSubFilter,
         },
       }),
 
-      // Today's attendance records
       prisma.attendanceRecord.findMany({
         where: {
           workDate: todayStr,
+          ...employeeRelationSubFilter,
         },
         select: {
           status: true,
@@ -82,7 +108,6 @@ export async function GET(req: Request) {
         },
       }),
 
-      // Latest Payroll Batch
       prisma.payrollBatch.findFirst({
         orderBy: { createdAt: 'desc' },
         select: {
@@ -102,9 +127,11 @@ export async function GET(req: Request) {
         },
       }),
 
-      // Subsidiary breakdown
       prisma.organization.findMany({
-        where: { status: 'ACTIVE' },
+        where: {
+          status: 'ACTIVE',
+          ...(hrScope.isGlobal ? {} : { id: { in: hrScope.subsidiaryIds } }),
+        },
         select: {
           id: true,
           legalName: true,

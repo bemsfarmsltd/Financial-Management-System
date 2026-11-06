@@ -1,17 +1,20 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { extractClientIp } from '@/lib/attendance/token';
-import { getAuthenticatedEmployee, hasAnyRole, isHrAuthorizedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, getHrAuthorizationScope, hasAnyRole } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
     const user = await getAuthenticatedEmployee(request);
-    const isHr = await isHrAuthorizedEmployee(user);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized: Sign in required' }, { status: 401 });
+    }
+    const hrScope = await getHrAuthorizationScope(user);
     const isExecutive = hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
-    if (!user || (!isExecutive && !isHr)) {
-      return NextResponse.json({ error: 'Unauthorized: Administrative access required' }, { status: 401 });
+    if (!isExecutive && !hrScope.authorized) {
+      return NextResponse.json({ error: 'Forbidden: Administrative access required' }, { status: 403 });
     }
 
     // Always prioritize the primary GROUP/Holding organization policy, or the most recently updated policy
@@ -64,10 +67,21 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await getAuthenticatedEmployee(request);
-    const isHr = await isHrAuthorizedEmployee(user);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized: Sign in required' }, { status: 401 });
+    }
+    const hrScope = await getHrAuthorizationScope(user);
     const isExecutive = hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
-    if (!user || (!isExecutive && !isHr)) {
-      return NextResponse.json({ error: 'Unauthorized: Administrative access required' }, { status: 401 });
+    if (!isExecutive && !hrScope.authorized) {
+      return NextResponse.json({ error: 'Forbidden: Administrative access required' }, { status: 403 });
+    }
+
+    // Group-wide attendance policy mutations require either Executive or Group-level HR scope
+    if (!isExecutive && !hrScope.isGlobal) {
+      return NextResponse.json(
+        { error: 'Forbidden: Group-wide attendance policy changes require Executive or Group HR authority.' },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();

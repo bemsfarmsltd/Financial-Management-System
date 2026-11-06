@@ -141,6 +141,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Role escalation check: Only a Super Admin can invite another Super Admin
+  const isActorSuperAdmin = actor.role === 'SYSTEM_ADMIN' || actor.role === 'SUPER_ADMIN';
+  if (canonicalRole === 'SUPER_ADMIN' && !isActorSuperAdmin) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error_code: 'FORBIDDEN_ESCALATION',
+        message: 'Only a Super Admin can stage or issue a Super Admin executive invitation.',
+      },
+      { status: 403 }
+    );
+  }
+
   // Check if user already exists
   const existingEmployee = await prisma.employee.findFirst({
     where: {

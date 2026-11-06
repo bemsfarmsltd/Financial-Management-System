@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedEmployee, hasAnyRole, isHrAuthorizedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, getHrAuthorizationScope, hasAnyRole } from '@/lib/auth';
 import { createHash } from 'node:crypto';
 import { evaluatePaydayRadar } from '@/lib/payroll-radar';
 
@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view payroll.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']) && !(await isHrAuthorizedEmployee(actor))) {
+    const hrScope = await getHrAuthorizationScope(actor);
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']) && !hrScope.authorized) {
       return NextResponse.json({ error: 'Executive or HR access is required to view payroll.' }, { status: 403 });
     }
 
@@ -78,7 +79,6 @@ export async function GET(req: NextRequest) {
                     workEmail: true,
                     avatarUrl: true,
                     isOfflineStaff: true,
-                    kioskPin: true,
                     createdAt: true,
                     bankName: true,
                     accountNumber: true,
@@ -87,9 +87,10 @@ export async function GET(req: NextRequest) {
                     salaryAccountNumber: true,
                     salaryAccountName: true,
                     assignments: {
-                      where: { isPrimary: true },
+                      where: { status: 'ACTIVE' },
+                      orderBy: { isPrimary: 'desc' },
                       take: 1,
-                      include: { subsidiary: { select: { legalName: true } } }
+                      include: { subsidiary: { select: { id: true, legalName: true } } }
                     },
                     employmentAgreements: {
                       where: { status: 'ACTIVE' },
@@ -149,19 +150,27 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const totalGross = batch.items.reduce((sum, item) => sum + Number(item.grossMinor), 0);
-    const totalDeductions = batch.items.reduce((sum, item) => {
+    const scopedBatchItems = hrScope.isGlobal
+      ? batch.items
+      : batch.items.filter((item) => {
+          const empSubId = item.employee.assignments[0]?.subsidiaryId;
+          const hasAllocInScope = item.allocations.some((a) => hrScope.subsidiaryIds.includes(a.subsidiaryId));
+          return (empSubId && hrScope.subsidiaryIds.includes(empSubId)) || hasAllocInScope;
+        });
+
+    const totalGross = scopedBatchItems.reduce((sum, item) => sum + Number(item.grossMinor), 0);
+    const totalDeductions = scopedBatchItems.reduce((sum, item) => {
       const attStats = attendanceDeductionByEmployee.get(item.employee.id);
       if (!attStats || attStats.totalPercent <= 0) return sum;
       return sum + Math.round(((Number(item.grossMinor) / 22) * attStats.totalPercent) / 100);
     }, 0);
     const totalNet = Math.max(0, totalGross - totalDeductions);
     const allocationTotals = new Map<string, { name: string; amount: number; percentage: number }>();
-    const subsidiaryIds = [...new Set(batch.items.flatMap(item => item.allocations.map(allocation => allocation.subsidiaryId)))];
+    const subsidiaryIds = [...new Set(scopedBatchItems.flatMap(item => item.allocations.map(allocation => allocation.subsidiaryId)))];
     const subsidiaries = subsidiaryIds.length ? await prisma.organization.findMany({ where: { id: { in: subsidiaryIds } }, select: { id: true, legalName: true } }) : [];
     const subsidiaryNames = new Map(subsidiaries.map(subsidiary => [subsidiary.id, subsidiary.legalName]));
 
-    const safeItems = batch.items.map(item => {
+    const safeItems = scopedBatchItems.map(item => {
       const attStats = attendanceDeductionByEmployee.get(item.employee.id) || { countLate: 0, countAbsent: 0, totalPercent: 0 };
       // Pro-rated daily rate (grossMinor / 22 work days in average month)
       const dailyRate = Number(item.grossMinor) / 22;
@@ -186,7 +195,6 @@ export async function GET(req: NextRequest) {
         email: item.employee.workEmail,
         avatarUrl: item.employee.avatarUrl || null,
         isOfflineStaff: Boolean(item.employee.isOfflineStaff),
-        kioskPin: item.employee.kioskPin || null,
         isNewStaff,
         salaryDeltaMinor,
         salaryDeltaFormatted: salaryDeltaMinor !== 0 ? `${salaryDeltaMinor > 0 ? '+' : ''}${formatNaira(salaryDeltaMinor)}` : null,

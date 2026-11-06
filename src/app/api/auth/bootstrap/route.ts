@@ -28,13 +28,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Setup key is invalid. Enter the master bootstrap secret.' }, { status: 401 });
     }
 
+    // Check across all executive/admin roles (SYSTEM_ADMIN, SUPER_ADMIN, GMD)
     const adminExists = await prisma.employee.findFirst({
-      where: { role: 'SYSTEM_ADMIN' },
+      where: { role: { in: ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'] } },
       select: { id: true },
     });
 
     if (adminExists) {
-      return NextResponse.json({ error: 'Initial System Admin setup has already been completed.' }, { status: 409 });
+      return NextResponse.json({ error: 'Initial Executive / Super Admin setup has already been completed.' }, { status: 409 });
     }
 
     const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : '';
@@ -68,7 +69,9 @@ export async function POST(request: Request) {
         },
       });
 
-      console.log(`[BOOTSTRAP OTP] Verification code for ${email}: ${code} (expires in 10m)`);
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[BOOTSTRAP OTP] Verification code sent to ${email} (expires in 10m)`);
+      }
 
       // Send email via Resend
       const emailResult = await sendAdminVerificationOtpEmail({
@@ -125,44 +128,59 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Incorrect verification code. Please check your email and try again.' }, { status: 400 });
       }
 
-      // Valid OTP verified! Clean up token
+      // Valid OTP verified! Clean up token and atomically provision first Super Admin
       await prisma.emailVerificationToken.deleteMany({ where: { email } });
+
+      const existingAdminNow = await prisma.employee.findFirst({
+        where: { role: { in: ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'] } },
+        select: { id: true },
+      });
+      if (existingAdminNow) {
+        return NextResponse.json({ error: 'Initial Executive / Super Admin setup has already been completed.' }, { status: 409 });
+      }
 
       if (await prisma.employee.findUnique({ where: { workEmail: email }, select: { id: true } })) {
         return NextResponse.json({ error: 'An account already exists for this email.' }, { status: 409 });
       }
 
-      const employee = await prisma.employee.create({
-        data: {
-          employeeNumber: `ADM-${Date.now().toString().slice(-4)}`,
-          legalName: fullName,
-          workEmail: email,
-          role: 'SYSTEM_ADMIN',
-          status: 'ACTIVE',
-          approvalStatus: 'APPROVED',
-          passwordHash: await hashPassword(password),
-        },
+      const passwordHash = await hashPassword(password);
+      const employee = await prisma.$transaction(async (tx) => {
+        const created = await tx.employee.create({
+          data: {
+            employeeNumber: `ADM-${Date.now().toString().slice(-4)}`,
+            legalName: fullName,
+            workEmail: email,
+            role: 'SYSTEM_ADMIN',
+            status: 'ACTIVE',
+            approvalStatus: 'APPROVED',
+            passwordHash,
+          },
+        });
+
+        await tx.auditEvent.create({
+          data: {
+            actorId: created.id,
+            actorName: created.legalName,
+            actorRole: created.role,
+            groupId: 'bems-group-hq',
+            targetType: 'EMPLOYEE',
+            targetId: created.id,
+            action: 'BOOTSTRAP_ADMIN_PROVISIONED',
+            metadata: JSON.stringify({ workEmail: created.workEmail }),
+            correlationId: crypto.randomUUID(),
+          },
+        });
+
+        return created;
       });
 
       await createEmployeeSession(employee.id);
       return NextResponse.json({ user: publicEmployee(employee), message: 'System Admin account created and verified.' }, { status: 201 });
     }
 
-    return NextResponse.json({ error: 'Unknown action specified.' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid bootstrap action.' }, { status: 400 });
   } catch (error) {
     console.error('Bootstrap error:', error);
-    return NextResponse.json({ error: 'Could not complete the System Admin setup.' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not complete bootstrap setup.' }, { status: 500 });
   }
-}
-
-export async function GET() {
-  const exists = await prisma.employee.findFirst({
-    where: { role: 'SYSTEM_ADMIN' },
-    select: { id: true },
-  });
-  return NextResponse.json({
-    available: !exists,
-    configured: true,
-    adminExists: Boolean(exists),
-  });
 }
