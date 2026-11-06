@@ -35,12 +35,8 @@ export async function GET(req: Request) {
         employmentAgreements: {
           include: {
             compensations: {
-              where: {
-                effectiveFrom: { lte: now },
-                OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }],
-              },
-              take: 1,
-              orderBy: [{ effectiveFrom: 'desc' }, { version: 'desc' }]
+              take: 5,
+              orderBy: [{ effectiveFrom: 'desc' }, { version: 'desc' }, { createdAt: 'desc' }]
             }
           }
         },
@@ -57,7 +53,26 @@ export async function GET(req: Request) {
       JSON.stringify(employees, (_, v) => (typeof v === 'bigint' ? Number(v) : v))
     );
 
-    let filtered = safeEmployees;
+    const processedEmployees = safeEmployees.map((e: any) => {
+      const allComp = e.employmentAgreements?.[0]?.compensations || [];
+      const activeComp = allComp.find(
+        (c: any) => new Date(c.effectiveFrom) <= now && (!c.effectiveTo || new Date(c.effectiveTo) >= now)
+      ) || allComp[allComp.length - 1] || null;
+      const upcomingComp = allComp.find((c: any) => new Date(c.effectiveFrom) > now) || null;
+
+      // Keep e.employmentAgreements[0].compensations pointing to activeComp for backward compatibility
+      if (e.employmentAgreements?.[0] && activeComp) {
+        e.employmentAgreements[0].compensations = [activeComp];
+      }
+
+      return {
+        ...e,
+        activeCompensation: activeComp,
+        upcomingCompensation: upcomingComp,
+      };
+    });
+
+    let filtered = processedEmployees;
     if (orgId && orgId !== 'ALL' && orgId !== 'all') {
       const scope = await resolveOrganizationScope(orgId);
       if (!scope.isGroup) {

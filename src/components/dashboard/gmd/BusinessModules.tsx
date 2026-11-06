@@ -1824,6 +1824,26 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                     <div style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       Monthly Gross
                     </div>
+                    {(s as any).upcomingCompensation && (
+                      <div
+                        style={{
+                          marginTop: 3,
+                          fontSize: 10,
+                          fontWeight: 750,
+                          color: '#b45309',
+                          background: '#fef3c7',
+                          border: '1px solid #fde68a',
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 3,
+                        }}
+                        title={`Scheduled from ${new Date((s as any).upcomingCompensation.effectiveFrom).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}: ${(s as any).upcomingCompensation.changeReason || 'Adjusted salary'}`}
+                      >
+                        <span>Next month: {fmt((s as any).upcomingCompensation.grossMinor)}</span>
+                      </div>
+                    )}
                   </div>
 
                   <span
@@ -2303,7 +2323,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                         border: '1px solid #fed7aa',
                         borderRadius: 12,
                         padding: '18px 20px',
-                        marginBottom: 20,
+                        marginBottom: 16,
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
@@ -2312,15 +2332,20 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                       }}
                     >
                       <div>
-                        <div style={{ color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                          CURRENT MONTHLY GROSS SALARY
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                            CURRENT ACTIVE MONTHLY GROSS
+                          </span>
+                          <span style={{ background: '#dcfce7', color: '#15803d', fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 4, border: '1px solid #bbf7d0' }}>
+                            Active on Current Payroll
+                          </span>
                         </div>
                         <div style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>
                           {selected.employee.salary?.grossFormatted || 'No active compensation record'}
                         </div>
                         {selected.employee.salary?.changeReason && (
                           <div style={{ fontSize: 12, color: '#64748b' }}>
-                            Latest Adjustment: {selected.employee.salary.changeReason}
+                            Basis: {selected.employee.salary.changeReason}
                           </div>
                         )}
                       </div>
@@ -2335,6 +2360,97 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                         </button>
                       )}
                     </div>
+
+                    {/* Upcoming Scheduled Salary Adjustment Banner */}
+                    {(selected.employee as any).upcomingSalary && (
+                      <div
+                        style={{
+                          background: '#fffbeb',
+                          border: '1px solid #fde68a',
+                          borderRadius: 12,
+                          padding: '16px 20px',
+                          marginBottom: 20,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: 14,
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ color: '#b45309', fontWeight: 800, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                              SCHEDULED SALARY ADJUSTMENT
+                            </span>
+                            <span style={{ background: '#fef3c7', color: '#92400e', fontSize: 10.5, fontWeight: 750, padding: '2px 8px', borderRadius: 4, border: '1px solid #fde68a' }}>
+                              Effective from {new Date((selected.employee as any).upcomingSalary.effectiveFrom).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 22, fontWeight: 800, color: '#92400e', margin: '4px 0' }}>
+                            {(selected.employee as any).upcomingSalary.grossFormatted}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#78350f' }}>
+                            <b>Reason on record:</b> {(selected.employee as any).upcomingSalary.changeReason || 'Scheduled salary modification'}
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: 11, color: '#92400e', background: 'rgba(254, 243, 199, 0.7)', padding: '6px 12px', borderRadius: 8, border: '1px dashed #f59e0b' }}>
+                          Takes effect on December 1 payroll batch
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Compensation Version History */}
+                    {Array.isArray((selected.employee as any).salaryHistory) && (selected.employee as any).salaryHistory.length > 0 && (
+                      <div style={{ marginBottom: 24 }}>
+                        <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: '0 0 10px 0' }}>
+                          Compensation Version History ({(selected.employee as any).salaryHistory.length})
+                        </h3>
+                        <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 10 }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
+                            <thead>
+                              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>
+                                <th style={{ padding: '9px 14px' }}>Version</th>
+                                <th style={{ padding: '9px 14px' }}>Monthly Gross</th>
+                                <th style={{ padding: '9px 14px' }}>Effective Date</th>
+                                <th style={{ padding: '9px 14px' }}>Status</th>
+                                <th style={{ padding: '9px 14px' }}>Reason / Authorization</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(selected.employee as any).salaryHistory.map((v: any, idx: number) => {
+                                const isAct = v.status === 'ACTIVE_NOW';
+                                const isFut = v.status === 'SCHEDULED_FUTURE';
+                                return (
+                                  <tr key={v.id || idx} style={{ borderBottom: '1px solid #f1f5f9', background: isAct ? 'rgba(16, 185, 129, 0.03)' : isFut ? 'rgba(245, 158, 11, 0.03)' : 'transparent' }}>
+                                    <td style={{ padding: '10px 14px', fontWeight: 700 }}>v{v.version}</td>
+                                    <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>{v.grossFormatted}</td>
+                                    <td style={{ padding: '10px 14px', color: '#475569' }}>
+                                      {new Date(v.effectiveFrom).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </td>
+                                    <td style={{ padding: '10px 14px' }}>
+                                      <span
+                                        style={{
+                                          background: isAct ? '#dcfce7' : isFut ? '#fef3c7' : '#f1f5f9',
+                                          color: isAct ? '#15803d' : isFut ? '#b45309' : '#64748b',
+                                          padding: '2px 8px',
+                                          borderRadius: 4,
+                                          fontWeight: 700,
+                                          fontSize: 10.5,
+                                        }}
+                                      >
+                                        {isAct ? 'Active Now' : isFut ? 'Scheduled Next Month' : 'Superseded'}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '10px 14px', color: '#334155' }}>{v.changeReason || '—'}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Payroll Payment History */}
                     <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', margin: '16px 0 10px 0' }}>

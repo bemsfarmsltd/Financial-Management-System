@@ -31,7 +31,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
         where: { status: 'ACTIVE' },
         orderBy: { startDate: 'desc' },
         take: 1,
-        include: { compensations: { where: { effectiveTo: null }, orderBy: [{ version: 'desc' }, { effectiveFrom: 'desc' }], take: 1 } }
+        include: { compensations: { orderBy: [{ effectiveFrom: 'desc' }, { version: 'desc' }, { createdAt: 'desc' }] } }
       },
       salaryChangeProposals: {
         orderBy: { createdAt: 'desc' },
@@ -111,8 +111,40 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
     };
   });
 
+  const now = new Date();
   const agreement = employee.employmentAgreements[0];
-  const currentCompensation = agreement?.compensations[0] || null;
+  const allCompensations = agreement?.compensations || [];
+
+  // Active current salary (effectiveFrom <= now)
+  const currentCompensation = allCompensations.find(
+    (c) => new Date(c.effectiveFrom) <= now && (!c.effectiveTo || new Date(c.effectiveTo) >= now)
+  ) || allCompensations[allCompensations.length - 1] || null;
+
+  // Upcoming scheduled salary (effectiveFrom > now)
+  const upcomingCompensation = allCompensations.find(
+    (c) => new Date(c.effectiveFrom) > now
+  ) || null;
+
+  // Full Version History
+  const salaryHistory = allCompensations.map((c) => {
+    const isFuture = new Date(c.effectiveFrom) > now;
+    const isCurrent = currentCompensation?.id === c.id;
+    return {
+      id: c.id,
+      version: c.version,
+      grossMinor: Number(c.grossMinor),
+      grossFormatted: formatNaira(c.grossMinor),
+      currency: c.currency,
+      effectiveFrom: c.effectiveFrom,
+      effectiveTo: c.effectiveTo,
+      changeType: c.changeType,
+      changeReason: c.changeReason,
+      isCurrent,
+      isFuture,
+      status: isCurrent ? 'ACTIVE_NOW' : isFuture ? 'SCHEDULED_FUTURE' : 'SUPERSEDED',
+    };
+  });
+
   return NextResponse.json({
     employee: {
       id: employee.id,
@@ -179,6 +211,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
         changeType: currentCompensation.changeType,
         changeReason: currentCompensation.changeReason
       } : null,
+      upcomingSalary: upcomingCompensation ? {
+        grossFormatted: Number(upcomingCompensation.grossMinor) === 0 ? 'Not on Payroll (₦0)' : formatNaira(upcomingCompensation.grossMinor),
+        grossMinor: Number(upcomingCompensation.grossMinor),
+        currency: upcomingCompensation.currency,
+        effectiveFrom: upcomingCompensation.effectiveFrom,
+        version: upcomingCompensation.version,
+        changeReason: upcomingCompensation.changeReason,
+      } : null,
+      salaryHistory,
       pendingSalaryProposal: employee.salaryChangeProposals?.find(p => p.status === 'PENDING_APPROVAL') ? {
         id: employee.salaryChangeProposals.find(p => p.status === 'PENDING_APPROVAL')!.id,
         previousGrossFormatted: formatNaira(employee.salaryChangeProposals.find(p => p.status === 'PENDING_APPROVAL')!.previousGrossMinor),

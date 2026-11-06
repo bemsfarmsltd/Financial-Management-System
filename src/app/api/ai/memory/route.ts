@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthenticatedEmployee } from "@/lib/auth";
+import { cleanMarkdownTables } from "@/lib/ai/markdown-normalizer";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +92,9 @@ export async function GET(req: NextRequest) {
         } catch {
           parsed = { role: "unknown", content: parsed };
         }
+      }
+      if (parsed && typeof parsed.content === "string") {
+        parsed.content = cleanMarkdownTables(parsed.content);
       }
       return {
         id: r.id,

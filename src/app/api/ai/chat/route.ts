@@ -14,27 +14,15 @@ function formatNaira(amount: number): string {
   }).format(amount);
 }
 
+import { cleanMarkdownTables } from '@/lib/ai/markdown-normalizer';
+
 /**
  * Normalizes Markdown text structure, especially tables and whitespace,
  * ensuring clean row separation and consistent card/table rendering across Web and Mobile.
  */
 export function normalizeMarkdownStructure(raw: string): string {
   if (!raw || typeof raw !== 'string') return raw;
-  let text = raw;
-
-  // If text contains markdown table delimiter |---|
-  if (/\|[-:\s|]{3,}\|/.test(text)) {
-    // 1. Break glued table rows: '||' or '|  |' between pipe boundaries -> '|\n|'
-    text = text.replace(/\|\s*\|/g, '|\n|');
-
-    // 2. Ensure table beginning is separated from preceding paragraph by a blank line
-    text = text.replace(/([^\n])\s*\n(\|[^\n]+\|\n\|[-:\s|]+\|)/g, '$1\n\n$2');
-
-    // 3. Ensure table end is separated from following text by a blank line
-    text = text.replace(/(\|[^\n]+\|)\s*\n([^\n|#*-])/g, '$1\n\n$2');
-  }
-
-  return text;
+  return cleanMarkdownTables(raw);
 }
 
 export const maxDuration = 120; // Allow up to 120 seconds for multi-step AI reasoning and tool calls

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { AiVisualChart, ChartDataPoint } from './AiVisualChart';
 import { AiKpiMetrics, KpiMetricItem } from './AiKpiMetrics';
+import { cleanMarkdownTables } from '@/lib/ai/markdown-normalizer';
 
 interface FormattedAiMessageProps {
   content: string;
@@ -398,11 +399,8 @@ export function FormattedAiMessage({
     return null;
   };
 
-  // Pre-normalize glued markdown tables (e.g. ||---|---| or || row |)
-  let normalizedContent = content;
-  if (normalizedContent.includes('||') && /\|[-:\s|]{3,}\|/.test(normalizedContent)) {
-    normalizedContent = normalizedContent.replace(/\|\s*\|/g, '|\n|');
-  }
+  // Pre-normalize glued markdown tables (e.g. ||---|---| or || row | or table glued to prose)
+  const normalizedContent = cleanMarkdownTables(content);
 
   // Render elements in document order
   const rawParagraphs = normalizedContent.split(/\n\s*\n/);
