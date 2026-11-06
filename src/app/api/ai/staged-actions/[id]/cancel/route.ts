@@ -7,7 +7,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (req.headers.get('x-api-key')) {
+    if (
+      req.headers.get('x-api-key') ||
+      req.headers.get('x-bems-delegation-token') ||
+      req.headers.get('x-delegation-token')
+    ) {
       return NextResponse.json({ ok: false, error_code: 'SERVICE_CREDENTIALS_FORBIDDEN', message: 'Human session required.' }, { status: 403 });
     }
     const actor = await getAuthenticatedEmployee(req, { disallowServiceToken: true });

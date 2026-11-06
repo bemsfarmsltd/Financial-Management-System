@@ -72,11 +72,29 @@ export async function GET(req: Request) {
         }
       }
 
+      let parsedAttachmentIds: string[] = [];
+      if (row.attachmentIds) {
+        try {
+          parsedAttachmentIds = JSON.parse(row.attachmentIds);
+        } catch {
+          parsedAttachmentIds = [];
+        }
+      }
+
       actionsMap[row.id] = {
         id: row.id,
         staged_action_id: row.id,
         confirmation_hash: row.confirmationHash,
         action_type: row.actionType,
+        command_version: row.commandVersion,
+        conversation_id: row.conversationId,
+        target_subsidiary_id: row.targetSubsidiaryId,
+        target_entity_type: row.targetEntityType,
+        target_entity_id: row.targetEntityId,
+        expected_version: row.expectedVersion,
+        eligible_approver_roles: row.eligibleApproverRoles,
+        attachment_ids: parsedAttachmentIds,
+        side_effect_status: row.sideEffectStatus,
         summary: row.summary,
         status: currentStatus,
         expires_at: row.expiresAt.toISOString(),

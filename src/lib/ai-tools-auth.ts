@@ -7,15 +7,24 @@ import {
   checkAiScopeOrResponse,
   resolveScopeFromPathname,
 } from '@/lib/ai-access-control';
+import {
+  normalizeCanonicalRole,
+  ScopedAutomationDelegation,
+  verifyScopedAutomationToken,
+} from '@/lib/platform/actor-scope';
 
 export interface AuthenticatedAiActor {
   id: string;
   legalName: string;
   role: string;
+  canonicalRole: 'SUPER_ADMIN' | 'GMD' | 'STAFF';
   workEmail: string;
   phone?: string | null;
   isExecutive: boolean;
   authSource: 'SERVICE_TOKEN' | 'HUMAN_SESSION';
+  conversationId?: string | null;
+  scopedOrganizationId?: string | null;
+  delegation?: ScopedAutomationDelegation | null;
 }
 
 const MULTI_WRITE_SCOPE_PATHS = new Set([
@@ -66,10 +75,95 @@ export async function authenticateAiToolRequest(
     }
   }
 
+  const delegationHeader =
+    req.headers.get('x-bems-delegation-token') ||
+    req.headers.get('x-delegation-token');
   const apiKey = req.headers.get('x-api-key');
   const authHeader = req.headers.get('authorization');
   const bearerToken = authHeader?.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : null;
   const candidateSecret = apiKey || bearerToken;
+
+  // 1. Check Scoped Automation Delegation Token (bems_del_v1.*) first
+  const candidateDelegation =
+    delegationHeader ||
+    (candidateSecret?.startsWith('bems_del_v1.') ? candidateSecret : null);
+
+  if (candidateDelegation) {
+    const verified = verifyScopedAutomationToken(candidateDelegation);
+    if (!verified.valid || !verified.delegation) {
+      return {
+        actor: null,
+        errorResponse: NextResponse.json(
+          {
+            ok: false,
+            error_code: 'DELEGATION_TOKEN_INVALID',
+            message: verified.reason || 'Scoped automation delegation token is invalid or expired.',
+          },
+          { status: 401 }
+        ),
+      };
+    }
+
+    const del = verified.delegation;
+    if (
+      scopeKey &&
+      Array.isArray(del.allowedScopes) &&
+      !del.allowedScopes.includes(scopeKey)
+    ) {
+      return {
+        actor: null,
+        errorResponse: NextResponse.json(
+          {
+            ok: false,
+            error_code: 'DELEGATION_SCOPE_FORBIDDEN',
+            message: `Automation delegation is not permitted for scope "${scopeKey}".`,
+          },
+          { status: 403 }
+        ),
+      };
+    }
+
+    const employee = await prisma.employee.findFirst({
+      where: {
+        id: del.requesterId,
+        status: 'ACTIVE',
+        approvalStatus: 'APPROVED',
+      },
+    });
+    const canonicalRole = employee ? normalizeCanonicalRole(employee.role) : null;
+    if (!employee || !canonicalRole) {
+      return {
+        actor: null,
+        errorResponse: NextResponse.json(
+          {
+            ok: false,
+            error_code: 'DELEGATED_ACTOR_INACTIVE',
+            message: 'The human requester associated with this automation delegation is no longer active.',
+          },
+          { status: 401 }
+        ),
+      };
+    }
+
+    return {
+      actor: {
+        id: employee.id,
+        legalName: employee.legalName,
+        role: employee.role,
+        canonicalRole,
+        workEmail: employee.workEmail,
+        phone: employee.phone,
+        isExecutive: hasAnyRole(employee, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']),
+        authSource: 'SERVICE_TOKEN',
+        conversationId: del.conversationId,
+        scopedOrganizationId: del.scopedOrganizationId,
+        delegation: del,
+      },
+      errorResponse: null,
+    };
+  }
+
+  // 2. Check Shared Service Token (requires active employee resolution; write operations require explicit x-user-id / x-employee-id)
   const serviceSecrets = [
     process.env.BEMS_AI_SERVICE_TOKEN,
     process.env.BEMS_N8N_SHARED_SECRET,
@@ -83,21 +177,36 @@ export async function authenticateAiToolRequest(
     });
 
     if (matchedSecret) {
-      const targetUserId = req.headers.get('x-user-id') || req.headers.get('x-employee-id');
+      const targetUserId = (req.headers.get('x-user-id') || req.headers.get('x-employee-id') || '').trim();
+      const conversationId = (req.headers.get('x-conversation-id') || req.headers.get('x-session-id') || '').trim() || null;
       const employee = targetUserId
-        ? await prisma.employee.findFirst({ where: { id: targetUserId, status: 'ACTIVE', approvalStatus: 'APPROVED' } })
-        : await prisma.employee.findFirst({ where: { role: { in: ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' } });
+        ? await prisma.employee.findFirst({
+            where: { id: targetUserId, status: 'ACTIVE', approvalStatus: 'APPROVED' },
+          })
+        : await prisma.employee.findFirst({
+            where: {
+              role: { in: ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] },
+              status: 'ACTIVE',
+              approvalStatus: 'APPROVED',
+            },
+            orderBy: { role: 'asc' },
+          });
 
-      if (employee) {
+      const canonicalRole = employee ? normalizeCanonicalRole(employee.role) : null;
+      if (employee && canonicalRole) {
         return {
           actor: {
             id: employee.id,
             legalName: employee.legalName,
             role: employee.role,
+            canonicalRole,
             workEmail: employee.workEmail,
             phone: employee.phone,
             isExecutive: hasAnyRole(employee, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']),
             authSource: 'SERVICE_TOKEN',
+            conversationId: conversationId || `conv_${employee.id}`,
+            scopedOrganizationId: req.headers.get('x-subsidiary-id') || null,
+            delegation: null,
           },
           errorResponse: null,
         };
@@ -105,7 +214,7 @@ export async function authenticateAiToolRequest(
     }
   }
 
-  // Fallback to standard human session or user Bearer session token
+  // 3. Fallback to standard human session or user Bearer session token
   const standardUser = await getAuthenticatedEmployee(req, { disallowServiceToken: true });
   if (!standardUser) {
     return {
@@ -121,6 +230,7 @@ export async function authenticateAiToolRequest(
     };
   }
 
+  const canonicalRole = normalizeCanonicalRole(standardUser.role) || 'STAFF';
   const isExecutive = hasAnyRole(standardUser, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
 
   return {
@@ -128,10 +238,14 @@ export async function authenticateAiToolRequest(
       id: standardUser.id,
       legalName: standardUser.legalName,
       role: standardUser.role,
+      canonicalRole,
       workEmail: standardUser.workEmail,
       phone: standardUser.phone,
       isExecutive,
       authSource: 'HUMAN_SESSION',
+      conversationId: req.headers.get('x-conversation-id') || `conv_${standardUser.id}`,
+      scopedOrganizationId: req.headers.get('x-subsidiary-id') || null,
+      delegation: null,
     },
     errorResponse: null,
   };

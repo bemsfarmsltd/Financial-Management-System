@@ -6,6 +6,8 @@ import { stageAction } from '@/lib/staged-actions';
 import { getConsolidatedTreasury } from '@/lib/financial-metrics';
 import { enforceMobileVersionGate } from '@/lib/mobile-gate';
 import { checkAiScopeOrResponse } from '@/lib/ai-access-control';
+import { createScopedAutomationToken, normalizeCanonicalRole } from '@/lib/platform/actor-scope';
+import { redactUntrustedAndSensitiveFields } from '@/lib/platform/read-catalog';
 
 function formatNaira(amount: number): string {
   return new Intl.NumberFormat('en-NG', {
@@ -112,8 +114,17 @@ export async function POST(req: NextRequest) {
         const correlationId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const sessionId = isGroupScope ? `conv_${actor.id}` : `conv_${actor.id}_${scopedOrgId}`;
 
-        // Provide valid service token so n8n tools can query BEMS APIs seamlessly
+        // Provide valid service token and scoped automation delegation token so n8n tools operate with bounded conversation authority
         const authToken = process.env.BEMS_AI_SERVICE_TOKEN || '';
+        const canonicalActorRole = normalizeCanonicalRole(actor.role) || 'STAFF';
+        const delegationToken = createScopedAutomationToken({
+          requesterId: actor.id,
+          requesterRole: canonicalActorRole,
+          conversationId: sessionId,
+          scopedOrganizationId: scopedOrgId,
+          allowedScopes: 'ALL',
+          ttlMs: 5 * 60 * 1000,
+        });
 
         // Fetch recent conversation history from BEMS PostgreSQL memory
         let conversationHistory: any[] = [];
@@ -130,7 +141,7 @@ export async function POST(req: NextRequest) {
             if (typeof m === 'string') {
               try { m = JSON.parse(m); } catch {}
             }
-            return m;
+            return redactUntrustedAndSensitiveFields(m);
           });
         } catch (e) {
           console.warn('Could not load memory history:', e);
@@ -249,6 +260,7 @@ title: "<Chart Title>"
           conversation_history: conversationHistory,
           chat_history: conversationHistory,
           auth_token: authToken,
+          delegation_token: delegationToken,
           correlation_id: correlationId,
         };
 
@@ -257,6 +269,7 @@ title: "<Chart Title>"
           'X-Correlation-Id': correlationId,
           'X-BEMS-Webhook-Secret': webhookSecret,
           'X-Service-Secret': webhookSecret,
+          'X-BEMS-Delegation-Token': delegationToken,
         };
 
         const n8nRes = await fetch(n8nWebhookUrl, {

@@ -18,6 +18,8 @@ import {
   applyCanonicalCompensationChange,
   CompensationChangeType,
 } from './services/compensation';
+import { getCommandDescriptor } from './platform/command-catalog';
+import { verifyStagedAttachments } from './platform/staged-attachments';
 
 function normalizeThreeRole(rawRole: unknown): 'STAFF' | 'GMD' | 'SUPER_ADMIN' | null {
   const upper = String(rawRole || '').trim().toUpperCase();
@@ -182,11 +184,20 @@ export function validateStageActionProposal(
   if (!SUPPORTED_STAGED_ACTION_TYPES.has(actionType as StagedActionType)) {
     throw new Error(`Unsupported staged action type: "${actionType}". Proposal rejected before card generation.`);
   }
+  const descriptor = getCommandDescriptor(actionType as StagedActionType);
+  if (!descriptor) {
+    throw new Error(`Command "${actionType}" is not registered in COMMAND_CATALOG.`);
+  }
   if (!summary || !String(summary).trim()) {
     throw new Error('A human-readable summary is required to stage an action.');
   }
   if (!materialPayload || typeof materialPayload !== 'object' || Array.isArray(materialPayload)) {
     throw new Error('materialPayload must be a non-empty object.');
+  }
+
+  const catalogValidation = descriptor.validateInput(materialPayload);
+  if (!catalogValidation.valid) {
+    throw new Error(catalogValidation.errorMessage || `Missing required fields: ${catalogValidation.missingFields.join(', ')}`);
   }
 
   switch (actionType as StagedActionType) {
@@ -250,7 +261,12 @@ export interface StageActionInput {
   clientPreview?: Record<string, any>;
   targetEmployeeId?: string;
   targetSubsidiaryId?: string;
+  targetEntityType?: string;
+  targetEntityId?: string;
   targetVersion?: string | number;
+  conversationId?: string;
+  attachmentIds?: string[];
+  eligibleApproverRoles?: string;
   warnings?: string[];
   blockingErrors?: string[];
 }
@@ -262,6 +278,7 @@ export async function stageAction(input: StageActionInput) {
   }
 
   validateStageActionProposal(input.actionType, input.materialPayload, input.summary);
+  const descriptor = getCommandDescriptor(input.actionType);
 
   const resolvedSubsidiaryId =
     input.targetSubsidiaryId ||
@@ -283,6 +300,48 @@ export async function stageAction(input: StageActionInput) {
     throw new Error('Active authenticated employee required to stage actions.');
   }
 
+  const rawAttachmentIds =
+    input.attachmentIds ||
+    (Array.isArray(input.materialPayload.attachment_ids) ? input.materialPayload.attachment_ids : undefined) ||
+    (Array.isArray(input.materialPayload.attachmentIds) ? input.materialPayload.attachmentIds : undefined) ||
+    [];
+  const canonicalCreatorRole = normalizeThreeRole(creator.role);
+  const attachmentCheck = await verifyStagedAttachments({
+    attachmentIds: rawAttachmentIds,
+    actorId: creator.id,
+    isExecutive: canonicalCreatorRole === 'GMD' || canonicalCreatorRole === 'SUPER_ADMIN',
+  });
+  if (!attachmentCheck.valid) {
+    throw new Error(attachmentCheck.errorMessage || 'Invalid staged attachment reference.');
+  }
+  const verifiedAttachments = attachmentCheck.attachments;
+
+  const resolvedTargetEntityType = input.targetEntityType || descriptor?.targetEntityType || input.actionType;
+  const resolvedTargetEntityId =
+    input.targetEntityId ||
+    input.targetEmployeeId ||
+    input.materialPayload.request_id ||
+    input.materialPayload.employee_id ||
+    input.materialPayload.employeeId ||
+    input.materialPayload.budget_id ||
+    input.materialPayload.account_id ||
+    input.materialPayload.vendor_id ||
+    input.materialPayload.case_id ||
+    null;
+  const resolvedExpectedVersion =
+    input.targetVersion !== undefined
+      ? String(input.targetVersion)
+      : input.materialPayload.expected_version !== undefined
+      ? String(input.materialPayload.expected_version)
+      : null;
+  const resolvedEligibleApprovers =
+    input.eligibleApproverRoles ||
+    (descriptor?.allowedApproverRoles ? descriptor.allowedApproverRoles.join(',') : 'GMD,SUPER_ADMIN');
+  const resolvedConversationId =
+    input.conversationId ||
+    (typeof input.materialPayload.conversation_id === 'string' ? input.materialPayload.conversation_id : null) ||
+    `conv_${creator.id}`;
+
   // Persist targetSubsidiaryId & targetEmployeeId in canonical materialPayload if provided
   const canonicalPayload: Record<string, any> = {
     ...input.materialPayload,
@@ -293,9 +352,19 @@ export async function stageAction(input: StageActionInput) {
       ? { employee_id: input.targetEmployeeId }
       : {}),
     ...(input.targetVersion !== undefined ? { expected_version: input.targetVersion } : {}),
+    ...(verifiedAttachments.length > 0 ? { attachment_ids: verifiedAttachments.map((a) => a.id) } : {}),
   };
 
-  const resolvedPreview = input.preview || input.clientPreview || {};
+  const basePreview = input.preview || input.clientPreview || {};
+  const resolvedPreview: Record<string, any> = {
+    ...basePreview,
+    command_version: descriptor?.commandVersion || 1,
+    target_entity_type: resolvedTargetEntityType,
+    target_entity_id: resolvedTargetEntityId,
+    expected_version: resolvedExpectedVersion,
+    eligible_approver_roles: resolvedEligibleApprovers,
+    ...(verifiedAttachments.length > 0 ? { attachments: verifiedAttachments } : {}),
+  };
   const hash = computeConfirmationHash(canonicalPayload);
   const actionId = `sa_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
   const expiresAt = new Date(Date.now() + STAGED_ACTION_TTL_MINUTES * 60 * 1000);
@@ -305,6 +374,15 @@ export async function stageAction(input: StageActionInput) {
       id: actionId,
       userId: resolvedUserId,
       actionType: input.actionType,
+      commandVersion: descriptor?.commandVersion || 1,
+      conversationId: resolvedConversationId,
+      targetSubsidiaryId: resolvedSubsidiaryId ? String(resolvedSubsidiaryId) : null,
+      targetEntityType: resolvedTargetEntityType,
+      targetEntityId: resolvedTargetEntityId ? String(resolvedTargetEntityId) : null,
+      expectedVersion: resolvedExpectedVersion,
+      eligibleApproverRoles: resolvedEligibleApprovers,
+      attachmentIds: verifiedAttachments.length > 0 ? JSON.stringify(verifiedAttachments.map((a) => a.id)) : null,
+      sideEffectStatus: 'PENDING',
       confirmationHash: hash,
       payload: JSON.stringify(canonicalPayload),
       summary: input.summary,
@@ -324,6 +402,14 @@ export async function stageAction(input: StageActionInput) {
     confirmationHash: staged.confirmationHash,
     confirmation_hash: staged.confirmationHash,
     type: staged.actionType,
+    command_version: staged.commandVersion,
+    conversation_id: staged.conversationId,
+    target_subsidiary_id: staged.targetSubsidiaryId,
+    target_entity_type: staged.targetEntityType,
+    target_entity_id: staged.targetEntityId,
+    expected_version: staged.expectedVersion,
+    eligible_approver_roles: staged.eligibleApproverRoles,
+    attachment_ids: verifiedAttachments.map((a) => a.id),
     staged_status: 'PENDING' as const,
     expires_at: staged.expiresAt.toISOString(),
     summary: staged.summary,
@@ -344,6 +430,14 @@ export async function stageAction(input: StageActionInput) {
       cardType: 'STAGED_ACTION',
       staged_action_id: staged.id,
       confirmation_hash: staged.confirmationHash,
+      command_version: staged.commandVersion,
+      conversation_id: staged.conversationId,
+      target_subsidiary_id: staged.targetSubsidiaryId,
+      target_entity_type: staged.targetEntityType,
+      target_entity_id: staged.targetEntityId,
+      expected_version: staged.expectedVersion,
+      eligible_approver_roles: staged.eligibleApproverRoles,
+      attachment_ids: verifiedAttachments.map((a) => a.id),
       summary: staged.summary,
       action_type: staged.actionType,
       status: 'PENDING' as const,
@@ -399,13 +493,28 @@ export async function executeStagedAction(params: {
 
   // 1b. Strict 3-Role Executive Authority Check (GMD or Super Admin required to execute staged actions)
   const actorRoleUpper = (actor.role || '').toUpperCase();
-  const isExecutiveActor = ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(actorRoleUpper);
+  const canonicalActorRole = normalizeThreeRole(actorRoleUpper);
+  const isExecutiveActor = canonicalActorRole === 'GMD' || canonicalActorRole === 'SUPER_ADMIN';
   if (!isExecutiveActor) {
     return {
       ok: false,
       errorCode: 'NOT_PERMITTED',
       message: 'Executive authority (GMD or Super Admin) is required to confirm and execute staged actions.',
     };
+  }
+
+  if (action.eligibleApproverRoles) {
+    const allowedRoles = action.eligibleApproverRoles
+      .split(',')
+      .map((r) => normalizeThreeRole(r))
+      .filter(Boolean);
+    if (allowedRoles.length > 0 && canonicalActorRole && !allowedRoles.includes(canonicalActorRole) && canonicalActorRole !== 'GMD') {
+      return {
+        ok: false,
+        errorCode: 'NOT_PERMITTED',
+        message: `Role ${canonicalActorRole} is not in eligible approvers (${action.eligibleApproverRoles}) for this action.`,
+      };
+    }
   }
 
   // 2. Ownership check (allow either the staging user or the GMD to confirm)
@@ -415,6 +524,33 @@ export async function executeStagedAction(params: {
       errorCode: 'NOT_PERMITTED',
       message: 'This staged action belongs to a different executive and cannot be confirmed.',
     };
+  }
+
+  // 2b. Verify any staged attachments before execution
+  if (action.attachmentIds) {
+    try {
+      const parsedIds = JSON.parse(action.attachmentIds);
+      if (Array.isArray(parsedIds) && parsedIds.length > 0) {
+        const attRes = await verifyStagedAttachments({
+          attachmentIds: parsedIds,
+          actorId: actor.id,
+          isExecutive: isExecutiveActor,
+        });
+        if (!attRes.valid) {
+          return {
+            ok: false,
+            errorCode: 'ATTACHMENT_VERIFICATION_FAILED',
+            message: attRes.errorMessage || 'Staged attachment verification failed.',
+          };
+        }
+      }
+    } catch (attErr: any) {
+      return {
+        ok: false,
+        errorCode: 'ATTACHMENT_VERIFICATION_FAILED',
+        message: attErr.message || 'Staged attachment verification failed.',
+      };
+    }
   }
 
   // 3. Replay / Idempotency check
@@ -4199,6 +4335,13 @@ export async function executeStagedAction(params: {
     });
 
     // Persist committed execution result onto the claimed StagedAction
+    const sideEffectState =
+      deliveryStatus === 'DELIVERED'
+        ? 'DELIVERED'
+        : deliveryStatus === 'QUEUED'
+        ? 'PENDING_RETRY'
+        : 'NOT_APPLICABLE';
+
     await tx.stagedAction.update({
       where: { id: actionId },
       data: {
@@ -4206,6 +4349,13 @@ export async function executeStagedAction(params: {
         executedAt: txNow,
         idempotencyKey: effectiveIdempotencyKey,
         auditEventId,
+        sideEffectStatus: sideEffectState,
+        sideEffectLogJson: JSON.stringify({
+          notification_intent: notificationIntentIds,
+          notifications_sent: notificationsDeliveredIds,
+          delivery_status: deliveryStatus,
+          updated_at: txNow.toISOString(),
+        }),
         resultJson: JSON.stringify({
           record_type: recordType,
           record_id: recordId,
@@ -4215,6 +4365,7 @@ export async function executeStagedAction(params: {
           notification_intent: notificationIntentIds,
           notifications_sent: notificationsDeliveredIds,
           notification_delivery_status: deliveryStatus,
+          side_effect_status: sideEffectState,
           audit_event_id: auditEventId,
         }),
       },
@@ -4299,3 +4450,102 @@ export async function executeStagedAction(params: {
     audit_event_id: auditEventId,
   };
 }
+
+/**
+ * Retries failed or queued notification/integration side-effects for an already EXECUTED
+ * staged action without repeating the underlying business database mutation (Audit Item 05 Pillar 5).
+ */
+export async function retryStagedActionSideEffects(params: {
+  actionId: string;
+  actor: { id: string; legalName: string; role: string };
+}) {
+  const { actionId, actor } = params;
+  const canonicalRole = normalizeThreeRole(actor.role);
+  if (!canonicalRole || (canonicalRole !== 'GMD' && canonicalRole !== 'SUPER_ADMIN')) {
+    return {
+      ok: false,
+      errorCode: 'NOT_PERMITTED',
+      message: 'Executive authority is required to retry staged action side-effects.',
+    };
+  }
+
+  const action = await prisma.stagedAction.findUnique({ where: { id: actionId } });
+  if (!action) {
+    return {
+      ok: false,
+      errorCode: 'NOT_FOUND',
+      message: `Staged action ${actionId} not found.`,
+    };
+  }
+
+  if (action.status !== 'EXECUTED') {
+    return {
+      ok: false,
+      errorCode: 'INVALID_STATE',
+      message: `Only EXECUTED staged actions can retry side-effects (current status: ${action.status}).`,
+    };
+  }
+
+  let parsedResult: Record<string, any> = {};
+  try {
+    parsedResult = action.resultJson ? JSON.parse(action.resultJson) : {};
+  } catch {}
+
+  const intentIds: string[] = Array.isArray(parsedResult.notification_intent) ? parsedResult.notification_intent : [];
+  const alreadySentIds = new Set<string>(
+    Array.isArray(parsedResult.notifications_sent) ? parsedResult.notifications_sent : []
+  );
+
+  const newlySentIds: string[] = [];
+  for (const recipientId of intentIds) {
+    if (!alreadySentIds.has(recipientId)) {
+      await prisma.systemNotification.create({
+        data: {
+          employeeId: recipientId,
+          kind: 'STAGED_ACTION_FOLLOWUP',
+          title: `Action Executed: ${action.summary}`,
+          body: `Executive action "${action.summary}" was completed by ${actor.legalName}.`,
+          linkUrl: parsedResult.url || '/dashboard',
+        },
+      }).catch(() => {});
+      alreadySentIds.add(recipientId);
+      newlySentIds.push(recipientId);
+    }
+  }
+
+  const updatedSent = Array.from(alreadySentIds);
+  const newDeliveryStatus = updatedSent.length > 0 ? 'DELIVERED' : intentIds.length > 0 ? 'QUEUED' : 'NOT_APPLICABLE';
+  const newSideEffectStatus = newDeliveryStatus === 'DELIVERED' ? 'DELIVERED' : 'NOT_APPLICABLE';
+
+  const updatedResult = {
+    ...parsedResult,
+    notifications_sent: updatedSent,
+    notification_delivery_status: newDeliveryStatus,
+    side_effect_status: newSideEffectStatus,
+  };
+
+  await prisma.stagedAction.update({
+    where: { id: actionId },
+    data: {
+      sideEffectStatus: newSideEffectStatus,
+      sideEffectLogJson: JSON.stringify({
+        notification_intent: intentIds,
+        notifications_sent: updatedSent,
+        retried_by: actor.id,
+        retried_at: new Date().toISOString(),
+        newly_dispatched: newlySentIds,
+      }),
+      resultJson: JSON.stringify(updatedResult),
+    },
+  });
+
+  return {
+    ok: true,
+    staged_action_id: actionId,
+    side_effect_status: newSideEffectStatus,
+    notification_delivery_status: newDeliveryStatus,
+    newly_dispatched: newlySentIds,
+    notifications_sent: updatedSent,
+  };
+}
+

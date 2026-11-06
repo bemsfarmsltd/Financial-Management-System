@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { prisma } from '@/lib/prisma';
+import { computeBufferSha256 } from '@/lib/platform/staged-attachments';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,6 +112,7 @@ export async function POST(request: Request) {
       }
 
       const url = `/uploads/${subDir}/${filename}`;
+      const checksum = computeBufferSha256(bytes);
 
       // 3. If an employeeId was provided for an avatar update, atomically update employee.avatarUrl
       const formEmployeeId = formData.get('employeeId')?.toString()?.trim() || request.headers.get('x-employee-id')?.trim();
@@ -124,7 +126,42 @@ export async function POST(request: Request) {
         }
       }
 
-      return NextResponse.json({ success: true, url, filename });
+      // 4. Create an verifiable Attachment record when uploaded by an authenticated user (for staged action evidence / receipts)
+      let attachmentId: string | undefined;
+      const shouldStageAttachment =
+        actor &&
+        (isPdf ||
+          formData.get('createAttachment') === 'true' ||
+          formData.get('stageAttachment') === 'true' ||
+          Boolean(formData.get('ownerType')));
+      if (shouldStageAttachment && actor) {
+        try {
+          const att = await prisma.attachment.create({
+            data: {
+              ownerType: formData.get('ownerType')?.toString()?.trim() || 'STAGED_EVIDENCE',
+              ownerId: formData.get('ownerId')?.toString()?.trim() || actor.id,
+              fileName: file.name || filename,
+              contentType: mimeType,
+              fileUrl: url,
+              checksum,
+              uploadedById: actor.id,
+            },
+          });
+          attachmentId = att.id;
+        } catch (attErr) {
+          console.warn('[Upload] Optional Attachment record creation skipped:', attErr);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        url,
+        filename,
+        checksum,
+        mimeType,
+        sizeBytes: bytes.length,
+        ...(attachmentId ? { attachmentId } : {}),
+      });
     }
 
     // Handle JSON Base64 Payload
@@ -175,6 +212,7 @@ export async function POST(request: Request) {
       }
 
       const url = `/uploads/avatars/${filename}`;
+      const checksum = computeBufferSha256(buffer);
 
       const bodyEmployeeId = typeof body.employeeId === 'string' ? body.employeeId.trim() : request.headers.get('x-employee-id')?.trim();
       if (bodyEmployeeId) {
@@ -187,7 +225,7 @@ export async function POST(request: Request) {
         }
       }
 
-      return NextResponse.json({ success: true, url, filename });
+      return NextResponse.json({ success: true, url, filename, checksum, mimeType, sizeBytes: buffer.length });
     }
 
     return NextResponse.json({ error: 'Unsupported media type.' }, { status: 415 });

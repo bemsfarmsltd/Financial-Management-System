@@ -65,6 +65,15 @@ export async function GET(
       }
     }
 
+    let parsedAttachmentIds: string[] = [];
+    if (action.attachmentIds) {
+      try {
+        parsedAttachmentIds = JSON.parse(action.attachmentIds);
+      } catch {
+        parsedAttachmentIds = [];
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       staged_action: {
@@ -72,6 +81,15 @@ export async function GET(
         staged_action_id: action.id,
         confirmation_hash: action.confirmationHash,
         action_type: action.actionType,
+        command_version: action.commandVersion,
+        conversation_id: action.conversationId,
+        target_subsidiary_id: action.targetSubsidiaryId,
+        target_entity_type: action.targetEntityType,
+        target_entity_id: action.targetEntityId,
+        expected_version: action.expectedVersion,
+        eligible_approver_roles: action.eligibleApproverRoles,
+        attachment_ids: parsedAttachmentIds,
+        side_effect_status: action.sideEffectStatus,
         type: action.actionType,
         cardType: 'STAGED_ACTION',
         summary: action.summary,

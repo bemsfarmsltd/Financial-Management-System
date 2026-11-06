@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthenticatedEmployee } from "@/lib/auth";
 import { cleanMarkdownTables } from "@/lib/ai/markdown-normalizer";
+import { redactUntrustedAndSensitiveFields } from "@/lib/platform/read-catalog";
 
 export const dynamic = "force-dynamic";
+
+function isAuthorizedSessionForActor(sessionId: string, actorId: string): boolean {
+  return sessionId === `conv_${actorId}` || sessionId.startsWith(`conv_${actorId}_`);
+}
 
 /**
  * GET /api/v1/ai/memory?session_id=...&limit=20
@@ -75,6 +80,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error_code: "VALIDATION_FAILED", message: "session_id query param is required." }, { status: 400 });
     }
 
+    if (!isAuthorizedSessionForActor(sessionId, actor.id)) {
+      return NextResponse.json(
+        { ok: false, error_code: "NOT_PERMITTED", message: "Access denied: session_id does not belong to the authenticated actor." },
+        { status: 403 }
+      );
+    }
+
     // Query n8n_chat_histories in reverse order to get the latest turns, then order chronologically
     const rows = await prisma.$queryRaw<Array<{ id: number; session_id: string; message: any; created_at: Date }>>`
       SELECT id, session_id, message, created_at
@@ -100,11 +112,11 @@ export async function GET(req: NextRequest) {
       if (parsed && typeof parsed.content === "string") {
         parsed.content = cleanMarkdownTables(parsed.content);
       }
-      return {
+      return redactUntrustedAndSensitiveFields({
         id: r.id,
         ...parsed,
         created_at: r.created_at,
-      };
+      });
     });
 
     return NextResponse.json({
@@ -143,13 +155,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const messageObj = {
+    if (!isAuthorizedSessionForActor(sessionId, actor.id)) {
+      return NextResponse.json(
+        { ok: false, error_code: "NOT_PERMITTED", message: "Access denied: session_id does not belong to the authenticated actor." },
+        { status: 403 }
+      );
+    }
+
+    const messageObj = redactUntrustedAndSensitiveFields({
       role,
       content,
       actor_id: actor.id,
       timestamp: new Date().toISOString(),
       ...(body.metadata || {}),
-    };
+    });
 
     // Insert into n8n_chat_histories
     await prisma.$executeRaw`

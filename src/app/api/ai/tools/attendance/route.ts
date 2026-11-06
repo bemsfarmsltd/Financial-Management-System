@@ -4,6 +4,8 @@ import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
 import { getLagosTime } from '@/lib/attendance/token';
 import { stageAction } from '@/lib/staged-actions';
 import { checkAiScopeOrResponse } from '@/lib/ai-access-control';
+import { queryDailyAttendanceRoster } from '@/lib/services/attendance-roster';
+import { redactUntrustedAndSensitiveFields } from '@/lib/platform/read-catalog';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,22 +25,36 @@ export async function GET(req: NextRequest) {
   const dateParam = url.searchParams.get('date') || todayStr;
   const subsidiaryId = url.searchParams.get('subsidiaryId');
 
-  // Forward to daily roster logic or fetch directly
-  const rosterUrl = new URL(`/api/attendance/admin/daily-roster?date=${dateParam}${subsidiaryId ? `&subsidiaryId=${subsidiaryId}` : ''}`, req.url);
-  const rosterRes = await fetch(rosterUrl.toString(), {
-    headers: {
-      Authorization: req.headers.get('authorization') || '',
-      'x-api-key': req.headers.get('x-api-key') || '',
-      cookie: req.headers.get('cookie') || '',
-    },
-  });
+  try {
+    const data = await queryDailyAttendanceRoster(
+      {
+        id: actor.id,
+        role: actor.role,
+        legalName: actor.legalName,
+        workEmail: actor.workEmail,
+      },
+      {
+        date: dateParam,
+        subsidiaryId,
+        redactSensitivePins: true,
+      }
+    );
 
-  const data = await rosterRes.json();
-  return NextResponse.json({
-    ok: rosterRes.ok,
-    date: dateParam,
-    ...data,
-  }, { status: rosterRes.status });
+    return NextResponse.json(
+      redactUntrustedAndSensitiveFields({
+        ok: true,
+        source: 'BEMS_READ_CATALOG',
+        queryName: 'attendance.daily_roster',
+        date: dateParam,
+        ...data,
+      })
+    );
+  } catch (err: any) {
+    return NextResponse.json(
+      { ok: false, error_code: 'QUERY_FAILED', message: err?.message || 'Failed to query attendance roster.' },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(req: NextRequest) {

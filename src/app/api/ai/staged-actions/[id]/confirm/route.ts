@@ -7,13 +7,17 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Reject automation service credentials (x-api-key or service bearer token) — only human sessions can confirm
-    if (req.headers.get('x-api-key')) {
+    // Reject automation service credentials and scoped delegation tokens — only human sessions can confirm
+    if (
+      req.headers.get('x-api-key') ||
+      req.headers.get('x-bems-delegation-token') ||
+      req.headers.get('x-delegation-token')
+    ) {
       return NextResponse.json(
         {
           ok: false,
           error_code: 'SERVICE_CREDENTIALS_FORBIDDEN',
-          message: 'Automation service credentials cannot confirm staged actions. An authenticated human executive must click the Approve button.',
+          message: 'Automation service or delegation credentials cannot confirm staged actions. An authenticated human executive must click the Approve button.',
         },
         { status: 403 }
       );
