@@ -357,7 +357,7 @@ export default function AttendanceDeskPage() {
   // Load policy
   const loadPolicy = async () => {
     try {
-      const res = await fetch('/api/attendance/admin/policy');
+      const res = await fetch('/api/attendance/admin/policy?_t=' + Date.now(), { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (data.policy) setPolicy(data.policy);
@@ -393,8 +393,13 @@ export default function AttendanceDeskPage() {
   const handleToggleStarlinkLock = async (targetValue?: boolean) => {
     try {
       setIsTogglingStarlink(true);
-      const newValue = targetValue !== undefined ? targetValue : !policy.requireStarlinkIp;
-      setPolicy(prev => ({ ...prev, requireStarlinkIp: newValue }));
+      const isCurrentlyBypassed = !policy.requireStarlinkIp || policy.starlinkPowerOutageMode;
+      const newValue = targetValue !== undefined ? targetValue : isCurrentlyBypassed;
+      setPolicy(prev => ({
+        ...prev,
+        requireStarlinkIp: newValue,
+        starlinkPowerOutageMode: !newValue,
+      }));
 
       const res = await fetch('/api/attendance/admin/policy', {
         method: 'POST',
