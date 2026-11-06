@@ -42,6 +42,7 @@ interface Props {
   sharedIsTyping?: boolean;
   onSendMessage?: (text: string) => void;
   onConfirmAction?: (messageId: string, actionType: string, payload: any) => void;
+  onNewChat?: () => void;
 }
 
 export function AiFinancialManagerDrawer({
@@ -58,6 +59,7 @@ export function AiFinancialManagerDrawer({
   sharedIsTyping,
   onSendMessage,
   onConfirmAction,
+  onNewChat,
 }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -77,6 +79,7 @@ export function AiFinancialManagerDrawer({
   const isTyping = sharedIsTyping !== undefined ? sharedIsTyping : internalAi.isTyping;
   const sendMessage = onSendMessage || internalAi.sendMessage;
   const handleConfirmAction = onConfirmAction || internalAi.handleConfirmAction;
+  const startNewChat = onNewChat || internalAi.startNewChat;
 
   // If launched with an initial prompt from the ambient HUD, send it automatically
   useEffect(() => {
@@ -205,6 +208,29 @@ export function AiFinancialManagerDrawer({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              title="Start a new chat session"
+              onClick={startNewChat}
+              style={{
+                background: 'rgba(255, 255, 255, 0.55)',
+                border: '1px solid rgba(255, 255, 255, 0.7)',
+                color: '#334155',
+                padding: '6px 10px',
+                cursor: 'pointer',
+                borderRadius: '8px',
+                fontSize: '11px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+              }}
+            >
+              <RotateCcw size={13} />
+              <span>New Chat</span>
+            </button>
+
             <button
               type="button"
               title={soundEnabled ? 'Mute AI Audio' : 'Enable AI Audio Feedback'}

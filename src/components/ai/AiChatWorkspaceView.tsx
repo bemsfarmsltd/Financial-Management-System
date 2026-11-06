@@ -62,7 +62,7 @@ export function AiChatWorkspaceView({
     currentPage: 'AI Copilot & Chat',
   });
 
-  const { messages, isTyping, sendMessage, handleConfirmAction } = aiManager;
+  const { messages, isTyping, sendMessage, handleConfirmAction, startNewChat } = aiManager;
 
   // Auto-scroll when messages update or typing state changes
   useEffect(() => {
@@ -116,6 +116,29 @@ export function AiChatWorkspaceView({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            onClick={startNewChat}
+            title="Start a new chat session"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 14px',
+              borderRadius: '999px',
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              color: '#334155',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+            }}
+          >
+            <RotateCcw size={13} />
+            New Chat
+          </button>
+
           {isChatEnabled ? (
             <div
               style={{

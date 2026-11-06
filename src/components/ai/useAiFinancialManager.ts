@@ -13,16 +13,102 @@ interface UseAiOptions {
 }
 
 export function useAiFinancialManager({ userRole, userName, businessName, businessId, currentPage }: UseAiOptions) {
+  const storageKey = `bems_web_chat_history_${businessId || 'default'}_${userRole || 'STAFF'}`;
+
   const [messages, setMessages] = useState<AiMessage[]>(() => [
     {
       id: 'msg-welcome',
       sender: 'assistant',
       timestamp: 'Just now',
-      content: `Good afternoon, ${userName.split(' ')[0]}. I am your BEMS AI Group Financial Manager. I monitor real-time expenditure, approvals, cash runway, and compliance across ${businessName}.\n\nHow can I assist your financial oversight today?`,
+      content: `Good afternoon, ${userName ? userName.split(' ')[0] : 'Executive'}. I am your BEMS AI Group Financial Manager. I monitor real-time expenditure, approvals, cash runway, and compliance across ${businessName}.\n\nHow can I assist your financial oversight today?`,
     },
   ]);
 
   const [isTyping, setIsTyping] = useState(false);
+
+  // Hydrate conversation on mount from localStorage or /api/ai/memory
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+          return;
+        }
+      }
+
+      // If no local history, query backend memory for session
+      fetch('/api/ai/memory?limit=20')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data && Array.isArray(data.messages) && data.messages.length > 0) {
+            const restored: AiMessage[] = data.messages.map((m: any, idx: number) => ({
+              id: `restored-${m.id || idx}`,
+              sender: m.role === 'assistant' ? 'assistant' : 'user',
+              timestamp: m.created_at
+                ? new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+                : 'Earlier',
+              content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+            }));
+            if (restored.length > 0) {
+              setMessages(restored);
+              try {
+                localStorage.setItem(storageKey, JSON.stringify(restored));
+              } catch {}
+            }
+          }
+        })
+        .catch(() => {});
+    } catch (e) {
+      console.warn('Could not load chat history:', e);
+    }
+  }, [storageKey]);
+
+  // Persist conversation whenever messages change
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (messages.length > 1 || (messages.length === 1 && messages[0].id !== 'msg-welcome')) {
+        localStorage.setItem(storageKey, JSON.stringify(messages));
+      }
+    } catch (e) {
+      console.warn('Could not persist chat history:', e);
+    }
+  }, [messages, storageKey]);
+
+  // Start fresh chat session
+  const startNewChat = useCallback(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        if (messages.length > 1) {
+          const sessionsKey = `bems_web_chat_sessions_${businessId || 'default'}`;
+          const existingSessions = JSON.parse(localStorage.getItem(sessionsKey) || '[]');
+          const archiveTitle = messages.find((m) => m.sender === 'user')?.content?.slice(0, 40) || 'Financial Oversight';
+          existingSessions.unshift({
+            id: `session-${Date.now()}`,
+            title: archiveTitle,
+            updatedAt: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+            messages,
+          });
+          localStorage.setItem(sessionsKey, JSON.stringify(existingSessions.slice(0, 10)));
+        }
+        localStorage.removeItem(storageKey);
+      }
+    } catch (e) {
+      console.warn('Error archiving session:', e);
+    }
+
+    setMessages([
+      {
+        id: `msg-welcome-${Date.now()}`,
+        sender: 'assistant',
+        timestamp: 'Just now',
+        content: `Good afternoon, ${userName ? userName.split(' ')[0] : 'Executive'}. I am your BEMS AI Group Financial Manager. I monitor real-time expenditure, approvals, cash runway, and compliance across ${businessName}.\n\nHow can I assist your financial oversight today?`,
+      },
+    ]);
+  }, [businessId, messages, storageKey, userName, businessName]);
 
   // Send a user prompt and generate an intelligent response with interactive action cards
   const sendMessage = useCallback(
@@ -381,5 +467,6 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
     sendMessage,
     handleConfirmAction,
     handleCancelAction,
+    startNewChat,
   };
 }

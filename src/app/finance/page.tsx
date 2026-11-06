@@ -5024,6 +5024,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
               onToggleInspectMode={toggleInspectMode}
               onSendMessage={aiManager.sendMessage}
               onConfirmAction={aiManager.handleConfirmAction}
+              onNewChat={aiManager.startNewChat}
               onOpenFullCockpit={handleOpenAiDrawer}
               onNavigate={(tab) => {
                 openModule(tab);
@@ -5049,6 +5050,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
               sharedIsTyping={aiManager.isTyping}
               onSendMessage={aiManager.sendMessage}
               onConfirmAction={aiManager.handleConfirmAction}
+              onNewChat={aiManager.startNewChat}
             />
           </>
         )}

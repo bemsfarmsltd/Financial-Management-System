@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { KineticAiOrb } from './KineticAiOrb';
 import { useAmbientTelemetry } from './useAmbientTelemetry';
 import { AiMessage } from './types';
-import { Send, Maximize2, Minimize2, X, Trash2, Sparkles, ChevronUp, ChevronDown, Target } from 'lucide-react';
+import { Send, Maximize2, Minimize2, X, Trash2, Sparkles, ChevronUp, ChevronDown, Target, RotateCcw } from 'lucide-react';
 import { BriefingActionCard } from './cards/BriefingActionCard';
 import { ApprovalDecisionCard } from './cards/ApprovalDecisionCard';
 import { BudgetProposalCard } from './cards/BudgetProposalCard';
@@ -26,6 +26,7 @@ interface Props {
   onToggleInspectMode?: () => void;
   onSendMessage: (text: string) => void;
   onConfirmAction: (messageId: string, actionType: string, payload: any) => void;
+  onNewChat?: () => void;
   onOpenFullCockpit: (initialPrompt?: string) => void;
   onNavigate?: (tab: string) => void;
 }
@@ -41,6 +42,7 @@ export function AmbientBottomAiBar({
   onToggleInspectMode,
   onSendMessage,
   onConfirmAction,
+  onNewChat,
   onOpenFullCockpit,
   onNavigate,
 }: Props) {
@@ -172,6 +174,30 @@ export function AmbientBottomAiBar({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {onNewChat && (
+                <button
+                  type="button"
+                  onClick={onNewChat}
+                  title="Start a new chat session"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.55)',
+                    border: '1px solid rgba(255, 255, 255, 0.70)',
+                    color: '#334155',
+                    padding: '5px 9px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <RotateCcw size={12} />
+                  <span>New Chat</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => onOpenFullCockpit()}
