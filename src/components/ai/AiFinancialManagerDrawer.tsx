@@ -63,6 +63,7 @@ export function AiFinancialManagerDrawer({
   onConfirmAction,
   onNewChat,
 }: Props) {
+  const isGroupScope = !businessName || businessName === 'BEMS Group' || businessName?.toLowerCase().includes('bems group');
   const [isExpanded, setIsExpanded] = useState(false);
   const [inputText, setInputText] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -185,22 +186,21 @@ export function AiFinancialManagerDrawer({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <strong style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
-                  BEMS AI Group Financial Manager
+                  BEMS AI Financial Copilot
                 </strong>
                 <span
                   style={{
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    color: '#047857',
+                    background: isGroupScope ? 'rgba(234, 88, 12, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                    color: isGroupScope ? '#c2410c' : '#047857',
                     fontSize: '9.5px',
                     fontWeight: 800,
                     padding: '2px 8px',
                     borderRadius: '999px',
-                    border: '1px solid rgba(16, 185, 129, 0.35)',
-                    textTransform: 'uppercase',
+                    border: isGroupScope ? '1px solid rgba(234, 88, 12, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)',
                     letterSpacing: '0.04em',
                   }}
                 >
-                  Autonomous Active
+                  {isGroupScope ? '🌐 Group Conglomerate HQ' : `🔒 Scoped to ${businessName}`}
                 </span>
               </div>
               <span style={{ fontSize: '11.5px', color: '#475569', fontWeight: 500 }}>

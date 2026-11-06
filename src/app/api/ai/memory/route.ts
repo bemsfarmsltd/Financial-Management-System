@@ -17,7 +17,11 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const sessionId = searchParams.get("session_id") || (actor ? `conv_${actor.id}` : "");
+    const scope = searchParams.get("scope");
+    const defaultSessionId = (!scope || scope === 'group_hq' || scope === 'bems-group-hq' || scope === 'ALL')
+      ? `conv_${actor.id}`
+      : `conv_${actor.id}_${scope}`;
+    const sessionId = searchParams.get("session_id") || defaultSessionId;
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "40", 10), 1), 100);
     const mode = searchParams.get("mode");
 

@@ -50,6 +50,54 @@ export async function POST(req: NextRequest) {
     const isExecutive = hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
     const isReadOnlyUser = !isExecutive;
 
+    const rawBusinessId = (body.context?.active_business_id || '').trim();
+
+    // Resolve target subsidiary if in a scoped workspace
+    let targetOrg = null;
+    if (rawBusinessId && rawBusinessId !== 'bems-group-hq' && rawBusinessId !== 'ALL' && rawBusinessId !== 'group_hq') {
+      targetOrg = await prisma.organization.findFirst({
+        where: {
+          status: 'ACTIVE',
+          OR: [
+            { id: rawBusinessId },
+            { code: rawBusinessId },
+            { legalName: { equals: rawBusinessId, mode: 'insensitive' } },
+          ],
+        },
+      });
+    }
+
+    const isGroupScope = !targetOrg || targetOrg.type === 'GROUP' || targetOrg.code === 'BEMS-GROUP';
+    const scopedOrgId = !isGroupScope ? targetOrg?.id : null;
+    const scopedOrgName = !isGroupScope ? targetOrg?.legalName : 'BEMS Group';
+    const scopedOrgCode = !isGroupScope ? targetOrg?.code : 'BEMS-GROUP';
+
+    // Boundary Protection: If inside a scoped subsidiary, prevent probing outside that subsidiary
+    if (!isGroupScope && scopedOrgId) {
+      const allActiveOrgs = await prisma.organization.findMany({ where: { status: 'ACTIVE' } });
+      const otherSubsidiaries = allActiveOrgs.filter((o) => o.id !== scopedOrgId && o.type !== 'GROUP');
+      const mentionedOther = otherSubsidiaries.find((o) => {
+        const nameLower = o.legalName.toLowerCase();
+        const codeLower = o.code.toLowerCase();
+        return (
+          normalized.includes(nameLower) ||
+          normalized.includes(codeLower) ||
+          (o.code === 'BBH' && (normalized.includes('bemssoft') || normalized.includes('bems soft'))) ||
+          (o.code === 'BSA' && (normalized.includes('arella') || normalized.includes('studio arella'))) ||
+          (o.code === 'BEDU' && (normalized.includes('bedu') || normalized.includes('institute') || normalized.includes('vocational'))) ||
+          (o.code === 'BAGRO' && (normalized.includes('bems farm') || normalized.includes('bems farms') || normalized.includes('agro'))) ||
+          (o.code === 'BTECH' && (normalized.includes('smartairs') || normalized.includes('smart airs')))
+        );
+      });
+
+      if (mentionedOther) {
+        return NextResponse.json({
+          message: `🔒 **Subsidiary Boundary Enforcement**\n\nYou are currently operating inside the workspace of **${scopedOrgName}**.\n\nI am strictly partitioned to only access data, bank balances, budgets, staff dossiers, and requisitions belonging to **${scopedOrgName}**.\n\nTo view financial data, budgets, or records for **${mentionedOther.legalName}**, please switch your workspace using the workspace switcher in the top navigation, or select **BEMS Group (Holding & Conglomerate HQ)** to inspect consolidated group operations.`,
+          timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+        });
+      }
+    }
+
     // 0. Forward to external n8n AI Agent if configured (BEMS AI Backend Contract Section 02)
     const n8nWebhookUrl = process.env.N8N_AI_WEBHOOK_URL;
     if (n8nWebhookUrl && actor) {
@@ -58,7 +106,7 @@ export async function POST(req: NextRequest) {
         const timeout = setTimeout(() => controller.abort(), 120000); // 120 seconds for deep reasoning
 
         const correlationId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        const sessionId = `conv_${actor.id}`;
+        const sessionId = isGroupScope ? `conv_${actor.id}` : `conv_${actor.id}_${scopedOrgId}`;
 
         // Provide valid service token so n8n tools can query BEMS APIs seamlessly
         const authToken = process.env.BEMS_AI_SERVICE_TOKEN || '';
@@ -203,7 +251,9 @@ export async function POST(req: NextRequest) {
           message: queryText,
           timestamp: new Date().toISOString(),
           context: {
-            active_business_id: (body.context && body.context.active_business_id) || '',
+            active_business_id: scopedOrgId || '',
+            active_business_name: scopedOrgName,
+            is_group_scope: isGroupScope,
             channel: 'web_chat',
             target_element: targetElement || null,
             conversation_history: conversationHistory,
@@ -215,7 +265,7 @@ title: "<Chart Title>"
 <Label>: <Value>
 \`\`\`
 3. Markdown Tables: When presenting multi-column comparative data (e.g. subsidiaries, periods, budgets, spending), use standard Markdown tables with proper newlines between every row. Ensure a blank line before and after the table.
-4. Requisition & Action Cards: Use structured cards ONLY for items requiring review, requisition approval decisions (REQ-XXXX-XXXX), or staged actions.${isReadOnlyUser ? '\n5. STRICT READ-ONLY MODE: The active user has the AI Analyst role. They have read-only access to query information, ledger statistics, and financial intelligence. They CANNOT execute actions, stage approvals, or commit ledger writes. Do NOT stage any actions for this user.' : '\n5. User Instruction Adherence: If user asks for paragraphs, provide detailed prose. If user asks for a graph or histogram, provide a visual chart block.'}`,
+4. Requisition & Action Cards: Use structured cards ONLY for items requiring review, requisition approval decisions (REQ-XXXX-XXXX), or staged actions.${!isGroupScope ? `\n5. STRICT SUBSIDIARY BOUNDARY: You are operating strictly inside the isolated workspace for "${scopedOrgName}" (ID: ${scopedOrgId}). You MUST restrict all database queries, financial totals, and responses exclusively to "${scopedOrgName}". Do NOT query, cite, or manipulate any other subsidiary or group-level data.` : '\n5. GROUP CONGLOMERATE HQ: You have global visibility across all subsidiaries.'}`,
           },
           conversation_history: conversationHistory,
           chat_history: conversationHistory,
@@ -294,26 +344,68 @@ title: "<Chart Title>"
       }
     }
 
-    // 1. Fetch live telemetry from DB via canonical financial calculator
-    const [treasuryData, pendingRequests, totalActiveStaff, orgs, openCases] = await Promise.all([
-      getConsolidatedTreasury().catch(() => ({ accounts: [], totalCash: 0, totalCashFormatted: '₦0', safeRunwayMonths: 0, pendingPipeline: 0 })),
+    // 1. Fetch live telemetry from DB via canonical financial calculator (with strict subsidiary scoping)
+    let bankAccounts: Array<{ bankName: string; accountNumber: string; accountName: string; balance: number; currency?: string }> = [];
+    let totalCash = 0;
+
+    if (isGroupScope) {
+      const treasuryData = await getConsolidatedTreasury().catch(() => ({ accounts: [], totalCash: 0, totalCashFormatted: '₦0', safeRunwayMonths: 0, pendingPipeline: 0 }));
+      bankAccounts = treasuryData.accounts;
+      totalCash = treasuryData.totalCash;
+    } else {
+      const dbAccounts = await prisma.companyBankAccount.findMany({
+        where: {
+          organizationId: scopedOrgId!,
+          status: 'ACTIVE',
+        },
+        select: {
+          bankName: true,
+          accountNumber: true,
+          accountName: true,
+          balance: true,
+          currency: true,
+        },
+      }).catch(() => []);
+      bankAccounts = dbAccounts.map(b => ({
+        bankName: b.bankName,
+        accountNumber: b.accountNumber,
+        accountName: b.accountName,
+        balance: Number(b.balance || 0),
+        currency: b.currency || 'NGN',
+      }));
+      totalCash = bankAccounts.reduce((sum, b) => sum + b.balance, 0);
+    }
+
+    const [pendingRequests, totalActiveStaff, orgs, openCases] = await Promise.all([
       prisma.expenditureRequest.findMany({
-        where: { approvalStatus: { in: ['SUBMITTED', 'IN_REVIEW'] } },
+        where: {
+          ...(scopedOrgId ? { subsidiaryId: scopedOrgId } : {}),
+          approvalStatus: { in: ['SUBMITTED', 'IN_REVIEW'] },
+        },
         take: 5,
         orderBy: { createdAt: 'desc' },
-        include: { requester: true, vendor: true },
+        include: { requester: true, vendor: true, subsidiary: true },
       }).catch(() => []),
-      prisma.employee.count({ where: { status: 'ACTIVE', role: 'STAFF' } }).catch(() => 0),
-      prisma.organization.findMany({ where: { status: 'ACTIVE' } }).catch(() => []),
+      prisma.employee.count({
+        where: {
+          status: 'ACTIVE',
+          role: 'STAFF',
+          ...(scopedOrgId ? { assignments: { some: { subsidiaryId: scopedOrgId } } } : {}),
+        },
+      }).catch(() => 0),
+      isGroupScope
+        ? prisma.organization.findMany({ where: { status: 'ACTIVE' } }).catch(() => [])
+        : prisma.organization.findMany({ where: { id: scopedOrgId! } }).catch(() => []),
       prisma.accountabilityCase.findMany({
-        where: { status: { not: 'CLOSED' } },
+        where: {
+          status: { not: 'CLOSED' },
+          ...(scopedOrgId ? { request: { subsidiaryId: scopedOrgId } } : {}),
+        },
         take: 5,
         include: { owner: true, request: true },
       }).catch(() => []),
     ]);
 
-    const bankAccounts = treasuryData.accounts;
-    const totalCash = treasuryData.totalCash;
     const pendingCount = pendingRequests.length;
     const pendingSum = pendingRequests.reduce((sum, r) => sum + (Number(r.amountMinor) || 0) / 100, 0);
 
@@ -372,23 +464,25 @@ title: "<Chart Title>"
       normalized.includes('reserve')
     ) {
       if (!isExecutive) {
-        reply = `🔒 **Executive Confidentiality:** BEMS Group liquid treasury reserves, bank account balances, and banking institution records are confidential executive data accessible only to the Group Managing Director and System Administrator.`;
+        reply = `🔒 **Executive Confidentiality:** ${scopedOrgName} liquid treasury reserves, bank account balances, and banking institution records are confidential executive data accessible only to the Group Managing Director and System Administrator.`;
         actionCard = null;
       } else if (bankAccounts.length === 0) {
-        reply = `**Treasury Status:** No company bank accounts have been registered yet.\n\nYou can add group bank accounts under **Treasury Accounts** in your Fund Flow menu.`;
+        reply = !isGroupScope
+          ? `**Treasury Status (${scopedOrgName}):** No subsidiary bank accounts have been registered yet for **${scopedOrgName}**.\n\nYou can add bank accounts under **Treasury Accounts** in your Fund Flow menu.`
+          : `**Treasury Status:** No company bank accounts have been registered yet.\n\nYou can add group bank accounts under **Treasury Accounts** in your Fund Flow menu.`;
       } else if (wantsGraph) {
-        reply = `Here is the visual histogram breakdown of BEMS Group liquid treasury reserves across all registered accounts:\n\n\`\`\`chart:histogram\ntitle: "Group Treasury Reserves by Account"\n${bankAccounts.map((b) => `${b.bankName} (${b.accountNumber.slice(-4)}): ${b.balance}`).join('\n')}\n\`\`\`\n\nTotal combined liquidity across active accounts stands at **${formatNaira(totalCash)}**.`;
+        reply = `Here is the visual histogram breakdown of ${scopedOrgName} liquid treasury reserves across all registered accounts:\n\n\`\`\`chart:histogram\ntitle: "${scopedOrgName} Treasury Reserves by Account"\n${bankAccounts.map((b) => `${b.bankName} (${b.accountNumber.slice(-4)}): ${b.balance}`).join('\n')}\n\`\`\`\n\nTotal combined liquidity across active accounts stands at **${formatNaira(totalCash)}**.`;
       } else if (wantsParagraph) {
         const accDetails = bankAccounts.map((b) => `${b.bankName} ending in ${b.accountNumber.slice(-4)} holding ${formatNaira(b.balance)}`).join(', ');
-        reply = `BEMS Group currently maintains a consolidated liquid treasury reserve of **${formatNaira(totalCash)}** dispersed across ${bankAccounts.length} institutional depository partners, specifically ${accDetails}. Every deposit and disbursement is monitored in real-time under dual-custody controls, ensuring that the group maintains ample operational liquidity to service pending procurement commitments and payroll cycles without requiring short-term credit drawdowns.`;
+        reply = `${scopedOrgName} currently maintains a ${isGroupScope ? 'consolidated' : 'dedicated'} liquid treasury reserve of **${formatNaira(totalCash)}** dispersed across ${bankAccounts.length} institutional depository partner${bankAccounts.length === 1 ? '' : 's'}, specifically ${accDetails}. Every deposit and disbursement is monitored in real-time under dual-custody controls, ensuring that ${scopedOrgName} maintains ample operational liquidity to service pending procurement commitments and payroll cycles without requiring short-term credit drawdowns.`;
       } else {
         const list = bankAccounts
           .map((b) => `• **${b.bankName}** (${b.accountNumber} · ${b.accountName}): **${formatNaira(b.balance)}**`)
           .join('\n');
-        reply = `**BEMS Group Real-Time Cash & Treasury Reserves:**\n\nTotal Liquid Reserves: **${formatNaira(totalCash)}** across ${bankAccounts.length} verified institution${bankAccounts.length > 1 ? 's' : ''}.\n\n${list}\n\nAll accounts are synchronized with live ledger reconciliation.`;
+        reply = `**${scopedOrgName} Real-Time Cash & Treasury Reserves:**\n\nTotal Liquid Reserves: **${formatNaira(totalCash)}** across ${bankAccounts.length} verified institution${bankAccounts.length > 1 ? 's' : ''}.\n\n${list}\n\n*Strictly isolated to ${scopedOrgName}'s registered depository accounts.*`;
         actionCard = {
           type: 'TREASURY',
-          title: 'Group Treasury Reserves',
+          title: `${scopedOrgName} Treasury Reserves`,
           totalCash: formatNaira(totalCash),
           accounts: bankAccounts.map((b) => ({
             name: b.bankName,
@@ -743,13 +837,16 @@ title: "<Chart Title>"
     ) {
       const todayDateStr = new Date().toISOString().split('T')[0];
       const todayRecords = await prisma.attendanceRecord.findMany({
-        where: { workDate: todayDateStr },
+        where: {
+          workDate: todayDateStr,
+          ...(scopedOrgId ? { employee: { assignments: { some: { subsidiaryId: scopedOrgId } } } } : {}),
+        },
       });
       const onTime = todayRecords.filter((r) => r.status === 'PRESENT' && !r.isManualOverride).length;
       const late = todayRecords.filter((r) => r.status === 'LATE').length;
       const excused = todayRecords.filter((r) => r.status === 'EXCUSED' || r.isManualOverride).length;
 
-      reply = `**BEMS Group Live Attendance & Timekeeping Intelligence (${todayDateStr}):**\n\n` +
+      reply = `**${scopedOrgName} Live Attendance & Timekeeping Intelligence (${todayDateStr}):**\n\n` +
         `• **Official System Launch:** Attendance tracking officially commenced on **November 3, 2026**.\n` +
         `• **Today's Presence:** **${todayRecords.length} staff checked in** (${onTime} on-time, ${late} late, ${excused} excused/override).\n` +
         `• **Policy Threshold:** Resumption 08:00 AM + 15m Grace (08:15 AM cut-off). Deductions: -5% pro-rated daily wage for lateness, -100% for unexcused absence.\n\n` +
@@ -757,12 +854,89 @@ title: "<Chart Title>"
 
       actionCard = {
         type: 'ATTENDANCE',
-        title: `Attendance Radar (${todayDateStr})`,
+        title: `${scopedOrgName} Attendance Radar (${todayDateStr})`,
         punches: todayRecords.length,
         onTime,
         late,
         excused,
       };
+    } else if (
+      normalized.includes('budget') ||
+      normalized.includes('envelope') ||
+      normalized.includes('spending cap') ||
+      normalized.includes('fiscal plan')
+    ) {
+      const budgets = await prisma.budget.findMany({
+        where: {
+          ...(scopedOrgId ? { organizationId: scopedOrgId } : {}),
+          status: 'ACTIVE',
+        },
+        include: {
+          organization: { select: { legalName: true, code: true } },
+          lines: true,
+        },
+        orderBy: { fiscalYear: 'desc' },
+      });
+
+      if (!budgets.length) {
+        reply = !isGroupScope
+          ? `**Fiscal Budgets & Envelopes (${scopedOrgName}):**\n\nNo active fiscal budget envelopes are currently recorded for **${scopedOrgName}**.\n\nYou can establish operational spending envelopes in **Budgets & Commitments**.`
+          : `**BEMS Group Consolidated Fiscal Budgets:**\n\nNo active fiscal budget envelopes are currently registered across the group.`;
+      } else {
+        const totalBudgetNaira = budgets.reduce((acc, b) => acc + (Number(b.totalAmount) || 0), 0);
+        const budgetList = budgets
+          .map((b) => {
+            const amtFormatted = formatNaira(Number(b.totalAmount) || 0);
+            return `• **${b.organization.legalName}** (${b.fiscalYear} · ${b.periodName}): **${amtFormatted}** [${b.lines.length} expense lines]`;
+          })
+          .join('\n');
+
+        reply = !isGroupScope
+          ? `**Fiscal Budget Allocation for ${scopedOrgName}:**\n\n${budgetList}\n\n• **Combined Cap:** **${formatNaira(totalBudgetNaira)}**\n• **Spending Policy:** Every requisition against department lines is validated against available headroom in real time.`
+          : `**BEMS Group Consolidated Fiscal Budgets:**\n\n${budgetList}\n\n• **Total Conglomerate Budget Cap:** **${formatNaira(totalBudgetNaira)}** across ${budgets.length} entities.`;
+      }
+    } else if (
+      normalized.includes('who works here') ||
+      normalized.includes('list staff') ||
+      normalized.includes('our staff') ||
+      normalized.includes('all staff') ||
+      normalized.includes('employees') ||
+      normalized.includes('workforce')
+    ) {
+      const staffList = await prisma.employee.findMany({
+        where: {
+          status: 'ACTIVE',
+          role: 'STAFF',
+          ...(scopedOrgId ? { assignments: { some: { subsidiaryId: scopedOrgId } } } : {}),
+        },
+        include: {
+          assignments: {
+            include: { subsidiary: { select: { legalName: true } }, department: { select: { name: true } } },
+            take: 1,
+          },
+        },
+        orderBy: { legalName: 'asc' },
+        take: 15,
+      });
+
+      if (!staffList.length) {
+        reply = !isGroupScope
+          ? `**Workforce Directory (${scopedOrgName}):**\n\nNo active staff members are currently assigned to **${scopedOrgName}**.`
+          : `**BEMS Group Workforce Directory:**\n\nNo active staff members found across the group.`;
+      } else {
+        const listText = staffList
+          .map((s, idx) => {
+            const pos = s.assignments[0]?.positionName || 'Staff';
+            const dept = s.assignments[0]?.department?.name || 'General Operations';
+            const exemptBadge = (s as any).isAttendanceExempt ? ' *(Attendance Exempt)*' : '';
+            return `${idx + 1}. **${s.legalName}** (${s.employeeNumber}) — ${pos} · *${dept}*${exemptBadge}`;
+          })
+          .join('\n');
+
+        reply = !isGroupScope
+          ? `**Active Workforce Assigned to ${scopedOrgName} (${totalActiveStaff} personnel):**\n\n${listText}\n\n*Strictly isolated to ${scopedOrgName}'s organizational roster.*`
+          : `**BEMS Group Active Workforce (${totalActiveStaff} personnel across all entities):**\n\n${listText}`;
+      }
     } else if (
       normalized.includes('create subsidiary') ||
       normalized.includes('new subsidiary') ||
@@ -845,6 +1019,9 @@ title: "<Chart Title>"
       normalized.includes('matching')
     ) {
       const matchRecords = await prisma.threeWayMatchRecord.findMany({
+        where: {
+          ...(scopedOrgId ? { request: { subsidiaryId: scopedOrgId } } : {}),
+        },
         take: 5,
         orderBy: { matchedAt: 'desc' },
         include: {
@@ -855,7 +1032,7 @@ title: "<Chart Title>"
       });
 
       if (!matchRecords.length) {
-        reply = `**Automated 3-Way Matching Engine (PO vs GRN vs Invoice):**\n\n` +
+        reply = `**Automated 3-Way Matching Engine (${scopedOrgName}):**\n\n` +
           `• **Status:** Active & Enforced\n` +
           `• **Protocol:** Every vendor expenditure automatically cross-verifies Purchase Order rate, physical Goods Receipt Note (GRN) acceptance, and Vendor Invoice billed amount.\n` +
           `• **Tolerance Gate:** 0% unapproved price variance. Deliveries flagged as DAMAGED or PARTIAL block automated payment release until authorized by the GMD.`;
@@ -869,7 +1046,7 @@ title: "<Chart Title>"
           })
           .join('\n\n');
 
-        reply = `**BEMS Group 3-Way Match Verification Radar:**\n\n${rows}\n\n*Invoices with \`MATCH_CONFIRMED\` are pre-cleared for GMD disbursement.*`;
+        reply = `**${scopedOrgName} 3-Way Match Verification Radar:**\n\n${rows}\n\n*Invoices with \`MATCH_CONFIRMED\` are pre-cleared for GMD disbursement.*`;
       }
     } else if (
       normalized.includes('intercompany') ||
@@ -878,7 +1055,10 @@ title: "<Chart Title>"
       normalized.includes('netting')
     ) {
       const notes = await prisma.intercompanyNote.findMany({
-        where: { status: 'ISSUED' },
+        where: {
+          status: 'ISSUED',
+          ...(scopedOrgId ? { OR: [{ sourceEntityId: scopedOrgId }, { targetEntityId: scopedOrgId }] } : {}),
+        },
         include: {
           sourceEntity: { select: { legalName: true } },
           targetEntity: { select: { legalName: true } },
@@ -888,10 +1068,14 @@ title: "<Chart Title>"
       });
 
       if (!notes.length) {
-        reply = `**Automated Intercompany Clearing & Netting Ledger:**\n\n` +
-          `• **Status:** All intercompany obligations are currently balanced.\n` +
-          `• **Protocol:** When Central Treasury or any subsidiary incurs expenditure or payroll on behalf of another entity, bilateral Debit/Credit notes are generated automatically with zero double-counting.\n` +
-          `• **GMD Netting:** Bilateral balances can be offset and settled with 1-click GMD authorization.`;
+        reply = !isGroupScope
+          ? `**Intercompany Clearing & Netting Ledger (${scopedOrgName}):**\n\n` +
+            `• **Status:** All intercompany obligations for **${scopedOrgName}** are currently balanced.\n` +
+            `• **Protocol:** Cross-entity expenditures and shared resource allocations generate bilateral Debit/Credit notes with zero double-counting.`
+          : `**Automated Intercompany Clearing & Netting Ledger:**\n\n` +
+            `• **Status:** All intercompany obligations are currently balanced.\n` +
+            `• **Protocol:** When Central Treasury or any subsidiary incurs expenditure or payroll on behalf of another entity, bilateral Debit/Credit notes are generated automatically with zero double-counting.\n` +
+            `• **GMD Netting:** Bilateral balances can be offset and settled with 1-click GMD authorization.`;
       } else {
         const noteList = notes
           .map((n) => {
@@ -901,7 +1085,7 @@ title: "<Chart Title>"
           })
           .join('\n\n');
 
-        reply = `**Active Intercompany Balance & Netting Matrix:**\n\n${noteList}\n\n💬 *You can instruct me to stage a netting settlement across these notes for your authorization.*`;
+        reply = `**Active Intercompany Balance & Netting Matrix (${scopedOrgName}):**\n\n${noteList}\n\n💬 *You can instruct me to stage a netting settlement across these notes for your authorization.*`;
       }
     } else if (
       normalized.includes('subsidiary') ||
@@ -909,20 +1093,32 @@ title: "<Chart Title>"
       normalized.includes('company') ||
       normalized.includes('companies')
     ) {
-      const orgNames = orgs.length ? orgs.map((o) => `• **${o.legalName}** (${o.type})`).join('\n') : '• **BEMS Group Holdings (HQ)**';
-      reply = `**BEMS Group Multi-Subsidiary Architecture:**\n\n${orgNames}\n\nAll intercompany transactions generate automated bilateral Debit/Credit notes with zero double-counting.`;
+      const orgNames = orgs.length ? orgs.map((o) => `• **${o.legalName}** (${o.type})`).join('\n') : `• **${scopedOrgName}**`;
+      reply = !isGroupScope
+        ? `**Active Workspace Subsidiary:**\n\n• **${scopedOrgName}** (Code: \`${scopedOrgCode}\`)\n\n*The AI Copilot is strictly isolated to this subsidiary. To view the group conglomerate portfolio, switch to BEMS Group HQ.*`
+        : `**BEMS Group Multi-Subsidiary Architecture:**\n\n${orgNames}\n\nAll intercompany transactions generate automated bilateral Debit/Credit notes with zero double-counting.`;
     } else {
       // General financial advisor intelligence fallback
       const hasSpecificQuery = message.length > 15 && !normalized.includes('hello') && !normalized.includes('hi');
-      reply = `I am your **BEMS Executive Financial AI Copilot**, grounded with live database ledger telemetry across BEMS Group.\n\n` +
-        (hasSpecificQuery ? `I noted your instruction: *"${message}"*.\n\n` : '') +
-        `You can ask me:\n` +
-        `• *"What is our total cash balance across bank accounts?"*\n` +
-        `• *"Are there any fund requests pending my approval?"*\n` +
-        `• *"Give me the morning executive briefing."*\n` +
-        `• *"Who has open cash advance accountability cases?"*\n` +
-        `• *"Summarize our subsidiary structure and budget allocations."*\n\n` +
-        `How would you like to direct financial oversight right now?`;
+      reply = !isGroupScope
+        ? `I am your **dedicated AI Financial Manager for ${scopedOrgName}**, grounded with live database ledger telemetry strictly for this subsidiary.\n\n` +
+          (hasSpecificQuery ? `I noted your instruction: *"${message}"*.\n\n` : '') +
+          `You can ask me:\n` +
+          `• *"What is our cash balance in ${scopedOrgName}'s bank accounts?"*\n` +
+          `• *"Who works at ${scopedOrgName}?"*\n` +
+          `• *"What is our budget allocation?"*\n` +
+          `• *"Are there any fund requests pending for ${scopedOrgName}?"*\n` +
+          `• *"Show today's attendance for our staff."*\n\n` +
+          `*🔒 Note: I am partitioned exclusively to ${scopedOrgName}. To view other subsidiaries or consolidated figures, switch to BEMS Group HQ.*`
+        : `I am your **BEMS Executive Financial AI Copilot**, grounded with live database ledger telemetry across BEMS Group Conglomerate HQ.\n\n` +
+          (hasSpecificQuery ? `I noted your instruction: *"${message}"*.\n\n` : '') +
+          `You can ask me:\n` +
+          `• *"What is our total cash balance across bank accounts?"*\n` +
+          `• *"Are there any fund requests pending my approval?"*\n` +
+          `• *"Give me the morning executive briefing."*\n` +
+          `• *"Who has open cash advance accountability cases?"*\n` +
+          `• *"Summarize our subsidiary structure and budget allocations."*\n\n` +
+          `How would you like to direct financial oversight right now?`;
     }
 
     return NextResponse.json({

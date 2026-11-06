@@ -13,16 +13,23 @@ interface UseAiOptions {
 }
 
 export function useAiFinancialManager({ userRole, userName, businessName, businessId, currentPage }: UseAiOptions) {
-  // Global executive key ensures switching tabs across subsidiaries does NOT wipe chat stream
-  const storageKey = `bems_executive_chat_history_v2`;
-  const sessionsKey = `bems_executive_chat_sessions_v2`;
+  const isGroupScope = !businessId || businessId === 'bems-group-hq' || businessId === 'ALL' || businessName?.toLowerCase().includes('bems group');
+  const scopeKey = isGroupScope ? 'group_hq' : (businessId || 'group_hq');
+
+  // Scoped executive keys ensure each workspace has clean, isolated conversation memory
+  const storageKey = `bems_executive_chat_history_v3_${scopeKey}`;
+  const sessionsKey = `bems_executive_chat_sessions_v3_${scopeKey}`;
+
+  const defaultWelcomeText = isGroupScope
+    ? `Good afternoon, ${userName ? userName.split(' ')[0] : 'Executive'}. I am your BEMS AI Group Financial Manager. I monitor real-time expenditure, approvals, cash runway, and compliance across BEMS Group Conglomerate HQ.\n\nHow can I assist your financial oversight today?`
+    : `Good afternoon, ${userName ? userName.split(' ')[0] : 'Executive'}. I am your dedicated AI Financial Manager for ${businessName}. I am strictly scoped to ${businessName}'s budgets, bank accounts, staff, and requisitions.\n\nHow can I assist your financial oversight for ${businessName} today?`;
 
   const [messages, setMessages] = useState<AiMessage[]>(() => [
     {
       id: 'msg-welcome',
       sender: 'assistant',
       timestamp: 'Just now',
-      content: `Good afternoon, ${userName ? userName.split(' ')[0] : 'Executive'}. I am your BEMS AI Group Financial Manager. I monitor real-time expenditure, approvals, cash runway, and compliance across ${businessName}.\n\nHow can I assist your financial oversight today?`,
+      content: defaultWelcomeText,
     },
   ]);
 
@@ -74,8 +81,18 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
         }
       }
 
+      // Reset to scoped default welcome message when switching workspaces
+      setMessages([
+        {
+          id: `msg-welcome-${scopeKey}`,
+          sender: 'assistant',
+          timestamp: 'Just now',
+          content: defaultWelcomeText,
+        },
+      ]);
+
       // If no local history, query backend memory for session
-      fetch('/api/ai/memory?limit=40')
+      fetch(`/api/ai/memory?limit=40&scope=${encodeURIComponent(scopeKey)}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (data && Array.isArray(data.messages) && data.messages.length > 0) {
@@ -228,6 +245,8 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
             message: text,
             context: {
               active_business_id: businessId,
+              business_name: businessName,
+              is_group_scope: isGroupScope,
               target_element: elementContext,
             },
           }),

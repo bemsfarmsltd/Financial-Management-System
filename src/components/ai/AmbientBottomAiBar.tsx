@@ -48,6 +48,7 @@ export function AmbientBottomAiBar({
   onOpenFullCockpit,
   onNavigate,
 }: Props) {
+  const isGroupScope = !businessName || businessName === 'BEMS Group' || businessName?.toLowerCase().includes('bems group');
   const [inputText, setInputText] = useState('');
   const [isDeckOpen, setIsDeckOpen] = useState(false);
   const [isOrbitActive, setIsOrbitActive] = useState(true);
@@ -157,22 +158,40 @@ export function AmbientBottomAiBar({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Sparkles size={14} color="var(--brand-primary, #2563eb)" />
               <strong style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>
-                BEMS AI Financial Assistant · Live Stream
+                BEMS AI Financial Assistant
               </strong>
-              <span
-                style={{
-                  background: 'rgba(16, 185, 129, 0.15)',
-                  color: '#047857',
-                  fontSize: '9px',
-                  fontWeight: 800,
-                  padding: '2px 7px',
-                  borderRadius: '999px',
-                  border: '1px solid rgba(16, 185, 129, 0.35)',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Active
-              </span>
+              {isGroupScope ? (
+                <span
+                  style={{
+                    background: 'rgba(234, 88, 12, 0.12)',
+                    color: '#c2410c',
+                    fontSize: '9px',
+                    fontWeight: 800,
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    border: '1px solid rgba(234, 88, 12, 0.35)',
+                    letterSpacing: '0.02em',
+                  }}
+                >
+                  🌐 Group HQ
+                </span>
+              ) : (
+                <span
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    color: '#047857',
+                    fontSize: '9px',
+                    fontWeight: 800,
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    letterSpacing: '0.02em',
+                  }}
+                  title={`Strictly isolated to ${businessName}`}
+                >
+                  🔒 Scoped to {businessName}
+                </span>
+              )}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
