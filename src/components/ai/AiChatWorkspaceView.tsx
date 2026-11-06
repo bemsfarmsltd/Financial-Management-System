@@ -13,8 +13,10 @@ import {
   Clock,
   CheckCircle2,
   Lock,
+  History,
 } from 'lucide-react';
 import { useAiFinancialManager } from './useAiFinancialManager';
+import { AiChatHistoryDrawer } from './AiChatHistoryDrawer';
 import { FormattedAiMessage } from './FormattedAiMessage';
 import { KineticAiOrb } from './KineticAiOrb';
 import { BriefingActionCard } from './cards/BriefingActionCard';
@@ -116,6 +118,29 @@ export function AiChatWorkspaceView({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => ai.setIsHistoryOpen(true)}
+            title="View past executive chat sessions"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 14px',
+              borderRadius: '999px',
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              color: '#334155',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+            }}
+          >
+            <History size={13} color="#ea580c" />
+            History
+          </button>
+
           <button
             type="button"
             onClick={startNewChat}
@@ -647,6 +672,16 @@ export function AiChatWorkspaceView({
           </div>
         </div>
       </div>
+
+      <AiChatHistoryDrawer
+        isOpen={ai.isHistoryOpen}
+        onClose={() => ai.setIsHistoryOpen(false)}
+        sessions={ai.sessions}
+        activeSessionId={ai.activeSessionId}
+        onSelectSession={(session) => ai.loadSession(session)}
+        onNewChat={startNewChat}
+        onDeleteSession={(id) => ai.deleteSession(id)}
+      />
     </div>
   );
 }

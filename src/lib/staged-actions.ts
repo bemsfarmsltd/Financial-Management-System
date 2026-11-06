@@ -201,27 +201,130 @@ export async function executeStagedAction(params: {
 
   await prisma.$transaction(async (tx) => {
     if (action.actionType === 'budget') {
-      const { organization_id, period, total_amount, allocations, currency } = materialPayload;
-      
-      const budget = await tx.budget.create({
-        data: {
-          organizationId: organization_id,
-          fiscalYear: new Date().getFullYear(),
-          fiscalPeriod: period || 'Q4',
-          periodName: period || `Budget ${new Date().getFullYear()}`,
-          totalAmount: Number(total_amount),
-          createdById: actor.id,
-          status: 'ACTIVE',
-          lines: {
-            create: (allocations || []).map((line: any) => ({
-              departmentName: line.department || 'Operations',
-              category: line.line_name || line.categoryName || 'General',
-              allocatedAmount: Number(line.amount || 0),
-            })),
+      const { budget_id, organization_id, period, total_amount, allocations, mode, currency } = materialPayload;
+      const budgetMode = (mode || materialPayload.action || 'create').toLowerCase();
+
+      let targetOrgId = organization_id;
+      if (!targetOrgId && budget_id) {
+        const existing = await tx.budget.findUnique({ where: { id: budget_id } });
+        if (existing) targetOrgId = existing.organizationId;
+      }
+      if (!targetOrgId) {
+        const defaultOrg = await tx.organization.findFirst({ select: { id: true } });
+        targetOrgId = defaultOrg?.id;
+      }
+
+      let budget: any = null;
+
+      if (budgetMode === 'delete' || budgetMode === 'archive' || budgetMode === 'remove') {
+        const toDelete = budget_id
+          ? await tx.budget.findUnique({ where: { id: budget_id } })
+          : await tx.budget.findFirst({
+              where: {
+                organizationId: targetOrgId,
+                periodName: { contains: period || '', mode: 'insensitive' },
+                status: 'ACTIVE',
+              },
+            });
+
+        if (toDelete) {
+          budget = await tx.budget.update({
+            where: { id: toDelete.id },
+            data: { status: 'CLOSED' },
+            include: { lines: true },
+          });
+        }
+      } else if (budgetMode === 'reallocate' || budgetMode === 'update') {
+        // Find existing budget
+        const existing = budget_id
+          ? await tx.budget.findUnique({ where: { id: budget_id } })
+          : await tx.budget.findFirst({
+              where: {
+                organizationId: targetOrgId,
+                periodName: { contains: period || '', mode: 'insensitive' },
+                status: 'ACTIVE',
+              },
+              orderBy: { createdAt: 'desc' },
+            });
+
+        if (existing) {
+          const updatedTotal = total_amount ? Number(total_amount) : existing.totalAmount;
+          await tx.budget.update({
+            where: { id: existing.id },
+            data: {
+              totalAmount: updatedTotal,
+              status: 'ACTIVE',
+            },
+          });
+
+          if (Array.isArray(allocations) && allocations.length > 0) {
+            await tx.budgetLine.deleteMany({ where: { budgetId: existing.id } });
+            await tx.budgetLine.createMany({
+              data: allocations.map((line: any) => ({
+                budgetId: existing.id,
+                departmentName: line.department || line.departmentName || 'Operations',
+                category: line.line_name || line.category || line.categoryName || 'General',
+                allocatedAmount: Number(line.amount || line.allocatedAmount || 0),
+                expenseType: line.expenseType || 'OPEX',
+              })),
+            });
+          }
+
+          budget = await tx.budget.findUnique({
+            where: { id: existing.id },
+            include: { lines: true },
+          });
+        }
+      }
+
+      if (!budget) {
+        const existingOverlap = await tx.budget.findFirst({
+          where: {
+            organizationId: targetOrgId,
+            periodName: { contains: period || '', mode: 'insensitive' },
+            status: 'ACTIVE',
           },
-        },
-        include: { lines: true },
-      });
+        });
+
+        if (existingOverlap && Array.isArray(allocations) && allocations.length > 0) {
+          await tx.budget.update({
+            where: { id: existingOverlap.id },
+            data: { totalAmount: total_amount ? Number(total_amount) : existingOverlap.totalAmount },
+          });
+          await tx.budgetLine.deleteMany({ where: { budgetId: existingOverlap.id } });
+          await tx.budgetLine.createMany({
+            data: allocations.map((line: any) => ({
+              budgetId: existingOverlap.id,
+              departmentName: line.department || line.departmentName || 'Operations',
+              category: line.line_name || line.category || line.categoryName || 'General',
+              allocatedAmount: Number(line.amount || line.allocatedAmount || 0),
+              expenseType: line.expenseType || 'OPEX',
+            })),
+          });
+          budget = await tx.budget.findUnique({ where: { id: existingOverlap.id }, include: { lines: true } });
+        } else {
+          budget = await tx.budget.create({
+            data: {
+              organizationId: targetOrgId!,
+              fiscalYear: new Date().getFullYear(),
+              fiscalPeriod: period || 'MONTHLY',
+              periodName: period || `Budget ${new Date().getFullYear()}`,
+              totalAmount: Number(total_amount || 0),
+              createdById: actor.id,
+              status: 'ACTIVE',
+              lines: {
+                create: (allocations || []).map((line: any) => ({
+                  departmentName: line.department || line.departmentName || 'Operations',
+                  category: line.line_name || line.category || line.categoryName || 'General',
+                  allocatedAmount: Number(line.amount || line.allocatedAmount || 0),
+                  expenseType: line.expenseType || 'OPEX',
+                })),
+              },
+            },
+            include: { lines: true },
+          });
+        }
+      }
 
       recordType = 'budget';
       recordId = budget.id;
@@ -344,10 +447,18 @@ export async function executeStagedAction(params: {
       }
 
       if (agreement) {
+        // Find highest existing version
+        const maxComp = await tx.compensationAgreement.findFirst({
+          where: { employmentAgreementId: agreement.id },
+          orderBy: { version: 'desc' },
+          select: { version: true },
+        });
+        const nextVersion = (maxComp?.version || 1) + 1;
+
         await tx.compensationAgreement.create({
           data: {
             employmentAgreementId: agreement.id,
-            version: 2,
+            version: nextVersion,
             grossMinor: BigInt(Math.round(amount * 100)),
             currency: 'NGN',
             effectiveFrom: effective_date ? new Date(effective_date) : new Date(),
@@ -464,50 +575,63 @@ export async function executeStagedAction(params: {
         extension_hours: hours,
       };
     } else if (action.actionType === 'treasury_account') {
-      const { bank_name, account_number, account_name, balance, subsidiary_id } = materialPayload;
+      const { bank_name, account_number, account_name, balance, subsidiary_id, mode } = materialPayload;
+      const accountMode = (mode || materialPayload.action || 'upsert').toLowerCase();
 
-      // Resolve valid organization ID
-      let targetOrgId = subsidiary_id;
-      if (!targetOrgId || targetOrgId === 'bems-group-hq' || targetOrgId === 'ALL') {
-        const hqOrg = await tx.organization.findFirst({
-          where: { code: { in: ['BEMS-HQ', 'BEMS-GROUP'] } },
+      if (accountMode === 'deactivate' || accountMode === 'delete' || accountMode === 'archive') {
+        const deactivated = await tx.companyBankAccount.update({
+          where: { accountNumber: account_number },
+          data: { status: 'INACTIVE' },
         });
-        targetOrgId = hqOrg?.id || (await tx.organization.findFirst())?.id;
+        recordType = 'treasury_account';
+        recordId = account_number;
+        url = `/treasury`;
+        resultRecord = { id: deactivated.id, accountNumber: account_number, status: 'INACTIVE' };
+      } else {
+        // Resolve valid organization ID
+        let targetOrgId = subsidiary_id;
+        if (!targetOrgId || targetOrgId === 'bems-group-hq' || targetOrgId === 'ALL') {
+          const hqOrg = await tx.organization.findFirst({
+            where: { code: { in: ['BEMS-HQ', 'BEMS-GROUP'] } },
+          });
+          targetOrgId = hqOrg?.id || (await tx.organization.findFirst())?.id;
+        }
+
+        const dbAccount = await tx.companyBankAccount.upsert({
+          where: { accountNumber: account_number },
+          update: {
+            bankName: bank_name,
+            accountName: account_name || 'BEMS Group Operations',
+            balance: Number(balance) || 0,
+            organizationId: targetOrgId!,
+            status: 'ACTIVE',
+          },
+          create: {
+            bankName: bank_name,
+            accountName: account_name || 'BEMS Group Operations',
+            accountNumber: account_number,
+            balance: Number(balance) || 0,
+            organizationId: targetOrgId!,
+            currency: 'NGN',
+            status: 'ACTIVE',
+          },
+          include: { organization: true },
+        });
+
+        recordType = 'treasury_account';
+        recordId = account_number;
+        url = `/treasury`;
+        resultRecord = {
+          id: dbAccount.id,
+          bankName: dbAccount.bankName,
+          accountNumber: dbAccount.accountNumber,
+          accountName: dbAccount.accountName,
+          balance: Number(dbAccount.balance),
+          organizationId: dbAccount.organizationId,
+          currency: dbAccount.currency,
+          status: dbAccount.status,
+        };
       }
-
-      const dbAccount = await tx.companyBankAccount.upsert({
-        where: { accountNumber: account_number },
-        update: {
-          bankName: bank_name,
-          accountName: account_name || 'BEMS Group Operations',
-          balance: Number(balance) || 0,
-          organizationId: targetOrgId!,
-          status: 'ACTIVE',
-        },
-        create: {
-          bankName: bank_name,
-          accountName: account_name || 'BEMS Group Operations',
-          accountNumber: account_number,
-          balance: Number(balance) || 0,
-          organizationId: targetOrgId!,
-          currency: 'NGN',
-          status: 'ACTIVE',
-        },
-        include: { organization: true },
-      });
-
-      recordType = 'treasury_account';
-      recordId = account_number;
-      url = `/treasury`;
-      resultRecord = {
-        id: dbAccount.id,
-        bankName: dbAccount.bankName,
-        accountNumber: dbAccount.accountNumber,
-        accountName: dbAccount.accountName,
-        balance: Number(dbAccount.balance),
-        organizationId: dbAccount.organizationId,
-        currency: dbAccount.currency,
-      };
     } else if (action.actionType === 'intercompany_note') {
       const { source_entity_id, target_entity_id, amount, note_type, description } = materialPayload;
 
@@ -592,6 +716,56 @@ export async function executeStagedAction(params: {
       resultRecord = JSON.parse(
         JSON.stringify(updated, (_, v) => (typeof v === 'bigint' ? Number(v) : v))
       );
+    } else if (action.actionType === 'attendance_override') {
+      const { employee_id, work_date, action_type, reason, override_status } = materialPayload;
+      const targetDate = work_date || new Date().toISOString().split('T')[0];
+      const targetStatus = override_status || (action_type === 'EXCUSE' ? 'EXCUSED' : 'PRESENT');
+
+      const attendance = await tx.attendanceRecord.upsert({
+        where: {
+          employeeId_workDate: {
+            employeeId: employee_id,
+            workDate: targetDate,
+          },
+        },
+        update: {
+          status: targetStatus,
+          isManualOverride: true,
+          overrideReason: reason || 'Executive GMD Attendance Adjustment',
+          overrideById: actor.id,
+          isDeductionApplied: false,
+          deductionPercent: 0.0,
+          deductionMinor: BigInt(0),
+          excuseStatus: 'APPROVED',
+          excuseRequestNote: reason,
+        },
+        create: {
+          employeeId: employee_id,
+          workDate: targetDate,
+          status: targetStatus,
+          isManualOverride: true,
+          overrideReason: reason || 'Executive GMD Attendance Adjustment',
+          overrideById: actor.id,
+          isDeductionApplied: false,
+          deductionPercent: 0.0,
+          deductionMinor: BigInt(0),
+          excuseStatus: 'APPROVED',
+          excuseRequestNote: reason,
+        },
+        include: { employee: true },
+      });
+
+      notificationsSent.push(employee_id);
+      recordType = 'attendance';
+      recordId = attendance.id;
+      url = `/attendance`;
+      resultRecord = {
+        id: attendance.id,
+        employeeId: attendance.employeeId,
+        employeeName: attendance.employee.legalName,
+        workDate: attendance.workDate,
+        status: attendance.status,
+      };
     } else {
       throw new Error(`Unsupported action type: ${action.actionType}`);
     }

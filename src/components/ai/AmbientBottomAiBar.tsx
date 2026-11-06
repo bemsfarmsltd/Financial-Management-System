@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { KineticAiOrb } from './KineticAiOrb';
 import { useAmbientTelemetry } from './useAmbientTelemetry';
 import { AiMessage } from './types';
-import { Send, Maximize2, Minimize2, X, Trash2, Sparkles, ChevronUp, ChevronDown, Target, RotateCcw } from 'lucide-react';
+import { Send, Maximize2, Minimize2, X, Trash2, Sparkles, ChevronUp, ChevronDown, Target, RotateCcw, History } from 'lucide-react';
 import { BriefingActionCard } from './cards/BriefingActionCard';
 import { ApprovalDecisionCard } from './cards/ApprovalDecisionCard';
 import { BudgetProposalCard } from './cards/BudgetProposalCard';
@@ -27,6 +27,7 @@ interface Props {
   onSendMessage: (text: string) => void;
   onConfirmAction: (messageId: string, actionType: string, payload: any) => void;
   onNewChat?: () => void;
+  onOpenHistory?: () => void;
   onOpenFullCockpit: (initialPrompt?: string) => void;
   onNavigate?: (tab: string) => void;
 }
@@ -43,6 +44,7 @@ export function AmbientBottomAiBar({
   onSendMessage,
   onConfirmAction,
   onNewChat,
+  onOpenHistory,
   onOpenFullCockpit,
   onNavigate,
 }: Props) {
@@ -174,6 +176,30 @@ export function AmbientBottomAiBar({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {onOpenHistory && (
+                <button
+                  type="button"
+                  onClick={onOpenHistory}
+                  title="View past executive chat sessions"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.55)',
+                    border: '1px solid rgba(255, 255, 255, 0.70)',
+                    color: '#334155',
+                    padding: '5px 9px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <History size={12} color="#ea580c" />
+                  <span>History</span>
+                </button>
+              )}
+
               {onNewChat && (
                 <button
                   type="button"

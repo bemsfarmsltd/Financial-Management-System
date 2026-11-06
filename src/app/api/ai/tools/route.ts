@@ -18,6 +18,12 @@ export async function GET(req: NextRequest) {
     },
     availableTools: [
       {
+        name: 'budgets',
+        endpoint: '/api/ai/tools/budgets',
+        methods: ['GET', 'POST'],
+        description: 'List, create, edit, reallocate lines, and remove corporate fiscal budgets across subsidiaries.',
+      },
+      {
         name: 'subsidiary',
         endpoint: '/api/ai/tools/subsidiary',
         methods: ['GET', 'POST'],

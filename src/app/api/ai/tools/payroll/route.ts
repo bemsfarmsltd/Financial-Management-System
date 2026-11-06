@@ -314,8 +314,74 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // -------------------------------------------------------------
+  // ACTION 4: ADJUST_SALARY (Staff base pay modification / cut)
+  // -------------------------------------------------------------
+  if (action === 'ADJUST_SALARY' || action === 'SALARY_CHANGE' || action === 'CHANGE_SALARY') {
+    const employeeId = body.employeeId || body.employee_id;
+    const amount = Number(body.amount || body.new_base_salary || 0);
+    const effectiveDate = body.effectiveDate || body.effective_date;
+    const reason = body.reason || 'Salary modification authorized by Executive';
+
+    if (!employeeId || isNaN(amount)) {
+      return NextResponse.json(
+        { ok: false, error_code: 'VALIDATION_FAILED', message: 'employeeId and valid numeric amount are required.' },
+        { status: 400 }
+      );
+    }
+
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    if (!employee) {
+      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: 'Employee not found.' }, { status: 404 });
+    }
+
+    // Stage the salary change action
+    const { stageAction } = await import('@/lib/staged-actions');
+    const staged = await stageAction({
+      actorId: actor.id,
+      actionType: 'salary_change',
+      summary: `Adjust monthly salary for ${employee.legalName} to ₦${amount.toLocaleString()} effective ${effectiveDate || 'Immediately'}`,
+      targetEmployeeId: employee.id,
+      materialPayload: {
+        employee_id: employee.id,
+        amount,
+        effective_date: effectiveDate,
+        reason,
+      },
+      clientPreview: {
+        employee_name: employee.legalName,
+        employee_number: employee.employeeNumber,
+        new_base_gross: `₦${amount.toLocaleString()}`,
+        effective_date: effectiveDate || 'Immediate',
+        reason,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      action: 'ADJUST_SALARY',
+      staged_action_id: staged.id,
+      confirmation_hash: staged.confirmationHash,
+      summary: staged.summary,
+      staged_action: {
+        type: 'salary_change',
+        cardType: 'STAGED_ACTION',
+        staged_action_id: staged.id,
+        confirmation_hash: staged.confirmationHash,
+        summary: staged.summary,
+        action_type: 'salary_change',
+        payload_preview: {
+          employee_name: employee.legalName,
+          amount: `₦${amount.toLocaleString()}`,
+          effective_date: effectiveDate,
+          reason,
+        },
+      },
+    });
+  }
+
   return NextResponse.json(
-    { ok: false, error_code: 'INVALID_ACTION', message: 'Action must be PREPARE, SIGN_OFF, or RECORD_PAYOUT.' },
+    { ok: false, error_code: 'INVALID_ACTION', message: 'Action must be PREPARE, SIGN_OFF, RECORD_PAYOUT, or ADJUST_SALARY.' },
     { status: 400 }
   );
 }

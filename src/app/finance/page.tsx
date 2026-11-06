@@ -33,6 +33,7 @@ import {
 } from "@/components/dashboard/gmd/BusinessModules";
 import { AiFinancialManagerDrawer } from "@/components/ai/AiFinancialManagerDrawer";
 import { AmbientBottomAiBar } from "@/components/ai/AmbientBottomAiBar";
+import { AiChatHistoryDrawer } from "@/components/ai/AiChatHistoryDrawer";
 import { AiScreenEdgeGlow, notifyAiInteraction } from "@/components/ai/AiScreenEdgeGlow";
 import { useAiFinancialManager } from "@/components/ai/useAiFinancialManager";
 import { AiMotionEntryScreen } from "@/components/ai/AiMotionEntryScreen";
@@ -5025,10 +5026,20 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
               onSendMessage={aiManager.sendMessage}
               onConfirmAction={aiManager.handleConfirmAction}
               onNewChat={aiManager.startNewChat}
+              onOpenHistory={() => aiManager.setIsHistoryOpen(true)}
               onOpenFullCockpit={handleOpenAiDrawer}
               onNavigate={(tab) => {
                 openModule(tab);
               }}
+            />
+            <AiChatHistoryDrawer
+              isOpen={aiManager.isHistoryOpen}
+              onClose={() => aiManager.setIsHistoryOpen(false)}
+              sessions={aiManager.sessions}
+              activeSessionId={aiManager.activeSessionId}
+              onSelectSession={(session) => aiManager.loadSession(session)}
+              onNewChat={aiManager.startNewChat}
+              onDeleteSession={(id) => aiManager.deleteSession(id)}
             />
             <AiFinancialManagerDrawer
               isOpen={aiDrawerOpen}

@@ -10,26 +10,77 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: NextRequest) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) {
       return NextResponse.json({ ok: false, error_code: "NOT_PERMITTED", message: "Authentication required." }, { status: 401 });
     }
 
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get("session_id") || (actor ? `conv_${actor.id}` : "");
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "20", 10), 1), 100);
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "40", 10), 1), 100);
+    const mode = searchParams.get("mode");
+
+    // Mode: return all distinct sessions for this actor
+    if (mode === "sessions") {
+      const sessionPrefix = `conv_${actor.id}%`;
+      const sessionRows = await prisma.$queryRaw<Array<{ session_id: string; total_turns: bigint; latest_at: Date }>>`
+        SELECT session_id, COUNT(*) as total_turns, MAX(created_at) as latest_at
+        FROM n8n_chat_histories
+        WHERE session_id LIKE ${sessionPrefix} OR session_id = ${`conv_${actor.id}`}
+        GROUP BY session_id
+        ORDER BY MAX(created_at) DESC
+        LIMIT 25
+      `;
+
+      const sessions = await Promise.all(
+        sessionRows.map(async (s) => {
+          const firstUserMsg = await prisma.$queryRaw<Array<{ message: any }>>`
+            SELECT message FROM n8n_chat_histories
+            WHERE session_id = ${s.session_id}
+            ORDER BY id ASC
+            LIMIT 2
+          `;
+          let snippet = "Executive Financial Oversight";
+          if (firstUserMsg && firstUserMsg.length > 0) {
+            for (const r of firstUserMsg) {
+              let m = r.message;
+              if (typeof m === "string") {
+                try { m = JSON.parse(m); } catch {}
+              }
+              if (m && m.role === "user" && m.content) {
+                snippet = m.content.slice(0, 50);
+                break;
+              }
+            }
+          }
+
+          return {
+            id: s.session_id,
+            title: snippet,
+            turnsCount: Number(s.total_turns),
+            updatedAt: s.latest_at,
+          };
+        })
+      );
+
+      return NextResponse.json({ ok: true, sessions });
+    }
 
     if (!sessionId) {
       return NextResponse.json({ ok: false, error_code: "VALIDATION_FAILED", message: "session_id query param is required." }, { status: 400 });
     }
 
-    // Query n8n_chat_histories
+    // Query n8n_chat_histories in reverse order to get the latest turns, then order chronologically
     const rows = await prisma.$queryRaw<Array<{ id: number; session_id: string; message: any; created_at: Date }>>`
       SELECT id, session_id, message, created_at
-      FROM n8n_chat_histories
-      WHERE session_id = ${sessionId}
+      FROM (
+        SELECT id, session_id, message, created_at
+        FROM n8n_chat_histories
+        WHERE session_id = ${sessionId}
+        ORDER BY id DESC
+        LIMIT ${limit}
+      ) sub
       ORDER BY id ASC
-      LIMIT ${limit}
     `;
 
     const messages = rows.map((r) => {
@@ -67,7 +118,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) {
       return NextResponse.json({ ok: false, error_code: "NOT_PERMITTED", message: "Authentication required." }, { status: 401 });
     }

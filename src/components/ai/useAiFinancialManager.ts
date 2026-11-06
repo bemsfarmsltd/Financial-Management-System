@@ -13,7 +13,9 @@ interface UseAiOptions {
 }
 
 export function useAiFinancialManager({ userRole, userName, businessName, businessId, currentPage }: UseAiOptions) {
-  const storageKey = `bems_web_chat_history_${businessId || 'default'}_${userRole || 'STAFF'}`;
+  // Global executive key ensures switching tabs across subsidiaries does NOT wipe chat stream
+  const storageKey = `bems_executive_chat_history_v2`;
+  const sessionsKey = `bems_executive_chat_sessions_v2`;
 
   const [messages, setMessages] = useState<AiMessage[]>(() => [
     {
@@ -25,6 +27,39 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
   ]);
 
   const [isTyping, setIsTyping] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string>('active');
+
+  // Load archived sessions
+  const refreshSessions = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const local = JSON.parse(localStorage.getItem(sessionsKey) || '[]');
+      fetch('/api/ai/memory?mode=sessions')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data && Array.isArray(data.sessions)) {
+            const merged = [...local];
+            data.sessions.forEach((s: any) => {
+              if (!merged.some((m) => m.id === s.id)) {
+                merged.push(s);
+              }
+            });
+            setSessions(merged);
+          } else {
+            setSessions(local);
+          }
+        })
+        .catch(() => setSessions(local));
+    } catch {
+      setSessions([]);
+    }
+  }, [sessionsKey]);
+
+  useEffect(() => {
+    refreshSessions();
+  }, [refreshSessions]);
 
   // Hydrate conversation on mount from localStorage or /api/ai/memory
   useEffect(() => {
@@ -40,7 +75,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
       }
 
       // If no local history, query backend memory for session
-      fetch('/api/ai/memory?limit=20')
+      fetch('/api/ai/memory?limit=40')
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (data && Array.isArray(data.messages) && data.messages.length > 0) {
@@ -83,16 +118,17 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
     try {
       if (typeof window !== 'undefined') {
         if (messages.length > 1) {
-          const sessionsKey = `bems_web_chat_sessions_${businessId || 'default'}`;
           const existingSessions = JSON.parse(localStorage.getItem(sessionsKey) || '[]');
-          const archiveTitle = messages.find((m) => m.sender === 'user')?.content?.slice(0, 40) || 'Financial Oversight';
+          const archiveTitle = messages.find((m) => m.sender === 'user')?.content?.slice(0, 45) || 'Executive Financial Oversight';
           existingSessions.unshift({
             id: `session-${Date.now()}`,
             title: archiveTitle,
-            updatedAt: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+            updatedAt: new Date().toISOString(),
+            turnsCount: messages.length,
             messages,
           });
-          localStorage.setItem(sessionsKey, JSON.stringify(existingSessions.slice(0, 10)));
+          localStorage.setItem(sessionsKey, JSON.stringify(existingSessions.slice(0, 25)));
+          setSessions(existingSessions.slice(0, 25));
         }
         localStorage.removeItem(storageKey);
       }
@@ -100,6 +136,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
       console.warn('Error archiving session:', e);
     }
 
+    setActiveSessionId(`session-${Date.now()}`);
     setMessages([
       {
         id: `msg-welcome-${Date.now()}`,
@@ -108,7 +145,61 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
         content: `Good afternoon, ${userName ? userName.split(' ')[0] : 'Executive'}. I am your BEMS AI Group Financial Manager. I monitor real-time expenditure, approvals, cash runway, and compliance across ${businessName}.\n\nHow can I assist your financial oversight today?`,
       },
     ]);
-  }, [businessId, messages, storageKey, userName, businessName]);
+  }, [messages, sessionsKey, storageKey, userName, businessName]);
+
+  // Load a past session from history
+  const loadSession = useCallback(
+    (session: any) => {
+      if (session.messages && Array.isArray(session.messages) && session.messages.length > 0) {
+        setMessages(session.messages);
+        setActiveSessionId(session.id);
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(session.messages));
+        } catch {}
+        return;
+      }
+
+      // Fetch from backend memory if not cached locally
+      fetch(`/api/ai/memory?session_id=${encodeURIComponent(session.id)}&limit=50`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data && Array.isArray(data.messages) && data.messages.length > 0) {
+            const restored: AiMessage[] = data.messages.map((m: any, idx: number) => ({
+              id: `restored-${m.id || idx}`,
+              sender: m.role === 'assistant' ? 'assistant' : 'user',
+              timestamp: m.created_at
+                ? new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+                : 'Earlier',
+              content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+            }));
+            setMessages(restored);
+            setActiveSessionId(session.id);
+            try {
+              localStorage.setItem(storageKey, JSON.stringify(restored));
+            } catch {}
+          }
+        })
+        .catch(() => {});
+    },
+    [storageKey]
+  );
+
+  // Delete an archived session
+  const deleteSession = useCallback(
+    (sessionId: string) => {
+      try {
+        if (typeof window !== 'undefined') {
+          const existingSessions = JSON.parse(localStorage.getItem(sessionsKey) || '[]');
+          const filtered = existingSessions.filter((s: any) => s.id !== sessionId);
+          localStorage.setItem(sessionsKey, JSON.stringify(filtered));
+          setSessions(filtered);
+        }
+      } catch (e) {
+        console.warn('Error deleting session:', e);
+      }
+    },
+    [sessionsKey]
+  );
 
   // Send a user prompt and generate an intelligent response with interactive action cards
   const sendMessage = useCallback(
@@ -468,5 +559,12 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
     handleConfirmAction,
     handleCancelAction,
     startNewChat,
+    isHistoryOpen,
+    setIsHistoryOpen,
+    sessions,
+    loadSession,
+    deleteSession,
+    refreshSessions,
+    activeSessionId,
   };
 }

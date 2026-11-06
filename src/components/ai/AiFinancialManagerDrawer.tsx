@@ -13,8 +13,10 @@ import {
   RotateCcw,
   Volume2,
   VolumeX,
+  History,
 } from 'lucide-react';
 import { useAiFinancialManager } from './useAiFinancialManager';
+import { AiChatHistoryDrawer } from './AiChatHistoryDrawer';
 import { AiContextBanner } from './AiContextBanner';
 import { AiQuickPrompts } from './AiQuickPrompts';
 import { BriefingActionCard } from './cards/BriefingActionCard';
@@ -208,6 +210,29 @@ export function AiFinancialManagerDrawer({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              title="View past executive chat sessions"
+              onClick={() => ai.setIsHistoryOpen(true)}
+              style={{
+                background: 'rgba(255, 255, 255, 0.55)',
+                border: '1px solid rgba(255, 255, 255, 0.7)',
+                color: '#334155',
+                padding: '6px 10px',
+                cursor: 'pointer',
+                borderRadius: '8px',
+                fontSize: '11px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+              }}
+            >
+              <History size={13} color="#ea580c" />
+              <span>History</span>
+            </button>
+
             <button
               type="button"
               title="Start a new chat session"
@@ -573,6 +598,16 @@ export function AiFinancialManagerDrawer({
           </button>
         </form>
       </div>
+
+      <AiChatHistoryDrawer
+        isOpen={ai.isHistoryOpen}
+        onClose={() => ai.setIsHistoryOpen(false)}
+        sessions={ai.sessions}
+        activeSessionId={ai.activeSessionId}
+        onSelectSession={(session) => ai.loadSession(session)}
+        onNewChat={startNewChat}
+        onDeleteSession={(id) => ai.deleteSession(id)}
+      />
 
       <style jsx>{`
         @keyframes fadeIn {
