@@ -911,3 +911,90 @@ export async function sendApprovalDecisionEmail(params: {
     }),
   });
 }
+
+/**
+ * Template: GMD Alert for Staff Attendance Clock-In
+ */
+export async function sendGmdAttendanceAlert(params: {
+  to: string;
+  gmdName: string;
+  staffName: string;
+  employeeNumber: string;
+  subsidiaryName: string;
+  departmentName?: string;
+  stationName: string;
+  workDate: string;
+  timeStr: string;
+  status: 'PRESENT' | 'LATE' | string;
+  deductionPercent?: number;
+  method: 'KIOSK_PIN' | 'MOBILE_QR' | string;
+}) {
+  const isLate = params.status === 'LATE';
+  const statusBadge = isLate
+    ? `<span style="display: inline-block; padding: 4px 10px; border-radius: 9999px; background: #fef2f2; color: #dc2626; font-weight: 700; font-size: 11px; border: 1px solid #fecaca;">LATE (${params.deductionPercent || 0}% deduction)</span>`
+    : `<span style="display: inline-block; padding: 4px 10px; border-radius: 9999px; background: #ecfdf5; color: #059669; font-weight: 700; font-size: 11px; border: 1px solid #a7f3d0;">ON TIME (PRESENT)</span>`;
+
+  const methodLabel = params.method === 'KIOSK_PIN' ? 'Office Tablet Kiosk (PIN)' : 'Staff Mobile App (Geofenced QR)';
+
+  const subject = isLate
+    ? `⚠️ Late Attendance Alert: ${params.staffName} (${params.subsidiaryName})`
+    : `🕒 Staff Clock-In: ${params.staffName} (${params.subsidiaryName})`;
+
+  const content = `
+    <p style="margin: 0 0 16px; color: #334155;">Hello <strong>${params.gmdName}</strong>,</p>
+    <p style="margin: 0 0 16px; color: #475569;">
+      A staff member has recorded an attendance punch for today:
+    </p>
+
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Staff Member:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 700; text-align: right;">${params.staffName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Staff ID:</td>
+          <td style="padding: 8px 0; color: #ea580c; font-weight: 800; font-family: monospace; text-align: right;">${params.employeeNumber}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Subsidiary / Dept:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.subsidiaryName}${params.departmentName ? ` · ${params.departmentName}` : ''}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Punch Time (Lagos):</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 700; font-family: monospace; text-align: right;">${params.timeStr} (${params.workDate})</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Office Location / Station:</td>
+          <td style="padding: 8px 0; color: #0f172a; font-weight: 600; text-align: right;">${params.stationName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Check-In Method:</td>
+          <td style="padding: 8px 0; color: #475569; font-weight: 500; text-align: right;">${methodLabel}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Punctuality Status:</td>
+          <td style="padding: 8px 0; text-align: right;">${statusBadge}</td>
+        </tr>
+      </table>
+    </div>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject,
+    eventType: 'ATTENDANCE_CLOCK_IN',
+    text: `Attendance Punch: ${params.staffName} (${params.employeeNumber}) clocked in at ${params.timeStr} at ${params.stationName}. Status: ${params.status}.`,
+    html: wrapEmailTemplate({
+      title: isLate ? 'Late Staff Attendance' : 'Staff Clock-In Recorded',
+      preheader: `${params.staffName} clocked in at ${params.timeStr} (${params.status})`,
+      badge: isLate ? 'ATTENDANCE WARNING' : 'ATTENDANCE DISPATCH',
+      content,
+      callToAction: {
+        label: 'View Attendance Register →',
+        url: `${APP_URL}/attendance`,
+      },
+    }),
+  });
+}
+

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getLagosTime, serializeAttendanceRecord } from '@/lib/attendance/token';
+import { notifyGmdStaffClockIn } from '@/lib/notifications/attendance';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,9 +28,14 @@ export async function POST(request: Request) {
         id: true,
         employeeNumber: true,
         legalName: true,
+        workEmail: true,
         role: true,
         isOfflineStaff: true,
         kioskPin: true,
+        assignments: {
+          include: { subsidiary: true, department: true },
+          take: 1,
+        },
       },
     });
 
@@ -135,6 +141,27 @@ export async function POST(request: Request) {
         stationId: station?.id || null,
       },
     });
+
+    // Dispatch async notification to GMD & Super Admin
+    const subsidiaryName = matched.assignments?.[0]?.subsidiary?.legalName || 'BEMS Group';
+    const departmentName = matched.assignments?.[0]?.department?.name;
+
+    notifyGmdStaffClockIn({
+      employee: {
+        id: matched.id,
+        legalName: matched.legalName,
+        employeeNumber: matched.employeeNumber,
+        workEmail: matched.workEmail,
+      },
+      subsidiaryName,
+      departmentName,
+      stationName: station?.name || 'Office Attendance Kiosk',
+      workDate,
+      timeStr: currentTimeStr,
+      status: record.status,
+      deductionPercent: record.deductionPercent,
+      method: 'KIOSK_PIN',
+    }).catch((err) => console.error('[Kiosk Punch Route] Clock-in notification error:', err));
 
     return NextResponse.json({
       success: true,

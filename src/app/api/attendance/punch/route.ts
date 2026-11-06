@@ -10,6 +10,7 @@ import {
   isStarlinkIpAllowed,
   validateCheckInTimeWindow,
 } from '@/lib/attendance/token';
+import { notifyGmdStaffClockIn } from '@/lib/notifications/attendance';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
       where: { id: employeeId },
       include: {
         assignments: {
-          include: { subsidiary: true },
+          include: { subsidiary: true, department: true },
           take: 1,
         },
         workSchedule: true,
@@ -232,6 +233,29 @@ export async function POST(request: Request) {
           deductionPercent,
         },
       });
+
+      // Dispatch async notification to GMD & Super Admin (only on new check-in)
+      if (!existing?.checkInTime) {
+        const subsidiaryName = employee.assignments[0]?.subsidiary?.legalName || 'BEMS Group';
+        const departmentName = employee.assignments[0]?.department?.name;
+
+        notifyGmdStaffClockIn({
+          employee: {
+            id: employee.id,
+            legalName: employee.legalName,
+            employeeNumber: employee.employeeNumber,
+            workEmail: employee.workEmail,
+          },
+          subsidiaryName,
+          departmentName,
+          stationName: station.name,
+          workDate,
+          timeStr: currentTimeStr,
+          status: record.status,
+          deductionPercent: record.deductionPercent,
+          method: 'MOBILE_QR',
+        }).catch((err) => console.error('[Punch Route] Clock-in notification error:', err));
+      }
 
       return NextResponse.json({
         success: true,
