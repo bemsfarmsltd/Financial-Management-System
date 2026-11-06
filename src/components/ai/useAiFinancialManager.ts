@@ -58,12 +58,107 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
 
         if (res.ok) {
           const data = await res.json();
-          const actionCard = data.actionCard || (data.staged_action ? {
-            type: data.staged_action.type || 'approval_decision',
-            data: data.staged_action.preview || data.staged_action,
-            staged_action_id: data.staged_action.staged_action_id,
-            confirmation_hash: data.staged_action.confirmation_hash,
-          } : undefined);
+          const rawAction = data.actionCard || data.staged_action;
+          let actionCard: any = undefined;
+
+          if (rawAction) {
+            const rawType = (rawAction.actionType || rawAction.type || rawAction.cardType || '').toLowerCase();
+            const stagedId = rawAction.staged_action_id || rawAction.id;
+            const confHash = rawAction.confirmation_hash || rawAction.confirmationHash;
+            const preview = rawAction.preview || rawAction.data || rawAction;
+            const summary = rawAction.summary || (typeof preview === 'object' ? preview.summary || preview.title : '') || 'Executive Action Required';
+
+            if (rawType === 'budget' || rawType === 'budget_proposal') {
+              const totalAmountNum = typeof preview.total_amount === 'string'
+                ? Number(preview.total_amount.replace(/[^0-9.]/g, ''))
+                : Number(preview.total_amount || preview.amount || 0);
+
+              const rawAlloc = preview.allocations || [];
+              const lines = Array.isArray(rawAlloc) && rawAlloc.length > 0
+                ? rawAlloc.map((a: any) => ({
+                    departmentName: a.department || a.line_name || 'General Operations',
+                    category: a.category || a.line_name || 'Operating Expenditure',
+                    allocatedAmount: typeof a.amount === 'string' ? Number(a.amount.replace(/[^0-9.]/g, '')) : Number(a.amount || 0),
+                  }))
+                : [{ departmentName: 'General Operations', category: 'Allocation', allocatedAmount: totalAmountNum }];
+
+              actionCard = {
+                type: 'budget_proposal',
+                data: {
+                  organizationId: preview.organization_id || businessId,
+                  organizationName: preview.organization || businessName,
+                  periodName: preview.period || 'November 2026',
+                  fiscalYear: new Date().getFullYear(),
+                  fiscalPeriod: preview.period || '2026-11',
+                  totalAmount: totalAmountNum,
+                  currency: preview.currency || 'NGN',
+                  lines,
+                },
+                staged_action_id: stagedId,
+                confirmation_hash: confHash,
+                summary,
+                preview,
+                warnings: rawAction.warnings,
+                blocking_errors: rawAction.blocking_errors || rawAction.blockingErrors,
+                expires_at: rawAction.expires_at || rawAction.expiresAt,
+              };
+            } else if (rawType === 'salary_change' || rawType === 'salary_adjustment') {
+              const propSalary = typeof preview.new_base_gross === 'string'
+                ? Number(preview.new_base_gross.replace(/[^0-9.]/g, ''))
+                : Number(preview.new_base_salary || preview.amount || 0);
+              const currSalary = typeof preview.prior_base_gross === 'string'
+                ? Number(preview.prior_base_gross.replace(/[^0-9.]/g, ''))
+                : Number(preview.current_salary || 0);
+
+              actionCard = {
+                type: 'salary_adjustment',
+                data: {
+                  employeeId: preview.employee_id || '',
+                  employeeName: preview.employee_name || 'Staff Member',
+                  employeeNumber: preview.employee_number || '',
+                  subsidiaryName: preview.subsidiary || businessName,
+                  departmentName: preview.department || 'Operations',
+                  currentSalary: currSalary,
+                  proposedSalary: propSalary,
+                  changeType: propSalary >= currSalary ? 'ADDITION' : 'DEDUCTION',
+                  effectiveDate: preview.effective_date || new Date().toISOString().split('T')[0],
+                  reason: preview.reason || 'Salary review approved by management',
+                  willNotifyEmployee: true,
+                },
+                staged_action_id: stagedId,
+                confirmation_hash: confHash,
+                summary,
+                preview,
+                warnings: rawAction.warnings,
+                blocking_errors: rawAction.blocking_errors || rawAction.blockingErrors,
+                expires_at: rawAction.expires_at || rawAction.expiresAt,
+              };
+            } else if (rawType === 'briefing' || rawType === 'approval_decision' || rawType === 'disbursement_record' || rawType === 'scenario_simulator') {
+              actionCard = {
+                type: rawType,
+                data: rawAction.data || preview,
+                staged_action_id: stagedId,
+                confirmation_hash: confHash,
+                summary,
+                preview,
+              };
+            } else {
+              // Universal Staged Action Card fallback
+              actionCard = {
+                type: 'staged_action',
+                cardType: 'STAGED_ACTION',
+                actionType: rawType || 'staged_action',
+                staged_action_id: stagedId,
+                confirmation_hash: confHash,
+                summary,
+                preview,
+                data: preview,
+                warnings: rawAction.warnings,
+                blocking_errors: rawAction.blocking_errors || rawAction.blockingErrors,
+                expires_at: rawAction.expires_at || rawAction.expiresAt,
+              };
+            }
+          }
 
           const aiReply: AiMessage = {
             id: `ai-${Date.now()}`,
@@ -176,8 +271,12 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
   const handleConfirmAction = useCallback(
     async (messageId: string, actionType: string, payload: any) => {
       try {
-        if (payload?.staged_action_id) {
-          const res = await fetch(`/api/v1/staged-actions/${payload.staged_action_id}/confirm`, {
+        const targetMsg = messages.find((m) => m.id === messageId);
+        const stagedId = payload?.staged_action_id || targetMsg?.actionCard?.staged_action_id;
+        const confHash = payload?.confirmation_hash || targetMsg?.actionCard?.confirmation_hash;
+
+        if (stagedId && confHash) {
+          const res = await fetch(`/api/ai/staged-actions/${stagedId}/confirm`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -185,7 +284,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
             },
             body: JSON.stringify({
               confirmed_by: userName || 'GMD Executive',
-              confirmation_hash: payload.confirmation_hash,
+              confirmation_hash: confHash,
             }),
           });
           const result = await res.json();
@@ -206,6 +305,8 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
               })
             );
             return;
+          } else {
+            console.error('Staged action confirmation failed:', result);
           }
         }
 
@@ -240,7 +341,38 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
         console.error('Failed to commit action:', err);
       }
     },
-    [userName]
+    [userName, messages]
+  );
+
+  const handleCancelAction = useCallback(
+    async (messageId: string, stagedActionId?: string) => {
+      try {
+        if (stagedActionId) {
+          await fetch(`/api/ai/staged-actions/${stagedActionId}/cancel`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id === messageId && m.actionCard) {
+              return {
+                ...m,
+                actionCard: {
+                  ...m.actionCard,
+                  cancelled: true,
+                  resultMessage: 'Action discarded by executive.',
+                },
+              };
+            }
+            return m;
+          })
+        );
+      } catch (err) {
+        console.error('Failed to cancel action:', err);
+      }
+    },
+    []
   );
 
   return {
@@ -248,5 +380,6 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
     isTyping,
     sendMessage,
     handleConfirmAction,
+    handleCancelAction,
   };
 }

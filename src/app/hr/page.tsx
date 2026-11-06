@@ -104,7 +104,12 @@ export default function HumanResourcesPortalPage() {
 
   // Strict HR role segregation: Only HR personnel can access the HR workspace.
   // GMD and Super Admin are intentionally segregated and operate via their executive cockpits.
-  const isAuthorized = user.role === 'HR' || user.role === 'HR_ADMIN' || user.isHrAuthorized;
+  const isAuthorized =
+    user.role === 'HR' ||
+    user.role === 'HR_ADMIN' ||
+    user.isHrAuthorized ||
+    user.jobTitle?.toUpperCase().includes('HR') ||
+    user.employeeNumber?.toUpperCase().includes('HR');
 
   if (!isAuthorized) {
     const isExecutiveOrAdmin =

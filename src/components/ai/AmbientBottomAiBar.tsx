@@ -11,6 +11,7 @@ import { BudgetProposalCard } from './cards/BudgetProposalCard';
 import { SalaryAdjustmentCard } from './cards/SalaryAdjustmentCard';
 import { DisbursementRecordCard } from './cards/DisbursementRecordCard';
 import { ScenarioSimulatorCard } from './cards/ScenarioSimulatorCard';
+import { UniversalStagedActionCard } from './cards/UniversalStagedActionCard';
 import { notifyAiInteraction } from './AiScreenEdgeGlow';
 import { FormattedAiMessage } from './FormattedAiMessage';
 
@@ -305,7 +306,9 @@ export function AmbientBottomAiBar({
                           resultMessage={msg.actionCard.resultMessage}
                           onExecuteDecision={(action, reason, recorder) => {
                             onConfirmAction(msg.id, 'approval_decision', {
-                              requestNumber: msg.actionCard?.data.requestNumber,
+                              requestNumber: msg.actionCard?.data?.requestNumber,
+                              staged_action_id: msg.actionCard?.staged_action_id,
+                              confirmation_hash: msg.actionCard?.confirmation_hash,
                               action,
                               reason,
                               recorder,
@@ -314,26 +317,34 @@ export function AmbientBottomAiBar({
                         />
                       )}
 
-                      {msg.actionCard.type === 'budget_proposal' && (
+                      {(msg.actionCard.type === 'budget_proposal' || msg.actionCard.type === 'budget') && msg.actionCard.data?.lines && (
                         <BudgetProposalCard
                           data={msg.actionCard.data}
                           confirmed={msg.actionCard.confirmed}
                           cancelled={msg.actionCard.cancelled}
                           resultMessage={msg.actionCard.resultMessage}
                           onConfirmBudget={(bData) => {
-                            onConfirmAction(msg.id, 'budget_proposal', bData);
+                            onConfirmAction(msg.id, 'budget_proposal', {
+                              ...bData,
+                              staged_action_id: msg.actionCard?.staged_action_id,
+                              confirmation_hash: msg.actionCard?.confirmation_hash,
+                            });
                           }}
                         />
                       )}
 
-                      {msg.actionCard.type === 'salary_adjustment' && (
+                      {(msg.actionCard.type === 'salary_adjustment' || msg.actionCard.type === 'salary_change') && msg.actionCard.data?.proposedSalary !== undefined && (
                         <SalaryAdjustmentCard
                           data={msg.actionCard.data}
                           confirmed={msg.actionCard.confirmed}
                           cancelled={msg.actionCard.cancelled}
                           resultMessage={msg.actionCard.resultMessage}
                           onAuthorizeAdjustment={(sData) => {
-                            onConfirmAction(msg.id, 'salary_adjustment', sData);
+                            onConfirmAction(msg.id, 'salary_adjustment', {
+                              ...sData,
+                              staged_action_id: msg.actionCard?.staged_action_id,
+                              confirmation_hash: msg.actionCard?.confirmation_hash,
+                            });
                           }}
                         />
                       )}
@@ -345,7 +356,11 @@ export function AmbientBottomAiBar({
                           cancelled={msg.actionCard.cancelled}
                           resultMessage={msg.actionCard.resultMessage}
                           onRecordDisbursement={(dData) => {
-                            onConfirmAction(msg.id, 'disbursement_record', dData);
+                            onConfirmAction(msg.id, 'disbursement_record', {
+                              ...dData,
+                              staged_action_id: msg.actionCard?.staged_action_id,
+                              confirmation_hash: msg.actionCard?.confirmation_hash,
+                            });
                           }}
                         />
                       )}
@@ -354,6 +369,33 @@ export function AmbientBottomAiBar({
                         <ScenarioSimulatorCard
                           data={msg.actionCard.data}
                           onApplyRecommendation={(prompt) => onSendMessage(prompt)}
+                        />
+                      )}
+
+                      {/* Universal Fallback for any Staged Action or unhandled type */}
+                      {(msg.actionCard.staged_action_id ||
+                        msg.actionCard.type === 'staged_action' ||
+                        msg.actionCard.cardType === 'STAGED_ACTION' ||
+                        (!['briefing', 'approval_decision', 'budget_proposal', 'salary_adjustment', 'disbursement_record', 'scenario_simulator'].includes(msg.actionCard.type) &&
+                          (!msg.actionCard.data?.lines && msg.actionCard.data?.proposedSalary === undefined))) && (
+                        <UniversalStagedActionCard
+                          stagedActionId={msg.actionCard.staged_action_id || ''}
+                          confirmationHash={msg.actionCard.confirmation_hash || ''}
+                          actionType={msg.actionCard.actionType || msg.actionCard.type || 'staged_action'}
+                          summary={msg.actionCard.summary || 'Executive Staged Action'}
+                          preview={msg.actionCard.preview || msg.actionCard.data || {}}
+                          warnings={msg.actionCard.warnings}
+                          blockingErrors={msg.actionCard.blocking_errors}
+                          expiresAt={msg.actionCard.expires_at}
+                          confirmed={msg.actionCard.confirmed}
+                          cancelled={msg.actionCard.cancelled}
+                          resultMessage={msg.actionCard.resultMessage}
+                          onConfirm={(id, hash) => {
+                            onConfirmAction(msg.id, msg.actionCard?.type || 'staged_action', {
+                              staged_action_id: id,
+                              confirmation_hash: hash,
+                            });
+                          }}
                         />
                       )}
                     </div>

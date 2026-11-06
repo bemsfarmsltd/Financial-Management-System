@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
-import { stageAction } from '@/lib/staged-actions';
+import { stageAction, executeStagedAction } from '@/lib/staged-actions';
 import { getConsolidatedTreasury } from '@/lib/financial-metrics';
 import { enforceMobileVersionGate } from '@/lib/mobile-gate';
 
@@ -81,6 +81,88 @@ export async function POST(req: NextRequest) {
           `;
         } catch (e) {
           console.warn('Could not persist user chat to memory:', e);
+        }
+
+        // Direct Conversational Approval Interceptor:
+        // When executive says "Just approve it", "Implement it", "Confirm", "Authorize", etc.
+        const trimmedNorm = message.trim().toLowerCase();
+        const isConversationalApproval = [
+          'just approve it',
+          'approve it',
+          'approve',
+          'yes approve',
+          'confirm',
+          'implement it',
+          '2. implement it',
+          'execute it',
+          'authorize',
+          'yes implement',
+          'yes, implement',
+          'go ahead and approve',
+          'proceed and approve',
+        ].includes(trimmedNorm) || (
+          (trimmedNorm.startsWith('approve') || trimmedNorm.startsWith('confirm') || trimmedNorm.startsWith('implement')) &&
+          trimmedNorm.length < 35
+        );
+
+        if (isConversationalApproval && !isReadOnlyUser && hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
+          const pendingAction = await prisma.stagedAction.findFirst({
+            where: {
+              userId: actor.id,
+              status: 'PENDING',
+              createdAt: { gt: new Date(Date.now() - 4 * 60 * 60 * 1000) },
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+
+          if (pendingAction) {
+            // If it just expired while the executive was waiting for the UI, auto-extend TTL
+            if (new Date() > pendingAction.expiresAt) {
+              await prisma.stagedAction.update({
+                where: { id: pendingAction.id },
+                data: { expiresAt: new Date(Date.now() + 15 * 60 * 1000) },
+              });
+            }
+
+            const execResult = await executeStagedAction({
+              actionId: pendingAction.id,
+              confirmationHash: pendingAction.confirmationHash,
+              actor: {
+                id: actor.id,
+                legalName: actor.legalName,
+                role: actor.role,
+                employeeNumber: actor.employeeNumber,
+              },
+            });
+
+            if (execResult.ok) {
+              const confirmMsg = `✓ **Action Executed & Committed**: ${pendingAction.summary}.\n\nAudit correlation ID: \`#${execResult.audit_event_id || 'AUDIT-OK'}\`. The BEMS live ledger and database records have been updated immediately.`;
+
+              // Persist assistant reply to memory
+              try {
+                await prisma.$executeRaw`
+                  INSERT INTO n8n_chat_histories (session_id, message, created_at)
+                  VALUES (${sessionId}, ${JSON.stringify({ role: 'assistant', content: confirmMsg, timestamp: new Date().toISOString() })}::jsonb, NOW())
+                `;
+              } catch (e) {
+                console.warn('Could not persist assistant reply to memory:', e);
+              }
+
+              return NextResponse.json({
+                message: confirmMsg,
+                actionCard: {
+                  type: pendingAction.actionType,
+                  cardType: 'STAGED_ACTION',
+                  staged_action_id: pendingAction.id,
+                  confirmation_hash: pendingAction.confirmationHash,
+                  summary: pendingAction.summary,
+                  confirmed: true,
+                  resultMessage: confirmMsg,
+                },
+                timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+              });
+            }
+          }
         }
 
         const webhookSecret = process.env.BEMS_N8N_SHARED_SECRET || 'bems_n8n_sec_88491029384756102938475';

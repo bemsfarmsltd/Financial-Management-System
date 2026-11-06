@@ -320,6 +320,27 @@ export async function isHrAuthorizedEmployee(employee: AuthenticatedEmployee | n
   if (!employee) return false;
   const role = (employee.role || '').toUpperCase();
   if (role === 'HR' || role === 'HR_ADMIN') return true;
+
+  if (employee.employeeNumber?.toUpperCase().includes('HR') || (employee as any).jobTitle?.toUpperCase().includes('HR')) {
+    return true;
+  }
+
+  try {
+    const empRecord = await prisma.employee.findUnique({
+      where: { id: employee.id },
+      include: { assignments: { include: { department: true } } },
+    });
+    if (empRecord?.jobTitle?.toUpperCase().includes('HR') || empRecord?.employeeNumber?.toUpperCase().includes('HR')) {
+      return true;
+    }
+    const inHrDept = empRecord?.assignments?.some((a) =>
+      a.department?.name?.toUpperCase().includes('HR') || a.department?.name?.toUpperCase().includes('HUMAN RESOURCE')
+    );
+    if (inHrDept) return true;
+  } catch (err) {
+    console.warn('Could not verify HR department assignment:', err);
+  }
+
   return false;
 }
 

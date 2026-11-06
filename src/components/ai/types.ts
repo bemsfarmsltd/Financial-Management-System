@@ -6,7 +6,14 @@ export type ActionCardType =
   | 'budget_proposal'
   | 'salary_adjustment'
   | 'disbursement_record'
-  | 'scenario_simulator';
+  | 'scenario_simulator'
+  | 'staged_action'
+  | 'budget'
+  | 'salary_change'
+  | 'staff_approval'
+  | 'accountability_clearance'
+  | 'emergency_override'
+  | string;
 
 export interface BriefingCardData {
   asOf: string;
@@ -107,7 +114,15 @@ export interface AiMessage {
   content: string;
   actionCard?: {
     type: ActionCardType;
-    data: any;
+    cardType?: string;
+    data?: any;
+    preview?: any;
+    summary?: string;
+    staged_action_id?: string;
+    confirmation_hash?: string;
+    expires_at?: string;
+    warnings?: string[];
+    blocking_errors?: string[];
     confirmed?: boolean;
     cancelled?: boolean;
     resultMessage?: string;
