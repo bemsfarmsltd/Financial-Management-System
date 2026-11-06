@@ -67,12 +67,13 @@ export function AmbientBottomAiBar({
     businessName,
   });
 
-  // When user sends a message or when typing starts, automatically open the floating transparent response deck
+  // Only auto-open the floating response deck when the user actively triggers a new query (isTyping becomes true),
+  // never when restoring historical messages on page reload.
   useEffect(() => {
-    if (messages.length > 1 || isTyping) {
+    if (isTyping) {
       setIsDeckOpen(true);
     }
-  }, [messages.length, isTyping]);
+  }, [isTyping]);
 
   // Auto-scroll response stream
   useEffect(() => {

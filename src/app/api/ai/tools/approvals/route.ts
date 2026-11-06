@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
 import { generateDisbursementLinks } from '@/lib/bank-utils';
-import { stageAction, executeStagedAction } from '@/lib/staged-actions';
+import { stageAction } from '@/lib/staged-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -112,7 +112,6 @@ export async function POST(req: NextRequest) {
   const identifier: string = (body.requestId || body.requestNumber || body.id || '').trim();
   const decision: string = (body.decision || 'APPROVE').toUpperCase().trim();
   const comment: string = (body.comment || body.reason || body.note || 'Authorized via BEMS AI Automation').trim();
-  const isDirectExecution = Boolean(body.confirmed_by_gmd || body.auto_confirm);
 
   if (!identifier) {
     return NextResponse.json(
@@ -225,47 +224,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // If the user or n8n explicitly confirms the execution (e.g. GMD clicked the button in chat/Slack)
-  if (isDirectExecution) {
-    const executed = await executeStagedAction({
-      actionId: staged.staged_action_id,
-      confirmationHash: staged.confirmation_hash,
-      actor: {
-        id: actor.id,
-        legalName: actor.legalName,
-        role: actor.role,
-      },
-    });
-
-    return NextResponse.json({
-      ok: executed.ok,
-      status: 'APPROVED',
-      isExecuted: true,
-      message: `Request ${expReq.requestNumber} has been officially approved and confirmed by GMD ${actor.legalName}.`,
-      request: {
-        id: expReq.id,
-        requestNumber: expReq.requestNumber,
-        title: expReq.title,
-        amount: amountNaira,
-        formattedAmount: `₦${amountNaira.toLocaleString()}`,
-        status: canonicalDecision === 'APPROVE' ? 'APPROVED' : 'REJECTED',
-        subsidiary: expReq.subsidiary?.legalName || 'BEMS Group',
-        requester: expReq.requester.legalName,
-      },
-      beneficiary,
-      disbursement: disbursementPayload,
-      threeWayMatch: expReq.threeWayMatch
-        ? {
-            status: expReq.threeWayMatch.status,
-            varianceMinor: Number(expReq.threeWayMatch.varianceMinor),
-            matchedAt: expReq.threeWayMatch.matchedAt.toISOString(),
-          }
-        : null,
-      gmdActionLink: disbursementPayload?.quickPayUrl || `${baseUrl}/pay/${expReq.requestNumber}`,
-    });
-  }
-
-  // By default, return the staged action with the interactive approval button
+  // Always return the staged action preview and require explicit human confirmation button click
   return NextResponse.json({
     ok: true,
     status: 'AWAITING_CONFIRMATION',
@@ -284,6 +243,7 @@ export async function POST(req: NextRequest) {
         confirmation_hash: staged.confirmation_hash,
       },
     },
+    staged_action: staged.staged_action,
     request: {
       id: expReq.id,
       requestNumber: expReq.requestNumber,

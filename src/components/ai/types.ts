@@ -114,6 +114,7 @@ export interface AiMessage {
   content: string;
   actionCard?: {
     type: ActionCardType;
+    actionType?: string;
     cardType?: string;
     data?: any;
     preview?: any;

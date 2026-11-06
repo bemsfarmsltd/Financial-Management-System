@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
-import { executeThreeWayMatch, getThreeWayMatchSummary } from '@/lib/services/three-way-match';
+import { getThreeWayMatchSummary } from '@/lib/services/three-way-match';
+import { stageAction } from '@/lib/staged-actions';
+import { checkAiScopeOrResponse } from '@/lib/ai-access-control';
 
 /**
  * AI & n8n Automation Tool: Vendor Registry & 3-Way Match Verification
@@ -99,15 +101,19 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const action: string = (body.action || 'CHECK_MATCH').toUpperCase().trim();
+  const targetScope = action === 'REGISTER' || action === 'CREATE' ? 'vendors' : 'three_way_match';
+  const targetMode: 'read' | 'write' = action === 'CHECK_MATCH' ? 'read' : 'write';
+  const scopeBlocked = await checkAiScopeOrResponse(targetScope, targetMode);
+  if (scopeBlocked) return scopeBlocked;
 
   // -------------------------------------------------------------
-  // ACTION 1: CHECK_MATCH (Verify PO vs GRN vs Invoice)
+  // ACTION 1: CHECK_MATCH (Read-Only 3-Way Match Status Inspection)
   // -------------------------------------------------------------
   if (action === 'CHECK_MATCH') {
     const requestId: string = (body.requestId || body.requestNumber || '').trim();
     if (!requestId) {
       return NextResponse.json(
-        { ok: false, error_code: 'MISSING_REQUEST_ID', message: 'requestId or requestNumber is required to run 3-way matching.' },
+        { ok: false, error_code: 'MISSING_REQUEST_ID', message: 'requestId or requestNumber is required to inspect 3-way matching.' },
         { status: 400 }
       );
     }
@@ -122,18 +128,70 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Request "${requestId}" not found.` }, { status: 404 });
     }
 
-    const match = await executeThreeWayMatch({
-      requestId: request.id,
-      actorId: actor.id,
-      actorName: actor.legalName,
-      actorRole: actor.role,
+    const match = await getThreeWayMatchSummary(request.id);
+
+    return NextResponse.json({
+      ok: true,
+      service: 'BEMS AI 3-Way Match Inspector (Read-Only)',
+      matchStatus: match.summary?.canDisburse ? 'MATCHED' : 'UNVERIFIED',
+      summary: match.summary,
+    });
+  }
+
+  // -------------------------------------------------------------
+  // ACTION 1B: RECOMPUTE_MATCH (Staged 3-Way Match Evaluation & Ledger Update)
+  // -------------------------------------------------------------
+  if (action === 'RECOMPUTE_MATCH' || action === 'EXECUTE_MATCH') {
+    if (!isExecutive) {
+      return NextResponse.json(
+        { ok: false, error_code: 'FORBIDDEN', message: 'Executive authority required to stage 3-way match recomputation.' },
+        { status: 403 }
+      );
+    }
+
+    const requestId: string = (body.requestId || body.requestNumber || '').trim();
+    if (!requestId) {
+      return NextResponse.json(
+        { ok: false, error_code: 'MISSING_REQUEST_ID', message: 'requestId or requestNumber is required.' },
+        { status: 400 }
+      );
+    }
+
+    const request = await prisma.expenditureRequest.findFirst({
+      where: {
+        OR: [{ id: requestId }, { requestNumber: requestId }],
+      },
+    });
+
+    if (!request) {
+      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Request "${requestId}" not found.` }, { status: 404 });
+    }
+
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'vendor_approval',
+      summary: `Recompute & commit 3-Way Match verification for ${request.requestNumber} (${request.title})`,
+      materialPayload: {
+        mode: 'RECOMPUTE_MATCH',
+        request_id: request.id,
+        request_number: request.requestNumber,
+      },
+      preview: {
+        action: 'RECOMPUTE_MATCH',
+        requestNumber: request.requestNumber,
+        title: request.title,
+      },
     });
 
     return NextResponse.json({
       ok: true,
-      service: 'BEMS AI 3-Way Match Verification Engine',
-      matchStatus: match.matchStatus,
-      summary: match.summary,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
+      message: `3-Way Match recomputation for ${request.requestNumber} has been staged. Click the confirmation button to commit.`,
+      staged_action_id: staged.staged_action_id,
+      confirmation_hash: staged.confirmation_hash,
+      confirmation_button: staged.confirmation_button,
+      staged_action: staged.staged_action,
     });
   }
 
@@ -193,8 +251,12 @@ export async function POST(req: NextRequest) {
     const prefix = words.length >= 2 ? words.map((w) => w[0]).join('').slice(0, 3).toUpperCase() : 'VND';
     const code = `${prefix}-${String(count + 1).padStart(4, '0')}`;
 
-    const vendor = await prisma.vendor.create({
-      data: {
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'vendor_approval',
+      summary: `Register verified vendor "${name}" (${code}) · ${bankName} ${accountNumber}`,
+      materialPayload: {
+        mode: 'REGISTER',
         name,
         code,
         category,
@@ -206,25 +268,157 @@ export async function POST(req: NextRequest) {
         accountName,
         notes: notes || null,
       },
+      preview: {
+        action: 'REGISTER',
+        name,
+        code,
+        category,
+        bankName,
+        accountNumber,
+        accountName,
+        taxId: taxId || 'Not Provided',
+      },
     });
 
     return NextResponse.json({
       ok: true,
-      message: `Vendor "${vendor.name}" registered successfully with code ${vendor.code}.`,
-      vendor: {
-        id: vendor.id,
-        name: vendor.name,
-        code: vendor.code,
-        category: vendor.category,
-        bankName: vendor.bankName,
-        accountNumber: vendor.accountNumber,
-        accountName: vendor.accountName,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
+      message: `Vendor registration for "${name}" (${code}) has been staged. Click the confirmation button to commit to the Vendor Registry.`,
+      staged_action_id: staged.staged_action_id,
+      confirmation_hash: staged.confirmation_hash,
+      confirmation_button: staged.confirmation_button,
+      staged_action: staged.staged_action,
+    });
+  }
+
+  // -------------------------------------------------------------
+  // ACTION 3: RECORD_GRN (Stage Goods Receipt Note for 3-Way Match)
+  // -------------------------------------------------------------
+  if (action === 'RECORD_GRN' || action === 'CREATE_GRN') {
+    const requestLookup = String(body.requestId || body.requestNumber || body.request_id || '').trim();
+    if (!requestLookup) {
+      return NextResponse.json(
+        { ok: false, error_code: 'MISSING_REQUEST_ID', message: 'requestId or requestNumber is required to record a Goods Receipt Note (GRN).' },
+        { status: 400 }
+      );
+    }
+
+    const reqRecord = await prisma.expenditureRequest.findFirst({
+      where: { OR: [{ id: requestLookup }, { requestNumber: requestLookup }] },
+    });
+    if (!reqRecord) {
+      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Request "${requestLookup}" not found.` }, { status: 404 });
+    }
+
+    const grnNumber =
+      body.grnNumber || `GRN-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
+    const deliveryStatus = String(body.deliveryStatus || 'COMPLETE').toUpperCase();
+    const conditionNotes = String(body.conditionNotes || 'Goods received in complete and good condition').trim();
+
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'grn_creation',
+      summary: `Record Goods Receipt Note (${grnNumber}) for ${reqRecord.requestNumber} (${reqRecord.title})`,
+      materialPayload: {
+        requestId: reqRecord.id,
+        grnNumber,
+        deliveryStatus,
+        items: body.items || [{ description: reqRecord.title, quantity: 1 }],
+        conditionNotes,
+        deliveryNoteUrl: body.deliveryNoteUrl || null,
       },
+      preview: {
+        action: 'RECORD_GRN',
+        grnNumber,
+        requestNumber: reqRecord.requestNumber,
+        title: reqRecord.title,
+        deliveryStatus,
+        conditionNotes,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
+      message: `Goods Receipt Note (${grnNumber}) for ${reqRecord.requestNumber} has been staged. Click Confirm to record delivery and trigger 3-way matching.`,
+      ...staged,
+    });
+  }
+
+  // -------------------------------------------------------------
+  // ACTION 4: RECORD_INVOICE (Stage Vendor Invoice for 3-Way Match)
+  // -------------------------------------------------------------
+  if (action === 'RECORD_INVOICE' || action === 'CREATE_INVOICE') {
+    const requestLookup = String(body.requestId || body.requestNumber || body.request_id || '').trim();
+    if (!requestLookup) {
+      return NextResponse.json(
+        { ok: false, error_code: 'MISSING_REQUEST_ID', message: 'requestId or requestNumber is required to record a Vendor Invoice.' },
+        { status: 400 }
+      );
+    }
+
+    const reqRecord = await prisma.expenditureRequest.findFirst({
+      where: { OR: [{ id: requestLookup }, { requestNumber: requestLookup }] },
+      include: { vendor: true },
+    });
+    if (!reqRecord) {
+      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Request "${requestLookup}" not found.` }, { status: 404 });
+    }
+
+    let vendorId = body.vendorId || reqRecord.vendorId;
+    if (!vendorId && body.vendorName) {
+      const foundVendor = await prisma.vendor.findFirst({
+        where: { name: { contains: String(body.vendorName), mode: 'insensitive' } },
+      });
+      if (foundVendor) vendorId = foundVendor.id;
+    }
+
+    if (!vendorId) {
+      return NextResponse.json(
+        { ok: false, error_code: 'MISSING_VENDOR', message: 'vendorId or vendorName is required when the request has no linked vendor.' },
+        { status: 400 }
+      );
+    }
+
+    const invoiceNumber =
+      body.invoiceNumber || `INV-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
+    const amountNaira = body.amount !== undefined ? Number(body.amount) : Number(reqRecord.amountMinor) / 100;
+
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'vendor_invoice_creation',
+      summary: `Record Vendor Invoice (${invoiceNumber}) of ₦${amountNaira.toLocaleString()} for ${reqRecord.requestNumber}`,
+      materialPayload: {
+        requestId: reqRecord.id,
+        vendorId,
+        invoiceNumber,
+        amount: amountNaira,
+        currency: body.currency || reqRecord.currency || 'NGN',
+        items: body.items || [{ description: reqRecord.title, quantity: 1, amount: amountNaira }],
+        documentUrl: body.documentUrl || null,
+      },
+      preview: {
+        action: 'RECORD_INVOICE',
+        invoiceNumber,
+        requestNumber: reqRecord.requestNumber,
+        amount: `₦${amountNaira.toLocaleString()}`,
+        currency: body.currency || reqRecord.currency || 'NGN',
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
+      message: `Vendor Invoice (${invoiceNumber}) for ${reqRecord.requestNumber} has been staged. Click Confirm to record invoice and run 3-way matching.`,
+      ...staged,
     });
   }
 
   return NextResponse.json(
-    { ok: false, error_code: 'INVALID_ACTION', message: `Unknown action "${action}". Allowed: CHECK_MATCH, REGISTER.` },
+    { ok: false, error_code: 'INVALID_ACTION', message: `Unknown action "${action}". Allowed: CHECK_MATCH, RECOMPUTE_MATCH, REGISTER, RECORD_GRN, RECORD_INVOICE.` },
     { status: 400 }
   );
 }

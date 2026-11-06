@@ -92,13 +92,18 @@ export function invalidateSessionCache(token?: string) {
   }
 }
 
-export async function getAuthenticatedEmployee(req?: Request): Promise<AuthenticatedEmployee | null> {
+export async function getAuthenticatedEmployee(
+  req?: Request,
+  options?: { disallowServiceToken?: boolean; allowServiceToken?: boolean }
+): Promise<AuthenticatedEmployee | null> {
   let authHeader: string | null = null;
   let cookieToken: string | null = null;
+  let method = 'GET';
 
   // Direct extraction from incoming Request object (fastest, bypasses AsyncLocalStorage detachment)
   if (req) {
     authHeader = req.headers.get('authorization');
+    method = (req.method || 'GET').toUpperCase();
     const cookieHeader = req.headers.get('cookie') || '';
     const match = cookieHeader.match(/(?:^|;\s*)bems_session=([^;]+)/);
     if (match) cookieToken = decodeURIComponent(match[1]);
@@ -114,12 +119,17 @@ export async function getAuthenticatedEmployee(req?: Request): Promise<Authentic
     }
   }
 
+  // Service token is only permitted for read-only GET requests or when explicitly enabled for staging routes
+  const canUseServiceToken =
+    !options?.disallowServiceToken &&
+    (options?.allowServiceToken === true || (req ? method === 'GET' : false));
+
   if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
     const token = authHeader.substring(7).trim();
 
-    // A. Check service API key (Option B - internal background automation only)
+    // A. Check service API key ONLY when service tokens are permitted (never for human confirmation or ordinary dashboard mutations)
     const configuredServiceSecret = process.env.BEMS_AI_SERVICE_TOKEN;
-    if (configuredServiceSecret && configuredServiceSecret.length >= 24) {
+    if (canUseServiceToken && configuredServiceSecret && configuredServiceSecret.length >= 24) {
       const tokenBuf = Buffer.from(token);
       const secretBuf = Buffer.from(configuredServiceSecret);
       if (tokenBuf.length === secretBuf.length && timingSafeEqual(tokenBuf, secretBuf)) {
@@ -135,7 +145,7 @@ export async function getAuthenticatedEmployee(req?: Request): Promise<Authentic
 
         const employee = targetUserId
           ? await prisma.employee.findFirst({ where: { id: targetUserId, status: 'ACTIVE', approvalStatus: 'APPROVED' } })
-          : await prisma.employee.findFirst({ where: { role: { in: ['GMD', 'SYSTEM_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' } });
+          : await prisma.employee.findFirst({ where: { role: { in: ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' } });
 
         if (employee) {
           return {
@@ -274,7 +284,6 @@ export function publicEmployee(employee: AuthenticatedEmployee) {
 export const CANONICAL_ROLES = {
   SUPER_ADMIN: 'SYSTEM_ADMIN',
   GMD: 'GMD',
-  HR: 'HR',
   STAFF: 'STAFF',
 } as const;
 
@@ -282,12 +291,11 @@ export const ROLE_DISPLAY_NAMES: Record<string, string> = {
   SYSTEM_ADMIN: 'Super admin',
   SUPER_ADMIN: 'Super admin',
   GMD: 'The Group Managing Director',
-  HR: 'Human Resources',
   STAFF: 'Staff',
 };
 
 export function getRoleDisplayName(role: string): string {
-  return ROLE_DISPLAY_NAMES[role] || (role === 'GMD' ? 'The Group Managing Director' : role === 'HR' ? 'Human Resources' : role.replace(/_/g, ' '));
+  return ROLE_DISPLAY_NAMES[role] || (role === 'GMD' ? 'The Group Managing Director' : role === 'SYSTEM_ADMIN' || role === 'SUPER_ADMIN' ? 'Super admin' : 'Staff');
 }
 
 export function hasAnyRole(employee: AuthenticatedEmployee | null | undefined, roles: string[]): boolean {

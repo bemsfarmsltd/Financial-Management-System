@@ -1,10 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
-import { sendAdminInvitationEmail } from '@/lib/email';
-import { randomBytes } from 'node:crypto';
+import { stageAction } from '@/lib/staged-actions';
 
 export const dynamic = 'force-dynamic';
+
+export async function GET(req: NextRequest) {
+  const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  if (errorResponse) return errorResponse;
+  if (!actor?.isExecutive) {
+    return NextResponse.json({ ok: false, error_code: 'FORBIDDEN', message: 'Executive access required.' }, { status: 403 });
+  }
+
+  const invitations = await prisma.adminInvitation.findMany({
+    include: { subsidiary: { select: { id: true, legalName: true, code: true } } },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  });
+
+  return NextResponse.json({
+    ok: true,
+    count: invitations.length,
+    invitations: invitations.map((inv) => ({
+      id: inv.id,
+      workEmail: inv.workEmail,
+      role: inv.role,
+      positionName: inv.positionName,
+      status: inv.status,
+      subsidiary: inv.subsidiary,
+      expiresAt: inv.expiresAt,
+      createdAt: inv.createdAt,
+    })),
+  });
+}
 
 export async function POST(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
@@ -18,6 +46,49 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
+  const subAction = String(body.action || body.sub_action || 'CREATE_INVITE').toUpperCase();
+
+  if (subAction === 'RESEND_INVITE' || subAction === 'REVOKE_INVITE') {
+    const lookup = String(body.invitationId || body.id || body.workEmail || body.email || '').trim();
+    if (!lookup) {
+      return NextResponse.json({ ok: false, error: 'invitationId or workEmail is required.' }, { status: 400 });
+    }
+    const invitation = await prisma.adminInvitation.findFirst({
+      where: {
+        OR: [{ id: lookup }, { workEmail: { equals: lookup, mode: 'insensitive' } }],
+      },
+      include: { subsidiary: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!invitation) {
+      return NextResponse.json({ ok: false, error: `Invitation "${lookup}" not found.` }, { status: 404 });
+    }
+
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'admin_onboarding',
+      summary: `${subAction === 'REVOKE_INVITE' ? 'Revoke' : 'Resend'} Executive Invitation for ${invitation.workEmail} (${invitation.role})`,
+      materialPayload: {
+        sub_action: subAction,
+        invitationId: invitation.id,
+        workEmail: invitation.workEmail,
+      },
+      preview: {
+        action: subAction,
+        work_email: invitation.workEmail,
+        role: invitation.role,
+        subsidiary: invitation.subsidiary.legalName,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
+      message: `Executive invitation ${subAction === 'REVOKE_INVITE' ? 'revocation' : 'resend'} for ${invitation.workEmail} has been staged.`,
+      ...staged,
+    });
+  }
   const legalName: string = (body.legalName || body.name || '').trim();
   const workEmail: string = (body.workEmail || body.email || '').trim().toLowerCase();
   const phone: string = (body.phone || '').trim();
@@ -90,125 +161,63 @@ export async function POST(req: NextRequest) {
 
   // Resolve subsidiary
   const allSubs = await prisma.organization.findMany({ where: { status: 'ACTIVE' }, take: 10 });
-  const targetSub = (subsidiaryId ? allSubs.find((s) => s.id === subsidiaryId) : null) ||
+  const targetSub = (subsidiaryId ? allSubs.find((s) => s.id === subsidiaryId || s.code.toUpperCase() === subsidiaryId.toUpperCase()) : null) ||
     allSubs.find((s) => s.type === 'GROUP' || s.code === 'BEMS-GROUP') ||
     allSubs[0];
 
   const orgId = targetSub?.id || 'bems-group-hq';
-  const orgCode = targetSub?.code || 'BEMS';
+  const orgName = targetSub?.legalName || 'BEMS Group';
+  const positionName = canonicalRole === 'GMD' ? 'The Group Managing Director' : 'Super Admin';
 
-  // Generate employee number
-  const count = await prisma.employee.count();
-  const year = new Date().getFullYear();
-  const employeeNumber = `${orgCode}-ADM-${year}-${String(count + 1).padStart(4, '0')}`;
+  // Single active GMD check before staging
+  if (canonicalRole === 'GMD') {
+    const existingGmd = await prisma.employee.findFirst({
+      where: { role: 'GMD', status: 'ACTIVE', approvalStatus: 'APPROVED' },
+      select: { id: true, legalName: true, workEmail: true },
+    });
+    if (existingGmd) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'GMD_ALREADY_EXISTS',
+          message: `The system only permits one Group Managing Director (GMD). An active GMD already exists: ${existingGmd.legalName} (${existingGmd.workEmail}).`,
+        },
+        { status: 409 }
+      );
+    }
+  }
 
-  // Generate invite token
-  const inviteToken = randomBytes(24).toString('hex');
-  const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-
-  const baseUrl = req.nextUrl.origin || 'https://bemserp.work';
-  const acceptUrl = `${baseUrl}/onboard?token=${inviteToken}&email=${encodeURIComponent(workEmail)}`;
-
-  // Create Employee with ACTIVE status and APPROVED status
-  const newAdmin = await prisma.employee.create({
-    data: {
+  // Stage canonical executive invitation proposal (requires human button click to dispatch invite)
+  const staged = await stageAction({
+    userId: actor.id,
+    actionType: 'admin_onboarding',
+    summary: `Send Executive Invitation to ${legalName} (${workEmail}) as ${canonicalRole} at ${orgName}`,
+    materialPayload: {
       legalName,
       workEmail,
-      phone: phone || null,
-      employeeNumber,
+      phone,
       role: canonicalRole,
-      status: 'ACTIVE',
-      approvalStatus: 'APPROVED',
-      isOfflineStaff: false,
-      jobTitle: canonicalRole === 'GMD' ? 'The Group Managing Director' : 'Super Admin',
-      assignments: {
-        create: {
-          subsidiaryId: orgId,
-          positionName: canonicalRole === 'GMD' ? 'The Group Managing Director' : 'Super Admin',
-          isPrimary: true,
-        },
-      },
-      workSchedule: {
-        create: {
-          weeklyOffDays: '0,6',
-          customShiftIn: '08:00',
-          customShiftOut: '17:00',
-        },
-      },
+      subsidiaryId: orgId,
+      positionName,
+    },
+    preview: {
+      legalName,
+      workEmail,
+      phone,
+      role: canonicalRole,
+      positionName,
+      subsidiary: orgName,
     },
   });
 
-  // Create AdminInvitation record
-  try {
-    await prisma.adminInvitation.create({
-      data: {
-        workEmail,
-        role: canonicalRole,
-        token: inviteToken,
-        expiresAt: tokenExpiresAt,
-        subsidiaryId: orgId,
-        positionName: canonicalRole === 'GMD' ? 'The Group Managing Director' : 'Super Admin',
-        invitedById: actor.id,
-      },
-    });
-  } catch (e) {
-    console.warn('Could not save AdminInvitation record:', e);
-  }
-
-  // Attempt email delivery
-  let emailSent = false;
-  try {
-    await sendAdminInvitationEmail({
-      to: workEmail,
-      role: canonicalRole === 'GMD' ? 'The Group Managing Director' : 'Super Admin',
-      subsidiaryName: targetSub?.legalName || 'BEMS Group',
-      inviteToken,
-    });
-    emailSent = true;
-  } catch (e) {
-    console.warn('Executive invite email notification dispatch failed:', e);
-  }
-
-  // Audit event
-  try {
-    await prisma.auditEvent.create({
-      data: {
-        actorId: actor.id,
-        actorName: actor.legalName,
-        actorRole: actor.role,
-        groupId: orgId,
-        subsidiaryId: orgId,
-        targetType: 'POLICY',
-        targetId: newAdmin.id,
-        action: 'EXECUTIVE_ADMIN_ONBOARDED',
-        correlationId: `ai_admin_${Date.now()}`,
-        metadata: JSON.stringify({
-          legalName,
-          workEmail,
-          role: canonicalRole,
-          employeeNumber,
-          via: 'AI_AGENT_TOOL',
-        }),
-      },
-    });
-  } catch {}
-
   return NextResponse.json({
     ok: true,
-    message: `Executive Admin "${legalName}" onboarded successfully as ${canonicalRole}.`,
-    employee: {
-      id: newAdmin.id,
-      legalName: newAdmin.legalName,
-      workEmail: newAdmin.workEmail,
-      employeeNumber: newAdmin.employeeNumber,
-      role: newAdmin.role,
-      jobTitle: newAdmin.jobTitle,
-      subsidiary: targetSub?.legalName || 'BEMS Group',
-    },
-    onboarding: {
-      invitationUrl: acceptUrl,
-      emailDelivered: emailSent,
-      expiresAt: tokenExpiresAt.toISOString(),
-    },
+    status: 'AWAITING_CONFIRMATION',
+    requires_gmd_action: true,
+    message: `Executive invitation for "${legalName}" (${workEmail}) as ${canonicalRole} has been staged. Click the confirmation button to dispatch the invitation email.`,
+    staged_action_id: staged.staged_action_id,
+    confirmation_hash: staged.confirmation_hash,
+    confirmation_button: staged.confirmation_button,
+    staged_action: staged.staged_action,
   });
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
+import { stageAction } from '@/lib/staged-actions';
+import { checkAiScopeOrResponse } from '@/lib/ai-access-control';
 
 export const dynamic = 'force-dynamic';
 
@@ -180,37 +182,53 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const action = (body.action || 'PREPARE').toUpperCase().trim();
+  const targetScope =
+    action === 'UPDATE_SALARY' || action === 'SALARY_CHANGE' || action === 'ADJUST_SALARY'
+      ? 'salary'
+      : 'payroll';
+  const scopeBlocked = await checkAiScopeOrResponse(targetScope, 'write');
+  if (scopeBlocked) return scopeBlocked;
   const now = new Date();
   const year = Number(body.year) || now.getFullYear();
   const month = Number(body.month) || now.getMonth() + 1;
 
   // -------------------------------------------------------------
-  // ACTION 1: PREPARE PAYROLL BATCH WITH ATTENDANCE DEDUCTIONS
+  // ACTION 1: STAGE PREPARE PAYROLL BATCH
   // -------------------------------------------------------------
   if (action === 'PREPARE') {
-    // Forward internally to the full prepare engine
-    const prepareUrl = new URL('/api/payroll/prepare', req.url);
-    const prepareRes = await fetch(prepareUrl.toString(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: req.headers.get('authorization') || '',
-        'x-api-key': req.headers.get('x-api-key') || '',
-        cookie: req.headers.get('cookie') || '',
+    const periodLabel = `${new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(year, month - 1, 1))} ${year}`;
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'payroll_action',
+      summary: `Prepare / calculate monthly payroll batch for ${periodLabel}`,
+      materialPayload: {
+        sub_action: 'PREPARE',
+        year,
+        month,
       },
-      body: JSON.stringify({ year, month }),
+      preview: {
+        action: 'PREPARE',
+        period: periodLabel,
+        year,
+        month,
+      },
     });
 
-    const data = await prepareRes.json();
     return NextResponse.json({
-      ok: prepareRes.ok,
+      ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
       action: 'PREPARE',
-      ...data,
-    }, { status: prepareRes.status });
+      message: `Payroll preparation for ${periodLabel} has been staged. Click the confirmation button to calculate and generate the payroll batch.`,
+      staged_action_id: staged.staged_action_id,
+      confirmation_hash: staged.confirmation_hash,
+      confirmation_button: staged.confirmation_button,
+      staged_action: staged.staged_action,
+    });
   }
 
   // -------------------------------------------------------------
-  // ACTION 2: SIGN OFF PAYROLL BATCH (GMD / Super Admin Approval)
+  // ACTION 2: STAGE SIGN OFF PAYROLL BATCH (GMD / Super Admin Approval)
   // -------------------------------------------------------------
   if (action === 'SIGN_OFF' || action === 'APPROVE') {
     const period = await prisma.payrollPeriod.findFirst({
@@ -231,87 +249,133 @@ export async function POST(req: NextRequest) {
     }
 
     const batch = period.batches[0];
-    const updated = await prisma.payrollBatch.update({
-      where: { id: batch.id },
-      data: {
-        status: 'APPROVED',
-        approvedAt: new Date(),
+    const periodLabel = `${new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(year, month - 1, 1))} ${year}`;
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'payroll_action',
+      summary: `Sign off & lock payroll batch v${batch.version} for ${periodLabel} (Net: ${formatNaira(batch.totalNetMinor)})`,
+      materialPayload: {
+        sub_action: 'SIGN_OFF',
+        year,
+        month,
+        batchId: batch.id,
       },
-    });
-
-    // Also close/lock the period
-    await prisma.payrollPeriod.update({
-      where: { id: period.id },
-      data: { lockStatus: 'LOCKED' },
+      preview: {
+        action: 'SIGN_OFF',
+        period: periodLabel,
+        batchId: batch.id,
+        version: batch.version,
+        totalGross: formatNaira(batch.totalGrossMinor),
+        totalNet: formatNaira(batch.totalNetMinor),
+      },
     });
 
     return NextResponse.json({
       ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
       action: 'SIGN_OFF',
-      message: `Payroll batch for ${month}/${year} approved for disbursement by ${actor.legalName}.`,
-      batch: {
-        id: updated.id,
-        status: updated.status,
-        version: updated.version,
-        totalNet: formatNaira(updated.totalNetMinor),
-        approvedAt: updated.approvedAt,
-      },
+      message: `Payroll sign-off for ${periodLabel} (${formatNaira(batch.totalNetMinor)}) has been staged. Click the confirmation button to approve and lock the period.`,
+      staged_action_id: staged.staged_action_id,
+      confirmation_hash: staged.confirmation_hash,
+      confirmation_button: staged.confirmation_button,
+      staged_action: staged.staged_action,
     });
   }
 
   // -------------------------------------------------------------
-  // ACTION 3: RECORD PAYOUT / DISBURSE
+  // ACTION 3: STAGE RECORD PAYOUT / DISBURSE
   // -------------------------------------------------------------
   if (action === 'RECORD_PAYOUT' || action === 'DISBURSE') {
     const itemId = body.itemId || body.payrollItemId;
     const batchId = body.batchId;
+    const externalReference = (body.externalReference || body.reference || `PAY-AI-${Date.now()}`).trim();
+    const bankName = (body.bankName || 'Corporate Treasury Bank').trim();
+
+    if (!itemId && !batchId) {
+      return NextResponse.json(
+        { ok: false, error_code: 'VALIDATION_FAILED', message: 'Provide either itemId or batchId to stage payroll payout.' },
+        { status: 400 }
+      );
+    }
 
     if (itemId) {
-      // Mark single item as disbursed
       const item = await prisma.payrollItem.findUnique({
         where: { id: itemId },
-        include: { employee: true },
+        include: { employee: true, batch: true },
       });
-
       if (!item) {
         return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: 'Payroll item not found.' }, { status: 404 });
       }
 
-      await prisma.payrollItem.update({
-        where: { id: itemId },
-        data: { status: 'PAID' },
+      const staged = await stageAction({
+        userId: actor.id,
+        actionType: 'payroll_action',
+        summary: `Record salary payout for ${item.employee.legalName} (${formatNaira(item.netMinor)})`,
+        materialPayload: {
+          sub_action: 'RECORD_PAYOUT',
+          itemId: item.id,
+          externalReference,
+          bankName,
+        },
+        preview: {
+          action: 'RECORD_PAYOUT',
+          employee: item.employee.legalName,
+          employeeNumber: item.employee.employeeNumber,
+          netPay: formatNaira(item.netMinor),
+          externalReference,
+          bankName,
+        },
       });
 
       return NextResponse.json({
         ok: true,
+        status: 'AWAITING_CONFIRMATION',
+        requires_gmd_action: true,
         action: 'RECORD_PAYOUT',
-        message: `Salary disbursement recorded for ${item.employee.legalName} (${formatNaira(item.netMinor)}).`,
+        message: `Salary disbursement recording for ${item.employee.legalName} (${formatNaira(item.netMinor)}) has been staged. Click the confirmation button to record the disbursement, debit treasury, and notify the recipient.`,
+        staged_action_id: staged.staged_action_id,
+        confirmation_hash: staged.confirmation_hash,
+        confirmation_button: staged.confirmation_button,
+        staged_action: staged.staged_action,
       });
     }
 
-    if (batchId) {
-      // Mark entire batch as paid
-      await prisma.payrollItem.updateMany({
-        where: { batchId },
-        data: { status: 'PAID' },
-      });
-
-      await prisma.payrollBatch.update({
-        where: { id: batchId },
-        data: { status: 'PAID' },
-      });
-
-      return NextResponse.json({
-        ok: true,
-        action: 'RECORD_PAYOUT',
-        message: `Entire payroll batch ${batchId} marked as disbursed.`,
-      });
+    const batch = await prisma.payrollBatch.findUnique({ where: { id: batchId } });
+    if (!batch) {
+      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: 'Payroll batch not found.' }, { status: 404 });
     }
 
-    return NextResponse.json(
-      { ok: false, error_code: 'VALIDATION_FAILED', message: 'Provide either itemId or batchId to record payout.' },
-      { status: 400 }
-    );
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'payroll_action',
+      summary: `Record batch salary payout for batch v${batch.version} (${formatNaira(batch.totalNetMinor)})`,
+      materialPayload: {
+        sub_action: 'RECORD_PAYOUT',
+        batchId: batch.id,
+        externalReference,
+        bankName,
+      },
+      preview: {
+        action: 'RECORD_PAYOUT',
+        batchId: batch.id,
+        totalNet: formatNaira(batch.totalNetMinor),
+        externalReference,
+        bankName,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
+      action: 'RECORD_PAYOUT',
+      message: `Batch salary payout for ${batch.id} (${formatNaira(batch.totalNetMinor)}) has been staged. Click the confirmation button to commit.`,
+      staged_action_id: staged.staged_action_id,
+      confirmation_hash: staged.confirmation_hash,
+      confirmation_button: staged.confirmation_button,
+      staged_action: staged.staged_action,
+    });
   }
 
   // -------------------------------------------------------------
@@ -335,10 +399,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: 'Employee not found.' }, { status: 404 });
     }
 
-    // Stage the salary change action
-    const { stageAction } = await import('@/lib/staged-actions');
     const staged = await stageAction({
-      actorId: actor.id,
+      userId: actor.id,
       actionType: 'salary_change',
       summary: `Adjust monthly salary for ${employee.legalName} to ₦${amount.toLocaleString()} effective ${effectiveDate || 'Immediately'}`,
       targetEmployeeId: employee.id,
@@ -348,7 +410,7 @@ export async function POST(req: NextRequest) {
         effective_date: effectiveDate,
         reason,
       },
-      clientPreview: {
+      preview: {
         employee_name: employee.legalName,
         employee_number: employee.employeeNumber,
         new_base_gross: `₦${amount.toLocaleString()}`,
@@ -359,29 +421,100 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
       action: 'ADJUST_SALARY',
-      staged_action_id: staged.id,
-      confirmation_hash: staged.confirmationHash,
+      staged_action_id: staged.staged_action_id,
+      confirmation_hash: staged.confirmation_hash,
+      confirmation_button: staged.confirmation_button,
       summary: staged.summary,
-      staged_action: {
-        type: 'salary_change',
-        cardType: 'STAGED_ACTION',
-        staged_action_id: staged.id,
-        confirmation_hash: staged.confirmationHash,
-        summary: staged.summary,
-        action_type: 'salary_change',
-        payload_preview: {
-          employee_name: employee.legalName,
-          amount: `₦${amount.toLocaleString()}`,
-          effective_date: effectiveDate,
-          reason,
-        },
+      staged_action: staged.staged_action,
+    });
+  }
+
+  // -------------------------------------------------------------
+  // ACTION 5: REMOVE_ITEM (Remove staff item from open payroll batch)
+  // -------------------------------------------------------------
+  if (action === 'REMOVE_ITEM' || action === 'DELETE_ITEM') {
+    const itemId = String(body.itemId || body.payrollItemId || '').trim();
+    if (!itemId) {
+      return NextResponse.json({ ok: false, error_code: 'MISSING_ITEM_ID', message: 'itemId is required.' }, { status: 400 });
+    }
+    const item = await prisma.payrollItem.findUnique({
+      where: { id: itemId },
+      include: { employee: true },
+    });
+    if (!item) {
+      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: 'Payroll item not found.' }, { status: 404 });
+    }
+
+    const mode = body.mode === 'PERMANENT' ? 'PERMANENT' : 'BATCH_ONLY';
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'payroll_action',
+      summary: `Remove ${item.employee.legalName} from payroll batch (${mode})`,
+      materialPayload: {
+        sub_action: 'REMOVE_ITEM',
+        itemId: item.id,
+        mode,
+        reason: body.reason || 'Removed from payroll batch',
       },
+      preview: {
+        action: 'REMOVE_ITEM',
+        employee: item.employee.legalName,
+        mode,
+        net_amount: formatNaira(item.netMinor),
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
+      action: 'REMOVE_ITEM',
+      ...staged,
+    });
+  }
+
+  // -------------------------------------------------------------
+  // ACTION 6: CONFIRM_RECEIPT (Confirm disbursement receipt)
+  // -------------------------------------------------------------
+  if (action === 'CONFIRM_RECEIPT') {
+    const disbursementId = String(body.disbursementId || '').trim();
+    if (!disbursementId) {
+      return NextResponse.json({ ok: false, error_code: 'MISSING_DISBURSEMENT_ID', message: 'disbursementId is required.' }, { status: 400 });
+    }
+    const decision = String(body.decision || 'RECEIVED').toUpperCase();
+
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'payroll_action',
+      summary: `Record Recipient Payment Confirmation (${decision}) for Disbursement ${disbursementId.slice(0, 8)}`,
+      materialPayload: {
+        sub_action: 'CONFIRM_RECEIPT',
+        disbursementId,
+        decision,
+        note: body.note || null,
+      },
+      preview: {
+        action: 'CONFIRM_RECEIPT',
+        disbursementId,
+        decision,
+        note: body.note || 'Confirmed via BEMI',
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
+      action: 'CONFIRM_RECEIPT',
+      ...staged,
     });
   }
 
   return NextResponse.json(
-    { ok: false, error_code: 'INVALID_ACTION', message: 'Action must be PREPARE, SIGN_OFF, RECORD_PAYOUT, or ADJUST_SALARY.' },
+    { ok: false, error_code: 'INVALID_ACTION', message: 'Action must be PREPARE, SIGN_OFF, RECORD_PAYOUT, ADJUST_SALARY, REMOVE_ITEM, or CONFIRM_RECEIPT.' },
     { status: 400 }
   );
 }

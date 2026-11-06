@@ -213,7 +213,7 @@ export function AiFinancialManagerDrawer({
             <button
               type="button"
               title="View past executive chat sessions"
-              onClick={() => ai.setIsHistoryOpen(true)}
+              onClick={() => internalAi.setIsHistoryOpen(true)}
               style={{
                 background: 'rgba(255, 255, 255, 0.55)',
                 border: '1px solid rgba(255, 255, 255, 0.7)',
@@ -600,13 +600,13 @@ export function AiFinancialManagerDrawer({
       </div>
 
       <AiChatHistoryDrawer
-        isOpen={ai.isHistoryOpen}
-        onClose={() => ai.setIsHistoryOpen(false)}
-        sessions={ai.sessions}
-        activeSessionId={ai.activeSessionId}
-        onSelectSession={(session) => ai.loadSession(session)}
+        isOpen={internalAi.isHistoryOpen}
+        onClose={() => internalAi.setIsHistoryOpen(false)}
+        sessions={internalAi.sessions}
+        activeSessionId={internalAi.activeSessionId}
+        onSelectSession={(session) => internalAi.loadSession(session)}
         onNewChat={startNewChat}
-        onDeleteSession={(id) => ai.deleteSession(id)}
+        onDeleteSession={(id) => internalAi.deleteSession(id)}
       />
 
       <style jsx>{`

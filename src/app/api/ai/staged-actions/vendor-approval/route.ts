@@ -4,7 +4,7 @@ import { stageAction } from '@/lib/staged-actions';
 
 export async function POST(req: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req, { allowServiceToken: true });
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
     if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN'])) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Only GMD or System Admin can stage vendor approvals.' }, { status: 403 });

@@ -137,24 +137,39 @@ export async function POST(req: NextRequest) {
     }
 
     const amountMinor = Math.round(amount * 100);
-    const result = await generateOperationalIntercompanyNotes({
-      sourceEntityId: sourceOrg.id,
-      targetEntityId: targetOrg.id,
-      amountMinor,
-      currency: sourceOrg.defaultCurrency,
-      description,
-      actor: {
-        id: actor.id,
-        legalName: actor.legalName,
-        role: actor.role,
+    const formattedAmount = amount.toLocaleString('en-NG', { style: 'currency', currency: sourceOrg.defaultCurrency || 'NGN' });
+
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'intercompany_note',
+      summary: `Generate paired Intercompany Debit & Credit Notes (${formattedAmount}) from ${sourceOrg.legalName} to ${targetOrg.legalName}`,
+      materialPayload: {
+        mode: 'CREATE_NOTE',
+        sourceEntityId: sourceOrg.id,
+        targetEntityId: targetOrg.id,
+        amountMinor,
+        amount,
+        currency: sourceOrg.defaultCurrency || 'NGN',
+        description,
+      },
+      preview: {
+        action: 'CREATE_NOTE',
+        source: sourceOrg.legalName,
+        target: targetOrg.legalName,
+        amount: formattedAmount,
+        description,
       },
     });
 
     return NextResponse.json({
       ok: true,
-      message: `Paired Intercompany Notes generated successfully. Debit Note: ${result.debitNote.noteNumber}, Credit Note: ${result.creditNote.noteNumber}.`,
-      debitNote: result.debitNote,
-      creditNote: result.creditNote,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
+      message: `Paired Intercompany Debit/Credit Note generation (${formattedAmount}) between ${sourceOrg.legalName} and ${targetOrg.legalName} has been staged. Click the confirmation button to issue the notes.`,
+      staged_action_id: staged.staged_action_id,
+      confirmation_hash: staged.confirmation_hash,
+      confirmation_button: staged.confirmation_button,
+      staged_action: staged.staged_action,
     });
   }
 

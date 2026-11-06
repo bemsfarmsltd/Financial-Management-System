@@ -4,6 +4,11 @@ import { FormEvent, ChangeEvent, useCallback, useEffect, useMemo, useRef, useSta
 import type { CSSProperties, ReactNode } from 'react';
 import { RequestDossierModal, type RequestDossier } from '@/components/requests/RequestDossierModal';
 import {
+  AI_ACCESS_SCOPES,
+  buildDefaultAiAccessMatrix,
+  normalizeAiAccessMatrix,
+} from '@/lib/ai-access-scopes';
+import {
   Users,
   UserCheck,
   ShieldCheck,
@@ -4180,7 +4185,7 @@ const defaultSettings: Record<string, SettingRecord> = {
   'approval.controls': { requireDecisionReason: true, requireAssignedDisbursementOwner: false },
   'notifications.preferences': { taskAssignmentAlerts: true, reviewEvidenceAlerts: true },
   'data.retention': { auditYears: 7, receiptYears: 7, exportFormat: 'CSV' },
-  'ai.access': { allowAiAnalystChat: true },
+  'ai.access': buildDefaultAiAccessMatrix(),
 };
 type MobileGateItem = {
   appId: string;
@@ -4406,12 +4411,165 @@ export function WorkspaceSettingsModule({ businessName, setNotice, initialSectio
   const switchOrg=async(id:string)=>{setOrganizationId(id);const org=organizations.find(x=>x.id===id);if(org)setProfile({name:org.name,currency:org.defaultCurrency,timezone:org.timezone});try{const saved=await api<{settings:Record<string,SettingRecord>}>(`/api/settings?organizationId=${encodeURIComponent(id)}`);setSettings({...defaultSettings,...saved.settings})}catch(e){setError(errorText(e))}};
   const save=async()=>{setSaving(true);setError('');try{if(section==='Organization'){await api(`/api/organizations/${organizationId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({legalName:profile.name,defaultCurrency:profile.currency,timezone:profile.timezone})})}else{const key=section==='Approval controls'?'approval.controls':section==='AI & Copilot Access'?'ai.access':section==='Notifications'?'notifications.preferences':'data.retention';await api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({organizationId,key,value:settings[key]})})}setNotice(`${section} settings saved.`);await load()}catch(e){setError(errorText(e))}finally{setSaving(false)}};
   const current=settings[section==='Approval controls'?'approval.controls':section==='AI & Copilot Access'?'ai.access':section==='Notifications'?'notifications.preferences':'data.retention']||{};
-  const toggle=(key:string)=>setSettings(prev=>{const group=section==='Approval controls'?'approval.controls':section==='AI & Copilot Access'?'ai.access':'notifications.preferences';return {...prev,[group]:{...prev[group],[key]:!prev[group]?.[key]}}});
-  const titles=['Organization','Approval controls','AI & Copilot Access','Notifications','Data & retention','Intercompany & Governance','Mobile App Settings'];
+  const toggle=(key:string)=>setSettings(prev=>{const group=section==='Approval controls'?'approval.controls':section==='AI & Copilot Access'?'ai.access':'notifications.preferences';const curVal=prev[group]?.[key];const nextVal=group==='ai.access'?!(curVal!==false):!curVal;return {...prev,[group]:{...prev[group],[key]:nextVal}}});
+  const setBulkAiAccess=(mode:'read'|'write',enabled:boolean)=>setSettings(prev=>{const nextAi={...normalizeAiAccessMatrix(prev['ai.access'] as Record<string,unknown>)};for(const s of AI_ACCESS_SCOPES){nextAi[`${s.key}.${mode}`]=enabled}return {...prev,'ai.access':nextAi}});
+  const aiMatrix = useMemo(() => normalizeAiAccessMatrix(settings['ai.access'] as Record<string, unknown>), [settings]);
+  const titles=['Organization','AI & Copilot Access','Approval controls','Notifications','Data & retention','Mobile App Settings'];
   const isMobileSection = section === 'Mobile App Settings' || section === 'Mobile App Version Control';
-  const isIntercompanySection = section === 'Intercompany & Governance';
 
-  return <><PageHeading eyebrow="GROUP ADMINISTRATION" title="Settings" description="Manage saved company profiles, approval controls, AI copilot access, notifications, and mobile app version gates."/><section style={{...card,display:'grid',gridTemplateColumns:'220px 1fr',gap:22,minHeight:450}}><nav style={{display:'grid',alignContent:'start',gap:6}}>{titles.map(t=><button key={t} style={(section===t || (t==='Mobile App Settings' && isMobileSection))?{...primary,textAlign:'left'}:{...secondary,textAlign:'left'}} onClick={()=>setSection(t)}>{t}</button>)}</nav><div>{loading?<p>Loading settings…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:<><div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap',marginBottom:16}}><div><small style={{color:'#7788a0',fontWeight:800}}>{section.toUpperCase()}</small><h2 style={{margin:'5px 0 0',fontSize:22,color:'#0f172a'}}>{isMobileSection ? 'Mobile App Settings & Version Control' : `${section} settings`}</h2></div>{!isMobileSection&&<select style={{...input,width:'auto',minWidth:260}} value={organizationId} onChange={e=>void switchOrg(e.target.value)}>{organizations.map(o=><option value={o.id} key={o.id}>{o.name}</option>)}</select>}</div>{section==='Organization'?<div style={{display:'grid',gap:12,maxWidth:650}}><label>Legal name<input style={{...input,display:'block',marginTop:4}} value={profile.name} onChange={e=>setProfile(p=>({...p,name:e.target.value}))}/></label><label>Default currency<select style={{...input,display:'block',marginTop:4}} value={profile.currency} onChange={e=>setProfile(p=>({...p,currency:e.target.value}))}><option value="NGN">NGN — Nigerian naira</option><option value="USD">USD — US dollar</option><option value="GBP">GBP — British pound</option></select></label><label>Timezone<select style={{...input,display:'block',marginTop:4}} value={profile.timezone} onChange={e=>setProfile(p=>({...p,timezone:e.target.value}))}>{['Africa/Lagos','UTC','Europe/London','America/New_York'].map(x=><option key={x}>{x}</option>)}</select></label></div>:section==='Approval controls'?<div style={{display:'grid',gap:12}}><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.requireDecisionReason)} onChange={()=>toggle('requireDecisionReason')}/>Require a reason for declines and clarification</label><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.requireAssignedDisbursementOwner)} onChange={()=>toggle('requireAssignedDisbursementOwner')}/>Require the GMD to assign a payment recorder at final approval</label><p style={{color:'#70819b'}}>Duplicate receipt detection and staff salary-change notices stay enforced for financial control.</p></div>:section==='AI & Copilot Access'?<div style={{display:'grid',gap:16,maxWidth:680}}><label style={{display:'flex',gap:14,alignItems:'flex-start',padding:16,background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,cursor:'pointer'}}><input type="checkbox" style={{marginTop:3,width:18,height:18,accentColor:'#7c3aed'}} checked={current.allowAiAnalystChat!==false} onChange={()=>toggle('allowAiAnalystChat')}/><div><b style={{display:'block',fontSize:14,color:'#0f172a'}}>Enable AI Copilot & Chat for AI Analyst Role</b><span style={{display:'block',marginTop:4,fontSize:13,color:'#64748b',lineHeight:1.5}}>When enabled, users assigned the dedicated <strong>AI Analyst</strong> role can interactively converse with the AI Copilot, analyze live ledger requisitions, query balances, and ask financial questions in <strong>strict read-only mode</strong>. They cannot execute or stage ledger actions. When disabled, their chat access is paused.</span></div></label><div style={{padding:12,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:8,color:'#1e40af',fontSize:12.5}}>🔒 <strong>Read-Only Safeguard:</strong> The AI Analyst role is strictly restricted to informational inquiry, analytics, and queries. Executive approvals, payment executions, and ledger writes are exclusively reserved for GMD and System Admin accounts.</div><div style={{padding:12,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,color:'#166534',fontSize:12.5}}>✦ Note: GMD & System Admin accounts always retain full AI Copilot conversational capabilities.</div>
+  return <><PageHeading eyebrow="GROUP ADMINISTRATION" title="Settings" description="Manage saved company profiles, approval controls, AI copilot access, notifications, and mobile app version gates."/><section style={{...card,display:'grid',gridTemplateColumns:'220px 1fr',gap:22,minHeight:450}}><nav style={{display:'grid',alignContent:'start',gap:6}}>{titles.map(t=><button key={t} style={(section===t || (t==='Mobile App Settings' && isMobileSection))?{...primary,textAlign:'left'}:{...secondary,textAlign:'left'}} onClick={()=>setSection(t)}>{t}</button>)}</nav><div>{loading?<p>Loading settings…</p>:error?<StateMessage value={error} retry={()=>void load()}/>:<><div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap',marginBottom:16}}><div><small style={{color:'#7788a0',fontWeight:800}}>{section.toUpperCase()}</small><h2 style={{margin:'5px 0 0',fontSize:22,color:'#0f172a'}}>{isMobileSection ? 'Mobile App Settings & Version Control' : `${section} settings`}</h2></div>{!isMobileSection&&<select style={{...input,width:'auto',minWidth:260}} value={organizationId} onChange={e=>void switchOrg(e.target.value)}>{organizations.map(o=><option value={o.id} key={o.id}>{o.name}</option>)}</select>}</div>{section==='Organization'?<div style={{display:'grid',gap:12,maxWidth:650}}><label>Legal name<input style={{...input,display:'block',marginTop:4}} value={profile.name} onChange={e=>setProfile(p=>({...p,name:e.target.value}))}/></label><label>Default currency<select style={{...input,display:'block',marginTop:4}} value={profile.currency} onChange={e=>setProfile(p=>({...p,currency:e.target.value}))}><option value="NGN">NGN — Nigerian naira</option><option value="USD">USD — US dollar</option><option value="GBP">GBP — British pound</option></select></label><label>Timezone<select style={{...input,display:'block',marginTop:4}} value={profile.timezone} onChange={e=>setProfile(p=>({...p,timezone:e.target.value}))}>{['Africa/Lagos','UTC','Europe/London','America/New_York'].map(x=><option key={x}>{x}</option>)}</select></label></div>:section==='Approval controls'?<div style={{display:'grid',gap:12}}><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.requireDecisionReason)} onChange={()=>toggle('requireDecisionReason')}/>Require a reason for declines and clarification</label><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.requireAssignedDisbursementOwner)} onChange={()=>toggle('requireAssignedDisbursementOwner')}/>Require the GMD to assign a payment recorder at final approval</label><p style={{color:'#70819b'}}>Duplicate receipt detection and staff salary-change notices stay enforced for financial control.</p></div>:section==='AI & Copilot Access'?<div style={{display:'grid',gap:18,maxWidth:960}}>
+      {/* Global Master Kill-Switch & Bulk Controls */}
+      <div style={{background:'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',borderRadius:12,padding:18,color:'#ffffff',display:'grid',gap:14,borderLeft:'5px solid #ea580c'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:12}}>
+          <div>
+            <span style={{display:'inline-block',background:'#ea580c',color:'#fff',fontSize:10.5,fontWeight:800,padding:'2px 9px',borderRadius:99,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>
+              Granular AI Governance Matrix · 24 Scopes
+            </span>
+            <h3 style={{margin:0,fontSize:16.5,color:'#ffffff'}}>BEMI Copilot &amp; n8n Automation Read / Write Access Controls</h3>
+            <p style={{margin:'4px 0 0',fontSize:12.5,color:'#cbd5e1',lineHeight:1.45}}>
+              Control every single ERP capability the AI can <strong>Read (GET / Query)</strong> or <strong>Write (POST / Stage Action)</strong> individually. Even when Write is enabled, all AI writes strictly stage proposals requiring a human confirmation button click.
+            </p>
+          </div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            <button type="button" onClick={()=>setBulkAiAccess('read',true)} style={{padding:'6px 11px',borderRadius:7,fontSize:11.5,fontWeight:700,background:'#059669',color:'#fff',border:'none',cursor:'pointer'}}>Enable All Read</button>
+            <button type="button" onClick={()=>setBulkAiAccess('read',false)} style={{padding:'6px 11px',borderRadius:7,fontSize:11.5,fontWeight:700,background:'#334155',color:'#e2e8f0',border:'1px solid #475569',cursor:'pointer'}}>Disable All Read</button>
+            <button type="button" onClick={()=>setBulkAiAccess('write',true)} style={{padding:'6px 11px',borderRadius:7,fontSize:11.5,fontWeight:700,background:'#ea580c',color:'#fff',border:'none',cursor:'pointer'}}>Enable All Write</button>
+            <button type="button" onClick={()=>setBulkAiAccess('write',false)} style={{padding:'6px 11px',borderRadius:7,fontSize:11.5,fontWeight:700,background:'#334155',color:'#e2e8f0',border:'1px solid #475569',cursor:'pointer'}}>Disable All Write</button>
+          </div>
+        </div>
+
+        {/* Master Switch Row */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(260px, 1fr))',gap:12,background:'rgba(255,255,255,0.06)',padding:12,borderRadius:10,border:'1px solid rgba(255,255,255,0.12)'}}>
+          <label style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,cursor:'pointer',padding:'6px 8px'}}>
+            <div>
+              <b style={{fontSize:13,color:'#ffffff',display:'block'}}>Master AI Read Access (Global GET)</b>
+              <span style={{fontSize:11.5,color:'#94a3b8'}}>When OFF, pauses all AI read queries &amp; context across all tools</span>
+            </div>
+            <input
+              type="checkbox"
+              checked={aiMatrix['master.read'] !== false}
+              onChange={() => toggle('master.read')}
+              style={{width:20,height:20,accentColor:'#10b981',cursor:'pointer'}}
+            />
+          </label>
+          <label style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,cursor:'pointer',padding:'6px 8px'}}>
+            <div>
+              <b style={{fontSize:13,color:'#ffffff',display:'block'}}>Master AI Write Access (Global Stage POST)</b>
+              <span style={{fontSize:11.5,color:'#94a3b8'}}>When OFF, blocks the AI from staging any action across the ERP</span>
+            </div>
+            <input
+              type="checkbox"
+              checked={aiMatrix['master.write'] !== false}
+              onChange={() => toggle('master.write')}
+              style={{width:20,height:20,accentColor:'#ea580c',cursor:'pointer'}}
+            />
+          </label>
+        </div>
+      </div>
+
+      {/* Individual Capability Read & Write Toggles Grouped by Category */}
+      {(['Financial & Approvals', 'People, Payroll & HR', 'Corporate, Attendance & Operations', 'Procurement, Intercompany & Governance'] as const).map((cat) => {
+        const scopes = AI_ACCESS_SCOPES.filter((s) => s.category === cat);
+        return (
+          <div key={cat} style={{background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:12,overflow:'hidden'}}>
+            <div style={{background:'#f8fafc',padding:'11px 16px',borderBottom:'1px solid #e2e8f0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <b style={{fontSize:13.5,color:'#0f172a',letterSpacing:'0.01em'}}>{cat}</b>
+              <span style={{fontSize:11.5,color:'#64748b',fontWeight:600}}>{scopes.length} Individual Capabilities</span>
+            </div>
+            <div style={{display:'grid'}}>
+              {scopes.map((scope, idx) => {
+                const readOn = aiMatrix['master.read'] !== false && aiMatrix[`${scope.key}.read`] !== false;
+                const writeOn = aiMatrix['master.write'] !== false && aiMatrix[`${scope.key}.write`] !== false;
+                return (
+                  <div
+                    key={scope.key}
+                    style={{
+                      display:'grid',
+                      gridTemplateColumns:'minmax(0, 1fr) 170px 185px',
+                      gap:14,
+                      alignItems:'center',
+                      padding:'13px 16px',
+                      borderBottom: idx < scopes.length - 1 ? '1px solid #f1f5f9' : 'none',
+                      background: (!readOn && !writeOn) ? '#fcfcfd' : '#ffffff',
+                    }}
+                  >
+                    <div>
+                      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                        <b style={{fontSize:13.5,color:'#0f172a'}}>{scope.label}</b>
+                        <code style={{fontSize:10.5,background:'#f1f5f9',color:'#475569',padding:'2px 6px',borderRadius:5,border:'1px solid #e2e8f0'}}>
+                          {scope.endpoint}
+                        </code>
+                      </div>
+                      <span style={{display:'block',marginTop:3,fontSize:12,color:'#64748b',lineHeight:1.45}}>
+                        {scope.description}
+                      </span>
+                    </div>
+
+                    {/* Individual READ Toggle */}
+                    <label
+                      style={{
+                        display:'flex',
+                        alignItems:'center',
+                        justifyContent:'space-between',
+                        gap:8,
+                        padding:'8px 11px',
+                        borderRadius:8,
+                        background: readOn ? '#ecfdf5' : '#f8fafc',
+                        border: readOn ? '1px solid #a7f3d0' : '1px solid #e2e8f0',
+                        cursor:'pointer',
+                      }}
+                    >
+                      <div>
+                        <span style={{display:'block',fontSize:10.5,fontWeight:800,color: readOn ? '#047857' : '#64748b',textTransform:'uppercase'}}>
+                          READ ({readOn ? 'ON' : 'OFF'})
+                        </span>
+                        <span style={{display:'block',fontSize:10.5,color:'#64748b'}}>{scope.readLabel}</span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={aiMatrix[`${scope.key}.read`] !== false}
+                        disabled={aiMatrix['master.read'] === false}
+                        onChange={() => toggle(`${scope.key}.read`)}
+                        style={{width:17,height:17,accentColor:'#059669',cursor:'pointer'}}
+                      />
+                    </label>
+
+                    {/* Individual WRITE Toggle */}
+                    <label
+                      style={{
+                        display:'flex',
+                        alignItems:'center',
+                        justifyContent:'space-between',
+                        gap:8,
+                        padding:'8px 11px',
+                        borderRadius:8,
+                        background: writeOn ? '#fff7ed' : '#f8fafc',
+                        border: writeOn ? '1px solid #fed7aa' : '1px solid #e2e8f0',
+                        cursor:'pointer',
+                      }}
+                    >
+                      <div>
+                        <span style={{display:'block',fontSize:10.5,fontWeight:800,color: writeOn ? '#c2410c' : '#64748b',textTransform:'uppercase'}}>
+                          WRITE ({writeOn ? 'ON' : 'OFF'})
+                        </span>
+                        <span style={{display:'block',fontSize:10.5,color:'#64748b'}}>{scope.writeLabel}</span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={aiMatrix[`${scope.key}.write`] !== false}
+                        disabled={aiMatrix['master.write'] === false}
+                        onChange={() => toggle(`${scope.key}.write`)}
+                        style={{width:17,height:17,accentColor:'#ea580c',cursor:'pointer'}}
+                      />
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
 
       {/* BEMi Executive Voice Governance & Audio Welcome Card */}
       <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 18, display: 'grid', gap: 14 }}>
@@ -4484,22 +4642,7 @@ export function WorkspaceSettingsModule({ businessName, setNotice, initialSectio
           <span>Spoken on entry: <em>&ldquo;Welcome [User], my name is BEMi, your Executive Assistant. This is the [Subsidiary] workspace...&rdquo;</em></span>
         </div>
       </div>
-    </div>:section==='Notifications'?<div style={{display:'grid',gap:12}}><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.taskAssignmentAlerts)} onChange={()=>toggle('taskAssignmentAlerts')}/>Notify the assignee when a follow-up task is assigned</label><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.reviewEvidenceAlerts)} onChange={()=>toggle('reviewEvidenceAlerts')}/>Notify reviewers when staff upload evidence</label><p style={{color:'#70819b'}}>Payment confirmation and salary-change notifications remain mandatory. Salary notices include the exact reason recorded by the GMD.</p></div>:section==='Data & retention'?<div style={{display:'grid',gap:12,maxWidth:480}}><label>Audit history retention<select style={{...input,display:'block',marginTop:4}} value={String(current.auditYears||7)} onChange={e=>setSettings(p=>({...p,'data.retention':{...p['data.retention'],auditYears:Number(e.target.value)}}))}>{[3,5,7,10].map(n=><option key={n} value={n}>{n} years</option>)}</select></label><label>Receipt evidence retention<select style={{...input,display:'block',marginTop:4}} value={String(current.receiptYears||7)} onChange={e=>setSettings(p=>({...p,'data.retention':{...p['data.retention'],receiptYears:Number(e.target.value)}}))}>{[3,5,7,10].map(n=><option key={n} value={n}>{n} years</option>)}</select></label><p style={{color:'#7b8aa1',fontSize:13}}>Records remain available for audit during this period. Retention settings do not automatically delete financial records.</p></div>:section==='Intercompany & Governance'?<div style={{display:'grid',gap:16}}>
-      <div style={{background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:12,padding:18,display:'grid',gap:12}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}>
-          <div>
-            <b style={{fontSize:16,color:'#0f172a',display:'block'}}>Intercompany &amp; Governance Hub</b>
-            <span style={{fontSize:12.5,color:'#64748b'}}>Formal multi-entity billing, shared payroll recharges, and monthly netting for tax compliance (FIRS) and statutory governance.</span>
-          </div>
-          <a href="/intercompany" target="_blank" rel="noreferrer" style={{...primary,textDecoration:'none',fontSize:12.5,padding:'8px 14px',display:'inline-flex',alignItems:'center',gap:6}}>
-            Open Fullscreen Hub ↗
-          </a>
-        </div>
-        <div style={{border:'1px solid #e2e8f0',borderRadius:10,overflow:'hidden',minHeight:640}}>
-          <iframe src="/intercompany" style={{width:'100%',minHeight:650,border:'none'}} title="Intercompany Governance Console" />
-        </div>
-      </div>
-    </div>:/* Mobile App Settings Embedded Console */<div style={{display:'grid',gap:20,maxWidth:880}}>
+    </div>:section==='Notifications'?<div style={{display:'grid',gap:12}}><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.taskAssignmentAlerts)} onChange={()=>toggle('taskAssignmentAlerts')}/>Notify the assignee when a follow-up task is assigned</label><label style={{display:'flex',gap:10,alignItems:'center',padding:13,background:'#f7f9fc',borderRadius:9}}><input type="checkbox" checked={Boolean(current.reviewEvidenceAlerts)} onChange={()=>toggle('reviewEvidenceAlerts')}/>Notify reviewers when staff upload evidence</label><p style={{color:'#70819b'}}>Payment confirmation and salary-change notifications remain mandatory. Salary notices include the exact reason recorded by the GMD.</p></div>:section==='Data & retention'?<div style={{display:'grid',gap:12,maxWidth:480}}><label>Audit history retention<select style={{...input,display:'block',marginTop:4}} value={String(current.auditYears||7)} onChange={e=>setSettings(p=>({...p,'data.retention':{...p['data.retention'],auditYears:Number(e.target.value)}}))}>{[3,5,7,10].map(n=><option key={n} value={n}>{n} years</option>)}</select></label><label>Receipt evidence retention<select style={{...input,display:'block',marginTop:4}} value={String(current.receiptYears||7)} onChange={e=>setSettings(p=>({...p,'data.retention':{...p['data.retention'],receiptYears:Number(e.target.value)}}))}>{[3,5,7,10].map(n=><option key={n} value={n}>{n} years</option>)}</select></label><p style={{color:'#7b8aa1',fontSize:13}}>Records remain available for audit during this period. Retention settings do not automatically delete financial records.</p></div>:/* Mobile App Settings Embedded Console */<div style={{display:'grid',gap:20,maxWidth:880}}>
   {/* Status & Save Banner */}
   <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'14px 18px',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}>
     <div>
@@ -4637,7 +4780,7 @@ export function WorkspaceSettingsModule({ businessName, setNotice, initialSectio
     <span>Looking for full APK release logs, hashes, and detailed version history?</span>
     <a href="/admin/settings/mobile-apps" style={{color:'var(--brand-primary, #0d8a70)',fontWeight:700,textDecoration:'none'}}>Open Full Dedicated Release Console →</a>
   </div>
-</div>}{!isMobileSection && !isIntercompanySection && <button style={{...primary,marginTop:22}} disabled={saving} onClick={()=>void save()}>{saving?'Saving…':'Save changes'}</button>}</>}</div></section></>;
+</div>}{!isMobileSection && <button style={{...primary,marginTop:22}} disabled={saving} onClick={()=>void save()}>{saving?'Saving…':'Save changes'}</button>}</>}</div></section></>;
 }
 
 type AnalyticsData = {

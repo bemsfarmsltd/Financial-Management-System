@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
+import { stageAction } from '@/lib/staged-actions';
+import { checkAiScopeOrResponse } from '@/lib/ai-access-control';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +19,17 @@ export async function GET(req: NextRequest) {
       type: true,
       defaultCurrency: true,
       brandColor: true,
+      logoUrl: true,
       createdAt: true,
+      budgets: {
+        where: { status: 'ACTIVE' },
+        select: { totalAmount: true },
+        take: 1,
+      },
+      settings: {
+        where: { key: { in: ['SUBSIDIARY_INDUSTRY', 'HEADQUARTERS_LOCATION', 'RC_NUMBER'] } },
+        select: { key: true, value: true },
+      },
       _count: {
         select: {
           employeeAssignments: true,
@@ -38,6 +50,11 @@ export async function GET(req: NextRequest) {
       type: s.type,
       currency: s.defaultCurrency,
       brandColor: s.brandColor || '#EA580C',
+      industry: s.settings.find((st) => st.key === 'SUBSIDIARY_INDUSTRY')?.value || 'Operating Subsidiary',
+      headquarters: s.settings.find((st) => st.key === 'HEADQUARTERS_LOCATION')?.value || 'Lagos, Nigeria',
+      rcNumber: s.settings.find((st) => st.key === 'RC_NUMBER')?.value || null,
+      logoUrl: s.logoUrl,
+      monthlyBudget: Number(s.budgets[0]?.totalAmount) || 0,
       totalStaff: s._count.employeeAssignments,
       totalRequests: s._count.expenditureRequests,
       createdAt: s.createdAt,
@@ -51,12 +68,90 @@ export async function POST(req: NextRequest) {
 
   if (!actor?.isExecutive) {
     return NextResponse.json(
-      { ok: false, error_code: 'FORBIDDEN', message: 'Only GMD or Super Admin can create subsidiaries.' },
+      { ok: false, error_code: 'FORBIDDEN', message: 'Only GMD or Super Admin can create or edit subsidiaries.' },
       { status: 403 }
     );
   }
 
   const body = await req.json().catch(() => ({}));
+  const subAction = String(body.action || body.sub_action || (body.organizationId || body.subsidiaryId || body.targetCode ? 'UPDATE' : 'CREATE')).toUpperCase();
+  const targetScope = subAction === 'UPDATE' || subAction === 'EDIT' ? 'subsidiary_edit' : 'subsidiary_create';
+  const scopeBlocked = await checkAiScopeOrResponse(targetScope, 'write');
+  if (scopeBlocked) return scopeBlocked;
+
+  if (subAction === 'UPDATE' || subAction === 'EDIT') {
+    const lookup = String(body.organizationId || body.subsidiaryId || body.targetCode || body.code || body.name || body.legalName || '').trim();
+    if (!lookup) {
+      return NextResponse.json(
+        { ok: false, error: 'Provide organizationId, subsidiaryId, code, or name of the subsidiary to edit.' },
+        { status: 400 }
+      );
+    }
+
+    const existingOrg = await prisma.organization.findFirst({
+      where: {
+        OR: [
+          { id: lookup },
+          { code: { equals: lookup, mode: 'insensitive' } },
+          { legalName: { contains: lookup, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    if (!existingOrg) {
+      return NextResponse.json(
+        { ok: false, error: `Subsidiary "${lookup}" not found.` },
+        { status: 404 }
+      );
+    }
+
+    const materialPayload: Record<string, any> = {
+      organizationId: existingOrg.id,
+      legalName: body.newLegalName || (body.legalName && body.legalName !== lookup ? body.legalName : undefined),
+      code: body.newCode || (body.code && body.code.toUpperCase() !== existingOrg.code ? body.code.toUpperCase() : undefined),
+      defaultCurrency: body.defaultCurrency || body.currency,
+      type: body.type,
+      brandColor: body.brandColor || body.color,
+      industry: body.industry || body.sector,
+      headquarters: body.headquarters || body.location || body.address,
+      rcNumber: body.rcNumber || body.rc_number,
+      monthlyBudget: body.monthlyBudget ?? body.monthly_budget,
+    };
+
+    const preview: Record<string, any> = {
+      operation: 'Edit Subsidiary Information',
+      subsidiary: `${existingOrg.legalName} (${existingOrg.code})`,
+    };
+    if (materialPayload.legalName) preview.new_legal_name = materialPayload.legalName;
+    if (materialPayload.code) preview.new_code = materialPayload.code;
+    if (materialPayload.defaultCurrency) preview.new_currency = materialPayload.defaultCurrency;
+    if (materialPayload.brandColor) preview.new_brand_color = materialPayload.brandColor;
+    if (materialPayload.industry) preview.new_industry = materialPayload.industry;
+    if (materialPayload.headquarters) preview.new_headquarters = materialPayload.headquarters;
+    if (materialPayload.rcNumber !== undefined) preview.new_rc_number = materialPayload.rcNumber;
+    if (materialPayload.monthlyBudget !== undefined) {
+      preview.new_monthly_budget = `₦${Number(materialPayload.monthlyBudget).toLocaleString()}`;
+    }
+
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'subsidiary_update',
+      summary: `Update Subsidiary Information: ${existingOrg.legalName} (${existingOrg.code})`,
+      materialPayload,
+      preview,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
+      message: `Subsidiary update for "${existingOrg.legalName}" (${existingOrg.code}) has been staged. Click Confirm to apply changes.`,
+      staged_action_id: staged.staged_action_id,
+      confirmation_hash: staged.confirmation_hash,
+      confirmation_button: staged.confirmation_button,
+      staged_action: staged.staged_action,
+    });
+  }
   const name: string = (body.name || body.legalName || '').trim();
   let code: string = (body.code || '').trim().toUpperCase();
   const type: string = (body.type || 'OPERATING_SUBSIDIARY').trim();
@@ -113,83 +208,52 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  try {
-    const org = await prisma.organization.create({
-      data: {
-        legalName: name,
-        code,
-        type: ['GROUP', 'SUBSIDIARY', 'OPERATING_SUBSIDIARY', 'SPECIAL_PURPOSE_VEHICLE'].includes(type)
-          ? type
-          : 'SUBSIDIARY',
-        status: 'ACTIVE',
-        defaultCurrency: ['NGN', 'USD', 'GBP', 'EUR'].includes(currency) ? currency : 'NGN',
-        timezone: 'Africa/Lagos',
-        brandColor,
-        logoUrl: logoUrl || null,
-      },
-    });
-
-    // Provision default attendance policy for this subsidiary (8:00 AM, 15m grace, 5% deduction)
-    try {
-      await prisma.attendancePolicy.create({
-        data: {
-          organizationId: org.id,
-          earliestCheckInTime: '07:00',
-          resumptionTime: '08:00',
-          closingTime: '17:00',
-          gracePeriodMinutes: 15,
-          latenessDeductionPercent: 5.0,
-          absenceDeductionPercent: 100.0,
-          requireGeofence: true,
-          requireQrScan: true,
-          requireStarlinkIp: true,
-          starlinkIpAddresses: '2605:59c1:1a3a:a210:*, 98.97.76.109, 98.97.76.*, 98.97.*',
-          starlinkPowerOutageMode: false,
-        },
-      });
-    } catch (e) {
-      console.warn('Could not provision default attendance policy for subsidiary:', e);
-    }
-
-    // Persist workspace metadata settings
-    if (industry) {
-      try {
-        await prisma.workspaceSetting.create({
-          data: { organizationId: org.id, key: 'SUBSIDIARY_INDUSTRY', value: industry, updatedById: actor.id },
-        });
-      } catch {}
-    }
-    if (headquarters) {
-      try {
-        await prisma.workspaceSetting.create({
-          data: { organizationId: org.id, key: 'HEADQUARTERS_LOCATION', value: headquarters, updatedById: actor.id },
-        });
-      } catch {}
-    }
-
-    return NextResponse.json({
-      ok: true,
-      message: `Subsidiary "${org.legalName}" (${org.code}) created successfully.`,
-      subsidiary: {
-        id: org.id,
-        name: org.legalName,
-        code: org.code,
-        type: org.type,
-        currency: org.defaultCurrency,
-        brandColor: org.brandColor,
-        createdAt: org.createdAt,
-      },
-    });
-  } catch (err: any) {
-    if (err.code === 'P2002') {
-      return NextResponse.json(
-        { ok: false, error_code: 'DUPLICATE_CODE', message: `Subsidiary code "${code}" already exists.` },
-        { status: 409 }
-      );
-    }
+  const existingByCode = await prisma.organization.findUnique({ where: { code } });
+  if (existingByCode) {
     return NextResponse.json(
-      { ok: false, error_code: 'INTERNAL_ERROR', message: err.message },
-      { status: 500 }
+      { ok: false, error_code: 'DUPLICATE_CODE', message: `Subsidiary code "${code}" already exists.` },
+      { status: 409 }
     );
   }
+
+  const canonicalType = ['GROUP', 'SUBSIDIARY', 'OPERATING_SUBSIDIARY', 'SPECIAL_PURPOSE_VEHICLE'].includes(type)
+    ? type
+    : 'SUBSIDIARY';
+  const canonicalCurrency = ['NGN', 'USD', 'GBP', 'EUR'].includes(currency) ? currency : 'NGN';
+
+  const staged = await stageAction({
+    userId: actor.id,
+    actionType: 'subsidiary_creation',
+    summary: `Create new subsidiary "${name}" (${code}) in ${headquarters} (${industry})`,
+    materialPayload: {
+      name,
+      code,
+      type: canonicalType,
+      currency: canonicalCurrency,
+      brandColor,
+      industry,
+      headquarters,
+      logoUrl: logoUrl || null,
+    },
+    preview: {
+      name,
+      code,
+      type: canonicalType,
+      currency: canonicalCurrency,
+      brandColor,
+      industry,
+      headquarters,
+    },
+  });
+
+  return NextResponse.json({
+    ok: true,
+    status: 'AWAITING_CONFIRMATION',
+    requires_gmd_action: true,
+    message: `Subsidiary creation for "${name}" (${code}) has been staged. Click the confirmation button to create the entity and initialize its default policies.`,
+    staged_action_id: staged.staged_action_id,
+    confirmation_hash: staged.confirmation_hash,
+    confirmation_button: staged.confirmation_button,
+    staged_action: staged.staged_action,
+  });
 }

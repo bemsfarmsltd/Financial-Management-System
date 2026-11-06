@@ -66,6 +66,114 @@ export function UniversalStagedActionCard({
         btnText: 'Authorize Disbursement',
       };
     }
+    if (norm.includes('staff_message')) {
+      return {
+        label: 'Direct Staff Helpdesk Dispatch',
+        badgeBg: '#eff6ff',
+        badgeColor: '#1d4ed8',
+        borderColor: '#bfdbfe',
+        btnText: 'Confirm & Send Message',
+      };
+    }
+    if (norm.includes('policy_update') || norm.includes('deadline_extension')) {
+      return {
+        label: 'Corporate Governance & Policy Control',
+        badgeBg: '#f8fafc',
+        badgeColor: '#0f172a',
+        borderColor: '#cbd5e1',
+        btnText: 'Authorize Governance Update',
+      };
+    }
+    if (norm.includes('staff_management')) {
+      return {
+        label: 'Staff Profile & Governance Update',
+        badgeBg: '#f5f3ff',
+        badgeColor: '#6d28d9',
+        borderColor: '#ddd6fe',
+        btnText: 'Authorize Staff Update',
+      };
+    }
+    if (norm.includes('subsidiary_update') || norm.includes('subsidiary_creation')) {
+      return {
+        label: 'Corporate Entity & Subsidiary Governance',
+        badgeBg: '#fff7ed',
+        badgeColor: '#c2410c',
+        borderColor: '#fed7aa',
+        btnText: norm.includes('update') ? 'Authorize Subsidiary Update' : 'Authorize Entity Creation',
+      };
+    }
+    if (norm.includes('request_creation')) {
+      return {
+        label: 'Expenditure Requisition Submission',
+        badgeBg: '#eff6ff',
+        badgeColor: '#1d4ed8',
+        borderColor: '#bfdbfe',
+        btnText: 'Confirm & Submit Request',
+      };
+    }
+    if (norm.includes('grn_creation') || norm.includes('vendor_invoice') || norm.includes('vendor_approval')) {
+      return {
+        label: 'Procurement & 3-Way Match Control',
+        badgeBg: '#f0fdf4',
+        badgeColor: '#15803d',
+        borderColor: '#bbf7d0',
+        btnText: 'Authorize Procurement Action',
+      };
+    }
+    if (norm.includes('attendance')) {
+      return {
+        label: 'Attendance & Security Lock Control',
+        badgeBg: '#ecfeff',
+        badgeColor: '#0e7490',
+        borderColor: '#a5f3fc',
+        btnText: 'Authorize Attendance Policy / Override',
+      };
+    }
+    if (norm.includes('leave_action')) {
+      return {
+        label: 'HR Leave Authorization',
+        badgeBg: '#fdf4ff',
+        badgeColor: '#a21caf',
+        borderColor: '#f5d0fe',
+        btnText: 'Confirm Leave Action',
+      };
+    }
+    if (norm.includes('task_action')) {
+      return {
+        label: 'Executive Follow-Up Task',
+        badgeBg: '#f8fafc',
+        badgeColor: '#334155',
+        borderColor: '#cbd5e1',
+        btnText: 'Confirm Task Assignment',
+      };
+    }
+    if (norm.includes('payroll')) {
+      return {
+        label: 'Payroll Batch & Disbursement Control',
+        badgeBg: '#ecfdf5',
+        badgeColor: '#047857',
+        borderColor: '#a7f3d0',
+        btnText: 'Authorize Payroll Action',
+      };
+    }
+    if (norm.includes('intercompany')) {
+      return {
+        label: 'Intercompany Clearing & Netting',
+        badgeBg: '#eff6ff',
+        badgeColor: '#1e40af',
+        borderColor: '#bfdbfe',
+        btnText: 'Authorize Intercompany Note',
+      };
+    }
+    if (norm.includes('bank_account')) {
+      return {
+        label: 'Beneficiary & Treasury Bank Registry',
+        badgeBg: '#fefce8',
+        badgeColor: '#a16207',
+        borderColor: '#fef08a',
+        btnText: 'Authorize Bank Account Update',
+      };
+    }
     if (norm.includes('staff')) {
       return {
         label: 'Staff Onboarding & System Access',

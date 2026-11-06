@@ -120,7 +120,7 @@ export function AiChatWorkspaceView({
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
             type="button"
-            onClick={() => ai.setIsHistoryOpen(true)}
+            onClick={() => aiManager.setIsHistoryOpen(true)}
             title="View past executive chat sessions"
             style={{
               display: 'inline-flex',
@@ -674,13 +674,13 @@ export function AiChatWorkspaceView({
       </div>
 
       <AiChatHistoryDrawer
-        isOpen={ai.isHistoryOpen}
-        onClose={() => ai.setIsHistoryOpen(false)}
-        sessions={ai.sessions}
-        activeSessionId={ai.activeSessionId}
-        onSelectSession={(session) => ai.loadSession(session)}
+        isOpen={aiManager.isHistoryOpen}
+        onClose={() => aiManager.setIsHistoryOpen(false)}
+        sessions={aiManager.sessions}
+        activeSessionId={aiManager.activeSessionId}
+        onSelectSession={(session) => aiManager.loadSession(session)}
         onNewChat={startNewChat}
-        onDeleteSession={(id) => ai.deleteSession(id)}
+        onDeleteSession={(id) => aiManager.deleteSession(id)}
       />
     </div>
   );

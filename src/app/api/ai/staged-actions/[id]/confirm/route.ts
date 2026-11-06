@@ -7,10 +7,30 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const actor = await getAuthenticatedEmployee(req);
-    if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
+    // Reject automation service credentials (x-api-key or service bearer token) — only human sessions can confirm
+    if (req.headers.get('x-api-key')) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'SERVICE_CREDENTIALS_FORBIDDEN',
+          message: 'Automation service credentials cannot confirm staged actions. An authenticated human executive must click the Approve button.',
+        },
+        { status: 403 }
+      );
+    }
+
+    const actor = await getAuthenticatedEmployee(req, { disallowServiceToken: true });
+    if (!actor) {
+      return NextResponse.json(
+        { ok: false, error_code: 'NOT_PERMITTED', message: 'Human session authentication required to confirm staged actions.' },
+        { status: 401 }
+      );
+    }
     if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
-      return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Executive authority is required to confirm staged financial actions.' }, { status: 403 });
+      return NextResponse.json(
+        { ok: false, error_code: 'NOT_PERMITTED', message: 'Executive authority (GMD or Super Admin) is required to confirm staged actions.' },
+        { status: 403 }
+      );
     }
 
     const { id } = await params;

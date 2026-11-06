@@ -1,396 +1,280 @@
-# BEMS ERP — AI Automation & n8n Integration Guide
-**Version:** 1.2.0  
-**Target Environment:** Production (`https://bemserp.work`) | Local Dev (`http://localhost:3000`)  
-**Security Standard:** Bearer Token Authentication / Header-based API Key
+# BEMS ERP — AI Automation & n8n Engineer Integration Guide
+**Version:** 2.0.0 (Universal Human-in-the-Loop Staged-Action Architecture)  
+**Target Environments:** Production (`https://bemserp.work`) | Local Development (`http://localhost:3000`)  
+**Authentication Standard:** Bearer Token / `x-api-key` Service Header + Optional Actor Attribution (`x-actor-id` / `x-actor-email`)
 
 ---
 
-## 1. Authentication & Security Headers
+## 1. Executive Architecture & Mandatory Staged-Action Governance
 
-All AI Agent and n8n HTTP Request nodes must authenticate using either standard **Bearer Token** authorization or an **`x-api-key`** header.
+### 1.1 Zero Direct AI Writes (100% Staged Execution)
+In BEMS Group Connect, **the AI agent and n8n automation workflows never mutate live database records directly**.
+- **`GET` requests** across `/api/ai/tools/*` are read-only and immediately return live ERP data for reasoning, financial analysis, and context gathering.
+- **`POST` requests** across `/api/ai/tools/*` **exclusively stage a proposal** in the `StagedAction` table (`status: "AWAITING_CONFIRMATION"`, `staged: true`) and return an interactive preview payload (`actionId`, `summary`, `preview`, `confirmUrl`, `cancelUrl`, `expiresAt`).
+- **Database execution occurs ONLY when an authenticated human user clicks the confirmation button** in the BEMS Web Dashboard / BEMI Copilot Drawer (`POST /api/ai/staged-actions/{actionId}/confirm`).
 
-### Required HTTP Headers:
+### 1.2 Prohibited Bypass Vectors
+To satisfy strict audit controls:
+1. **No Auto-Confirm Flags:** Flags such as `auto_confirm: true` or `confirmed_by_gmd: true` in tool request payloads are ignored. Every tool `POST` returns a staged proposal.
+2. **No Service-Token Confirmation:** The confirmation endpoint (`POST /api/ai/staged-actions/{id}/confirm`) and cancellation endpoint (`POST /api/ai/staged-actions/{id}/cancel`) **reject** requests carrying `x-api-key` or `Authorization: Bearer <BEMS_AI_SERVICE_TOKEN>` with `HTTP 403 Forbidden`. Only a browser/mobile human session cookie can confirm or cancel a staged action.
+3. **No Conversational Text Confirmation:** Typing *"yes"*, *"approve"*, or *"confirm"* in the chat does not execute a staged action. The human must click the **Confirm & Execute** button on the staged action card.
+4. **Strict 3-Role Architecture:** Only three roles exist in BEMS: `SUPER_ADMIN` (stored as `SYSTEM_ADMIN` in DB), `GMD` (The Group Managing Director), and `STAFF`. Legacy roles (`FINANCE`, `COO`, `HR`, `DEPT_HEAD`, `VERIFIER`, `DIRECTOR`) do not exist.
+
+---
+
+## 2. Connection & Authentication Headers
+
+Every n8n **HTTP Request** node calling `/api/ai/tools/*` must include your `BEMS_AI_SERVICE_TOKEN` via `Authorization: Bearer <token>` or `x-api-key: <token>`. You may also pass `x-actor-email` or `x-actor-id` so the staged proposal is attributed to the specific executive interacting with the bot.
+
+### Required HTTP Headers
 ```http
-Authorization: Bearer 7095ec2348ee3a4ca855707cec7bab8a697f0de4aad3f93f0e545d82bba8e9a8
+Authorization: Bearer <BEMS_AI_SERVICE_TOKEN>
 Content-Type: application/json
+x-actor-email: gmd@bemsgroup.com
 ```
-*(Alternative: `x-api-key: 7095ec2348ee3a4ca855707cec7bab8a697f0de4aad3f93f0e545d82bba8e9a8`)*
+*(Alternative auth header: `x-api-key: <BEMS_AI_SERVICE_TOKEN>`)*
 
----
-
-## 2. Tool 1: Corporate Subsidiary Management
-
-### A. List All Active Subsidiaries
-- **Method:** `GET`
-- **Endpoint:** `/api/ai/tools/subsidiary`
-- **cURL Example:**
-```bash
-curl -X GET "https://bemserp.work/api/ai/tools/subsidiary" \
-  -H "Authorization: Bearer 7095ec2348ee3a4ca855707cec7bab8a697f0de4aad3f93f0e545d82bba8e9a8"
-```
-- **Response Schema:**
+### Standard Staged-Action Response Envelope (Returned by ALL `POST /api/ai/tools/*` Calls)
 ```json
 {
   "ok": true,
-  "total": 6,
-  "subsidiaries": [
-    {
-      "id": "7f84f13a-d3e3-4203-8157-be0de305f459",
-      "name": "BEMS Group",
-      "code": "BEMS-GROUP",
-      "type": "GROUP",
-      "currency": "NGN",
-      "brandColor": "#ea580c",
-      "totalStaff": 22,
-      "totalRequests": 0,
-      "createdAt": "2026-11-01T20:48:36.862Z"
-    }
-  ]
-}
-```
-
-### B. Create a New Subsidiary
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/subsidiary`
-- **Request Body:**
-```json
-{
-  "name": "Studio Arella Ltd",
-  "code": "SAL",                 // Optional: Auto-generated from name if omitted
-  "type": "SUBSIDIARY",           // GROUP | SUBSIDIARY | OPERATING_SUBSIDIARY | SPECIAL_PURPOSE_VEHICLE
-  "currency": "NGN",              // NGN | USD | GBP | EUR (Defaults to NGN)
-  "headquarters": "Lagos, Nigeria",
-  "industry": "Media & Creative Production",
-  "brandColor": "#EA580C"
-}
-```
-- **cURL Example:**
-```bash
-curl -X POST "https://bemserp.work/api/ai/tools/subsidiary" \
-  -H "Authorization: Bearer 7095ec2348ee3a4ca855707cec7bab8a697f0de4aad3f93f0e545d82bba8e9a8" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Arella Farms SPV",
-    "industry": "Agribusiness & Logistics",
-    "headquarters": "Ogun State, Nigeria"
-  }'
-```
-- **Response Schema:**
-```json
-{
-  "ok": true,
-  "message": "Subsidiary \"Arella Farms SPV\" (AFSP) created successfully.",
-  "subsidiary": {
-    "id": "c3faf9ad-b718-4869-8cd9-6dab201a401d",
-    "name": "Arella Farms SPV",
-    "code": "AFSP",
-    "type": "SUBSIDIARY",
-    "currency": "NGN",
-    "brandColor": "#EA580C",
-    "createdAt": "2026-11-05T12:00:00.000Z"
-  }
-}
-```
-
----
-
-## 3. Tool 2: Approvals & Bank App Quick-Disbursement
-
-> **Mandatory BEMS Security Governance Protocol:**  
-> **The AI never approves directly — it ONLY stages the action.**  
-> When the AI or automation triggers an approval, the backend creates a cryptographic **Staged Action** and generates an interactive **Confirmation Button** sent to the frontend chatbot (or Slack/WhatsApp via n8n).  
-> Only when the GMD physically clicks **"Authorize & Execute Approval"** does the backend execute the ledger mutation and commit the approval.
-
-### A. Query Pending Approvals Queue
-- **Method:** `GET`
-- **Endpoint:** `/api/ai/tools/approvals?status=PENDING&limit=20`
-
-### B. Stage Approval Decision (AI Copilot / n8n)
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/approvals`
-- **Request Body:**
-```json
-{
-  "requestId": "REQ-2026-0005",   // Can be REQ number or UUID ID
-  "decision": "APPROVE",          // APPROVE | REJECT
-  "comment": "Recommended by AI after budget inspection"
-}
-```
-- **cURL Example:**
-```bash
-curl -X POST "https://bemserp.work/api/ai/tools/approvals" \
-  -H "Authorization: Bearer 7095ec2348ee3a4ca855707cec7bab8a697f0de4aad3f93f0e545d82bba8e9a8" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "requestId": "REQ-2026-0005",
-    "decision": "APPROVE",
-    "comment": "Recommended approval"
-  }'
-```
-- **Response Schema (Staged with Interactive Button for GMD):**
-```json
-{
-  "ok": true,
+  "staged": true,
   "status": "AWAITING_CONFIRMATION",
-  "requires_gmd_action": true,
-  "message": "Approval action for REQ-2026-0005 has been staged. In accordance with BEMS security governance, the AI cannot approve directly — the GMD must click the confirmation button to execute.",
-  "staged_action_id": "sa_4a7b21903e1f",
-  "confirmation_hash": "sha256:7e8d2...",
-  "confirmation_button": {
-    "label": "Authorize & Execute Approval (GMD)",
-    "action_type": "CONFIRM_STAGED_ACTION",
-    "endpoint": "/api/ai/staged-actions/sa_4a7b21903e1f/confirm",
-    "confirm_url": "https://bemserp.work/api/ai/staged-actions/sa_4a7b21903e1f/confirm",
-    "method": "POST",
-    "payload": {
-      "confirmed_by": "GMD Executive",
-      "confirmation_hash": "sha256:7e8d2..."
-    }
-  },
-  "request": {
-    "id": "e0b1f234-5678-4321-9abc-def012345678",
+  "message": "Action has been staged. An authorized user must click Confirm in the dashboard.",
+  "actionId": "sa_9df4c2b76ab34bbd",
+  "actionType": "approval",
+  "summary": "Approve REQ-2026-0005 (Starlink High-Speed Router Replacement) for ₦150,000",
+  "preview": {
+    "operation": "Approve Fund Request",
     "requestNumber": "REQ-2026-0005",
-    "title": "Starlink High-Speed Router Replacement",
-    "amount": 150000,
-    "formattedAmount": "₦150,000",
-    "status": "SUBMITTED",
-    "subsidiary": "BEMS Group",
-    "requester": "Babatunde Diekolayomi"
+    "amount": "₦150,000"
   },
-  "beneficiary": {
-    "name": "Babatunde Diekolayomi",
-    "bankName": "Kuda Microfinance Bank",
-    "accountNumber": "2001928374",
-    "type": "STAFF"
-  },
-  "disbursement": {
-    "beneficiaryName": "Babatunde Diekolayomi",
-    "accountNumber": "2001928374",
-    "bankName": "Kuda Microfinance Bank",
-    "amount": 150000,
-    "formattedAmount": "₦150,000",
-    "reference": "REQ-2026-0005",
-    "quickPayUrl": "https://bemserp.work/pay/REQ-2026-0005",
-    "ussdDialer": "tel:*737*2*150000*2001928374#",
-    "ussdRaw": "*737*2*150000*2001928374#",
-    "bankingApps": [
-      { "name": "GTWorld (GTBank)", "scheme": "gtworld://" },
-      { "name": "Kuda Bank", "scheme": "kuda://" },
-      { "name": "OPay", "scheme": "opay://" },
-      { "name": "Moniepoint", "scheme": "moniepoint://" },
-      { "name": "Zenith Bank", "scheme": "zenithbank://" },
-      { "name": "Access More", "scheme": "accessmore://" }
-    ]
-  },
-  "gmdActionLink": "https://bemserp.work/pay/REQ-2026-0005"
-}
-```
-
-### C. GMD Confirmation Click Execution
-When the GMD taps the button in the chatbot (or in Slack/WhatsApp), the client calls:
-- **POST** `/api/ai/staged-actions/{staged_action_id}/confirm`
-```json
-{
-  "confirmed_by": "The Group Managing Director",
-  "confirmation_hash": "sha256:7e8d2..."
-}
-```
-*The request status transitions to `APPROVED` on the ledger, an audit event is logged, and the GMD can tap the Bank Quick-Pay link to disburse!*
-    "amount": 150000,
-    "formattedAmount": "₦150,000",
-    "status": "APPROVED",
-    "subsidiary": "BEMS Group",
-    "requester": "Babatunde Diekolayomi"
-  },
-  "beneficiary": {
-    "name": "Babatunde Diekolayomi",
-    "bankName": "Kuda Microfinance Bank",
-    "accountNumber": "2001928374",
-    "type": "STAFF"
-  },
-  "disbursement": {
-    "beneficiaryName": "Babatunde Diekolayomi",
-    "accountNumber": "2001928374",
-    "bankName": "Kuda Microfinance Bank",
-    "amount": 150000,
-    "formattedAmount": "₦150,000",
-    "reference": "REQ-2026-0005",
-    "quickPayUrl": "https://bemserp.work/pay/REQ-2026-0005",
-    "ussdDialer": "tel:*737*2*150000*2001928374#",
-    "ussdRaw": "*737*2*150000*2001928374#",
-    "bankingApps": [
-      { "name": "GTWorld (GTBank)", "scheme": "gtworld://" },
-      { "name": "Kuda Bank", "scheme": "kuda://" },
-      { "name": "OPay", "scheme: "opay://" },
-      { "name": "Moniepoint", "scheme": "moniepoint://" },
-      { "name": "Zenith Bank", "scheme": "zenithbank://" },
-      { "name": "Access More", "scheme": "accessmore://" }
-    ]
-  },
-  "gmdActionLink": "https://bemserp.work/pay/REQ-2026-0005"
+  "payloadHash": "sha256:8f9d2a...",
+  "expiresAt": "2026-11-06T11:15:00.000Z",
+  "confirmUrl": "/api/ai/staged-actions/sa_9df4c2b76ab34bbd/confirm",
+  "cancelUrl": "/api/ai/staged-actions/sa_9df4c2b76ab34bbd/cancel"
 }
 ```
 
 ---
 
-## 4. Tool 3: Register Bank Account Numbers
+## 3. Master Discovery & Context Endpoints
 
-Allows registering or updating bank account numbers for **Staff**, **Subsidiaries (Corporate Accounts)**, or **Vendors**.
-
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/bank-accounts`
-- **Request Body (Staff):**
-```json
-{
-  "targetType": "STAFF",
-  "targetId": "babatundediekolayomi@gmail.com", // Email, Staff Name, or Employee ID
-  "bankName": "Guaranty Trust Bank",            // Matches names like "GTB", "Kuda", "Zenith", etc.
-  "accountNumber": "0123456789",               // Exactly 10 digits
-  "accountName": "Babatunde Diekolayomi"
-}
-```
-- **Request Body (Corporate Subsidiary):**
-```json
-{
-  "targetType": "SUBSIDIARY",
-  "targetId": "BEMS-GROUP",                     // Shortcode or Subsidiary Name
-  "bankName": "Zenith Bank",
-  "accountNumber": "1019283746",
-  "accountName": "BEMS Group Holdings Operational",
-  "accountType": "Corporate Operational"       // Operational | Escrow | Float
-}
-```
-- **Request Body (Vendor):**
-```json
-{
-  "targetType": "VENDOR",
-  "targetId": "AgroParts Hub Ltd",
-  "bankName": "Access Bank",
-  "accountNumber": "0987654321",
-  "accountName": "AgroParts Hub Nigeria Ltd"
-}
-```
-- **Response Schema:**
-```json
-{
-  "ok": true,
-  "targetType": "STAFF",
-  "message": "Bank account registered successfully for staff \"Babatunde Diekolayomi\".",
-  "employee": {
-    "id": "cd0bb350-979a-4ba6-bd39-041523364025",
-    "name": "Babatunde Diekolayomi",
-    "employeeNumber": "BEMS-BSA-2026-0002",
-    "bankName": "Guaranty Trust Bank (GTBank)",
-    "accountNumber": "0123456789",
-    "accountName": "Babatunde Diekolayomi"
-  }
-}
-```
-
----
-
-## 5. Tool 4: Executive Admin Onboarding
-
-> **Strict 3-Role Rule Compliance:**
-> Admin creation is strictly reserved for **`SUPER_ADMIN`** and **`GMD`**. Never attempt to onboard Staff through this endpoint (Staff accounts use self-service registration).
-
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/admin-onboarding`
-- **Request Body:**
-```json
-{
-  "legalName": "Engr. Michael Adeyemi",
-  "workEmail": "adeyemi@bemsgroup.com",
-  "phone": "+2348030001122",
-  "role": "SUPER_ADMIN",                        // Strictly: "SUPER_ADMIN" or "GMD"
-  "subsidiaryId": "7f84f13a-d3e3-4203-8157-be0de305f459" // Optional: Defaults to HQ
-}
-```
-- **Response Schema:**
-```json
-{
-  "ok": true,
-  "message": "Executive Admin \"Engr. Michael Adeyemi\" onboarded successfully as SUPER_ADMIN.",
-  "employee": {
-    "id": "90214a12-4321-4def-89ab-123456789abc",
-    "legalName": "Engr. Michael Adeyemi",
-    "workEmail": "adeyemi@bemsgroup.com",
-    "employeeNumber": "BEMS-ADM-2026-0030",
-    "role": "SUPER_ADMIN",
-    "jobTitle": "Super Admin",
-    "subsidiary": "BEMS Group"
-  },
-  "onboarding": {
-    "invitationUrl": "https://bemserp.work/onboard?token=49fe38...&email=adeyemi%40bemsgroup.com",
-    "emailDelivered": true,
-    "expiresAt": "2026-11-12T12:00:00.000Z"
-  }
-}
-```
-
----
-
-## 6. Tool 5: Full Payroll Operations
-
-### A. List All Payroll Periods & Totals
+### 3.1 Master Tool Index
 - **Method:** `GET`
-- **Endpoint:** `/api/ai/tools/payroll`
-- **Response:** Summary of periods, batch statuses, total gross, deductions, and net payouts.
+- **Endpoint:** `/api/ai/tools`
+- **Purpose:** Returns the live registry of all 16 BEMI AI tools, their endpoints, supported sub-actions, and staging rules (`stages: true | directExecute: false`).
 
-### B. Get Individual Staff Payslips & Deductions Breakdown
+### 3.2 Unified Conglomerate Context Snapshot
 - **Method:** `GET`
-- **Endpoint:** `/api/ai/tools/payroll?action=GET_ITEMS&year=2026&month=11`
-- **Response Schema:**
+- **Endpoint:** `/api/ai/context`
+- **Purpose:** Single-call executive telemetry snapshot returning active subsidiaries, pending fund requests, budget utilization, attendance summary, payroll status, intercompany balances, and pending staged actions.
+
+---
+
+## 4. Complete Reference: All 16 BEMI AI Tool Endpoints
+
+---
+
+### Tool 1: Fund Request Approvals (`/api/ai/tools/approvals`)
+**Purpose:** Inspect the pending fund request queue and stage executive decisions (`APPROVE`, `REJECT`, or `HOLD`) with automatic beneficiary bank and USSD quick-pay metadata.
+
+#### A. List Pending Fund Requests (`GET`)
+- **URL:** `GET /api/ai/tools/approvals?status=PENDING&limit=20`
+- **Optional Query Params:** `status` (`PENDING` | `APPROVED` | `REJECTED` | `ALL`), `subsidiaryId`, `limit`
+
+#### B. Stage an Approval Decision (`POST`)
+- **URL:** `POST /api/ai/tools/approvals`
+- **Action Type Staged:** `approval`
+- **Payload Schema:**
 ```json
 {
-  "ok": true,
-  "period": {
-    "year": 2026,
-    "month": 11,
-    "periodName": "November 2026",
-    "batchStatus": "DRAFT",
-    "totalGross": "₦8,500,000",
-    "totalDeductions": "₦125,000",
-    "totalNet": "₦8,375,000",
-    "totalEmployees": 22
-  },
-  "items": [
-    {
-      "itemId": "item_123",
-      "legalName": "Babatunde Diekolayomi",
-      "employeeNumber": "BEMS-BSA-2026-0002",
-      "grossSalary": 100000,
-      "deductions": 0,
-      "netPay": 100000,
-      "status": "CALCULATED",
-      "isDisbursed": false,
-      "bankDetails": {
-        "bankName": "Kuda Microfinance Bank",
-        "accountNumber": "2001928374",
-        "accountName": "Babatunde Diekolayomi"
-      }
-    }
+  "requestId": "REQ-2026-0005",
+  "decision": "APPROVE",
+  "comment": "Budget verified; approved for immediate procurement."
+}
+```
+- **Field Notes:**
+  - `requestId` *(required)*: Request number (`REQ-2026-XXXX`) or UUID.
+  - `decision` *(required)*: `"APPROVE"`, `"REJECT"`, or `"HOLD"`.
+  - `comment` *(optional)*: Executive review note saved on confirmation.
+- **On Human Confirmation:** Transitions `FundRequest` status (`APPROVED` / `REJECTED` / `ON_HOLD`), records `ApprovalDecision`, updates budget commitment, and triggers requester notification.
+
+---
+
+### Tool 2: Fund Requests, Recurring Templates & Clarifications (`/api/ai/tools/requests`)
+**Purpose:** Query fund requests or recurring templates, and stage creating new fund requests, creating recurring expense schedules, posting thread messages, requesting formal clarification from staff, or deleting pending requests.
+
+#### A. List Requests & Recurring Templates (`GET`)
+- **URL:** `GET /api/ai/tools/requests?status=SUBMITTED&includeRecurring=true&limit=25`
+
+#### B. Stage Creating a New Fund Request (`POST` — `CREATE_REQUEST`)
+- **URL:** `POST /api/ai/tools/requests`
+- **Action Type Staged:** `request_creation`
+- **Payload:**
+```json
+{
+  "action": "CREATE_REQUEST",
+  "title": "Q4 Diesel Supply for HQ Generators",
+  "description": "2,000 liters automotive gas oil for backup power",
+  "category": "FACILITIES_MAINTENANCE",
+  "amount": 2400000,
+  "currency": "NGN",
+  "urgency": "HIGH",
+  "subsidiaryId": "BEMS-GROUP",
+  "requesterId": "babatundediekolayomi@gmail.com",
+  "vendorName": "Mikano International Ltd",
+  "beneficiaryName": "Mikano International Ltd",
+  "beneficiaryBank": "Guaranty Trust Bank",
+  "beneficiaryAccount": "0123456789"
+}
+```
+
+#### C. Stage Creating a Recurring Fund Request Template (`POST` — `CREATE_RECURRING`)
+```json
+{
+  "action": "CREATE_RECURRING",
+  "title": "Monthly Starlink Enterprise Subscription",
+  "description": "High-speed satellite internet for HQ",
+  "category": "IT_SOFTWARE_CLOUD",
+  "amount": 150000,
+  "frequency": "MONTHLY",
+  "dayOfMonth": 1,
+  "subsidiaryId": "BEMS-GROUP"
+}
+```
+
+#### D. Stage Posting a Comment on a Request Thread (`POST` — `SEND_MESSAGE`)
+```json
+{
+  "action": "SEND_MESSAGE",
+  "requestId": "REQ-2026-0005",
+  "message": "Please confirm if delivery is included in the vendor quote."
+}
+```
+
+#### E. Stage Requesting Formal Clarification (`POST` — `REQUEST_CLARIFICATION`)
+```json
+{
+  "action": "REQUEST_CLARIFICATION",
+  "requestId": "REQ-2026-0005",
+  "message": "Attach the proforma invoice from the vendor before final GMD sign-off."
+}
+```
+- **On Human Confirmation:** Places the request in `NEEDS_CLARIFICATION` (`ON_HOLD`), posts the clarification message, and notifies the requester.
+
+#### F. Stage Deleting a Pending Request (`POST` — `DELETE_REQUEST`)
+```json
+{
+  "action": "DELETE_REQUEST",
+  "requestId": "REQ-2026-0009",
+  "reason": "Duplicate submission by requester"
+}
+```
+
+---
+
+### Tool 3: Accountability & Retirement Governance (`/api/ai/tools/accountability`)
+**Purpose:** Inspect open post-disbursement accountability cases (proof of spend / receipt retirement) and stage clearing a case, flagging a financial discrepancy, or extending a retirement deadline.
+
+#### A. List Accountability Cases (`GET`)
+- **URL:** `GET /api/ai/tools/accountability?status=OPEN`
+- **Optional Query Params:** `status` (`OPEN` | `SUBMITTED` | `OVERDUE` | `FLAGGED` | `CLEARED`), `requestId`
+
+#### B. Stage Clearing an Accountability Case (`POST` — `CLEAR`)
+- **URL:** `POST /api/ai/tools/accountability`
+- **Action Type Staged:** `accountability`
+- **Payload:**
+```json
+{
+  "decision": "CLEAR",
+  "requestId": "REQ-2026-0005",
+  "note": "Verified physical delivery waybill and vendor receipt."
+}
+```
+
+#### C. Stage Flagging a Discrepancy (`POST` — `FLAG_DISCREPANCY`)
+```json
+{
+  "decision": "FLAG_DISCREPANCY",
+  "requestId": "REQ-2026-0005",
+  "note": "Receipt total is ₦135,000 against ₦150,000 disbursed; unretired balance of ₦15,000 required."
+}
+```
+
+#### D. Stage Extending an Accountability Deadline (`POST` — `EXTEND_DEADLINE`)
+```json
+{
+  "decision": "EXTEND_DEADLINE",
+  "requestId": "REQ-2026-0005",
+  "extensionDays": 7,
+  "note": "Vendor invoice delayed due to interstate transit."
+}
+```
+
+---
+
+### Tool 4: Subsidiary & Category Budgets (`/api/ai/tools/budgets`)
+**Purpose:** Query monthly subsidiary budgets and category utilization, or stage creating/updating a subsidiary's monthly budget and category allocation lines.
+
+#### A. Query Subsidiary Budgets (`GET`)
+- **URL:** `GET /api/ai/tools/budgets?subsidiary=BEMS-GROUP&month=2026-11`
+
+#### B. Stage Monthly Budget Creation / Allocation Update (`POST`)
+- **URL:** `POST /api/ai/tools/budgets`
+- **Action Type Staged:** `budget`
+- **Payload:**
+```json
+{
+  "subsidiary": "BEMS-GROUP",
+  "month": "2026-11",
+  "totalBudget": 50000000,
+  "allocations": [
+    { "category": "OPERATIONS_LOGISTICS", "allocated": 20000000 },
+    { "category": "IT_SOFTWARE_CLOUD", "allocated": 10000000 },
+    { "category": "FACILITIES_MAINTENANCE", "allocated": 10000000 },
+    { "category": "MARKETING_BRAND", "allocated": 5000000 },
+    { "category": "STAFF_WELFARE_TRAINING", "allocated": 5000000 }
   ]
 }
 ```
+- **On Human Confirmation:** Upserts the `Budget` record and all `BudgetAllocation` lines for the specified subsidiary and period.
 
-### C. Execute / Prepare Monthly Payroll Batch
-Calculates base salary, automatically aggregates attendance lateness penalties and absences, and creates the batch:
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/payroll`
-- **Request Body:**
+---
+
+### Tool 5: Payroll Lifecycle & Salary Adjustments (`/api/ai/tools/payroll`)
+**Purpose:** Inspect monthly payroll batches and individual staff payslips, and stage base salary revisions, monthly payroll preparation, GMD batch sign-off, salary payout recording, removing an item from a draft batch, or confirming staff salary receipt.
+
+#### A. List Payroll Periods or Payslip Items (`GET`)
+- **Summary of all periods:** `GET /api/ai/tools/payroll`
+- **Detailed payslips for a month:** `GET /api/ai/tools/payroll?action=GET_ITEMS&year=2026&month=11`
+
+#### B. Stage Base Salary Adjustment (`POST` — `UPDATE_SALARY`)
+- **URL:** `POST /api/ai/tools/payroll`
+- **Action Type Staged:** `salary_change`
+- **Payload:**
+```json
+{
+  "action": "UPDATE_SALARY",
+  "employeeId": "BEMS-BSA-2026-0002",
+  "newSalary": 250000,
+  "reason": "Annual performance review increment"
+}
+```
+
+#### C. Stage Monthly Payroll Batch Preparation (`POST` — `PREPARE`)
+- **Action Type Staged:** `payroll_action`
 ```json
 {
   "action": "PREPARE",
   "year": 2026,
-  "month": 11
+  "month": 11,
+  "subsidiaryId": "BEMS-GROUP"
 }
 ```
+- **On Human Confirmation:** Calculates gross pay, aggregates attendance lateness/absence deductions, and creates/updates the `PayrollPeriod`, `PayrollBatch`, and `PayrollItem` rows.
 
-### D. Sign Off & Approve Payroll (GMD)
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/payroll`
-- **Request Body:**
+#### D. Stage GMD Payroll Sign-Off (`POST` — `SIGN_OFF`)
 ```json
 {
   "action": "SIGN_OFF",
@@ -399,106 +283,325 @@ Calculates base salary, automatically aggregates attendance lateness penalties a
 }
 ```
 
-### E. Record Salary Payout / Disbursement
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/payroll`
-- **Request Body (Single Staff):**
+#### E. Stage Salary Payout / Disbursement (`POST` — `PAYOUT` / `RECORD_PAYOUT`)
 ```json
 {
-  "action": "RECORD_PAYOUT",
-  "itemId": "payroll_item_uuid"
+  "action": "PAYOUT",
+  "year": 2026,
+  "month": 11,
+  "itemId": "optional_single_payroll_item_uuid",
+  "bankReference": "NIP-202611-00981"
+}
+```
+
+#### F. Stage Removing a Staff Payslip from a Draft Batch (`POST` — `REMOVE_ITEM`)
+```json
+{
+  "action": "REMOVE_ITEM",
+  "itemId": "payroll_item_uuid",
+  "reason": "Employee on unpaid sabbatical"
+}
+```
+
+#### G. Stage Confirming Staff Salary Receipt (`POST` — `CONFIRM_RECEIPT`)
+```json
+{
+  "action": "CONFIRM_RECEIPT",
+  "itemId": "payroll_item_uuid",
+  "note": "Confirmed credit alert received by staff"
 }
 ```
 
 ---
 
-## 7. Tool 6: Full Attendance & Timekeeping Operations
+### Tool 6: Staff Directory & Profile Governance (`/api/ai/tools/staff`)
+**Purpose:** Search the staff directory and stage any staff administration operation: editing profile fields (name, email, phone, job title, department, subsidiary transfer, role), toggling attendance exemptions, suspending/freezing/activating a staff profile, registering an offline staff profile, requesting a profile update, or deactivating/deleting a staff record.
 
-### A. Get Live Daily Attendance Roster
-- **Method:** `GET`
-- **Endpoint:** `/api/ai/tools/attendance?date=2026-11-05`
-- **Response:** Live list of all staff, resumption times, lateness flags, active hours, and deduction percentages.
+#### A. List / Search Staff Directory (`GET`)
+- **URL:** `GET /api/ai/tools/staff?search=Babatunde&subsidiaryId=BEMS-GROUP&status=ACTIVE`
 
-### B. Excuse or Override an Attendance Penalty
-Waives lateness deductions or excuses absences:
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/attendance`
-- **Request Body:**
+#### B. Stage Editing Staff Profile Data (`POST` — `EDIT_PROFILE`)
+- **URL:** `POST /api/ai/tools/staff`
+- **Action Type Staged:** `staff_management`
+- **Payload:**
 ```json
 {
-  "action": "EXCUSE_OVERRIDE",
-  "employeeId": "Babatunde Diekolayomi",       // Name, Email, or Employee ID
-  "workDate": "2026-11-05",                   // YYYY-MM-DD
-  "status": "PRESENT",                        // PRESENT or EXCUSED
-  "deductionPercent": 0,                      // 0 waives all penalties
-  "reason": "Traffic delay excused by GMD"
+  "action": "EDIT_PROFILE",
+  "employeeId": "BEMS-BSA-2026-0002",
+  "legalName": "Babatunde Diekolayomi",
+  "workEmail": "babatunde@bemsgroup.com",
+  "phone": "+2348031234567",
+  "jobTitle": "Senior Operations Lead",
+  "department": "Operations",
+  "subsidiaryId": "BEMS-GROUP",
+  "role": "STAFF"
+}
+```
+- **Note on `role`:** Must strictly be `"STAFF"`, `"GMD"`, or `"SUPER_ADMIN"`.
+
+#### C. Stage Toggling Attendance Exemption (`POST` — `TOGGLE_ATTENDANCE_EXEMPT`)
+```json
+{
+  "action": "TOGGLE_ATTENDANCE_EXEMPT",
+  "employeeId": "BEMS-BSA-2026-0002",
+  "attendanceExempt": true,
+  "reason": "Field engineering role with remote deployment"
 }
 ```
 
-### C. Clock In / Out Staff Manually via AI
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/attendance`
-- **Request Body:**
+#### D. Stage Changing Employment / Account Status (`POST` — `CHANGE_STATUS`)
 ```json
 {
-  "action": "CLOCK_IN",                       // CLOCK_IN or CLOCK_OUT
-  "employeeId": "Babatunde Diekolayomi",
-  "workDate": "2026-11-05",
-  "stationName": "HQ Kiosk / AI Station"
+  "action": "CHANGE_STATUS",
+  "employeeId": "BEMS-BSA-2026-0002",
+  "status": "SUSPENDED",
+  "reason": "Pending internal audit review"
+}
+```
+- **Allowed `status` values:** `"ACTIVE"`, `"SUSPENDED"`, `"FROZEN"`, `"INACTIVE"`, `"TERMINATED"`.
+
+#### E. Stage Offline Staff Registration (`POST` — `REGISTER_OFFLINE`)
+```json
+{
+  "action": "REGISTER_OFFLINE",
+  "legalName": "Musa Abdullahi",
+  "workEmail": "musa.abdullahi@bemsgroup.com",
+  "phone": "+2348099887766",
+  "jobTitle": "Site Technician",
+  "department": "Engineering",
+  "subsidiaryId": "BEMS-GROUP",
+  "baseSalary": 120000
 }
 ```
 
-### D. Update Shift Policy & Lateness Deduction Percentage
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/attendance`
-- **Request Body:**
+#### F. Stage Requesting a Staff Profile Update (`POST` — `REQUEST_UPDATE`)
+```json
+{
+  "action": "REQUEST_UPDATE",
+  "employeeId": "BEMS-BSA-2026-0002",
+  "message": "Please update your emergency contact and tax ID on the Staff Portal."
+}
+```
+
+#### G. Stage Deactivating or Deleting a Staff Profile (`POST` — `DELETE_OR_DEACTIVATE`)
+```json
+{
+  "action": "DELETE_OR_DEACTIVATE",
+  "employeeId": "BEMS-BSA-2026-0002",
+  "reason": "Duplicate test account cleanup"
+}
+```
+
+---
+
+### Tool 7: Executive Admin Onboarding (`/api/ai/tools/admin-onboarding`)
+**Purpose:** Manage executive onboarding invitations strictly for **`SUPER_ADMIN`** and **`GMD`** (Staff onboard via self-service registration on the Staff Portal / Mobile App).
+
+#### A. List Executive Invitations (`GET`)
+- **URL:** `GET /api/ai/tools/admin-onboarding`
+
+#### B. Stage New Executive Invitation (`POST` — `INVITE`)
+- **URL:** `POST /api/ai/tools/admin-onboarding`
+- **Action Type Staged:** `admin_onboarding`
+- **Payload:**
+```json
+{
+  "action": "INVITE",
+  "legalName": "Engr. Michael Adeyemi",
+  "workEmail": "adeyemi@bemsgroup.com",
+  "phone": "+2348030001122",
+  "role": "SUPER_ADMIN",
+  "subsidiaryId": "BEMS-GROUP"
+}
+```
+
+#### C. Stage Resending an Executive Invitation (`POST` — `RESEND_INVITE`)
+```json
+{
+  "action": "RESEND_INVITE",
+  "invitationId": "inv_uuid_or_work_email"
+}
+```
+
+#### D. Stage Revoking an Executive Invitation (`POST` — `REVOKE_INVITE`)
+```json
+{
+  "action": "REVOKE_INVITE",
+  "invitationId": "inv_uuid_or_work_email",
+  "reason": "Incorrect email address entered"
+}
+```
+
+---
+
+### Tool 8: Corporate Subsidiary Management (`/api/ai/tools/subsidiary`)
+**Purpose:** List active subsidiaries across the conglomerate, stage creating a new subsidiary, or stage editing an existing subsidiary's metadata, RC number, headquarters, industry, brand color, active status, and monthly budget.
+
+#### A. List Subsidiaries (`GET`)
+- **URL:** `GET /api/ai/tools/subsidiary`
+
+#### B. Stage Creating a New Subsidiary (`POST` — `CREATE`)
+- **URL:** `POST /api/ai/tools/subsidiary`
+- **Action Type Staged:** `subsidiary_creation`
+- **Payload:**
+```json
+{
+  "action": "CREATE",
+  "name": "Studio Arella Ltd",
+  "code": "SAL",
+  "type": "SUBSIDIARY",
+  "currency": "NGN",
+  "brandColor": "#EA580C",
+  "industry": "Media & Creative Production",
+  "headquarters": "Lekki Phase 1, Lagos"
+}
+```
+
+#### C. Stage Editing an Existing Subsidiary (`POST` — `UPDATE`)
+- **Action Type Staged:** `subsidiary_update`
+- **Payload:**
+```json
+{
+  "action": "UPDATE",
+  "subsidiaryId": "SAL",
+  "name": "Studio Arella Media Ltd",
+  "code": "SAML",
+  "brandColor": "#2563EB",
+  "industry": "Digital Media & Broadcast",
+  "headquarters": "Victoria Island, Lagos",
+  "rcNumber": "RC-1928374",
+  "monthlyBudget": 35000000,
+  "isActive": true
+}
+```
+
+---
+
+### Tool 9: Attendance, Shift Rosters & Geofence Stations (`/api/ai/tools/attendance`)
+**Purpose:** Inspect daily attendance logs and shift policies, and stage excusing lateness/absence, overriding attendance records, manual clock-in/out, updating global shift & Starlink/GPS geofence enforcement policies, updating individual staff work schedule rosters, or calibrating attendance station GPS coordinates.
+
+#### A. Get Live Attendance Log & Policies (`GET`)
+- **URL:** `GET /api/ai/tools/attendance?date=2026-11-06`
+
+#### B. Stage Excusing Lateness or Absence (`POST` — `EXCUSE`)
+- **URL:** `POST /api/ai/tools/attendance`
+- **Action Type Staged:** `attendance_override`
+```json
+{
+  "action": "EXCUSE",
+  "employeeId": "BEMS-BSA-2026-0002",
+  "workDate": "2026-11-06",
+  "reason": "Official client meeting at Victoria Island"
+}
+```
+
+#### C. Stage Overriding an Attendance Record (`POST` — `OVERRIDE`)
+```json
+{
+  "action": "OVERRIDE",
+  "employeeId": "BEMS-BSA-2026-0002",
+  "workDate": "2026-11-06",
+  "status": "PRESENT",
+  "isLate": false,
+  "deductionPercent": 0,
+  "reason": "Biometric kiosk sync delay"
+}
+```
+
+#### D. Stage Manual Clock-In or Clock-Out (`POST` — `MANUAL_CLOCK_IN` / `MANUAL_CLOCK_OUT`)
+```json
+{
+  "action": "MANUAL_CLOCK_IN",
+  "employeeId": "BEMS-BSA-2026-0002",
+  "workDate": "2026-11-06",
+  "clockInTime": "08:05",
+  "reason": "Verified arrival at HQ reception"
+}
+```
+
+#### E. Stage Updating Shift & Starlink/GPS Geofence Policy (`POST` — `UPDATE_POLICY`)
 ```json
 {
   "action": "UPDATE_POLICY",
   "resumptionTime": "08:00",
+  "closingTime": "17:00",
   "gracePeriodMinutes": 15,
-  "latenessDeductionPercent": 5.0
+  "latenessDeductionPercent": 5.0,
+  "requireStarlinkWifi": true,
+  "requireGpsGeofence": true,
+  "allowedSsid": "BEMS_STARLINK_HQ"
+}
+```
+
+#### F. Stage Updating a Staff Member's Work Schedule Roster (`POST` — `UPDATE_ROSTER`)
+```json
+{
+  "action": "UPDATE_ROSTER",
+  "employeeId": "BEMS-BSA-2026-0002",
+  "expectedClockIn": "08:30",
+  "expectedClockOut": "17:30",
+  "gracePeriodMinutes": 20,
+  "offDays": "0,6",
+  "notes": "Adjusted shift for Lagos mainland commute"
+}
+```
+
+#### G. Stage Calibrating an Attendance Station's GPS Geofence (`POST` — `CALIBRATE_STATION`)
+```json
+{
+  "action": "CALIBRATE_STATION",
+  "name": "BEMS HQ Main Gate",
+  "latitude": 6.5244,
+  "longitude": 3.3792,
+  "radiusMeters": 150,
+  "allowedWifiSsid": "BEMS_STARLINK_HQ",
+  "starlinkIpRanges": "192.168.1.0/24"
 }
 ```
 
 ---
 
-## 7.5. Tool 7: Vendor & Supplier Registry + 3-Way Matching
+### Tool 10: HR Leave Management (`/api/ai/tools/hr-leave`)
+**Purpose:** Query staff leave applications and stage filing a new leave request or approving/rejecting an existing leave application.
 
-### A. Check 3-Way Match on a Purchase Order
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/vendors`
-- **Request Body:**
+#### A. List Leave Applications (`GET`)
+- **URL:** `GET /api/ai/tools/hr-leave?status=PENDING`
+
+#### B. Stage Creating a Leave Application (`POST` — `CREATE`)
+- **URL:** `POST /api/ai/tools/hr-leave`
+- **Action Type Staged:** `leave_action`
 ```json
 {
-  "action": "CHECK_MATCH",
-  "requestId": "REQ-2026-0005"
-}
-```
-**Response Output:**
-```json
-{
-  "ok": true,
-  "matchStatus": "MATCH_CONFIRMED",
-  "summary": {
-    "requestNumber": "REQ-2026-0005",
-    "vendorName": "Mikano International Ltd",
-    "poAmountMinor": 15000000,
-    "invoiceAmountMinor": 15000000,
-    "varianceMinor": 0,
-    "invoiceNumber": "INV-MIK-901",
-    "grnNumber": "GRN-2026-0012",
-    "grnStatus": "ACCEPTED",
-    "canDisburse": true,
-    "recommendation": "3-way match verified. PO rate, GRN acceptance, and Invoice are fully aligned."
-  }
+  "action": "CREATE",
+  "employeeId": "BEMS-BSA-2026-0002",
+  "leaveType": "ANNUAL",
+  "startDate": "2026-12-15",
+  "endDate": "2026-12-22",
+  "reason": "Annual family vacation"
 }
 ```
 
-### B. Register Verified Vendor (NUBAN Bank Check)
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/vendors`
-- **Request Body:**
+#### C. Stage Approving or Rejecting a Leave Request (`POST` — `APPROVE` / `REJECT`)
+```json
+{
+  "action": "APPROVE",
+  "leaveId": "leave_request_uuid",
+  "reviewNote": "Approved by GMD; handover coverage confirmed."
+}
+```
+
+---
+
+### Tool 11: Vendors, GRNs, Invoices & 3-Way Match (`/api/ai/tools/vendors`)
+**Purpose:** Manage the verified supplier registry and complete 3-way matching pipeline (Purchase Order / Fund Request + Goods Receipt Note + Vendor Invoice).
+
+#### A. List Vendors or Inspect Read-Only 3-Way Match Status (`GET`)
+- **List Vendors:** `GET /api/ai/tools/vendors`
+- **Read-Only 3-Way Match Inspection:** `GET /api/ai/tools/vendors?action=CHECK_MATCH&requestId=REQ-2026-0005`
+
+#### B. Stage Registering a Verified Vendor (`POST` — `REGISTER`)
+- **URL:** `POST /api/ai/tools/vendors`
+- **Action Type Staged:** `vendor_registration`
 ```json
 {
   "action": "REGISTER",
@@ -507,51 +610,235 @@ Waives lateness deductions or excuses absences:
   "bankName": "Guaranty Trust Bank",
   "accountNumber": "0123456789",
   "accountName": "Mikano International Ltd",
+  "taxId": "TIN-99283746",
   "contactPhone": "+2348020003344",
   "contactEmail": "billing@mikano.com"
 }
 ```
 
+#### C. Stage Recording a Goods Receipt Note (`POST` — `CREATE_GRN`)
+- **Action Type Staged:** `grn_creation`
+```json
+{
+  "action": "CREATE_GRN",
+  "requestId": "REQ-2026-0005",
+  "waybillNumber": "WB-2026-8841",
+  "status": "ACCEPTED",
+  "inspectionNotes": "All 4 Starlink kits delivered sealed and tested."
+}
+```
+- **Allowed `status` values:** `"ACCEPTED"`, `"PARTIAL"`, `"DAMAGED"`.
+
+#### D. Stage Logging a Vendor Invoice (`POST` — `CREATE_INVOICE`)
+- **Action Type Staged:** `vendor_invoice_creation`
+```json
+{
+  "action": "CREATE_INVOICE",
+  "requestId": "REQ-2026-0005",
+  "vendorId": "Mikano International Ltd",
+  "invoiceNumber": "INV-MIK-2026-901",
+  "amount": 150000,
+  "tax": 11250,
+  "currency": "NGN",
+  "invoiceDate": "2026-11-06"
+}
+```
+
+#### E. Stage 3-Way Match Verification & State Update (`POST` — `STAGE_MATCH`)
+- **Action Type Staged:** `three_way_match`
+```json
+{
+  "action": "STAGE_MATCH",
+  "requestId": "REQ-2026-0005"
+}
+```
+- **On Human Confirmation:** Runs the 3-way match engine across the PO (`FundRequest`), `GoodsReceiptNote`, and `VendorInvoice`, and persists the resulting `MATCHED` / `MISMATCH_FLAGGED` state.
+
 ---
 
-## 7.6. Tool 8: Automated Intercompany Debit/Credit Ledger & Netting
+### Tool 12: Intercompany Debit/Credit Ledger & Netting (`/api/ai/tools/intercompany`)
+**Purpose:** Inspect bilateral intercompany balances across subsidiaries and stage paired Debit/Credit note generation or netting settlement.
 
-### A. Query Conglomerate Netting Matrix
-- **Method:** `GET`
-- **Endpoint:** `/api/ai/tools/intercompany`
-- **Description:** Returns live bilateral intercompany balances across all active subsidiaries.
+#### A. Query Conglomerate Netting Matrix (`GET`)
+- **URL:** `GET /api/ai/tools/intercompany`
 
-### B. Generate Operational Paired Debit/Credit Notes
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/intercompany`
-- **Request Body:**
+#### B. Stage Paired Intercompany Debit/Credit Notes (`POST` — `CREATE_NOTE`)
+- **URL:** `POST /api/ai/tools/intercompany`
+- **Action Type Staged:** `intercompany_Entry`
 ```json
 {
   "action": "CREATE_NOTE",
   "source": "BEMS-GROUP",
-  "target": "ACS",
+  "target": "SAL",
   "amount": 350000,
-  "description": "Cross-charge: Q4 Starlink Equipment Allocation"
+  "description": "Cross-charge: Shared Starlink & Cloud Infrastructure Q4"
 }
 ```
 
-### C. Stage Intercompany Netting Settlement for GMD
-- **Method:** `POST`
-- **Endpoint:** `/api/ai/tools/intercompany`
-- **Request Body:**
+#### C. Stage Intercompany Netting Settlement (`POST` — `STAGE_SETTLEMENT`)
+- **Action Type Staged:** `intercompany_settle`
 ```json
 {
   "action": "STAGE_SETTLEMENT",
-  "noteIds": ["note-uuid-1", "note-uuid-2"]
+  "noteIds": ["ic_note_uuid_1", "ic_note_uuid_2"],
+  "settlementReference": "IC-NET-2026-11"
 }
 ```
-*(In accordance with BEMS Staged-Action security governance, returns a confirmation card and button for GMD authorization).*
 
 ---
 
-## 8. n8n HTTP Request Node Template
+### Tool 13: Bank Account Registry (`/api/ai/tools/bank-accounts`)
+**Purpose:** Stage registering or updating verified 10-digit NUBAN bank details for **Staff** (`staff_bank_update`), **Subsidiaries / Treasury** (`treasury_bank_register`), or **Vendors** (`vendor_bank_update`).
 
-Below is the standard JSON structure to paste into an n8n **HTTP Request** node:
+#### A. List Registered Bank Accounts (`GET`)
+- **URL:** `GET /api/ai/tools/bank-accounts?targetType=STAFF`
+
+#### B. Stage Staff, Subsidiary, or Vendor Bank Update (`POST`)
+- **URL:** `POST /api/ai/tools/bank-accounts`
+- **Payload (Staff Example):**
+```json
+{
+  "targetType": "STAFF",
+  "targetId": "BEMS-BSA-2026-0002",
+  "bankName": "Kuda Microfinance Bank",
+  "accountNumber": "2001928374",
+  "accountName": "Babatunde Diekolayomi"
+}
+```
+- **Payload (Subsidiary Treasury Example):**
+```json
+{
+  "targetType": "SUBSIDIARY",
+  "targetId": "BEMS-GROUP",
+  "bankName": "Zenith Bank",
+  "accountNumber": "1019283746",
+  "accountName": "BEMS Group Holdings Operational",
+  "accountType": "Corporate Operational"
+}
+```
+
+---
+
+### Tool 14: Executive Follow-Up Tasks (`/api/ai/tools/tasks`)
+**Purpose:** Track and stage executive follow-up tasks assigned to staff or admins.
+
+#### A. List Follow-Up Tasks (`GET`)
+- **URL:** `GET /api/ai/tools/tasks?status=PENDING`
+
+#### B. Stage Creating a Follow-Up Task (`POST` — `CREATE`)
+- **URL:** `POST /api/ai/tools/tasks`
+- **Action Type Staged:** `task_action`
+```json
+{
+  "action": "CREATE",
+  "title": "Submit Q4 Vendor Compliance Certificates",
+  "description": "Collect updated CAC and TIN documents for top 5 logistics vendors.",
+  "assignedToId": "BEMS-BSA-2026-0002",
+  "priority": "HIGH",
+  "dueDate": "2026-11-15"
+}
+```
+
+#### C. Stage Completing or Updating a Task (`POST` — `COMPLETE` / `UPDATE_STATUS`)
+```json
+{
+  "action": "COMPLETE",
+  "taskId": "task_uuid",
+  "note": "All certificates uploaded and verified."
+}
+```
+
+---
+
+### Tool 15: Direct Staff Helpdesk Messaging (`/api/ai/tools/messages`)
+**Purpose:** Read Staff-Admin helpdesk threads and stage direct GMD or HR messages to any staff member (creates a `StaffAdminMessage`, in-app `SystemNotification`, and email alert on confirmation).
+
+#### A. List Helpdesk Messages (`GET`)
+- **URL:** `GET /api/ai/tools/messages?channel=GMD&employeeId=optional_uuid`
+
+#### B. Stage Direct Executive Message to Staff (`POST`)
+- **URL:** `POST /api/ai/tools/messages`
+- **Action Type Staged:** `staff_message`
+```json
+{
+  "employeeId": "BEMS-BSA-2026-0002",
+  "channel": "GMD",
+  "message": "Please upload the signed delivery waybill for REQ-2026-0005 before 4 PM today."
+}
+```
+
+---
+
+### Tool 16: Approval Policies & Workspace Governance Settings (`/api/ai/tools/policies`)
+**Purpose:** Inspect or stage changes to conglomerate approval policy bands (`ApprovalPolicy`) and workspace-level governance settings (`WorkspaceSetting`).
+
+#### A. List Approval Policies & Workspace Settings (`GET`)
+- **URL:** `GET /api/ai/tools/policies?organizationId=BEMS-GROUP`
+
+#### B. Stage Creating or Updating an Approval Policy Band (`POST` — `UPSERT_POLICY`)
+- **URL:** `POST /api/ai/tools/policies`
+- **Action Type Staged:** `policy_update`
+```json
+{
+  "action": "UPSERT_POLICY",
+  "organizationId": "BEMS-GROUP",
+  "requestCategory": "CAPITAL_EXPENDITURE",
+  "minAmountMinor": 0,
+  "maxAmountMinor": 5000000000,
+  "requiredRoles": ["GMD"],
+  "slaHours": 24,
+  "escalationRole": "GMD",
+  "autoApproveBelowMinor": 0
+}
+```
+
+#### C. Stage Updating Workspace Governance Settings (`POST` — `UPDATE_WORKSPACE_SETTINGS`)
+```json
+{
+  "action": "UPDATE_WORKSPACE_SETTINGS",
+  "organizationId": "BEMS-GROUP",
+  "settingKey": "approval.controls",
+  "settings": {
+    "SLA_REMINDER_HOURS": 12,
+    "REQUIRE_THREE_WAY_MATCH_ABOVE_NGN": 500000
+  }
+}
+```
+
+---
+
+## 5. Human Confirmation & Cancellation Protocol
+
+Once n8n or BEMI stages an action via any `POST /api/ai/tools/*` route, the proposal appears in:
+1. The **BEMI Copilot Staged Action Card** in the web dashboard / mobile app.
+2. `GET /api/ai/staged-actions` (pending proposals queue).
+
+### 5.1 Confirm & Execute Staged Action (Human Browser Session Only)
+- **Method:** `POST`
+- **Endpoint:** `/api/ai/staged-actions/{actionId}/confirm`
+- **Authentication:** Authenticated Human Session Cookie (`bems_session`) — **Service tokens (`x-api-key` / `BEMS_AI_SERVICE_TOKEN`) are strictly blocked with `403 Forbidden`**.
+- **Optional Request Body:**
+```json
+{
+  "payloadHash": "sha256:8f9d2a..."
+}
+```
+- **Execution Guarantees:**
+  - Atomically locks the `StagedAction` row (`PENDING` -> `EXECUTING` -> `EXECUTED`).
+  - Verifies the `payloadHash` and checks that `expiresAt` has not passed.
+  - Verifies the human user's role (`GMD` / `SUPER_ADMIN` / `STAFF`) against the specific action's permission gate.
+  - Executes the canonical database transaction and records an immutable `AuditEvent`.
+
+### 5.2 Cancel / Reject Staged Action (Human Browser Session Only)
+- **Method:** `POST`
+- **Endpoint:** `/api/ai/staged-actions/{actionId}/cancel`
+- **Authentication:** Authenticated Human Session Cookie (`bems_session`).
+
+---
+
+## 6. Ready-to-Import n8n HTTP Request Node Template
+
+Paste this JSON directly into your n8n workflow canvas to create a pre-configured **BEMS AI Tool Stage Request** node:
 
 ```json
 {
@@ -563,7 +850,11 @@ Below is the standard JSON structure to paste into an n8n **HTTP Request** node:
       "parameters": [
         {
           "name": "Authorization",
-          "value": "Bearer 7095ec2348ee3a4ca855707cec7bab8a697f0de4aad3f93f0e545d82bba8e9a8"
+          "value": "Bearer {{ $env.BEMS_AI_SERVICE_TOKEN }}"
+        },
+        {
+          "name": "x-actor-email",
+          "value": "={{ $json.executiveEmail || 'gmd@bemsgroup.com' }}"
         },
         {
           "name": "Content-Type",
@@ -573,10 +864,10 @@ Below is the standard JSON structure to paste into an n8n **HTTP Request** node:
     },
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={\n  \"requestId\": \"{{ $json.requestNumber }}\",\n  \"decision\": \"APPROVE\",\n  \"comment\": \"{{ $json.approvalComment }}\"\n}",
+    "jsonBody": "={\n  \"requestId\": \"{{ $json.requestNumber }}\",\n  \"decision\": \"{{ $json.decision || 'APPROVE' }}\",\n  \"comment\": \"{{ $json.comment || 'Staged via n8n AI Automation' }}\"\n}",
     "options": {}
   },
-  "name": "BEMS AI Approval & Bank Link",
+  "name": "BEMS Stage AI Action",
   "type": "n8n-nodes-base.httpRequest",
   "typeVersion": 4.2
 }
@@ -584,74 +875,12 @@ Below is the standard JSON structure to paste into an n8n **HTTP Request** node:
 
 ---
 
-## 9. WhatsApp / Slack Notification Message Template for n8n
+## 7. Error Codes & Troubleshooting for Automation Engineers
 
-When an approval occurs, n8n can format this message to WhatsApp or Slack for the GMD:
-
-```text
-✅ *REQ-2026-0005 APPROVED*
-*Title:* Starlink Router Replacement
-*Amount:* ₦150,000
-*Beneficiary:* Babatunde Diekolayomi
-*Bank:* Kuda Microfinance Bank
-*Account:* 2001928374
-
-📲 *Tap to Disburse in Bank App:*
-https://bemserp.work/pay/REQ-2026-0005
-
-📞 *Fast Phone USSD:*
-*737*2*150000*2001928374#
-```
-
----
-
-## 10. Mandatory Parameter Collection Protocol (Zero Dummy Data Rule)
-
-**CRITICAL RULE FOR n8n & AI LLM NODES:**
-The AI and automated workflows must **NEVER invent, guess, or use dummy/placeholder data** when creating entities or updating financial records. When a user or GMD initiates a creation task, the AI/workflow must proactively verify all mandatory fields and explicitly prompt for any missing details before invoking the API.
-
-If an API request is received with missing required parameters, the backend strictly rejects it with `HTTP 400` and `error_code: "INCOMPLETE_PARAMETERS"`, returning a ready-to-display `conversational_prompt` and `missing_fields` list.
-
-### 10.1 Subsidiary Creation Requirements
-*(Note: File uploads including corporate logos, registration certificates, and receipts are strictly excluded from AI tools and are managed normally directly on the Web Dashboard).*
-
-Before creating a subsidiary, the AI must collect:
-1. `name` (string, required): Legal registered name (e.g., *"Studio Arella Ltd"*, *"Arella Agribusiness SPV"*).
-2. `brandColor` (hex string, required): Primary brand hex color (e.g., `"#EA580C"`, `"#2563EB"`, `"#059669"`).
-3. `industry` (string, required): Primary business sector (e.g., *"Creative Media & Video Production"*).
-4. `headquarters` (string, required): Physical operating location or state (e.g., *"14 Admiralty Way, Lekki Phase 1, Lagos"*).
-5. `code` (string, optional): 3-4 letter entity ticker (e.g., `"SAL"`, `"AAS"`). Auto-derived if omitted.
-6. `currency` (string, optional): Base operational currency (default `"NGN"`, supports `"USD"`, `"GBP"`, `"EUR"`).
-
-### 10.2 Executive Admin Onboarding Requirements
-Under the **Strict 3-Role Architecture**, executive onboarding is strictly reserved for `SUPER_ADMIN` and `GMD` *(Staff accounts register exclusively via self-service mobile app)*:
-1. `legalName` (string, required): Full legal name with title (e.g., *"Engr. Michael Adeyemi"*).
-2. `workEmail` (string, required): Official company email address (e.g., *"adeyemi@bemsgroup.com"*).
-3. `phone` (string, required): Direct Nigerian or international mobile phone (e.g., *"+234 803 000 1122"*).
-4. `role` (string, required): Must strictly be `"SUPER_ADMIN"` or `"GMD"`. Any other role is rejected.
-5. `subsidiaryId` (string, optional): Target subsidiary ID. Defaults to Holdings HQ if omitted.
-
-### 10.3 Bank Account Registration Requirements
-Before linking a disbursement or corporate account:
-1. `accountType` (enum, required): `"STAFF"`, `"SUBSIDIARY"`, or `"VENDOR"`.
-2. `targetQuery` (string, required): Staff email or name, Subsidiary shortcode, or Vendor corporate name.
-3. `bankName` (string, required): Recognized Nigerian bank or fintech (e.g., *"GTBank"*, *"Kuda Bank"*, *"Zenith"*, *"Access"*, *"OPay"*, *"Moniepoint"*).
-4. `accountNumber` (string, required): Exactly 10-digit NUBAN account number.
-5. `accountName` (string, required): Verified beneficiary name matching NIBSS records.
-
----
-
-## 11. System Scope & Boundary Guarantees
-
-1. **File Upload Exclusion**:
-   - The AI & n8n automation bridge operates strictly on text, numeric, and structured JSON payloads.
-   - All physical file uploads (logos, vendor invoice PDFs, photo receipts, CAC certificates) are performed normally through the web dashboard.
-2. **Approval Staging Guarantee**:
-   - The AI **never directly approves** any fund expenditure.
-   - It stages the action and dispatches a secure authorization card containing deep links to banking apps, USSD dialer strings, and an interactive confirmation button for the GMD.
-3. **Strict 3-Role Architecture**:
-   - Only 3 roles exist in the system: `SUPER_ADMIN`, `GMD`, and `STAFF`.
-   - Staff accounts cannot be onboarded via executive invitations; they register exclusively through the self-service portal/mobile app.
-
-
-
+| HTTP Status | Error Code / Condition | Cause & Resolution |
+| :--- | :--- | :--- |
+| `400 Bad Request` | `INCOMPLETE_PARAMETERS` | Required fields were omitted. Inspect `missing_fields` and `conversational_prompt` in the response JSON and prompt the user for the missing values (never invent dummy data). |
+| `401 Unauthorized` | Missing / Invalid Token | Ensure `Authorization: Bearer <BEMS_AI_SERVICE_TOKEN>` or `x-api-key: <BEMS_AI_SERVICE_TOKEN>` matches the server `.env`. |
+| `403 Forbidden` | Service Token on `/confirm` | Automation service tokens cannot confirm staged actions. Present the staged action card or dashboard link so the human executive can click **Confirm**. |
+| `404 Not Found` | Entity Not Found | The target `requestId`, `employeeId`, `subsidiaryId`, or `vendorId` could not be resolved. Call the corresponding `GET /api/ai/tools/*` endpoint first to look up the exact ID or code. |
+| `409 Conflict` | Already Executed / Expired | The staged action was already confirmed, cancelled, or passed its 30-minute `expiresAt` window. Stage a fresh proposal if still needed. |

@@ -65,7 +65,7 @@ export async function GET(
       );
     }
 
-    return new NextResponse(fileBuffer, {
+    return new NextResponse(new Uint8Array(fileBuffer), {
       headers: {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Disposition': `attachment; filename="${safeFilename}"`,

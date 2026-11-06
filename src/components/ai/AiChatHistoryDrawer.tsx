@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { History, Plus, X, MessageSquare, Trash2, Clock, ChevronRight, Search } from 'lucide-react';
-import { AiMessage } from './useAiFinancialManager';
+import { AiMessage } from './types';
 
 export interface ChatHistorySessionItem {
   id: string;

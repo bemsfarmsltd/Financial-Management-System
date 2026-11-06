@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
 import { matchBank } from '@/lib/bank-utils';
+import { stageAction } from '@/lib/staged-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,41 +76,37 @@ export async function POST(req: NextRequest) {
     }
 
     const resolvedAccountName = accountName || employee.legalName;
-
-    const updated = await prisma.employee.update({
-      where: { id: employee.id },
-      data: {
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'bank_account_update',
+      summary: `Update staff bank account for ${employee.legalName} (${employee.employeeNumber}) to ${canonicalBankName} · ${accountNumber}`,
+      materialPayload: {
+        targetType: 'STAFF',
+        targetRecordId: employee.id,
         bankName: canonicalBankName,
         accountNumber,
         accountName: resolvedAccountName,
-        // Also sync salary banking if empty
-        salaryBankName: employee.salaryBankName || canonicalBankName,
-        salaryAccountNumber: employee.salaryAccountNumber || accountNumber,
-        salaryAccountName: employee.salaryAccountName || resolvedAccountName,
       },
-      select: {
-        id: true,
-        legalName: true,
-        employeeNumber: true,
-        workEmail: true,
-        bankName: true,
-        accountNumber: true,
-        accountName: true,
+      preview: {
+        targetType: 'STAFF',
+        staffName: employee.legalName,
+        employeeNumber: employee.employeeNumber,
+        bankName: canonicalBankName,
+        accountNumber,
+        accountName: resolvedAccountName,
       },
     });
 
     return NextResponse.json({
       ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
       targetType: 'STAFF',
-      message: `Bank account registered successfully for staff "${updated.legalName}".`,
-      employee: {
-        id: updated.id,
-        name: updated.legalName,
-        employeeNumber: updated.employeeNumber,
-        bankName: updated.bankName,
-        accountNumber: updated.accountNumber,
-        accountName: updated.accountName,
-      },
+      message: `Staff bank account update for "${employee.legalName}" has been staged. Click the confirmation button to commit.`,
+      staged_action_id: staged.staged_action_id,
+      confirmation_hash: staged.confirmation_hash,
+      confirmation_button: staged.confirmation_button,
+      staged_action: staged.staged_action,
     });
   }
 
@@ -133,38 +130,38 @@ export async function POST(req: NextRequest) {
     }
 
     const resolvedAccountName = accountName || org.legalName;
-
-    const bankAccount = await prisma.companyBankAccount.upsert({
-      where: { accountNumber },
-      update: {
-        organizationId: org.id,
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'bank_account_update',
+      summary: `Register corporate treasury account for ${org.legalName}: ${canonicalBankName} · ${accountNumber}`,
+      materialPayload: {
+        targetType: 'SUBSIDIARY',
+        targetRecordId: org.id,
         bankName: canonicalBankName,
+        accountNumber,
         accountName: resolvedAccountName,
         accountType,
       },
-      create: {
-        organizationId: org.id,
+      preview: {
+        targetType: 'SUBSIDIARY',
+        subsidiary: org.legalName,
         bankName: canonicalBankName,
-        accountName: resolvedAccountName,
         accountNumber,
+        accountName: resolvedAccountName,
         accountType,
-        currency: org.defaultCurrency || 'NGN',
       },
     });
 
     return NextResponse.json({
       ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
       targetType: 'SUBSIDIARY',
-      message: `Corporate bank account registered successfully for subsidiary "${org.legalName}".`,
-      account: {
-        id: bankAccount.id,
-        subsidiary: org.legalName,
-        bankName: bankAccount.bankName,
-        accountNumber: bankAccount.accountNumber,
-        accountName: bankAccount.accountName,
-        accountType: bankAccount.accountType,
-        currency: bankAccount.currency,
-      },
+      message: `Corporate bank account registration for "${org.legalName}" has been staged. Click the confirmation button to commit.`,
+      staged_action_id: staged.staged_action_id,
+      confirmation_hash: staged.confirmation_hash,
+      confirmation_button: staged.confirmation_button,
+      staged_action: staged.staged_action,
     });
   }
 
@@ -188,10 +185,21 @@ export async function POST(req: NextRequest) {
     }
 
     const resolvedAccountName = accountName || vendor.name;
-
-    const updatedVendor = await prisma.vendor.update({
-      where: { id: vendor.id },
-      data: {
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'bank_account_update',
+      summary: `Update vendor bank account for ${vendor.name} (${vendor.code}) to ${canonicalBankName} · ${accountNumber}`,
+      materialPayload: {
+        targetType: 'VENDOR',
+        targetRecordId: vendor.id,
+        bankName: canonicalBankName,
+        accountNumber,
+        accountName: resolvedAccountName,
+      },
+      preview: {
+        targetType: 'VENDOR',
+        vendorName: vendor.name,
+        vendorCode: vendor.code,
         bankName: canonicalBankName,
         accountNumber,
         accountName: resolvedAccountName,
@@ -200,16 +208,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
       targetType: 'VENDOR',
-      message: `Bank account registered successfully for vendor "${updatedVendor.name}".`,
-      vendor: {
-        id: updatedVendor.id,
-        name: updatedVendor.name,
-        code: updatedVendor.code,
-        bankName: updatedVendor.bankName,
-        accountNumber: updatedVendor.accountNumber,
-        accountName: updatedVendor.accountName,
-      },
+      message: `Vendor bank account update for "${vendor.name}" has been staged. Click the confirmation button to commit.`,
+      staged_action_id: staged.staged_action_id,
+      confirmation_hash: staged.confirmation_hash,
+      confirmation_button: staged.confirmation_button,
+      staged_action: staged.staged_action,
     });
   }
 

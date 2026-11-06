@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
-import { stageAction, executeStagedAction } from '@/lib/staged-actions';
+import { stageAction } from '@/lib/staged-actions';
 import { getConsolidatedTreasury } from '@/lib/financial-metrics';
 import { enforceMobileVersionGate } from '@/lib/mobile-gate';
+import { checkAiScopeOrResponse } from '@/lib/ai-access-control';
 
 function formatNaira(amount: number): string {
   return new Intl.NumberFormat('en-NG', {
@@ -20,7 +21,7 @@ import { cleanMarkdownTables } from '@/lib/ai/markdown-normalizer';
  * Normalizes Markdown text structure, especially tables and whitespace,
  * ensuring clean row separation and consistent card/table rendering across Web and Mobile.
  */
-export function normalizeMarkdownStructure(raw: string): string {
+function normalizeMarkdownStructure(raw: string): string {
   if (!raw || typeof raw !== 'string') return raw;
   return cleanMarkdownTables(raw);
 }
@@ -36,6 +37,9 @@ export async function POST(req: NextRequest) {
     if (!actor) {
       return NextResponse.json({ error: 'Unauthorized: Valid BEMS session required to use AI Assistant.' }, { status: 401 });
     }
+
+    const contextScopeBlocked = await checkAiScopeOrResponse('context', 'read');
+    if (contextScopeBlocked) return contextScopeBlocked;
 
     const body = await req.json().catch(() => ({}));
     const message: string = (body.message || '').trim();
@@ -142,8 +146,8 @@ export async function POST(req: NextRequest) {
           console.warn('Could not persist user chat to memory:', e);
         }
 
-        // Direct Conversational Approval Interceptor:
-        // When executive says "Just approve it", "Implement it", "Confirm", "Authorize", etc.
+        // Conversational Proposal Selector (Never auto-executes or extends expiry via generic text;
+        // instead re-surfaces the active pending proposal card so an authorized human clicks the Approve button)
         const trimmedNorm = message.trim().toLowerCase();
         const isConversationalApproval = [
           'just approve it',
@@ -169,58 +173,33 @@ export async function POST(req: NextRequest) {
             where: {
               userId: actor.id,
               status: 'PENDING',
-              createdAt: { gt: new Date(Date.now() - 4 * 60 * 60 * 1000) },
+              expiresAt: { gt: new Date() },
             },
             orderBy: { createdAt: 'desc' },
           });
 
           if (pendingAction) {
-            // If it just expired while the executive was waiting for the UI, auto-extend TTL
-            if (new Date() > pendingAction.expiresAt) {
-              await prisma.stagedAction.update({
-                where: { id: pendingAction.id },
-                data: { expiresAt: new Date(Date.now() + 15 * 60 * 1000) },
-              });
-            }
+            let previewObj: Record<string, any> = {};
+            try {
+              previewObj = pendingAction.previewJson ? JSON.parse(pendingAction.previewJson) : {};
+            } catch {}
 
-            const execResult = await executeStagedAction({
-              actionId: pendingAction.id,
-              confirmationHash: pendingAction.confirmationHash,
-              actor: {
-                id: actor.id,
-                legalName: actor.legalName,
-                role: actor.role,
-                employeeNumber: actor.employeeNumber,
+            const promptMsg = `🔒 **Human Button Confirmation Required**\n\nTo commit **${pendingAction.summary}**, please review the staged proposal card below and click the **Authorize & Execute Action** button directly.`;
+            return NextResponse.json({
+              message: promptMsg,
+              actionCard: {
+                type: pendingAction.actionType,
+                cardType: 'STAGED_ACTION',
+                staged_action_id: pendingAction.id,
+                confirmation_hash: pendingAction.confirmationHash,
+                summary: pendingAction.summary,
+                action_type: pendingAction.actionType,
+                expires_at: pendingAction.expiresAt.toISOString(),
+                payload_preview: previewObj,
+                confirmed: false,
               },
+              timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
             });
-
-            if (execResult.ok) {
-              const confirmMsg = `✓ **Action Executed & Committed**: ${pendingAction.summary}.\n\nAudit correlation ID: \`#${execResult.audit_event_id || 'AUDIT-OK'}\`. The BEMS live ledger and database records have been updated immediately.`;
-
-              // Persist assistant reply to memory
-              try {
-                await prisma.$executeRaw`
-                  INSERT INTO n8n_chat_histories (session_id, message, created_at)
-                  VALUES (${sessionId}, ${JSON.stringify({ role: 'assistant', content: confirmMsg, timestamp: new Date().toISOString() })}::jsonb, NOW())
-                `;
-              } catch (e) {
-                console.warn('Could not persist assistant reply to memory:', e);
-              }
-
-              return NextResponse.json({
-                message: confirmMsg,
-                actionCard: {
-                  type: pendingAction.actionType,
-                  cardType: 'STAGED_ACTION',
-                  staged_action_id: pendingAction.id,
-                  confirmation_hash: pendingAction.confirmationHash,
-                  summary: pendingAction.summary,
-                  confirmed: true,
-                  resultMessage: confirmMsg,
-                },
-                timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-              });
-            }
           }
         }
 
@@ -454,6 +433,283 @@ title: "<Chart Title>"
         reply = `**Starlink Wi-Fi Attendance Policy:**\n\nStaff check-ins enforce a strict 3-way security protocol combining company Starlink Wi-Fi network telemetry, GPS office geofencing, and reception kiosk verification.\n\n• **Arrival Window:** 07:00 AM – 08:00 AM (Grace window up to 08:15 AM).\n• **Power Outage Override:** In case of grid failure, executive administrators can toggle Power Outage Mode to maintain continuity.`;
       } else {
         reply = `**Contextual Inquiry — ${targetElement.label} (${elVal}):**\n\n• **Section:** ${elSec}\n• **Workspace:** ${elSub}\n• **Query:** "${message}"\n\nThis element represents a live telemetry indicator synchronized with BEMS Group database records. Every transaction and status change updates this figure in real time.`;
+      }
+    } else if (
+      actor &&
+      isExecutive &&
+      (normalized.includes('starlink lock') ||
+        normalized.includes('disable starlink') ||
+        normalized.includes('enable starlink') ||
+        normalized.includes('bypass starlink') ||
+        normalized.includes('toggle starlink') ||
+        normalized.includes('power outage mode') ||
+        normalized.includes('geofence lock') ||
+        normalized.includes('disable geofence') ||
+        normalized.includes('enable geofence') ||
+        normalized.includes('bypass geofence') ||
+        normalized.includes('toggle geofence'))
+    ) {
+      const isGeofence = normalized.includes('geofence');
+      const wantsDisable =
+        normalized.includes('disable') ||
+        normalized.includes('bypass') ||
+        normalized.includes('turn off') ||
+        normalized.includes('outage');
+      const subAction = isGeofence ? 'TOGGLE_GEOFENCE_LOCK' : 'TOGGLE_STARLINK_LOCK';
+      const payload = isGeofence
+        ? { action_type: subAction, requireGeofence: !wantsDisable }
+        : { action_type: subAction, requireStarlinkIp: !wantsDisable, starlinkPowerOutageMode: wantsDisable };
+
+      const summary = isGeofence
+        ? `${wantsDisable ? 'Bypass' : 'Enforce'} GPS Geofence Perimeter Lock Group-Wide`
+        : `${wantsDisable ? 'Bypass Starlink Wi-Fi Lock (Allow Any Network)' : 'Enforce Strict Starlink Wi-Fi Lock'} Group-Wide`;
+
+      const staged = await stageAction({
+        userId: actor.id,
+        actionType: 'attendance_override',
+        summary,
+        materialPayload: payload,
+        preview: {
+          operation: isGeofence ? 'GPS Geofence Security Lock' : 'Starlink Wi-Fi Security Lock',
+          target_state: wantsDisable ? 'BYPASSED (Any Network / Location Allowed)' : 'STRICTLY ENFORCED',
+          scope: 'All BEMS Group Subsidiaries',
+        },
+      });
+
+      reply = `I have staged the **${summary}** operation.\n\nPlease review the preview card below and click the confirmation button to apply this security policy change across the conglomerate.`;
+      actionCard = {
+        cardType: 'STAGED_ACTION',
+        ...staged,
+      };
+    } else if (
+      actor &&
+      isExecutive &&
+      (normalized.startsWith('edit subsidiary') ||
+        normalized.startsWith('update subsidiary') ||
+        normalized.includes('edit subsidiary ') ||
+        normalized.includes('update subsidiary ') ||
+        normalized.includes('change subsidiary '))
+    ) {
+      const allOrgs = await prisma.organization.findMany({ where: { status: 'ACTIVE' } });
+      const matchedOrg =
+        allOrgs.find(
+          (o) =>
+            normalized.includes(o.code.toLowerCase()) ||
+            normalized.includes(o.legalName.toLowerCase()) ||
+            o.legalName
+              .toLowerCase()
+              .split(/\s+/)
+              .filter((w) => w.length > 3)
+              .some((w) => normalized.includes(w))
+        ) || (scopedOrgId ? allOrgs.find((o) => o.id === scopedOrgId) : null);
+
+      if (!matchedOrg) {
+        reply = `Please specify which subsidiary you want to edit (e.g., **BBH / BemsSoft Hub Ltd**, **BSA / Studio Arella Ltd**, **BTECH / SmartAIRS**, **BEDU**, or **BAGRO**) along with the field to update (name, code, headquarters, industry, RC number, brand color, or monthly budget).`;
+      } else {
+        const materialPayload: Record<string, any> = { organizationId: matchedOrg.id };
+        const preview: Record<string, any> = {
+          subsidiary: `${matchedOrg.legalName} (${matchedOrg.code})`,
+        };
+
+        const hqMatch = message.match(/(?:headquarters|hq|location|address)\s*(?:to|=|:)\s*([^,;.\n]+)/i);
+        if (hqMatch?.[1]) {
+          materialPayload.headquarters = hqMatch[1].trim();
+          preview.new_headquarters = materialPayload.headquarters;
+        }
+        const indMatch = message.match(/(?:industry|sector)\s*(?:to|=|:)\s*([^,;.\n]+)/i);
+        if (indMatch?.[1]) {
+          materialPayload.industry = indMatch[1].trim();
+          preview.new_industry = materialPayload.industry;
+        }
+        const rcMatch = message.match(/(?:rc\s*number|rc)\s*(?:to|=|:)\s*([A-Za-z0-9-]+)/i);
+        if (rcMatch?.[1]) {
+          materialPayload.rcNumber = rcMatch[1].trim();
+          preview.new_rc_number = materialPayload.rcNumber;
+        }
+        const colorMatch = message.match(/(#[0-9A-Fa-f]{6})\b/);
+        if (colorMatch?.[1]) {
+          materialPayload.brandColor = colorMatch[1];
+          preview.new_brand_color = materialPayload.brandColor;
+        }
+        const nameMatch = message.match(/(?:legal\s*name|name)\s*(?:to|=|:)\s*["']?([^"',;.\n]+)["']?/i);
+        if (nameMatch?.[1]) {
+          materialPayload.legalName = nameMatch[1].trim();
+          preview.new_legal_name = materialPayload.legalName;
+        }
+        const budgetMatch = message.match(/(?:budget)\s*(?:to|=|:)?\s*(?:₦|NGN)?\s*([\d,]+(?:\.\d+)?)/i);
+        if (budgetMatch?.[1]) {
+          const parsedBudget = Number(budgetMatch[1].replace(/,/g, ''));
+          if (parsedBudget > 0) {
+            materialPayload.monthlyBudget = parsedBudget;
+            preview.new_monthly_budget = `₦${parsedBudget.toLocaleString()}`;
+          }
+        }
+
+        const staged = await stageAction({
+          userId: actor.id,
+          actionType: 'subsidiary_update',
+          summary: `Update Subsidiary Information: ${matchedOrg.legalName} (${matchedOrg.code})`,
+          materialPayload,
+          preview,
+        });
+
+        reply = `I have staged the corporate information update for **${matchedOrg.legalName} (${matchedOrg.code})**.\n\nPlease review the preview card below and click the confirmation button to commit the changes.`;
+        actionCard = {
+          cardType: 'STAGED_ACTION',
+          ...staged,
+        };
+      }
+    } else if (
+      actor &&
+      isExecutive &&
+      (normalized.startsWith('edit staff') ||
+        normalized.startsWith('update staff') ||
+        normalized.includes('edit staff ') ||
+        normalized.includes('update staff ') ||
+        normalized.includes('exempt ') ||
+        normalized.includes('attendance exemption') ||
+        normalized.startsWith('suspend ') ||
+        normalized.startsWith('terminate ') ||
+        normalized.startsWith('activate staff'))
+    ) {
+      const allStaff = await prisma.employee.findMany({
+        include: {
+          assignments: { where: { isPrimary: true }, include: { subsidiary: true, department: true } },
+        },
+      });
+      const matchedStaff = allStaff.find(
+        (s) =>
+          normalized.includes(s.employeeNumber.toLowerCase()) ||
+          normalized.includes(s.workEmail.toLowerCase()) ||
+          normalized.includes(s.legalName.toLowerCase()) ||
+          s.legalName
+            .toLowerCase()
+            .split(/\s+/)
+            .filter((w) => w.length > 2)
+            .some((w) => normalized.includes(w))
+      );
+
+      if (!matchedStaff) {
+        reply = `Please specify the staff member's name, email, or employee number (e.g., *"Edit staff [Name] job title to Senior Accountant"* or *"Exempt [Name] from attendance"*).`;
+      } else {
+        let subAction = 'EDIT_PROFILE';
+        const materialPayload: Record<string, any> = { employeeId: matchedStaff.id };
+        const preview: Record<string, any> = {
+          staff_member: `${matchedStaff.legalName} (${matchedStaff.employeeNumber})`,
+          current_role_title: matchedStaff.jobTitle || matchedStaff.assignments[0]?.positionName || 'Staff',
+        };
+
+        if (normalized.includes('exempt')) {
+          subAction = 'TOGGLE_ATTENDANCE_EXEMPT';
+          const makeExempt = !normalized.includes('remove exempt') && !normalized.includes('unexempt') && !normalized.includes('disable exempt');
+          materialPayload.sub_action = subAction;
+          materialPayload.isAttendanceExempt = makeExempt;
+          preview.attendance_exemption = makeExempt ? 'EXEMPT (Bypass Clock-In)' : 'REQUIRED (Standard Clock-In)';
+        } else if (normalized.startsWith('suspend ') || normalized.startsWith('terminate ') || normalized.startsWith('activate ')) {
+          subAction = 'CHANGE_STATUS';
+          const nextStatus = normalized.startsWith('suspend')
+            ? 'SUSPENDED'
+            : normalized.startsWith('terminate')
+            ? 'TERMINATED'
+            : 'ACTIVE';
+          materialPayload.sub_action = subAction;
+          materialPayload.status = nextStatus;
+          preview.new_status = nextStatus;
+        } else {
+          materialPayload.sub_action = 'EDIT_PROFILE';
+          const titleMatch = message.match(/(?:job\s*title|title|position|role)\s*(?:to|=|:)\s*([^,;.\n]+)/i);
+          if (titleMatch?.[1]) {
+            materialPayload.jobTitle = titleMatch[1].trim();
+            preview.new_job_title = materialPayload.jobTitle;
+          }
+          const phoneMatch = message.match(/(?:phone|mobile|number)\s*(?:to|=|:)\s*([+\d\s-]{7,20})/i);
+          if (phoneMatch?.[1]) {
+            materialPayload.phone = phoneMatch[1].trim();
+            preview.new_phone = materialPayload.phone;
+          }
+          const emailMatch = message.match(/(?:email)\s*(?:to|=|:)\s*([^\s,;]+@[^\s,;]+)/i);
+          if (emailMatch?.[1]) {
+            materialPayload.workEmail = emailMatch[1].trim().toLowerCase();
+            preview.new_work_email = materialPayload.workEmail;
+          }
+          const nameMatch = message.match(/(?:legal\s*name|name)\s*(?:to|=|:)\s*([^,;.\n]+)/i);
+          if (nameMatch?.[1]) {
+            materialPayload.legalName = nameMatch[1].trim();
+            preview.new_legal_name = materialPayload.legalName;
+          }
+        }
+
+        const summary =
+          subAction === 'TOGGLE_ATTENDANCE_EXEMPT'
+            ? `Set Attendance Exemption for ${matchedStaff.legalName} (${materialPayload.isAttendanceExempt ? 'Exempt' : 'Required'})`
+            : subAction === 'CHANGE_STATUS'
+            ? `Change Staff Status to ${materialPayload.status} for ${matchedStaff.legalName}`
+            : `Update Staff Profile: ${matchedStaff.legalName} (${matchedStaff.employeeNumber})`;
+
+        const staged = await stageAction({
+          userId: actor.id,
+          actionType: 'staff_management',
+          summary,
+          materialPayload,
+          preview,
+        });
+
+        reply = `I have staged **${summary}**.\n\nPlease review the preview card below and click the confirmation button to commit this staff record update.`;
+        actionCard = {
+          cardType: 'STAGED_ACTION',
+          ...staged,
+        };
+      }
+    } else if (
+      actor &&
+      (normalized.startsWith('create request') ||
+        normalized.startsWith('create fund request') ||
+        normalized.startsWith('new fund request') ||
+        normalized.startsWith('stage fund request') ||
+        normalized.includes('create a fund request'))
+    ) {
+      const amountMatch = message.match(/(?:₦|NGN|\bfor\b)?\s*([\d,]+(?:\.\d+)?)\s*(?:naira|ngn)?/i);
+      const parsedAmount = amountMatch?.[1] ? Number(amountMatch[1].replace(/,/g, '')) : 0;
+      const titleMatch = message.match(/(?:titled|for|purpose)\s+["']?([^"',;.\n]{4,80})["']?/i);
+      const title = titleMatch?.[1]?.trim() || 'Operational Expenditure Request';
+
+      if (parsedAmount > 0) {
+        const subOrg =
+          (scopedOrgId ? await prisma.organization.findUnique({ where: { id: scopedOrgId } }) : null) ||
+          (await prisma.organization.findFirst({ where: { type: 'SUBSIDIARY' } })) ||
+          (await prisma.organization.findFirst());
+
+        if (subOrg) {
+          const staged = await stageAction({
+            userId: actor.id,
+            actionType: 'request_creation',
+            summary: `Create Fund Request: "${title}" (₦${parsedAmount.toLocaleString()}) under ${subOrg.legalName}`,
+            materialPayload: {
+              title,
+              amount: parsedAmount,
+              currency: 'NGN',
+              category: 'OPERATIONS',
+              justification: title,
+              deliverable: 'Operational deliverable',
+              subsidiaryId: subOrg.id,
+            },
+            preview: {
+              operation: 'Create Expenditure Request',
+              title,
+              amount: `₦${parsedAmount.toLocaleString()}`,
+              subsidiary: `${subOrg.legalName} (${subOrg.code})`,
+              category: 'OPERATIONS',
+            },
+          });
+
+          reply = `I have staged a new expenditure request **"${title}"** for **₦${parsedAmount.toLocaleString()}** under **${subOrg.legalName}**.\n\nClick the confirmation button below to submit the request into the approval pipeline.`;
+          actionCard = {
+            cardType: 'STAGED_ACTION',
+            ...staged,
+          };
+        }
+      } else {
+        reply = `To stage a new fund request, please include the **amount** and **purpose/title** (for example: *"Create a fund request of 250,000 for Diesel Supply"*).`;
       }
     } else if (
       normalized.includes('bank') ||
@@ -1126,7 +1382,21 @@ title: "<Chart Title>"
       actionCard,
       timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.error_code === 'AI_ACCESS_DISABLED') {
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'AI_ACCESS_DISABLED',
+          scope: error.scope,
+          mode: error.mode,
+          error: error.message,
+          message: `🔒 **Access Restricted by Admin:** ${error.message}`,
+          timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+        },
+        { status: 403 }
+      );
+    }
     console.error('AI Chat Error:', error);
     return NextResponse.json(
       { error: 'Failed to process financial AI query.' },
