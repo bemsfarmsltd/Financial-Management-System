@@ -31,7 +31,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
         where: { status: 'ACTIVE' },
         orderBy: { startDate: 'desc' },
         take: 1,
-        include: { compensations: { orderBy: [{ effectiveFrom: 'desc' }, { version: 'desc' }, { createdAt: 'desc' }] } }
+        include: { compensations: { orderBy: [{ effectiveFrom: 'desc' }, { version: 'desc' }] } }
       },
       salaryChangeProposals: {
         orderBy: { createdAt: 'desc' },

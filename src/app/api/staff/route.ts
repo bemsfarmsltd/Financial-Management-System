@@ -36,7 +36,7 @@ export async function GET(req: Request) {
           include: {
             compensations: {
               take: 5,
-              orderBy: [{ effectiveFrom: 'desc' }, { version: 'desc' }, { createdAt: 'desc' }]
+              orderBy: [{ effectiveFrom: 'desc' }, { version: 'desc' }]
             }
           }
         },
