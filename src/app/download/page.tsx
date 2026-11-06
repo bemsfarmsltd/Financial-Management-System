@@ -5,11 +5,13 @@ import { prisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 export default async function PublicDownloadPage() {
-  const staffGate = await prisma.mobileAppGate.findUnique({
-    where: { appId: 'STAFF_APP' },
-  });
+  const [staffGate, gmdGate] = await Promise.all([
+    prisma.mobileAppGate.findUnique({ where: { appId: 'STAFF_APP' } }),
+    prisma.mobileAppGate.findUnique({ where: { appId: 'GMD_APP' } }),
+  ]);
 
-  const staffVersion = staffGate?.latestVersionAvailable || '1.0.9';
+  const staffVersion = staffGate?.latestVersionAvailable || '1.3.3';
+  const gmdVersion = gmdGate?.latestVersionAvailable || '1.3.3';
 
   return (
     <div
@@ -86,7 +88,7 @@ export default async function PublicDownloadPage() {
       </header>
 
       {/* HERO */}
-      <section style={{ maxWidth: 520, margin: '44px auto 28px', textAlign: 'center', padding: '0 20px' }}>
+      <section style={{ maxWidth: 680, margin: '40px auto 24px', textAlign: 'center', padding: '0 20px' }}>
         <div
           style={{
             display: 'inline-flex',
@@ -104,27 +106,138 @@ export default async function PublicDownloadPage() {
             marginBottom: 14,
           }}
         >
-          Official Android App
+          Official BEMS Android Suite
         </div>
         <h1
           style={{
-            fontSize: 'clamp(26px, 4vw, 36px)',
+            fontSize: 'clamp(28px, 4vw, 38px)',
             fontWeight: 900,
             letterSpacing: '-0.03em',
             lineHeight: 1.15,
-            margin: '0 0 8px',
+            margin: '0 0 10px',
             color: '#0f172a',
           }}
         >
-          BEMS Staff Mobile App
+          Download BEMS Mobile Applications
         </h1>
         <p style={{ fontSize: 15, color: '#64748b', lineHeight: 1.5, margin: 0 }}>
-          Submit fund requests, track disbursements, and manage attendance on the go.
+          Dedicated native Android applications for the Group Managing Director and BEMS Workforce across all subsidiaries.
         </p>
       </section>
 
-      {/* CENTERED BEMS BRANDED STAFF APP CARD */}
-      <main style={{ maxWidth: 440, width: '100%', margin: '0 auto', padding: '0 20px' }}>
+      {/* TWO APPS SIDE BY SIDE */}
+      <main
+        style={{
+          maxWidth: 960,
+          width: '100%',
+          margin: '0 auto',
+          padding: '0 20px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: 24,
+        }}
+      >
+        {/* CARD 1: GMD EXECUTIVE COCKPIT */}
+        <div
+          style={{
+            background: 'linear-gradient(180deg, #09131f 0%, #050b12 100%)',
+            borderRadius: 20,
+            border: '2px solid #10b981',
+            padding: 28,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxShadow: '0 16px 36px -6px rgba(16, 185, 129, 0.22)',
+            color: '#ffffff',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 14,
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  padding: 6,
+                }}
+              >
+                <img
+                  src="/bems-group-logo.png?v=20261024"
+                  alt="BEMS Group"
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+              </div>
+              <span
+                style={{
+                  background: '#10b981',
+                  color: '#022c22',
+                  fontSize: 11,
+                  fontWeight: 900,
+                  padding: '4px 12px',
+                  borderRadius: 9999,
+                  letterSpacing: '0.04em',
+                }}
+              >
+                v{gmdVersion} · GMD ONLY
+              </span>
+            </div>
+
+            <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 6px', color: '#ffffff', letterSpacing: '-0.02em' }}>
+              BEMS GMD AI Cockpit
+            </h2>
+            <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.45, margin: '0 0 18px' }}>
+              Executive authority &amp; autonomous financial intelligence for The Group Managing Director.
+            </p>
+
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', fontSize: 13, color: '#cbd5e1', fontWeight: 600 }}>
+              <li style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#10b981', fontWeight: 900 }}>✓</span> 1-Click Requisition Approvals &amp; Direct Bank Deep Links
+              </li>
+              <li style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#10b981', fontWeight: 900 }}>✓</span> Live Financial Copilot with 120s Deep Ledger Reasoning
+              </li>
+              <li style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#10b981', fontWeight: 900 }}>✓</span> Consolidated Treasury, Bilateral Netting &amp; Payroll Sign-off
+              </li>
+              <li style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#10b981', fontWeight: 900 }}>✓</span> 8-Module Workstation Hub spanning SmartAIRS, Agribusiness, Tech
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <a
+              href="/downloads/BEMS-GMD-Executive-v1.3.3.apk"
+              download="BEMS-GMD-Executive-Cockpit-v1.3.3.apk"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '14px',
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, #10b981, #059669)',
+                color: '#ffffff',
+                fontSize: 14,
+                fontWeight: 900,
+                textDecoration: 'none',
+                boxShadow: '0 8px 24px rgba(16, 185, 129, 0.35)',
+              }}
+            >
+              <span>📥 Download GMD App APK (v{gmdVersion})</span>
+            </a>
+            <small style={{ display: 'block', textAlign: 'center', fontSize: 11, color: '#64748b', marginTop: 10 }}>
+              Android 8.0+ · com.bemsgroup.gmd_ai
+            </small>
+          </div>
+        </div>
+
+        {/* CARD 2: BEMS STAFF APP */}
         <div
           style={{
             background: '#ffffff',
@@ -162,20 +275,20 @@ export default async function PublicDownloadPage() {
                   background: '#ea580c',
                   color: '#ffffff',
                   fontSize: 11,
-                  fontWeight: 800,
+                  fontWeight: 900,
                   padding: '4px 12px',
                   borderRadius: 9999,
                 }}
               >
-                v{staffVersion}
+                v{staffVersion} · STAFF
               </span>
             </div>
 
-            <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 4px', color: '#0f172a' }}>
+            <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 6px', color: '#0f172a', letterSpacing: '-0.02em' }}>
               BEMS Staff Portal
             </h2>
             <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.45, margin: '0 0 18px' }}>
-              Official BEMS Group mobile workspace.
+              Self-service workspace for staff across all BEMS Group operating entities.
             </p>
 
             <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', fontSize: 13, color: '#334155', fontWeight: 600 }}>
@@ -186,15 +299,18 @@ export default async function PublicDownloadPage() {
                 <span style={{ color: '#ea580c', fontWeight: 900 }}>✓</span> Real-time disbursement &amp; payslip tracking
               </li>
               <li style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: '#ea580c', fontWeight: 900 }}>✓</span> QR attendance &amp; digital Staff ID
+                <span style={{ color: '#ea580c', fontWeight: 900 }}>✓</span> Starlink Wi-Fi &amp; GPS geofenced attendance
+              </li>
+              <li style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#ea580c', fontWeight: 900 }}>✓</span> Enterprise Workstation Gallery switcher
               </li>
             </ul>
           </div>
 
           <div>
             <a
-              href="/download/staff-app.apk"
-              download="BemsStaff.apk"
+              href="/downloads/BEMS-Staff-Portal-v1.3.3.apk"
+              download="BEMS-Staff-Portal-v1.3.3.apk"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -206,12 +322,12 @@ export default async function PublicDownloadPage() {
                 background: 'linear-gradient(135deg, #f97316, #ea580c)',
                 color: '#ffffff',
                 fontSize: 14,
-                fontWeight: 800,
+                fontWeight: 900,
                 textDecoration: 'none',
                 boxShadow: '0 8px 20px rgba(234, 88, 12, 0.28)',
               }}
             >
-              <span>📥 Download Staff App APK</span>
+              <span>📥 Download Staff App APK (v{staffVersion})</span>
             </a>
             <small style={{ display: 'block', textAlign: 'center', fontSize: 11, color: '#64748b', marginTop: 10 }}>
               Android 8.0+ · com.bemsgroup.staff
@@ -221,26 +337,30 @@ export default async function PublicDownloadPage() {
       </main>
 
       {/* COMPACT INSTALLATION STEPS */}
-      <section style={{ maxWidth: 440, width: '100%', margin: '20px auto 0', padding: '0 20px' }}>
+      <section style={{ maxWidth: 680, width: '100%', margin: '28px auto 0', padding: '0 20px' }}>
         <div
           style={{
             background: '#ffffff',
             border: '1px solid #e2e8f0',
-            borderRadius: 14,
-            padding: '16px 20px',
-            fontSize: 12,
+            borderRadius: 16,
+            padding: '20px 24px',
+            fontSize: 13,
             color: '#475569',
-            lineHeight: 1.65,
+            lineHeight: 1.7,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
           }}
         >
+          <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: '0 0 8px' }}>
+            📱 Installation Instructions
+          </h3>
           <div style={{ marginBottom: 4 }}>
-            <strong style={{ color: '#ea580c' }}>1. Download:</strong> Tap the button above (choose <em>&ldquo;Download anyway&rdquo;</em> if prompted).
+            <strong style={{ color: '#0f172a' }}>1. Download:</strong> Tap the download button for your app above (select <em>&ldquo;Download anyway&rdquo;</em> if Chrome displays an unknown source warning).
           </div>
           <div style={{ marginBottom: 4 }}>
-            <strong style={{ color: '#ea580c' }}>2. Install:</strong> Open the downloaded APK and allow installation.
+            <strong style={{ color: '#0f172a' }}>2. Install:</strong> Tap the completed download notification or find it in your Files app and allow package installation.
           </div>
           <div>
-            <strong style={{ color: '#ea580c' }}>3. Sign In:</strong> Log in with your BEMS staff email and password.
+            <strong style={{ color: '#0f172a' }}>3. Access:</strong> GMD logs in with executive credentials; Staff log in with their work email.
           </div>
         </div>
       </section>
