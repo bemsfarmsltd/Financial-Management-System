@@ -126,14 +126,31 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!['APPROVE', 'APPROVED', 'REJECT', 'REJECTED', 'DECLINE', 'DECLINED'].includes(decision)) {
+  if (
+    ![
+      'APPROVE',
+      'APPROVED',
+      'REJECT',
+      'REJECTED',
+      'DECLINE',
+      'DECLINED',
+      'REQUEST_CLARIFICATION',
+      'CLARIFICATION_REQUESTED',
+      'NEEDS_CLARIFICATION',
+    ].includes(decision)
+  ) {
     return NextResponse.json(
-      { ok: false, error_code: 'VALIDATION_FAILED', message: 'decision must be APPROVE or REJECT.' },
+      { ok: false, error_code: 'VALIDATION_FAILED', message: 'decision must be APPROVE, REJECT, or REQUEST_CLARIFICATION.' },
       { status: 400 }
     );
   }
 
-  const canonicalDecision = (decision === 'APPROVE' || decision === 'APPROVED') ? 'APPROVE' : 'DECLINE';
+  const canonicalDecision =
+    decision === 'APPROVE' || decision === 'APPROVED'
+      ? 'APPROVE'
+      : decision === 'REQUEST_CLARIFICATION' || decision === 'CLARIFICATION_REQUESTED' || decision === 'NEEDS_CLARIFICATION'
+      ? 'REQUEST_CLARIFICATION'
+      : 'DECLINE';
 
   // Find expenditure request
   const expReq = await prisma.expenditureRequest.findFirst({
@@ -167,6 +184,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { ok: false, error_code: 'NOT_FOUND', message: `Fund request "${identifier}" not found.` },
       { status: 404 }
+    );
+  }
+
+  if (!['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(expReq.approvalStatus)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error_code: 'ALREADY_DECIDED',
+        message: `Fund request ${expReq.requestNumber} is already ${expReq.approvalStatus} and cannot be decided again.`,
+      },
+      { status: 409 }
+    );
+  }
+
+  if (canonicalDecision === 'APPROVE' && expReq.requestedById === actor.id && actor.role !== 'GMD') {
+    return NextResponse.json(
+      {
+        ok: false,
+        error_code: 'SEPARATION_OF_DUTIES',
+        message: `Separation of duties policy: You cannot approve your own request ${expReq.requestNumber}.`,
+      },
+      { status: 403 }
     );
   }
 
@@ -207,14 +246,22 @@ export async function POST(req: NextRequest) {
   const staged = await stageAction({
     userId: actor.id,
     actionType: 'approval_decision',
+    targetSubsidiaryId: expReq.subsidiaryId,
     materialPayload: {
       request_id: expReq.id,
       request_number: expReq.requestNumber,
       decision: canonicalDecision,
       reason: comment,
       amount_minor: Number(expReq.amountMinor),
+      expected_version: expReq.requestVersion,
     },
-    summary: `${canonicalDecision === 'APPROVE' ? 'Authorize disbursement for' : 'Decline'} ${expReq.requestNumber} (${expReq.title}) — ₦${amountNaira.toLocaleString()}`,
+    summary: `${
+      canonicalDecision === 'APPROVE'
+        ? 'Authorize disbursement for'
+        : canonicalDecision === 'REQUEST_CLARIFICATION'
+        ? 'Request clarification for'
+        : 'Decline'
+    } ${expReq.requestNumber} (${expReq.title}) — ₦${amountNaira.toLocaleString()}`,
     preview: {
       request_number: expReq.requestNumber,
       title: expReq.title,

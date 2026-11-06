@@ -225,8 +225,8 @@ export async function POST(req: NextRequest) {
     // Check mandatory parameters
     const missing: string[] = [];
     if (!name || name.length < 2) missing.push('name (Legal corporate vendor name)');
-    if (!bankName) missing.push('bankName (e.g. GTBank, Kuda, Zenith, Access)');
-    if (!accountNumber || accountNumber.length !== 10) missing.push('accountNumber (10-digit Nigerian NUBAN)');
+    if (!bankName || bankName.toLowerCase() === 'commercial bank') missing.push('bankName (e.g. GTBank, Kuda, Zenith, Access)');
+    if (!accountNumber || accountNumber.length !== 10 || accountNumber === '0000000000') missing.push('accountNumber (10-digit Nigerian NUBAN)');
     if (!accountName) missing.push('accountName (Verified beneficiary account name on record with NIBSS)');
 
     if (missing.length > 0) {
@@ -251,6 +251,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const cleanTaxId = taxId && taxId.toUpperCase() !== 'PENDING_TIN' ? taxId : null;
+    const duplicate = await prisma.vendor.findFirst({
+      where: {
+        OR: [
+          { name: { equals: name, mode: 'insensitive' } },
+          { accountNumber },
+          ...(cleanTaxId ? [{ taxId: { equals: cleanTaxId, mode: 'insensitive' as const } }] : []),
+        ],
+      },
+    });
+    if (duplicate) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'DUPLICATE_VENDOR',
+          message: `Vendor "${duplicate.name}" (${duplicate.code}) is already registered with matching name, NUBAN, or tax ID.`,
+          existing_vendor_id: duplicate.id,
+        },
+        { status: 409 }
+      );
+    }
+
     // Generate unique vendor code
     const count = await prisma.vendor.count();
     const words = name.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(Boolean);
@@ -262,11 +284,11 @@ export async function POST(req: NextRequest) {
       actionType: 'vendor_approval',
       summary: `Register verified vendor "${name}" (${code}) · ${bankName} ${accountNumber}`,
       materialPayload: {
-        mode: 'REGISTER',
+        mode: 'REGISTER_NEW_VENDOR',
         name,
         code,
         category,
-        taxId: taxId || null,
+        taxId: cleanTaxId,
         contactEmail: contactEmail || null,
         contactPhone: contactPhone || null,
         bankName,
@@ -275,14 +297,14 @@ export async function POST(req: NextRequest) {
         notes: notes || null,
       },
       preview: {
-        action: 'REGISTER',
+        action: 'REGISTER_NEW_VENDOR',
         name,
         code,
         category,
         bankName,
         accountNumber,
         accountName,
-        taxId: taxId || 'Not Provided',
+        taxId: cleanTaxId || 'Not Provided',
       },
     });
 

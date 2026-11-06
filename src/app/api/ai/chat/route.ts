@@ -1036,34 +1036,52 @@ title: "<Chart Title>"
         reply = `🔒 **Read-Only Informational Access:** Emergency bypass overrides require sovereign executive authority (GMD only).`;
         actionCard = null;
       } else {
-        const targetReq = pendingRequests[0];
+        const matchedReq =
+          pendingRequests.find(
+            (r) =>
+              normalized.includes(r.requestNumber.toLowerCase()) ||
+              normalized.includes(r.id.toLowerCase())
+          ) || (pendingRequests.length === 1 ? pendingRequests[0] : null);
 
-        if (targetReq && actor) {
-          const staged = await stageAction({
-            userId: actor.id,
-            actionType: 'emergency_override',
-            materialPayload: {
-              request_id: targetReq.id,
-              request_number: targetReq.requestNumber,
-              justification: 'GMD Emergency Operational Continuity Override',
-              amount: Number(targetReq.amountMinor) / 100,
-            },
-            summary: `GMD Emergency Override: Authorize immediate payout for ${targetReq.requestNumber} (₦${(Number(targetReq.amountMinor) / 100).toLocaleString()})`,
-            preview: {
-              request_number: targetReq.requestNumber,
-              title: targetReq.title,
-              amount: `₦${(Number(targetReq.amountMinor) / 100).toLocaleString()}`,
-              requester: targetReq.requester?.legalName || 'Staff',
-              override_authority: 'Group Managing Director',
-              action: 'BYPASS_MATRIX_DIRECT_APPROVAL',
-            },
-          });
+        if (matchedReq && actor) {
+          const reqAmtNaira = Number(matchedReq.amountMinor) / 100;
+          if (reqAmtNaira > 1_000_000) {
+            reply = `⚠️ **Emergency Cap Exceeded:** Request **${matchedReq.requestNumber}** (**₦${reqAmtNaira.toLocaleString()}**) exceeds the **₦1,000,000** emergency override cap. Please use the standard executive approval workflow instead.`;
+          } else {
+            const staged = await stageAction({
+              userId: actor.id,
+              actionType: 'emergency_override',
+              targetSubsidiaryId: matchedReq.subsidiaryId,
+              materialPayload: {
+                mode: 'OVERRIDE_EXISTING_REQUEST',
+                request_id: matchedReq.id,
+                request_number: matchedReq.requestNumber,
+                justification: 'GMD Emergency Operational Continuity Override',
+                amount: reqAmtNaira,
+                amount_minor: Number(matchedReq.amountMinor),
+                expected_version: matchedReq.requestVersion,
+              },
+              summary: `GMD Emergency Override: Authorize immediate payout for ${matchedReq.requestNumber} (₦${reqAmtNaira.toLocaleString()})`,
+              preview: {
+                mode: 'OVERRIDE_EXISTING_REQUEST',
+                request_number: matchedReq.requestNumber,
+                title: matchedReq.title,
+                amount: `₦${reqAmtNaira.toLocaleString()}`,
+                requester: matchedReq.requester?.legalName || 'Staff',
+                override_authority: 'Group Managing Director',
+                accountability_sla: '24 Hours Mandatory Retirement',
+                action: 'BYPASS_MATRIX_DIRECT_APPROVAL',
+              },
+            });
 
-          reply = `I have staged a **GMD Emergency Override** for **${targetReq.requestNumber}** (**₦${(Number(targetReq.amountMinor) / 100).toLocaleString()}**).\n\nThis will bypass intermediate matrix stages and mark the requisition immediately approved for direct treasury disbursement.`;
-          actionCard = {
-            cardType: 'STAGED_ACTION',
-            ...staged,
-          };
+            reply = `I have staged a **GMD Emergency Override** for **${matchedReq.requestNumber}** (**₦${reqAmtNaira.toLocaleString()}**).\n\nThis will bypass intermediate matrix stages, mark the requisition immediately approved, and open a mandatory 24-hour accountability case.`;
+            actionCard = {
+              cardType: 'STAGED_ACTION',
+              ...staged,
+            };
+          }
+        } else if (pendingRequests.length > 1) {
+          reply = `Multiple requisitions are pending review. Please specify the exact **request number** (e.g., *${pendingRequests[0].requestNumber}*) to stage an emergency override.`;
         } else {
           reply = `There are currently no requisitions pending review to apply an emergency override to.`;
         }

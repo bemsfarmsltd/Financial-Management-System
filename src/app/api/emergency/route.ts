@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view emergency records.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive access is required.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive access is required.' }, { status: 403 });
     const emergencyRequests = await prisma.expenditureRequest.findMany({
       where: {
         requestType: 'EMERGENCY'
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
         slaHours: 24,
         notificationBridge: 'WhatsApp & SMS Instant Push',
         ratificationAuthority: 'Group Managing Director (GMD)',
-        allowedRoles: ['Duty Officer', 'Facility Lead', 'Operations VP']
+        allowedRoles: ['GMD', 'SUPER_ADMIN']
       },
       incidents
     });
@@ -78,12 +78,134 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to declare an emergency.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Only the System Admin or GMD can declare an emergency override.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Only the Super Admin or GMD can declare an emergency override.' }, { status: 403 });
+    }
     const body = await req.json();
-    const { subsidiaryId, title, justification, amount } = body;
+    const { mode: rawMode, requestId, subsidiaryId, title, justification, amount } = body;
+    const mode = String(rawMode || (requestId ? 'OVERRIDE_EXISTING_REQUEST' : 'DECLARE_NEW_EMERGENCY')).toUpperCase().trim();
+    const cleanJustification = String(justification || '').trim();
+
+    if (!cleanJustification || cleanJustification.length < 5) {
+      return NextResponse.json({ error: 'A detailed emergency justification (at least 5 characters) is required.' }, { status: 400 });
+    }
+
+    if (mode === 'OVERRIDE_EXISTING_REQUEST') {
+      if (!requestId) {
+        return NextResponse.json({ error: 'requestId is required to override an existing request.' }, { status: 400 });
+      }
+      const existingReq = await prisma.expenditureRequest.findFirst({
+        where: { OR: [{ id: String(requestId) }, { requestNumber: String(requestId) }] },
+        include: { subsidiary: true, approvalSteps: true },
+      });
+      if (!existingReq) {
+        return NextResponse.json({ error: 'Target expenditure request not found.' }, { status: 404 });
+      }
+      if (!['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(existingReq.approvalStatus)) {
+        return NextResponse.json(
+          { error: `Request ${existingReq.requestNumber} is already ${existingReq.approvalStatus} and cannot be overridden.` },
+          { status: 409 }
+        );
+      }
+      const reqAmountNaira = Number(existingReq.amountMinor) / 100;
+      if (reqAmountNaira <= 0 || reqAmountNaira > 1000000) {
+        return NextResponse.json(
+          { error: `Request amount (${formatNaira(reqAmountNaira)}) exceeds the ₦1,000,000 emergency override cap.` },
+          { status: 422 }
+        );
+      }
+
+      const now = new Date();
+      const dueAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const bridgeMessage = `🚨 [EMERGENCY OVERRIDE APPLIED] Ref: ${existingReq.requestNumber} | Entity: ${existingReq.subsidiary.legalName} | Amount: ${formatNaira(reqAmountNaira)} | Officer: ${actor.legalName} (${actor.role}) | Justification: ${cleanJustification}. 24h accountability clock started.`;
+
+      await prisma.$transaction(async (tx) => {
+        await tx.expenditureRequest.update({
+          where: { id: existingReq.id },
+          data: {
+            requestType: 'EMERGENCY',
+            approvalStatus: 'APPROVED',
+            updatedAt: now,
+          },
+        });
+
+        const pendingSteps = existingReq.approvalSteps.filter((s) => s.status === 'PENDING');
+        if (pendingSteps.length > 0) {
+          await tx.approvalStep.updateMany({
+            where: { requestId: existingReq.id, status: 'PENDING' },
+            data: {
+              status: 'APPROVED',
+              approverId: actor.id,
+              approverName: actor.legalName,
+              decidedAt: now,
+              decisionReason: `GMD EMERGENCY OVERRIDE: ${cleanJustification}`,
+            },
+          });
+        } else {
+          await tx.approvalStep.create({
+            data: {
+              requestId: existingReq.id,
+              stageIndex: (existingReq.approvalSteps.length || 0) + 1,
+              assignedRole: actor.role,
+              approverId: actor.id,
+              approverName: actor.legalName,
+              status: 'APPROVED',
+              decisionReason: `GMD EMERGENCY OVERRIDE: ${cleanJustification}`,
+              decidedAt: now,
+            },
+          });
+        }
+
+        await tx.accountabilityCase.upsert({
+          where: { requestId: existingReq.id },
+          create: {
+            requestId: existingReq.id,
+            ownerUserId: existingReq.requestedById,
+            requiredDeliverables: existingReq.deliverable || 'Itemized vendor invoice, signed technician waybill, and photo evidence',
+            dueAt,
+            status: 'OPEN',
+          },
+          update: {
+            dueAt,
+            status: 'OPEN',
+          },
+        });
+
+        await tx.auditEvent.create({
+          data: {
+            actorId: actor.id,
+            actorName: actor.legalName,
+            actorRole: actor.role,
+            groupId: existingReq.groupId,
+            subsidiaryId: existingReq.subsidiaryId,
+            targetType: 'REQUEST',
+            targetId: existingReq.id,
+            action: 'EMERGENCY_OVERRIDE_APPLIED',
+            correlationId: `CORR-EMG-${existingReq.id}`,
+            metadata: JSON.stringify({
+              mode: 'OVERRIDE_EXISTING_REQUEST',
+              requestNumber: existingReq.requestNumber,
+              amountMinor: existingReq.amountMinor.toString(),
+              justification: cleanJustification,
+              reconciliationDeadline: '24 Hours',
+            }),
+          },
+        });
+      });
+
+      return NextResponse.json({
+        success: true,
+        mode: 'OVERRIDE_EXISTING_REQUEST',
+        id: existingReq.id,
+        systemId: toSystemRequestId(existingReq.id),
+        requestNumber: existingReq.requestNumber,
+        message: 'Emergency override applied to existing request. 24-hour accountability case active.',
+        bridgeMessage,
+      });
+    }
 
     const amountNum = Number(amount);
-    if (!subsidiaryId || !title || !justification || isNaN(amountNum)) {
+    if (!subsidiaryId || !title || isNaN(amountNum)) {
       return NextResponse.json({ error: 'Missing required incident declaration fields' }, { status: 400 });
     }
 
@@ -111,8 +233,8 @@ export async function POST(req: NextRequest) {
           category: 'FACILITY_EMERGENCY',
           amountMinor,
           currency: 'NGN',
-          title,
-          justification,
+          title: String(title).trim(),
+          justification: cleanJustification,
           deliverable: 'Emergency repair sign-off, purchase receipt, and incident photo deliverables',
           neededBy: new Date(),
           approvalStatus: 'APPROVED', // Bypasses sequential gates
@@ -134,7 +256,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Simulate WhatsApp and SMS notification bridge dispatch
-    const bridgeMessage = `🚨 [EMERGENCY OVERRIDE DECLARED] Ref: ${request.requestNumber} | Entity: ${org.legalName} | Amount: ${formatNaira(amountNum)} | Officer: ${declarer.legalName} (${declarer.role}) | Justification: ${justification}. Bypassed standard gates. 24h accountability clock started.`;
+    const bridgeMessage = `🚨 [EMERGENCY OVERRIDE DECLARED] Ref: ${request.requestNumber} | Entity: ${org.legalName} | Amount: ${formatNaira(amountNum)} | Officer: ${declarer.legalName} (${declarer.role}) | Justification: ${cleanJustification}. Bypassed standard gates. 24h accountability clock started.`;
 
     // Record immutable audit event
     await prisma.auditEvent.create({
@@ -149,6 +271,7 @@ export async function POST(req: NextRequest) {
         action: 'CREATED',
         correlationId: `CORR-EMG-${request.id}`,
         metadata: JSON.stringify({
+          mode: 'DECLARE_NEW_EMERGENCY',
           channelBridge: 'WhatsApp + SMS',
           alertPayload: bridgeMessage,
           reconciliationDeadline: '24 Hours'
@@ -158,6 +281,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      mode: 'DECLARE_NEW_EMERGENCY',
       id: request.id,
       systemId: toSystemRequestId(request.id),
       requestNumber: request.requestNumber,

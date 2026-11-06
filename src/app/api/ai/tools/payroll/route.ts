@@ -385,59 +385,75 @@ export async function POST(req: NextRequest) {
     const employeeId = body.employeeId || body.employee_id;
     const amount = Number(body.amount || body.new_base_salary || 0);
     const effectiveDate = body.effectiveDate || body.effective_date;
-    const reason = body.reason || 'Salary modification authorized by Executive';
+    const reason = String(body.reason || 'Salary modification authorized by Executive').trim();
 
-    if (!employeeId || isNaN(amount)) {
+    if (!employeeId || isNaN(amount) || amount <= 0) {
       return NextResponse.json(
-        { ok: false, error_code: 'VALIDATION_FAILED', message: 'employeeId and valid numeric amount are required.' },
+        { ok: false, error_code: 'VALIDATION_FAILED', message: 'employeeId and a positive numeric amount are required.' },
+        { status: 400 }
+      );
+    }
+    if (reason.length < 5) {
+      return NextResponse.json(
+        { ok: false, error_code: 'VALIDATION_FAILED', message: 'reason must be at least 5 characters.' },
         { status: 400 }
       );
     }
 
-    const employee = await prisma.employee.findUnique({
-      where: { id: employeeId },
-      include: {
-        assignments: { where: { isPrimary: true }, take: 1 },
-        employmentAgreements: {
-          where: { status: 'ACTIVE' },
-          orderBy: { startDate: 'desc' },
-          take: 1,
-          include: {
-            compensations: {
-              orderBy: { version: 'desc' },
-              take: 1,
-            },
-          },
-        },
-      },
-    });
-    if (!employee) {
-      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: 'Employee not found.' }, { status: 404 });
+    const { inspectEmployeeCompensationContext } = await import('@/lib/services/compensation');
+    let ctx;
+    try {
+      ctx = await inspectEmployeeCompensationContext(String(employeeId));
+    } catch (err: any) {
+      const msg = err?.message || 'Employee compensation lookup failed.';
+      const status = msg.includes('not found') ? 404 : 409;
+      return NextResponse.json({ ok: false, error_code: status === 404 ? 'NOT_FOUND' : 'PRECONDITION_FAILED', message: msg }, { status });
     }
 
-    const currentComp = employee.employmentAgreements[0]?.compensations[0];
-    const expectedCompVersion = currentComp?.version ?? 0;
-    const empSubId = employee.assignments[0]?.subsidiaryId;
+    let parsedEffectiveDate = new Date();
+    if (effectiveDate) {
+      const d = new Date(effectiveDate);
+      if (isNaN(d.getTime())) {
+        return NextResponse.json({ ok: false, error_code: 'INVALID_DATE', message: 'effectiveDate must be a valid date.' }, { status: 400 });
+      }
+      parsedEffectiveDate = d;
+    }
+
+    const deltaVal = amount - ctx.currentGrossNaira;
+    const deltaFormatted =
+      deltaVal > 0
+        ? `+₦${deltaVal.toLocaleString()}`
+        : deltaVal < 0
+        ? `-₦${Math.abs(deltaVal).toLocaleString()}`
+        : '₦0';
 
     const staged = await stageAction({
       userId: actor.id,
       actionType: 'salary_change',
-      summary: `Adjust monthly salary for ${employee.legalName} to ₦${amount.toLocaleString()} effective ${effectiveDate || 'Immediately'}`,
-      targetEmployeeId: employee.id,
-      targetSubsidiaryId: empSubId,
+      summary: `Adjust monthly salary for ${ctx.employee.legalName} (${ctx.employee.employeeNumber}) from ₦${ctx.currentGrossNaira.toLocaleString()} to ₦${amount.toLocaleString()}`,
+      targetEmployeeId: ctx.employee.id,
+      targetSubsidiaryId: ctx.subsidiaryId,
       materialPayload: {
-        employee_id: employee.id,
+        employee_id: ctx.employee.id,
+        subsidiary_id: ctx.subsidiaryId,
+        change_type: ctx.currentGrossNaira === 0 ? 'INITIAL_SALARY' : deltaVal < 0 ? 'DEDUCTION' : 'ADDITION',
         amount,
-        effective_date: effectiveDate,
+        new_base_salary: amount,
+        prior_base_salary: ctx.currentGrossNaira,
+        effective_date: parsedEffectiveDate.toISOString(),
         reason,
-        expected_comp_version: expectedCompVersion,
+        expected_comp_version: ctx.currentCompVersion,
       },
       preview: {
-        employee_name: employee.legalName,
-        employee_number: employee.employeeNumber,
-        current_base_gross: currentComp ? formatNaira(currentComp.grossMinor) : 'Not set',
+        employee_name: ctx.employee.legalName,
+        employee_number: ctx.employee.employeeNumber,
+        subsidiary: ctx.subsidiaryName,
+        current_base_gross: `₦${ctx.currentGrossNaira.toLocaleString()}`,
         new_base_gross: `₦${amount.toLocaleString()}`,
-        effective_date: effectiveDate || 'Immediate',
+        delta: deltaFormatted,
+        effective_date: parsedEffectiveDate.toISOString().split('T')[0],
+        affected_open_periods:
+          ctx.affectedOpenPeriods.length > 0 ? ctx.affectedOpenPeriods.join(', ') : 'Next payroll cycle',
         reason,
       },
     });

@@ -58,15 +58,15 @@ export async function POST(request: Request) {
         if (ids.length !== 1 || nextStatus !== 'APPROVED') {
           return NextResponse.json({ error: 'A disbursement owner can only be assigned on the final approval of one request.' }, { status: 400 });
         }
-        if (!['GMD', 'SYSTEM_ADMIN'].includes(actor.role)) {
-          return NextResponse.json({ error: 'Only the GMD or System Admin can assign the disbursement owner.' }, { status: 403 });
+        if (!['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(actor.role)) {
+          return NextResponse.json({ error: 'Only the GMD or Super Admin can assign the disbursement owner.' }, { status: 403 });
         }
         disbursementAssignee = await prisma.employee.findFirst({
           where: {
             id: String(disbursementAssigneeId),
             status: 'ACTIVE',
             approvalStatus: 'APPROVED',
-            role: { in: ['SYSTEM_ADMIN', 'GMD', 'HR'] },
+            role: { in: ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'] },
           },
           select: { id: true, legalName: true },
         });
@@ -88,6 +88,29 @@ export async function POST(request: Request) {
           updatedAt: timestamp,
           ...(disbursementAssignee ? { disbursementAssigneeId: disbursementAssignee.id } : {}),
         } });
+        if (nextStatus === 'APPROVED') {
+          const activeBudget = await tx.budget.findFirst({
+            where: { organizationId: expReq.subsidiaryId, status: 'ACTIVE' },
+            include: { lines: true },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (activeBudget) {
+            const amtNaira = Number(expReq.amountMinor) / 100;
+            await tx.budget.update({
+              where: { id: activeBudget.id },
+              data: { committedAmount: { increment: amtNaira } },
+            });
+            const matchedLine = activeBudget.lines.find(
+              (l) => l.category.toLowerCase() === (expReq.category || '').toLowerCase()
+            );
+            if (matchedLine) {
+              await tx.budgetLine.update({
+                where: { id: matchedLine.id },
+                data: { committedAmount: { increment: amtNaira } },
+              });
+            }
+          }
+        }
         if (disbursementAssignee) {
           await tx.systemNotification.create({ data: {
             employeeId: disbursementAssignee.id,

@@ -217,15 +217,52 @@ export async function POST(req: NextRequest) {
 
     const receiptHash = crypto.createHash('sha256').update(fileBytes).digest('hex');
 
-    const request = await prisma.expenditureRequest.findUnique({ where: requestIdentifierWhere(requestIdentifier) });
+    const request = await prisma.expenditureRequest.findUnique({
+      where: requestIdentifierWhere(requestIdentifier),
+      include: { vendor: true, requester: true },
+    });
     if (!request) return NextResponse.json({ error: 'Request not found.' }, { status: 404 });
     const requestId = request.id;
     if (request.approvalStatus !== 'APPROVED') return NextResponse.json({ error: 'Only approved requests can be paid.' }, { status: 409 });
-    if (request.disbursementAssigneeId && request.disbursementAssigneeId !== maker.id && maker.role !== 'SYSTEM_ADMIN') {
+    if (request.disbursementAssigneeId && request.disbursementAssigneeId !== maker.id && !['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'].includes(maker.role)) {
       return NextResponse.json({ error: 'This disbursement is assigned to another executive.' }, { status: 403 });
     }
     if (request.paymentStatus === 'RECIPIENT_CONFIRMED') return NextResponse.json({ error: 'The requester has already confirmed this payment.' }, { status: 409 });
     if (BigInt(amountMinor) > request.amountMinor) return NextResponse.json({ error: 'Payment exceeds the approved amount.' }, { status: 400 });
+
+    const resolvedBeneficiaryName =
+      beneficiaryName.trim() ||
+      request.vendor?.accountName ||
+      request.vendor?.name ||
+      request.requester?.accountName ||
+      request.requester?.salaryAccountName ||
+      request.requester?.legalName ||
+      '';
+    const resolvedBeneficiaryBank =
+      beneficiaryBank.trim() ||
+      request.vendor?.bankName ||
+      request.requester?.bankName ||
+      request.requester?.salaryBankName ||
+      '';
+    const resolvedBeneficiaryAccount = (
+      beneficiaryAccount.trim() ||
+      request.vendor?.accountNumber ||
+      request.requester?.accountNumber ||
+      request.requester?.salaryAccountNumber ||
+      ''
+    ).replace(/\D/g, '');
+
+    if (
+      !resolvedBeneficiaryName ||
+      !resolvedBeneficiaryBank ||
+      resolvedBeneficiaryAccount.length !== 10 ||
+      resolvedBeneficiaryAccount === '0000000000'
+    ) {
+      return NextResponse.json(
+        { error: 'A verified 10-digit NUBAN beneficiary account number, bank name, and account holder name are required.' },
+        { status: 400 }
+      );
+    }
 
     const activePayment = await prisma.disbursement.findFirst({
       where: { requestId, status: 'AWAITING_RECIPIENT_CONFIRMATION' },
@@ -248,9 +285,9 @@ export async function POST(req: NextRequest) {
         data: {
           requestId,
           payerOrgId,
-          beneficiaryName: beneficiaryName || 'Approved Beneficiary',
-          beneficiaryBank: beneficiaryBank || 'Access Bank PLC',
-          beneficiaryAccount: beneficiaryAccount || '0000000000',
+          beneficiaryName: resolvedBeneficiaryName,
+          beneficiaryBank: resolvedBeneficiaryBank,
+          beneficiaryAccount: resolvedBeneficiaryAccount,
           amountMinor: BigInt(amountMinor),
           currency: request.currency,
           externalReference,

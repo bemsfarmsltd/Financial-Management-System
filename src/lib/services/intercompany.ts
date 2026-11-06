@@ -195,16 +195,18 @@ export async function generateOperationalIntercompanyNotes(params: {
   currency?: string;
   description: string;
   actor: { id: string; legalName: string; role: string };
+  tx?: any;
 }) {
-  const { sourceEntityId, targetEntityId, amountMinor, currency = 'NGN', description, actor } = params;
+  const { sourceEntityId, targetEntityId, amountMinor, currency = 'NGN', description, actor, tx: externalTx } = params;
 
   if (sourceEntityId === targetEntityId) {
     throw new Error('Intercompany notes cannot be issued between the same entity.');
   }
 
+  const db = externalTx || prisma;
   const [sourceOrg, targetOrg] = await Promise.all([
-    prisma.organization.findUnique({ where: { id: sourceEntityId } }),
-    prisma.organization.findUnique({ where: { id: targetEntityId } }),
+    db.organization.findUnique({ where: { id: sourceEntityId } }),
+    db.organization.findUnique({ where: { id: targetEntityId } }),
   ]);
 
   if (!sourceOrg) throw new Error(`Source entity ${sourceEntityId} not found.`);
@@ -218,8 +220,11 @@ export async function generateOperationalIntercompanyNotes(params: {
   const creditNoteNumber = `CN-${yearMonth}-${randomSuffix}`;
 
   const bigAmount = BigInt(amountMinor);
+  if (bigAmount <= BigInt(0)) {
+    throw new Error('Intercompany note amount must be greater than zero.');
+  }
 
-  const [debitNote, creditNote] = await prisma.$transaction(async (tx) => {
+  const run = async (tx: any) => {
     // 1. Debit Note: Issued by Source Org against Target Org (Source is Debiting Target = Target owes Source)
     const dn = await tx.intercompanyNote.create({
       data: {
@@ -272,7 +277,9 @@ export async function generateOperationalIntercompanyNotes(params: {
     });
 
     return [dn, cn];
-  });
+  };
+
+  const [debitNote, creditNote] = externalTx ? await run(externalTx) : await prisma.$transaction(run);
 
   return {
     ok: true,
@@ -301,19 +308,66 @@ export async function generateOperationalIntercompanyNotes(params: {
 export async function reconcileIntercompanyNotes(params: {
   noteIds: string[];
   settlementReference?: string;
+  expectedTotalSettlementMinor?: number;
   actor: { id: string; legalName: string; role: string };
+  tx?: any;
 }) {
-  const { noteIds, settlementReference = 'GMD_NETTING_SETTLEMENT', actor } = params;
+  const {
+    noteIds,
+    settlementReference = 'GMD_NETTING_SETTLEMENT',
+    expectedTotalSettlementMinor,
+    actor,
+    tx: externalTx,
+  } = params;
 
-  if (!noteIds.length) {
+  const uniqueIds = Array.from(new Set((noteIds || []).map((id) => String(id).trim()).filter(Boolean)));
+  if (!uniqueIds.length) {
     throw new Error('At least one intercompany note ID is required for reconciliation.');
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const run = async (tx: any) => {
+    const existingNotes = await tx.intercompanyNote.findMany({
+      where: {
+        OR: [{ id: { in: uniqueIds } }, { noteNumber: { in: uniqueIds } }],
+      },
+    });
+
+    if (existingNotes.length !== uniqueIds.length) {
+      throw new Error(
+        `STALE_INTERCOMPANY_NOTES: Expected ${uniqueIds.length} intercompany note(s), but found ${existingNotes.length}.`
+      );
+    }
+
+    const nonIssued = existingNotes.filter((n: any) => n.status !== 'ISSUED');
+    if (nonIssued.length > 0) {
+      throw new Error(
+        `STALE_INTERCOMPANY_NOTES: Note(s) ${nonIssued.map((n: any) => n.noteNumber).join(', ')} are already ${nonIssued[0].status} and cannot be settled again.`
+      );
+    }
+
+    const actualTotalMinor = existingNotes.reduce(
+      (sum: number, n: any) => sum + Number(n.totalAmountMinor),
+      0
+    );
+    if (
+      expectedTotalSettlementMinor !== undefined &&
+      expectedTotalSettlementMinor !== null &&
+      Number(expectedTotalSettlementMinor) !== actualTotalMinor
+    ) {
+      throw new Error(
+        `STALE_INTERCOMPANY_NOTES: Selected notes total (${actualTotalMinor}) no longer matches staged settlement total (${expectedTotalSettlementMinor}).`
+      );
+    }
+
+    const resolvedIds = existingNotes.map((n: any) => n.id);
     const res = await tx.intercompanyNote.updateMany({
-      where: { id: { in: noteIds } },
+      where: { id: { in: resolvedIds }, status: 'ISSUED' },
       data: { status: 'RECONCILED' },
     });
+
+    if (res.count !== resolvedIds.length) {
+      throw new Error('STALE_INTERCOMPANY_NOTES: One or more notes were concurrently reconciled.');
+    }
 
     await tx.auditEvent.create({
       data: {
@@ -321,24 +375,37 @@ export async function reconcileIntercompanyNotes(params: {
         actorName: actor.legalName,
         actorRole: actor.role,
         groupId: 'BEMS-HOLDINGS',
+        subsidiaryId: existingNotes[0]?.sourceEntityId,
         targetType: 'DISBURSEMENT',
-        targetId: noteIds[0],
+        targetId: resolvedIds[0],
         action: 'CLOSED',
         correlationId: `SETTLE-ICN-${Date.now()}`,
         metadata: JSON.stringify({
           reconciledCount: res.count,
           settlementReference,
-          noteIds,
+          noteIds: resolvedIds,
+          noteNumbers: existingNotes.map((n: any) => n.noteNumber),
+          totalSettlementMinor: actualTotalMinor,
         }),
       },
     });
 
-    return res;
-  });
+    return {
+      count: res.count,
+      noteIds: resolvedIds,
+      noteNumbers: existingNotes.map((n: any) => n.noteNumber),
+      totalSettlementMinor: actualTotalMinor,
+    };
+  };
+
+  const updated = externalTx ? await run(externalTx) : await prisma.$transaction(run);
 
   return {
     ok: true,
     reconciledCount: updated.count,
+    noteIds: updated.noteIds,
+    noteNumbers: updated.noteNumbers,
+    totalSettlementMinor: updated.totalSettlementMinor,
     settlementReference,
   };
 }

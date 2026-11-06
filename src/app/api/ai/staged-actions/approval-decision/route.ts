@@ -49,16 +49,50 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Fund request ${request_id} not found.` }, { status: 404 });
     }
 
+    if (!['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(item.approvalStatus)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'ALREADY_DECIDED',
+          message: `Request ${item.requestNumber} is already ${item.approvalStatus} and cannot be decided again.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    if (canonicalDecision === 'APPROVE' && item.requestedById === actor.id && actor.role !== 'GMD') {
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'SEPARATION_OF_DUTIES',
+          message: `Separation of duties policy: You cannot approve your own request ${item.requestNumber}.`,
+        },
+        { status: 403 }
+      );
+    }
+
+    if (canonicalDecision !== 'APPROVE' && !rawReason) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'REASON_REQUIRED',
+          message: 'A reason is required when declining or requesting clarification.',
+        },
+        { status: 400 }
+      );
+    }
+
     const amountFormatted = `₦${(Number(item.amountMinor) / 100).toLocaleString()}`;
     const materialPayload = {
       request_id: item.id,
       request_number: item.requestNumber,
-      decision,
+      decision: canonicalDecision,
       reason: reason || null,
       amount_minor: Number(item.amountMinor),
+      expected_version: item.requestVersion,
     };
 
-    const actionText = decision === 'APPROVE' ? 'Approve' : decision === 'DECLINE' ? 'Decline' : 'Request clarification for';
+    const actionText = canonicalDecision === 'APPROVE' ? 'Approve' : canonicalDecision === 'DECLINE' ? 'Decline' : 'Request clarification for';
     const summary = `${actionText} ${item.requestNumber} (${item.title}) — ${amountFormatted}`;
 
     const preview = {
@@ -69,7 +103,7 @@ export async function POST(req: Request) {
       subsidiary: item.subsidiary?.legalName || 'BEMS Group',
       vendor: item.vendor?.name || 'Direct / Internal',
       current_status: item.approvalStatus,
-      decision_to_apply: decision,
+      decision_to_apply: canonicalDecision,
       reason: reason || 'Approved via Executive AI Copilot',
       history_steps: item.approvalSteps.length,
     };
@@ -77,6 +111,7 @@ export async function POST(req: Request) {
     const staged = await stageAction({
       userId: actor.id,
       actionType: 'approval_decision',
+      targetSubsidiaryId: item.subsidiaryId,
       materialPayload,
       summary,
       preview,

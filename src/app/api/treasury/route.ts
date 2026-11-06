@@ -115,16 +115,55 @@ export async function GET(req: NextRequest) {
   }
 }
 
+async function resolveExactTreasuryOrganization(organizationId?: string, assignedSubsidiary?: string) {
+  const query = String(organizationId || assignedSubsidiary || '').trim();
+  if (!query || query.toUpperCase() === 'ALL') {
+    return { org: null, error: 'An explicit organizationId or assignedSubsidiary is required.' };
+  }
+
+  const exactMatch = await prisma.organization.findFirst({
+    where: {
+      OR: [
+        { id: query },
+        { code: { equals: query, mode: 'insensitive' } },
+        { legalName: { equals: query, mode: 'insensitive' } },
+      ],
+    },
+  });
+  if (exactMatch) return { org: exactMatch, error: null };
+
+  const partialMatches = await prisma.organization.findMany({
+    where: {
+      OR: [
+        { legalName: { contains: query, mode: 'insensitive' } },
+        { code: { contains: query, mode: 'insensitive' } },
+      ],
+    },
+  });
+  if (partialMatches.length === 1) {
+    return { org: partialMatches[0], error: null };
+  }
+  if (partialMatches.length > 1) {
+    return {
+      org: null,
+      error: `Ambiguous subsidiary "${query}" matched multiple entities (${partialMatches.map((o) => o.legalName).join(', ')}). Specify the exact organization.`,
+    };
+  }
+  return { org: null, error: `Organization "${query}" was not found.` };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to configure treasury accounts.' }, { status: 401 });
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
-      return NextResponse.json({ error: 'Only The Group Managing Director or Super admin can add company bank accounts.' }, { status: 403 });
+      return NextResponse.json({ error: 'Only The Group Managing Director or Super admin can manage company bank accounts.' }, { status: 403 });
     }
 
     const body = await req.json();
     const {
+      id: accountId,
+      mode: rawMode,
       bankName,
       accountName,
       accountNumber,
@@ -136,88 +175,270 @@ export async function POST(req: NextRequest) {
       organizationId,
     } = body;
 
-    if (!bankName || !bankName.trim()) {
-      return NextResponse.json({ error: 'Bank name is required.' }, { status: 400 });
-    }
-    if (!accountName || !accountName.trim()) {
-      return NextResponse.json({ error: 'Account title / name is required.' }, { status: 400 });
-    }
-    if (!accountNumber || !accountNumber.trim()) {
-      return NextResponse.json({ error: '10-digit NUBAN account number is required.' }, { status: 400 });
-    }
+    const mode = String(rawMode || 'register').toLowerCase().trim();
+    const cleanAccountNumber = String(accountNumber || '').replace(/\D/g, '');
 
-    // Resolve target Organization
-    let targetOrgId = organizationId;
-    if (!targetOrgId && assignedSubsidiary) {
-      const org = await prisma.organization.findFirst({
-        where: {
-          OR: [
-            { legalName: { contains: assignedSubsidiary, mode: 'insensitive' } },
-            { code: { contains: assignedSubsidiary, mode: 'insensitive' } }
-          ]
-        }
+    if (mode === 'deactivate' || mode === 'delete') {
+      const existing = accountId
+        ? await prisma.companyBankAccount.findUnique({ where: { id: String(accountId) }, include: { organization: true } })
+        : cleanAccountNumber
+        ? await prisma.companyBankAccount.findUnique({ where: { accountNumber: cleanAccountNumber }, include: { organization: true } })
+        : null;
+
+      if (!existing) {
+        return NextResponse.json({ error: 'Target company bank account was not found.' }, { status: 404 });
+      }
+
+      const deactivated = await prisma.companyBankAccount.update({
+        where: { id: existing.id },
+        data: { status: 'INACTIVE' },
+        include: { organization: true },
       });
-      if (org) targetOrgId = org.id;
+
+      await prisma.auditEvent.create({
+        data: {
+          actorId: actor.id,
+          actorName: actor.legalName,
+          actorRole: actor.role,
+          groupId: deactivated.organization.parentGroupId || deactivated.organizationId,
+          subsidiaryId: deactivated.organizationId,
+          targetType: 'COMPANY_BANK_ACCOUNT',
+          targetId: deactivated.id,
+          action: 'TREASURY_ACCOUNT_DEACTIVATED',
+          correlationId: `TREASURY-DEACTIVATE-${deactivated.id}`,
+          metadata: JSON.stringify({
+            accountNumber: deactivated.accountNumber,
+            bankName: deactivated.bankName,
+          }),
+        },
+      });
+
+      return NextResponse.json({
+        message: 'Bank account deactivated.',
+        account: { id: deactivated.id, accountNumber: deactivated.accountNumber, status: 'INACTIVE' },
+      });
     }
 
-    if (!targetOrgId) {
-      const defaultOrg = await prisma.organization.findFirst({ where: { type: 'GROUP' } });
-      targetOrgId = defaultOrg?.id;
+    const { org: targetOrg, error: orgError } = await resolveExactTreasuryOrganization(organizationId, assignedSubsidiary);
+    if (!targetOrg) {
+      return NextResponse.json({ error: orgError || 'Valid company organization is required.' }, { status: 400 });
     }
 
-    if (!targetOrgId) {
-      return NextResponse.json({ error: 'Valid company organization is required.' }, { status: 400 });
+    if (!cleanAccountNumber || cleanAccountNumber.length !== 10) {
+      return NextResponse.json({ error: 'A valid 10-digit NUBAN account number is required.' }, { status: 400 });
     }
 
-    const created = await prisma.companyBankAccount.upsert({
-      where: { accountNumber: accountNumber.trim() },
-      create: {
-        organizationId: targetOrgId,
-        bankName: bankName.trim(),
-        accountName: accountName.trim(),
-        accountNumber: accountNumber.trim(),
-        accountType: accountType || 'Corporate Operational',
-        currency: currency || 'NGN',
-        balance: Number(balance) || 0,
-        dailyLimit: Number(dailyLimit) || 25000000,
-        tier: 'Primary Maker-Checker',
-        status: 'ACTIVE',
+    const existing = accountId
+      ? await prisma.companyBankAccount.findUnique({ where: { id: String(accountId) }, include: { organization: true } })
+      : await prisma.companyBankAccount.findUnique({ where: { accountNumber: cleanAccountNumber }, include: { organization: true } });
+
+    if (existing && existing.organizationId !== targetOrg.id) {
+      return NextResponse.json(
+        {
+          error: `Account ${cleanAccountNumber} is already registered under ${existing.organization.legalName} and cannot be reassigned to ${targetOrg.legalName}.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    let saved: any;
+    if (mode === 'update_metadata') {
+      if (!existing) {
+        return NextResponse.json({ error: `Account ${cleanAccountNumber} was not found for metadata update.` }, { status: 404 });
+      }
+      saved = await prisma.companyBankAccount.update({
+        where: { id: existing.id },
+        data: {
+          bankName: bankName?.trim() || existing.bankName,
+          accountName: accountName?.trim() || existing.accountName,
+          accountType: accountType?.trim() || existing.accountType,
+          dailyLimit: dailyLimit !== undefined && dailyLimit !== null ? Number(dailyLimit) : existing.dailyLimit,
+          // Strictly preserve existing balance on metadata update
+        },
+        include: { organization: true },
+      });
+    } else if (mode === 'correct_balance') {
+      if (!existing) {
+        return NextResponse.json({ error: `Account ${cleanAccountNumber} was not found for balance correction.` }, { status: 404 });
+      }
+      if (balance === undefined || balance === null || isNaN(Number(balance)) || Number(balance) < 0) {
+        return NextResponse.json({ error: 'A valid non-negative balance is required for balance correction.' }, { status: 400 });
+      }
+      saved = await prisma.companyBankAccount.update({
+        where: { id: existing.id },
+        data: {
+          balance: Number(balance),
+          ...(bankName?.trim() ? { bankName: bankName.trim() } : {}),
+          ...(accountName?.trim() ? { accountName: accountName.trim() } : {}),
+        },
+        include: { organization: true },
+      });
+    } else if (mode === 'register') {
+      if (!bankName || !bankName.trim()) {
+        return NextResponse.json({ error: 'Bank name is required.' }, { status: 400 });
+      }
+      if (!accountName || !accountName.trim()) {
+        return NextResponse.json({ error: 'Account title / name is required.' }, { status: 400 });
+      }
+      if (existing && existing.status === 'ACTIVE') {
+        return NextResponse.json(
+          {
+            error: `Active account ${cleanAccountNumber} (${existing.bankName}) is already registered for ${existing.organization.legalName}. Use metadata update or balance correction instead.`,
+          },
+          { status: 409 }
+        );
+      }
+
+      const initialBalance =
+        balance !== undefined && balance !== null && !isNaN(Number(balance))
+          ? Number(balance)
+          : existing
+          ? Number(existing.balance)
+          : 0;
+
+      saved = existing
+        ? await prisma.companyBankAccount.update({
+            where: { id: existing.id },
+            data: {
+              bankName: bankName.trim(),
+              accountName: accountName.trim(),
+              accountType: accountType || existing.accountType || 'Corporate Operational',
+              currency: currency || existing.currency || 'NGN',
+              balance: initialBalance,
+              dailyLimit: Number(dailyLimit) || Number(existing.dailyLimit) || 25000000,
+              status: 'ACTIVE',
+            },
+            include: { organization: true },
+          })
+        : await prisma.companyBankAccount.create({
+            data: {
+              organizationId: targetOrg.id,
+              bankName: bankName.trim(),
+              accountName: accountName.trim(),
+              accountNumber: cleanAccountNumber,
+              accountType: accountType || 'Corporate Operational',
+              currency: currency || 'NGN',
+              balance: initialBalance,
+              dailyLimit: Number(dailyLimit) || 25000000,
+              tier: 'Primary Maker-Checker',
+              status: 'ACTIVE',
+            },
+            include: { organization: true },
+          });
+    } else {
+      return NextResponse.json({ error: `Unsupported treasury mode "${mode}".` }, { status: 400 });
+    }
+
+    await prisma.auditEvent.create({
+      data: {
+        actorId: actor.id,
+        actorName: actor.legalName,
+        actorRole: actor.role,
+        groupId: saved.organization?.parentGroupId || saved.organizationId,
+        subsidiaryId: saved.organizationId,
+        targetType: 'COMPANY_BANK_ACCOUNT',
+        targetId: saved.id,
+        action: `TREASURY_${mode.toUpperCase()}`,
+        correlationId: `TREASURY-${mode.toUpperCase()}-${saved.id}`,
+        metadata: JSON.stringify({
+          mode,
+          bankName: saved.bankName,
+          accountNumber: saved.accountNumber,
+          balance: Number(saved.balance),
+        }),
       },
-      update: {
-        organizationId: targetOrgId,
-        bankName: bankName.trim(),
-        accountName: accountName.trim(),
-        accountType: accountType || 'Corporate Operational',
-        balance: Number(balance) || 0,
-        dailyLimit: Number(dailyLimit) || 25000000,
-        status: 'ACTIVE',
-      },
-      include: { organization: true }
     });
 
-    const balNum = Number(created.balance);
-    const limNum = Number(created.dailyLimit);
+    const balNum = Number(saved.balance);
+    const limNum = Number(saved.dailyLimit);
 
     return NextResponse.json({
       message: 'Bank account saved successfully to PostgreSQL.',
       account: {
-        id: created.id,
-        bankName: created.bankName,
-        accountName: created.accountName,
-        accountNumber: created.accountNumber,
-        accountType: created.accountType,
-        currency: created.currency,
+        id: saved.id,
+        bankName: saved.bankName,
+        accountName: saved.accountName,
+        accountNumber: saved.accountNumber,
+        accountType: saved.accountType,
+        currency: saved.currency,
         balance: balNum,
         dailyLimit: limNum,
-        assignedSubsidiary: created.organization.legalName,
-        tier: created.tier,
-        status: 'Active',
+        assignedSubsidiary: saved.organization.legalName,
+        tier: saved.tier,
+        status: saved.status === 'ACTIVE' ? 'Active' : saved.status,
         balanceFormatted: formatNaira(balNum),
         dailyLimitFormatted: formatNaira(limNum),
       }
-    }, { status: 201 });
+    }, { status: mode === 'register' ? 201 : 200 });
   } catch (error: any) {
-    console.error('Error creating bank account:', error);
+    console.error('Error saving bank account:', error);
     return NextResponse.json({ error: error.message || 'Failed to save bank account' }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  return POST(req);
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const actor = await getAuthenticatedEmployee(req);
+    if (!actor) return NextResponse.json({ error: 'Sign in to configure treasury accounts.' }, { status: 401 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Only The Group Managing Director or Super admin can deactivate company bank accounts.' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    const accountNumber = searchParams.get('accountNumber');
+
+    if (!id && !accountNumber) {
+      return NextResponse.json({ error: 'Account id or accountNumber is required to deactivate an account.' }, { status: 400 });
+    }
+
+    const existing = id
+      ? await prisma.companyBankAccount.findUnique({ where: { id } })
+      : await prisma.companyBankAccount.findUnique({ where: { accountNumber: String(accountNumber).trim() } });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Company bank account not found.' }, { status: 404 });
+    }
+
+    const updated = await prisma.companyBankAccount.update({
+      where: { id: existing.id },
+      data: { status: 'INACTIVE' },
+    });
+
+    await prisma.auditEvent.create({
+      data: {
+        actorId: actor.id,
+        actorName: actor.legalName,
+        actorRole: actor.role,
+        groupId: updated.organizationId,
+        subsidiaryId: updated.organizationId,
+        targetType: 'COMPANY_BANK_ACCOUNT',
+        targetId: updated.id,
+        action: 'TREASURY_ACCOUNT_DEACTIVATED',
+        correlationId: `TREASURY-DELETE-${updated.id}`,
+        metadata: JSON.stringify({
+          accountNumber: updated.accountNumber,
+          bankName: updated.bankName,
+          preservedBalance: Number(updated.balance),
+        }),
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      message: 'Company bank account deactivated.',
+      account: {
+        id: updated.id,
+        accountNumber: updated.accountNumber,
+        status: updated.status,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error deactivating treasury account:', error);
+    return NextResponse.json({ error: error.message || 'Failed to deactivate bank account' }, { status: 500 });
   }
 }

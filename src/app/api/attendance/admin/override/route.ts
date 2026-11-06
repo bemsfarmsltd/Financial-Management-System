@@ -38,6 +38,55 @@ export async function POST(request: Request) {
       );
     }
 
+    const normalizedStatus = String(status || 'PRESENT').toUpperCase().trim();
+    if (!['PRESENT', 'LATE', 'HALF_DAY', 'EXCUSED', 'ABSENT', 'ON_LEAVE'].includes(normalizedStatus)) {
+      return NextResponse.json({ error: `Invalid attendance status "${normalizedStatus}".` }, { status: 400 });
+    }
+
+    const empDetails = await prisma.employee.findUnique({
+      where: { id: employee.id },
+      include: {
+        assignments: {
+          where: { status: 'ACTIVE' },
+          orderBy: [{ isPrimary: 'desc' }, { startsOn: 'desc' }],
+          take: 1,
+        },
+        employmentAgreements: {
+          where: { status: 'ACTIVE' },
+          include: {
+            compensations: {
+              where: { effectiveTo: null },
+              orderBy: { effectiveFrom: 'desc' },
+              take: 1,
+            },
+          },
+          orderBy: { startDate: 'desc' },
+          take: 1,
+        },
+      },
+    });
+    const subId = empDetails?.assignments[0]?.subsidiaryId || empDetails?.employmentAgreements[0]?.employerEntityId || null;
+    const policy =
+      (subId ? await prisma.attendancePolicy.findUnique({ where: { organizationId: subId } }) : null) ||
+      (await prisma.attendancePolicy.findFirst({ where: { organization: { type: 'GROUP' } } })) ||
+      (await prisma.attendancePolicy.findFirst());
+
+    let deductionPercent = 0.0;
+    if (body.deductionPercent !== undefined && body.deductionPercent !== null && body.deductionPercent !== '') {
+      deductionPercent = Number(body.deductionPercent);
+    } else if (normalizedStatus === 'LATE') {
+      deductionPercent = Number(policy?.latenessDeductionPercent ?? 5.0);
+    } else if (normalizedStatus === 'HALF_DAY') {
+      deductionPercent = 50.0;
+    } else if (normalizedStatus === 'ABSENT') {
+      deductionPercent = Number(policy?.absenceDeductionPercent ?? 100.0);
+    }
+
+    const monthlyGrossMinor = Number(empDetails?.employmentAgreements[0]?.compensations[0]?.grossMinor ?? 0);
+    const dailyWageMinor = monthlyGrossMinor > 0 ? Math.round(monthlyGrossMinor / 22) : 0;
+    const deductionMinor = BigInt(Math.round(dailyWageMinor * (deductionPercent / 100)));
+    const hasClockEvent = normalizedStatus === 'PRESENT' || normalizedStatus === 'LATE' || normalizedStatus === 'HALF_DAY';
+
     const record = await prisma.attendanceRecord.upsert({
       where: {
         employeeId_workDate: {
@@ -46,24 +95,27 @@ export async function POST(request: Request) {
         },
       },
       update: {
-        status: status.toUpperCase(),
+        status: normalizedStatus,
         isManualOverride: true,
         overrideReason: reason.trim(),
         overrideById: adminEmployeeId || user.id || 'SYSTEM_ADMIN',
-        deductionPercent: 0.0, // Manual executive override waives lateness deductions
-        deductionMinor: BigInt(0),
-        excuseStatus: 'APPROVED',
+        isDeductionApplied: deductionPercent > 0,
+        deductionPercent,
+        deductionMinor,
+        excuseStatus: normalizedStatus === 'EXCUSED' || deductionPercent === 0 ? 'APPROVED' : 'NONE',
       },
       create: {
         employeeId: employee.id,
         workDate: targetDate,
-        status: status.toUpperCase(),
-        checkInTime: new Date(`${targetDate}T08:00:00Z`),
+        status: normalizedStatus,
+        checkInTime: hasClockEvent ? new Date(`${targetDate}T08:00:00Z`) : null,
         isManualOverride: true,
         overrideReason: reason.trim(),
         overrideById: adminEmployeeId || user.id || 'SYSTEM_ADMIN',
-        deductionPercent: 0.0,
-        excuseStatus: 'APPROVED',
+        isDeductionApplied: deductionPercent > 0,
+        deductionPercent,
+        deductionMinor,
+        excuseStatus: normalizedStatus === 'EXCUSED' || deductionPercent === 0 ? 'APPROVED' : 'NONE',
       },
     });
 

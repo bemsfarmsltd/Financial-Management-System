@@ -239,6 +239,29 @@ export async function POST(
             decisionReason: decisionReason || text || 'Approved by authorized reviewer.',
           },
         });
+        if (approvalStatus === 'APPROVED') {
+          const activeBudget = await tx.budget.findFirst({
+            where: { organizationId: req.subsidiaryId, status: 'ACTIVE' },
+            include: { lines: true },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (activeBudget) {
+            const amtNaira = Number(req.amountMinor) / 100;
+            await tx.budget.update({
+              where: { id: activeBudget.id },
+              data: { committedAmount: { increment: amtNaira } },
+            });
+            const matchedLine = activeBudget.lines.find(
+              (l) => l.category.toLowerCase() === (req.category || '').toLowerCase()
+            );
+            if (matchedLine) {
+              await tx.budgetLine.update({
+                where: { id: matchedLine.id },
+                data: { committedAmount: { increment: amtNaira } },
+              });
+            }
+          }
+        }
         if (req.channel) {
           await tx.channelMessage.create({
             data: {

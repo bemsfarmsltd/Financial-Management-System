@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
@@ -71,26 +71,61 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
     }
+    if (!hasAnyRole(user, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json(
+        { ok: false, error: 'Only Executive Leadership (GMD or Super Admin) can register corporate vendors.' },
+        { status: 403 }
+      );
+    }
 
     const body = await req.json().catch(() => ({}));
     const name: string = (body.name || '').trim();
     const category: string = (body.category || 'GENERAL').toUpperCase().trim();
-    const taxId: string = (body.taxId || '').trim();
+    const rawTaxId: string = (body.taxId || body.tin || '').trim();
+    const taxId = rawTaxId && rawTaxId.toUpperCase() !== 'PENDING_TIN' ? rawTaxId : '';
     const contactEmail: string = (body.contactEmail || body.email || '').trim();
     const contactPhone: string = (body.contactPhone || body.phone || '').trim();
-    const bankName: string = (body.bankName || '').trim();
-    const accountNumber: string = (body.accountNumber || '').trim().replace(/\D/g, '');
-    const accountName: string = (body.accountName || '').trim();
+    const bankName: string = (body.bankName || body.bank_name || '').trim();
+    const accountNumber: string = (body.accountNumber || body.account_number || '').trim().replace(/\D/g, '');
+    const accountName: string = (body.accountName || body.account_name || '').trim();
     const notes: string = (body.notes || '').trim();
 
     if (!name || name.length < 2) {
       return NextResponse.json({ ok: false, error: 'Vendor name is required (min 2 chars).' }, { status: 400 });
     }
-
-    if (accountNumber && accountNumber.length !== 10) {
+    if (!bankName || bankName.toLowerCase() === 'commercial bank') {
+      return NextResponse.json({ ok: false, error: 'A verified commercial bank name is required.' }, { status: 400 });
+    }
+    if (!accountNumber || accountNumber.length !== 10 || accountNumber === '0000000000') {
       return NextResponse.json(
-        { ok: false, error: 'Bank account number must be exactly 10 digits (NUBAN standard).' },
+        { ok: false, error: 'A valid 10-digit NUBAN bank account number is required.' },
         { status: 400 }
+      );
+    }
+    if (!accountName) {
+      return NextResponse.json(
+        { ok: false, error: 'Verified beneficiary account name is required.' },
+        { status: 400 }
+      );
+    }
+
+    const duplicate = await prisma.vendor.findFirst({
+      where: {
+        OR: [
+          { name: { equals: name, mode: 'insensitive' } },
+          { accountNumber },
+          ...(taxId ? [{ taxId: { equals: taxId, mode: 'insensitive' as const } }] : []),
+        ],
+      },
+    });
+    if (duplicate) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `A vendor matching "${name}" or account ${accountNumber} is already registered (${duplicate.name} · ${duplicate.code}).`,
+          existingVendorId: duplicate.id,
+        },
+        { status: 409 }
       );
     }
 
@@ -100,19 +135,43 @@ export async function POST(req: NextRequest) {
     const prefix = words.length >= 2 ? words.map((w) => w[0]).join('').slice(0, 3).toUpperCase() : 'VND';
     const code = `${prefix}-${String(count + 1).padStart(4, '0')}`;
 
-    const vendor = await prisma.vendor.create({
-      data: {
-        name,
-        code,
-        category,
-        taxId: taxId || null,
-        contactEmail: contactEmail || null,
-        contactPhone: contactPhone || null,
-        bankName: bankName || null,
-        accountNumber: accountNumber || null,
-        accountName: accountName || null,
-        notes: notes || null,
-      },
+    const vendor = await prisma.$transaction(async (tx) => {
+      const created = await tx.vendor.create({
+        data: {
+          name,
+          code,
+          category,
+          taxId: taxId || null,
+          contactEmail: contactEmail || null,
+          contactPhone: contactPhone || null,
+          bankName,
+          accountNumber,
+          accountName,
+          notes: notes || null,
+          rating: typeof body.rating === 'number' ? body.rating : 0,
+        },
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          actorId: user.id,
+          actorName: user.legalName,
+          actorRole: user.role,
+          groupId: 'BEMS-GROUP',
+          targetType: 'VENDOR',
+          targetId: created.id,
+          action: 'VENDOR_REGISTERED',
+          correlationId: `VENDOR-REG-${created.id}`,
+          metadata: JSON.stringify({
+            code: created.code,
+            name: created.name,
+            bankName: created.bankName,
+            accountNumber: created.accountNumber,
+          }),
+        },
+      });
+
+      return created;
     });
 
     return NextResponse.json({

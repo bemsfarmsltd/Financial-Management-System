@@ -112,15 +112,37 @@ export async function POST(req: NextRequest) {
 
   // 2. Handle SUBSIDIARY (CompanyBankAccount)
   if (targetType === 'SUBSIDIARY' || targetType === 'COMPANY' || targetType === 'ORGANIZATION') {
-    const org = await prisma.organization.findFirst({
+    const exactOrg = await prisma.organization.findFirst({
       where: {
         OR: [
           { id: targetQuery },
-          { code: targetQuery.toUpperCase() },
-          { legalName: { contains: targetQuery, mode: 'insensitive' } },
+          { code: { equals: targetQuery, mode: 'insensitive' } },
+          { legalName: { equals: targetQuery, mode: 'insensitive' } },
         ],
       },
     });
+    let org = exactOrg;
+    if (!org) {
+      const partial = await prisma.organization.findMany({
+        where: {
+          OR: [
+            { legalName: { contains: targetQuery, mode: 'insensitive' } },
+            { code: { contains: targetQuery, mode: 'insensitive' } },
+          ],
+        },
+      });
+      if (partial.length === 1) org = partial[0];
+      else if (partial.length > 1) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error_code: 'AMBIGUOUS_SUBSIDIARY',
+            message: `Multiple subsidiaries matched "${targetQuery}": ${partial.map((o) => o.legalName).join(', ')}.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     if (!org) {
       return NextResponse.json(
@@ -129,26 +151,51 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const existingAcct = await prisma.companyBankAccount.findUnique({
+      where: { accountNumber },
+      include: { organization: true },
+    });
+    if (existingAcct && existingAcct.organizationId !== org.id) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'ORG_OWNERSHIP_CONFLICT',
+          message: `Account ${accountNumber} is already registered to ${existingAcct.organization.legalName} and cannot be moved to ${org.legalName}.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    const requestedMode = String(body.mode || (existingAcct ? 'update_metadata' : 'register')).toLowerCase().trim();
     const resolvedAccountName = accountName || org.legalName;
     const staged = await stageAction({
       userId: actor.id,
       actionType: 'bank_account_update',
-      summary: `Register corporate treasury account for ${org.legalName}: ${canonicalBankName} · ${accountNumber}`,
+      targetSubsidiaryId: org.id,
+      summary:
+        requestedMode === 'update_metadata'
+          ? `Update corporate treasury account metadata for ${org.legalName}: ${canonicalBankName} · ${accountNumber}`
+          : `Register corporate treasury account for ${org.legalName}: ${canonicalBankName} · ${accountNumber}`,
       materialPayload: {
         targetType: 'SUBSIDIARY',
+        mode: requestedMode,
         targetRecordId: org.id,
+        accountId: existingAcct?.id || null,
         bankName: canonicalBankName,
         accountNumber,
         accountName: resolvedAccountName,
         accountType,
+        expectedBalance: existingAcct ? Number(existingAcct.balance) : null,
       },
       preview: {
         targetType: 'SUBSIDIARY',
+        mode: requestedMode,
         subsidiary: org.legalName,
         bankName: canonicalBankName,
         accountNumber,
         accountName: resolvedAccountName,
         accountType,
+        preservedBalance: existingAcct ? `₦${Number(existingAcct.balance).toLocaleString()}` : undefined,
       },
     });
 

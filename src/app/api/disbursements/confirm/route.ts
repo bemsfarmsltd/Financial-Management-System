@@ -34,14 +34,47 @@ export async function POST(request: Request) {
     const nextStatus = received ? 'RECIPIENT_CONFIRMED' : 'RECIPIENT_REPORTED_ISSUE';
     const paymentStatus = received ? 'RECIPIENT_CONFIRMED' : 'RECIPIENT_REPORTED_ISSUE';
     const admins = received ? [] : await prisma.employee.findMany({
-      where: { role: { in: ['SYSTEM_ADMIN', 'GMD', 'FINANCE'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' },
+      where: { role: { in: ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' },
       select: { id: true },
     });
 
     await prisma.$transaction(async (tx) => {
       await tx.recipientPaymentConfirmation.create({ data: { disbursementId, employeeId: actor.id, decision, note: note || null } });
       await tx.disbursement.update({ where: { id: disbursementId }, data: { status: nextStatus } });
-      if (!isPayrollPayment && disbursement.requestId) await tx.expenditureRequest.update({ where: { id: disbursement.requestId }, data: { paymentStatus } });
+      if (!isPayrollPayment && disbursement.requestId) {
+        await tx.expenditureRequest.update({ where: { id: disbursement.requestId }, data: { paymentStatus } });
+        if (received && disbursement.request) {
+          const activeBudget = await tx.budget.findFirst({
+            where: { organizationId: disbursement.request.subsidiaryId, status: 'ACTIVE' },
+            include: { lines: true },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (activeBudget) {
+            const amtNaira = Number(disbursement.amountMinor) / 100;
+            const nextCommitted = Math.max(0, Number(activeBudget.committedAmount || 0) - amtNaira);
+            await tx.budget.update({
+              where: { id: activeBudget.id },
+              data: {
+                committedAmount: nextCommitted,
+                spentAmount: { increment: amtNaira },
+              },
+            });
+            const matchedLine = activeBudget.lines.find(
+              (l) => l.category.toLowerCase() === (disbursement.request?.category || '').toLowerCase()
+            );
+            if (matchedLine) {
+              const nextLineCommitted = Math.max(0, Number(matchedLine.committedAmount || 0) - amtNaira);
+              await tx.budgetLine.update({
+                where: { id: matchedLine.id },
+                data: {
+                  committedAmount: nextLineCommitted,
+                  spentAmount: { increment: amtNaira },
+                },
+              });
+            }
+          }
+        }
+      }
 
       if (received && disbursement.requestId && disbursement.request) {
         await tx.accountabilityCase.upsert({

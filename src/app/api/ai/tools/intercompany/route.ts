@@ -182,8 +182,11 @@ export async function POST(req: NextRequest) {
   // -------------------------------------------------------------
   // ACTION 2: STAGE_SETTLEMENT (Stage GMD Netting Settlement)
   // -------------------------------------------------------------
-  if (action === 'STAGE_SETTLEMENT' || action === 'SETTLE') {
-    const noteIds: string[] = Array.isArray(body.noteIds) ? body.noteIds : [];
+  if (action === 'STAGE_SETTLEMENT' || action === 'SETTLE' || action === 'RECONCILE_SETTLEMENT') {
+    const rawNoteIds: string[] = Array.isArray(body.noteIds || body.targetNoteIds)
+      ? body.noteIds || body.targetNoteIds
+      : [];
+    const noteIds = Array.from(new Set(rawNoteIds.map((id) => String(id).trim()).filter(Boolean)));
     if (!noteIds.length) {
       return NextResponse.json(
         { ok: false, error_code: 'MISSING_NOTE_IDS', message: 'Array of noteIds is required to stage an intercompany netting settlement.' },
@@ -191,21 +194,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const targetNotes = await prisma.intercompanyNote.findMany({
-      where: { id: { in: noteIds }, status: 'ISSUED' },
+    const allMatchedNotes = await prisma.intercompanyNote.findMany({
+      where: {
+        OR: [{ id: { in: noteIds } }, { noteNumber: { in: noteIds } }],
+      },
       include: {
-        sourceEntity: { select: { legalName: true } },
-        targetEntity: { select: { legalName: true } },
+        sourceEntity: { select: { id: true, legalName: true } },
+        targetEntity: { select: { id: true, legalName: true } },
       },
     });
 
-    if (!targetNotes.length) {
+    if (allMatchedNotes.length !== noteIds.length) {
       return NextResponse.json(
-        { ok: false, error_code: 'NO_ACTIVE_NOTES', message: 'No active ISSUED notes found matching the provided IDs.' },
+        {
+          ok: false,
+          error_code: 'NOTE_NOT_FOUND',
+          message: `One or more requested intercompany notes do not exist (requested ${noteIds.length}, found ${allMatchedNotes.length}).`,
+        },
         { status: 404 }
       );
     }
 
+    const nonIssued = allMatchedNotes.filter((n) => n.status !== 'ISSUED');
+    if (nonIssued.length > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'NOTE_ALREADY_SETTLED',
+          message: `Note(s) ${nonIssued.map((n) => n.noteNumber).join(', ')} are already ${nonIssued[0].status} and cannot be settled again.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    const targetNotes = allMatchedNotes;
     const totalSettlementMinor = targetNotes.reduce((acc, n) => acc + Number(n.totalAmountMinor), 0);
     const totalNaira = (totalSettlementMinor / 100).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
 
@@ -213,13 +235,16 @@ export async function POST(req: NextRequest) {
     const staged = await stageAction({
       userId: actor.id,
       actionType: 'intercompany_note',
+      targetSubsidiaryId: targetNotes[0].sourceEntityId,
       summary: `Netting & Settlement of ${targetNotes.length} intercompany note(s) totaling ${totalNaira}`,
       materialPayload: {
+        mode: 'SETTLE',
         targetNoteIds: targetNotes.map((n) => n.id),
         noteNumbers: targetNotes.map((n) => n.noteNumber),
         totalSettlementMinor,
       },
       preview: {
+        mode: 'SETTLE',
         notesCount: targetNotes.length,
         notes: targetNotes.map((n) => n.noteNumber),
         totalAmountNaira: totalNaira,
