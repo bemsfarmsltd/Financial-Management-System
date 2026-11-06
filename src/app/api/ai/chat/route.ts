@@ -14,6 +14,29 @@ function formatNaira(amount: number): string {
   }).format(amount);
 }
 
+/**
+ * Normalizes Markdown text structure, especially tables and whitespace,
+ * ensuring clean row separation and consistent card/table rendering across Web and Mobile.
+ */
+export function normalizeMarkdownStructure(raw: string): string {
+  if (!raw || typeof raw !== 'string') return raw;
+  let text = raw;
+
+  // If text contains markdown table delimiter |---|
+  if (/\|[-:\s|]{3,}\|/.test(text)) {
+    // 1. Break glued table rows: '||' or '|  |' between pipe boundaries -> '|\n|'
+    text = text.replace(/\|\s*\|/g, '|\n|');
+
+    // 2. Ensure table beginning is separated from preceding paragraph by a blank line
+    text = text.replace(/([^\n])\s*\n(\|[^\n]+\|\n\|[-:\s|]+\|)/g, '$1\n\n$2');
+
+    // 3. Ensure table end is separated from following text by a blank line
+    text = text.replace(/(\|[^\n]+\|)\s*\n([^\n|#*-])/g, '$1\n\n$2');
+  }
+
+  return text;
+}
+
 export const maxDuration = 120; // Allow up to 120 seconds for multi-step AI reasoning and tool calls
 
 export async function POST(req: NextRequest) {
@@ -203,7 +226,8 @@ export async function POST(req: NextRequest) {
 title: "<Chart Title>"
 <Label>: <Value>
 \`\`\`
-3. Requisition & Action Cards: Use structured cards ONLY for items requiring review, requisition approval decisions (REQ-XXXX-XXXX), or staged actions.${isReadOnlyUser ? '\n4. STRICT READ-ONLY MODE: The active user has the AI Analyst role. They have read-only access to query information, ledger statistics, and financial intelligence. They CANNOT execute actions, stage approvals, or commit ledger writes. Do NOT stage any actions for this user.' : '\n4. User Instruction Adherence: If user asks for paragraphs, provide detailed prose. If user asks for a graph or histogram, provide a visual chart block.'}`,
+3. Markdown Tables: When presenting multi-column comparative data (e.g. subsidiaries, periods, budgets, spending), use standard Markdown tables with proper newlines between every row. Ensure a blank line before and after the table.
+4. Requisition & Action Cards: Use structured cards ONLY for items requiring review, requisition approval decisions (REQ-XXXX-XXXX), or staged actions.${isReadOnlyUser ? '\n5. STRICT READ-ONLY MODE: The active user has the AI Analyst role. They have read-only access to query information, ledger statistics, and financial intelligence. They CANNOT execute actions, stage approvals, or commit ledger writes. Do NOT stage any actions for this user.' : '\n5. User Instruction Adherence: If user asks for paragraphs, provide detailed prose. If user asks for a graph or histogram, provide a visual chart block.'}`,
           },
           conversation_history: conversationHistory,
           chat_history: conversationHistory,
@@ -229,7 +253,8 @@ title: "<Chart Title>"
 
         if (n8nRes.ok) {
           const n8nData = await n8nRes.json();
-          const reply = n8nData.reply || n8nData.message || 'Workflow executed.';
+          const rawReply = n8nData.reply || n8nData.message || 'Workflow executed.';
+          const reply = normalizeMarkdownStructure(rawReply);
 
           // Persist assistant reply to memory
           try {

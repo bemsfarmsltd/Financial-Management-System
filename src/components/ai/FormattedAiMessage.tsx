@@ -25,6 +25,104 @@ interface FormattedAiMessageProps {
   onNavigateToRequest?: (requestNumber: string) => void;
 }
 
+interface AiExecutiveTableProps {
+  headers: string[];
+  rows: string[][];
+  renderInline: (text: string) => React.ReactNode;
+}
+
+function AiExecutiveTable({ headers, rows, renderInline }: AiExecutiveTableProps) {
+  const isNumericOrCurrency = (cell: string) => {
+    const trimmed = cell.trim();
+    if (!trimmed || trimmed === '—' || trimmed === '-') return false;
+    return /[₦$€£]/.test(trimmed) || /^[\d,.\s/+\-%]+$/.test(trimmed);
+  };
+
+  const isNumericCol = (colIdx: number) => {
+    return rows.length > 0 && rows.every((r) => {
+      const cell = (r[colIdx] || '').trim();
+      if (!cell || cell === '—' || cell === '-') return true;
+      return isNumericOrCurrency(cell);
+    });
+  };
+
+  return (
+    <div
+      style={{
+        overflowX: 'auto',
+        margin: '12px 0',
+        borderRadius: '12px',
+        border: '1px solid #e2e8f0',
+        background: '#ffffff',
+        boxShadow: '0 2px 10px rgba(15, 23, 42, 0.04)',
+      }}
+    >
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+        <thead>
+          <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+            {headers.map((h, i) => {
+              const numCol = isNumericCol(i);
+              return (
+                <th
+                  key={i}
+                  style={{
+                    padding: '9px 14px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    color: '#475569',
+                    whiteSpace: 'nowrap',
+                    textAlign: numCol ? 'right' : 'left',
+                  }}
+                >
+                  {renderInline(h)}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rIdx) => {
+            const isEven = rIdx % 2 === 0;
+            return (
+              <tr
+                key={rIdx}
+                style={{
+                  background: isEven ? '#ffffff' : '#fafbfc',
+                  borderBottom: rIdx < rows.length - 1 ? '1px solid #f1f5f9' : 'none',
+                }}
+              >
+                {headers.map((_, cIdx) => {
+                  const cell = (row[cIdx] || '').trim();
+                  const numCol = isNumericCol(cIdx);
+                  const isCurrency = /[₦$€£]/.test(cell);
+                  return (
+                    <td
+                      key={cIdx}
+                      style={{
+                        padding: '9px 14px',
+                        fontSize: '12px',
+                        color: '#1e293b',
+                        whiteSpace: 'nowrap',
+                        textAlign: numCol ? 'right' : 'left',
+                        fontFamily: isCurrency || numCol ? 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' : 'inherit',
+                        fontWeight: isCurrency ? 600 : 450,
+                      }}
+                    >
+                      {renderInline(cell)}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function FormattedAiMessage({
   content,
   isUser = false,
@@ -238,8 +336,76 @@ export function FormattedAiMessage({
     return null;
   };
 
+  // Helper to parse markdown table rows and columns for executive data table
+  const parseTableData = (tableLines: string[]) => {
+    if (tableLines.length < 2) return null;
+    const headerParts = tableLines[0].split('|').map((s) => s.trim());
+    if (headerParts.length > 0 && headerParts[0] === '') headerParts.shift();
+    if (headerParts.length > 0 && headerParts[headerParts.length - 1] === '') headerParts.pop();
+
+    if (headerParts.length === 0) return null;
+
+    const rows: string[][] = [];
+    for (let i = 2; i < tableLines.length; i++) {
+      const line = tableLines[i].trim();
+      if (!line || !line.startsWith('|')) continue;
+      const cellParts = line.split('|').map((s) => s.trim());
+      if (cellParts.length > 0 && cellParts[0] === '') cellParts.shift();
+      if (cellParts.length > 0 && cellParts[cellParts.length - 1] === '') cellParts.pop();
+      if (cellParts.length > 0) {
+        rows.push(cellParts);
+      }
+    }
+
+    return { headers: headerParts, rows };
+  };
+
+  // Helper to isolate table from within a paragraph block if mixed
+  const extractTableFromBlock = (block: string) => {
+    const lines = block.split('\n');
+    let tableStartIndex = -1;
+    let tableEndIndex = -1;
+
+    for (let i = 0; i < lines.length - 1; i++) {
+      const l1 = lines[i].trim();
+      const l2 = lines[i + 1].trim();
+      if (l1.startsWith('|') && l1.endsWith('|') && l2.startsWith('|') && /\|[-:\s|]{3,}\|/.test(l2)) {
+        tableStartIndex = i;
+        break;
+      }
+    }
+
+    if (tableStartIndex !== -1) {
+      for (let i = tableStartIndex + 2; i < lines.length; i++) {
+        const l = lines[i].trim();
+        if (!l.startsWith('|')) {
+          tableEndIndex = i;
+          break;
+        }
+      }
+      if (tableEndIndex === -1) tableEndIndex = lines.length;
+
+      const preLines = lines.slice(0, tableStartIndex).filter(Boolean);
+      const tableLines = lines.slice(tableStartIndex, tableEndIndex).map((l) => l.trim());
+      const postLines = lines.slice(tableEndIndex).filter(Boolean);
+
+      return {
+        preText: preLines.join('\n').trim(),
+        tableLines,
+        postText: postLines.join('\n').trim(),
+      };
+    }
+    return null;
+  };
+
+  // Pre-normalize glued markdown tables (e.g. ||---|---| or || row |)
+  let normalizedContent = content;
+  if (normalizedContent.includes('||') && /\|[-:\s|]{3,}\|/.test(normalizedContent)) {
+    normalizedContent = normalizedContent.replace(/\|\s*\|/g, '|\n|');
+  }
+
   // Render elements in document order
-  const rawParagraphs = content.split(/\n\s*\n/);
+  const rawParagraphs = normalizedContent.split(/\n\s*\n/);
   const elements: React.ReactNode[] = [];
 
   rawParagraphs.forEach((para, pIdx) => {
@@ -262,21 +428,40 @@ export function FormattedAiMessage({
       }
     }
 
-    // Check 2: Markdown Table
-    const tableLines = trimmed.split('\n').map((l) => l.trim());
-    if (tableLines.length >= 3 && tableLines[0].startsWith('|') && tableLines[1].includes('---')) {
-      const tableChart = parseMarkdownTable(tableLines);
-      if (tableChart && tableChart.dataPoints.length >= 2) {
+    // Check 2: Markdown Table (either standalone or embedded with text)
+    const tableBlock = extractTableFromBlock(trimmed);
+    if (tableBlock && tableBlock.tableLines.length >= 2) {
+      // 1. Render preceding text if any
+      if (tableBlock.preText) {
         elements.push(
-          <AiVisualChart
-            key={`table-chart-${pIdx}`}
-            title={tableChart.title}
-            chartType="histogram"
-            data={tableChart.dataPoints}
+          <p key={`pre-tbl-${pIdx}`} style={{ margin: '8px 0', fontSize: '13px', color: '#1e293b', lineHeight: 1.68, fontWeight: 450 }}>
+            {renderInlineFormatted(tableBlock.preText)}
+          </p>
+        );
+      }
+
+      // 2. Render table data
+      const parsedTbl = parseTableData(tableBlock.tableLines);
+      if (parsedTbl && parsedTbl.rows.length > 0) {
+        elements.push(
+          <AiExecutiveTable
+            key={`table-${pIdx}`}
+            headers={parsedTbl.headers}
+            rows={parsedTbl.rows}
+            renderInline={renderInlineFormatted}
           />
         );
-        return;
       }
+
+      // 3. Render trailing text if any
+      if (tableBlock.postText) {
+        elements.push(
+          <p key={`post-tbl-${pIdx}`} style={{ margin: '8px 0', fontSize: '13px', color: '#1e293b', lineHeight: 1.68, fontWeight: 450 }}>
+            {renderInlineFormatted(tableBlock.postText)}
+          </p>
+        );
+      }
+      return;
     }
 
     // Check 3: Multi-line block with bullets / requisitions

@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/chat_storage_service.dart';
 import '../widgets/action_cards.dart';
 import '../widgets/chat_history_drawer.dart';
+import '../widgets/executive_markdown_body.dart';
 import 'voice_orb_screen.dart';
 
 class ExecutiveChatScreen extends StatefulWidget {
@@ -367,10 +368,7 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  msg.content,
-                  style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A), height: 1.45, fontWeight: FontWeight.w500),
-                ),
+                ExecutiveMarkdownBody(content: msg.content),
                 if (msg.actionCard != null) ...[
                   const SizedBox(height: 12),
                   InteractiveActionCard(data: msg.actionCard!),
