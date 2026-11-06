@@ -76,8 +76,9 @@ export async function POST(req: NextRequest) {
       const value = body.value || {};
 
       const staged = await stageAction({
-        actorId: actor.id,
+        userId: actor.id,
         actionType: 'policy_update',
+        targetSubsidiaryId: org.id,
         summary: `Update Workspace Governance Setting "${key}" for ${org.legalName}`,
         materialPayload: {
           sub_action: 'UPDATE_WORKSPACE_SETTINGS',
@@ -109,8 +110,9 @@ export async function POST(req: NextRequest) {
     const priority = Number(body.priority || 1);
 
     const staged = await stageAction({
-      actorId: actor.id,
+      userId: actor.id,
       actionType: 'policy_update',
+      targetSubsidiaryId: body.scopeSubsidiaryId || undefined,
       summary: `${body.id ? 'Update' : 'Create'} Approval Policy Band (${category || 'GENERAL_OPEX'}: ₦${minAmount.toLocaleString()} – ${maxAmount ? `₦${maxAmount.toLocaleString()}` : 'Unlimited'})`,
       materialPayload: {
         sub_action: 'UPDATE_APPROVAL_POLICY',

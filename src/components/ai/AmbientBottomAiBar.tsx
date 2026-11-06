@@ -26,6 +26,7 @@ interface Props {
   onToggleInspectMode?: () => void;
   onSendMessage: (text: string) => void;
   onConfirmAction: (messageId: string, actionType: string, payload: any) => void;
+  onCancelAction?: (messageId: string, stagedActionId: string) => void;
   onNewChat?: () => void;
   onOpenHistory?: () => void;
   onOpenFullCockpit: (initialPrompt?: string) => void;
@@ -43,6 +44,7 @@ export function AmbientBottomAiBar({
   onToggleInspectMode,
   onSendMessage,
   onConfirmAction,
+  onCancelAction,
   onNewChat,
   onOpenHistory,
   onOpenFullCockpit,
@@ -459,14 +461,24 @@ export function AmbientBottomAiBar({
                           warnings={msg.actionCard.warnings}
                           blockingErrors={msg.actionCard.blocking_errors}
                           expiresAt={msg.actionCard.expires_at}
+                          status={msg.actionCard.status}
                           confirmed={msg.actionCard.confirmed}
                           cancelled={msg.actionCard.cancelled}
                           resultMessage={msg.actionCard.resultMessage}
+                          errorMessage={msg.actionCard.errorMessage}
+                          resultUrl={msg.actionCard.resultUrl}
+                          recordId={msg.actionCard.recordId}
+                          auditEventId={msg.actionCard.auditEventId}
                           onConfirm={(id, hash) => {
                             onConfirmAction(msg.id, msg.actionCard?.type || 'staged_action', {
                               staged_action_id: id,
                               confirmation_hash: hash,
                             });
+                          }}
+                          onCancel={(id) => {
+                            if (onCancelAction) {
+                              onCancelAction(msg.id, id);
+                            }
                           }}
                         />
                       )}

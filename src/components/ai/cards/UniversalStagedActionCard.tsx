@@ -12,9 +12,14 @@ interface Props {
   warnings?: string[];
   blockingErrors?: string[];
   expiresAt?: string;
+  status?: 'PENDING' | 'EXECUTED' | 'CANCELLED' | 'EXPIRED';
   confirmed?: boolean;
   cancelled?: boolean;
   resultMessage?: string;
+  errorMessage?: string;
+  resultUrl?: string;
+  recordId?: string;
+  auditEventId?: string;
   onConfirm: (stagedActionId: string, confirmationHash: string) => Promise<void> | void;
   onCancel?: (stagedActionId: string) => Promise<void> | void;
 }
@@ -28,9 +33,14 @@ export function UniversalStagedActionCard({
   warnings = [],
   blockingErrors = [],
   expiresAt,
+  status,
   confirmed,
   cancelled,
   resultMessage,
+  errorMessage,
+  resultUrl,
+  recordId,
+  auditEventId,
   onConfirm,
   onCancel,
 }: Props) {
@@ -232,7 +242,65 @@ export function UniversalStagedActionCard({
     }
   };
 
-  if (confirmed || resultMessage) {
+  const effectiveStatus: 'PENDING' | 'EXECUTED' | 'CANCELLED' | 'EXPIRED' =
+    status ||
+    (cancelled
+      ? 'CANCELLED'
+      : confirmed
+      ? 'EXECUTED'
+      : expiresAt && new Date(expiresAt) <= new Date()
+      ? 'EXPIRED'
+      : 'PENDING');
+
+  if (effectiveStatus === 'CANCELLED') {
+    return (
+      <div
+        style={{
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: '12px',
+          padding: '12px 14px',
+          marginTop: '8px',
+          fontSize: '12px',
+          color: '#64748b',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+          <XCircle size={16} color="#94a3b8" />
+          <span style={{ fontWeight: 700, color: '#334155' }}>Staged Action Discarded</span>
+        </div>
+        <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
+          {resultMessage || `${summary} was cancelled and no changes were written to the database.`}
+        </p>
+      </div>
+    );
+  }
+
+  if (effectiveStatus === 'EXPIRED') {
+    return (
+      <div
+        style={{
+          background: '#fffbeb',
+          border: '1px solid #fde68a',
+          borderRadius: '12px',
+          padding: '12px 14px',
+          marginTop: '8px',
+          fontSize: '12px',
+          color: '#92400e',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+          <AlertTriangle size={16} color="#d97706" />
+          <span style={{ fontWeight: 700 }}>Proposal Expired or Target Changed</span>
+        </div>
+        <p style={{ margin: 0, fontSize: '11px', color: '#b45309', lineHeight: '1.4' }}>
+          {errorMessage || resultMessage || 'This proposal expired or the underlying record changed. Please request a fresh preview from the AI assistant.'}
+        </p>
+      </div>
+    );
+  }
+
+  if (effectiveStatus === 'EXECUTED') {
     return (
       <div
         style={{
@@ -246,34 +314,40 @@ export function UniversalStagedActionCard({
           boxShadow: '0 4px 12px rgba(22, 101, 52, 0.08)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-          <CheckCircle2 size={18} color="#16a34a" />
-          <strong style={{ fontSize: '13px', fontWeight: 800 }}>Operation Committed to Ledger</strong>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CheckCircle2 size={18} color="#16a34a" />
+            <strong style={{ fontSize: '13px', fontWeight: 800 }}>Operation Committed to Ledger</strong>
+          </div>
+          {auditEventId && (
+            <span style={{ fontSize: '10px', fontFamily: 'monospace', background: '#bbf7d0', padding: '2px 6px', borderRadius: '6px', color: '#14532d' }}>
+              {auditEventId}
+            </span>
+          )}
         </div>
         <p style={{ margin: 0, color: '#15803d', lineHeight: '1.4' }}>
           {resultMessage || `${summary} has been authorized and committed to the live BEMS database.`}
         </p>
-      </div>
-    );
-  }
-
-  if (cancelled) {
-    return (
-      <div
-        style={{
-          background: '#f8fafc',
-          border: '1px solid #e2e8f0',
-          borderRadius: '12px',
-          padding: '12px 14px',
-          marginTop: '8px',
-          fontSize: '12px',
-          color: '#64748b',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <XCircle size={16} color="#94a3b8" />
-          <span style={{ fontWeight: 700 }}>Staged action discarded</span>
-        </div>
+        {(resultUrl || recordId) && (
+          <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '11px' }}>
+            {recordId && <span style={{ fontWeight: 700, color: '#14532d' }}>Record: {recordId}</span>}
+            {resultUrl && (
+              <a
+                href={resultUrl}
+                style={{
+                  color: '#15803d',
+                  fontWeight: 800,
+                  textDecoration: 'underline',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                Open Record <ArrowRight size={12} />
+              </a>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -418,6 +492,13 @@ export function UniversalStagedActionCard({
               <div key={i}>{e}</div>
             ))}
           </div>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px 10px', marginBottom: '12px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+          <AlertTriangle size={14} color="#dc2626" style={{ marginTop: '2px', flexShrink: 0 }} />
+          <div style={{ fontSize: '11px', color: '#b91c1c', fontWeight: 600 }}>{errorMessage}</div>
         </div>
       )}
 

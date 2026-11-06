@@ -44,6 +44,7 @@ interface Props {
   sharedIsTyping?: boolean;
   onSendMessage?: (text: string) => void;
   onConfirmAction?: (messageId: string, actionType: string, payload: any) => void;
+  onCancelAction?: (messageId: string, stagedActionId: string) => void;
   onNewChat?: () => void;
 }
 
@@ -61,6 +62,7 @@ export function AiFinancialManagerDrawer({
   sharedIsTyping,
   onSendMessage,
   onConfirmAction,
+  onCancelAction,
   onNewChat,
 }: Props) {
   const isGroupScope = !businessName || businessName === 'BEMS Group' || businessName?.toLowerCase().includes('bems group');
@@ -82,6 +84,7 @@ export function AiFinancialManagerDrawer({
   const isTyping = sharedIsTyping !== undefined ? sharedIsTyping : internalAi.isTyping;
   const sendMessage = onSendMessage || internalAi.sendMessage;
   const handleConfirmAction = onConfirmAction || internalAi.handleConfirmAction;
+  const handleCancelAction = onCancelAction || internalAi.handleCancelAction;
   const startNewChat = onNewChat || internalAi.startNewChat;
 
   // If launched with an initial prompt from the ambient HUD, send it automatically
@@ -489,14 +492,22 @@ export function AiFinancialManagerDrawer({
                         warnings={msg.actionCard.warnings}
                         blockingErrors={msg.actionCard.blocking_errors}
                         expiresAt={msg.actionCard.expires_at}
+                        status={msg.actionCard.status}
                         confirmed={msg.actionCard.confirmed}
                         cancelled={msg.actionCard.cancelled}
                         resultMessage={msg.actionCard.resultMessage}
+                        errorMessage={msg.actionCard.errorMessage}
+                        resultUrl={msg.actionCard.resultUrl}
+                        recordId={msg.actionCard.recordId}
+                        auditEventId={msg.actionCard.auditEventId}
                         onConfirm={(id, hash) => {
                           handleConfirmAction(msg.id, msg.actionCard?.type || 'staged_action', {
                             staged_action_id: id,
                             confirmation_hash: hash,
                           });
+                        }}
+                        onCancel={(id) => {
+                          handleCancelAction(msg.id, id);
                         }}
                       />
                     )}

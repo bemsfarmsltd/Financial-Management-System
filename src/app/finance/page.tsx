@@ -5060,6 +5060,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
               onToggleInspectMode={toggleInspectMode}
               onSendMessage={aiManager.sendMessage}
               onConfirmAction={aiManager.handleConfirmAction}
+              onCancelAction={aiManager.handleCancelAction}
               onNewChat={aiManager.startNewChat}
               onOpenHistory={() => aiManager.setIsHistoryOpen(true)}
               onOpenFullCockpit={handleOpenAiDrawer}
@@ -5096,6 +5097,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
               sharedIsTyping={aiManager.isTyping}
               onSendMessage={aiManager.sendMessage}
               onConfirmAction={aiManager.handleConfirmAction}
+              onCancelAction={aiManager.handleCancelAction}
               onNewChat={aiManager.startNewChat}
             />
           </>

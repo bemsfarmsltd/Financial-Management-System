@@ -64,7 +64,7 @@ export function AiChatWorkspaceView({
     currentPage: 'AI Copilot & Chat',
   });
 
-  const { messages, isTyping, sendMessage, handleConfirmAction, startNewChat } = aiManager;
+  const { messages, isTyping, sendMessage, handleConfirmAction, handleCancelAction, startNewChat } = aiManager;
 
   // Auto-scroll when messages update or typing state changes
   useEffect(() => {
@@ -519,14 +519,22 @@ export function AiChatWorkspaceView({
                         warnings={msg.actionCard.warnings}
                         blockingErrors={msg.actionCard.blocking_errors}
                         expiresAt={msg.actionCard.expires_at}
+                        status={msg.actionCard.status}
                         confirmed={msg.actionCard.confirmed}
                         cancelled={msg.actionCard.cancelled}
                         resultMessage={msg.actionCard.resultMessage}
+                        errorMessage={msg.actionCard.errorMessage}
+                        resultUrl={msg.actionCard.resultUrl}
+                        recordId={msg.actionCard.recordId}
+                        auditEventId={msg.actionCard.auditEventId}
                         onConfirm={(id, hash) => {
                           handleConfirmAction(msg.id, msg.actionCard?.type || 'staged_action', {
                             staged_action_id: id,
                             confirmation_hash: hash,
                           });
+                        }}
+                        onCancel={(id) => {
+                          handleCancelAction(msg.id, id);
                         }}
                       />
                     )}

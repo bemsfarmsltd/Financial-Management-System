@@ -100,19 +100,23 @@ export async function POST(req: NextRequest) {
         : new Date(Math.max(Date.now(), new Date(targetCase.dueAt).getTime()) + extensionHours * 3600_000);
 
       const staged = await stageAction({
-        actorId: actor.id,
+        userId: actor.id,
         actionType: 'deadline_extension',
+        targetSubsidiaryId: targetCase.request.subsidiaryId,
         summary: `Extend Accountability Retiral Deadline for ${targetCase.request.requestNumber} (${targetCase.owner.legalName}) to ${newDueAt.toISOString().split('T')[0]}`,
         materialPayload: {
           case_id: targetCase.id,
           request_id: targetCase.requestId,
+          extension_hours: extensionHours,
           new_due_at: newDueAt.toISOString(),
+          expected_due_at: targetCase.dueAt.toISOString(),
           reason: body.reason || `Extended by ${extensionHours}h via BEMI`,
         },
         preview: {
           operation: 'Extend Accountability Deadline',
           request_number: targetCase.request.requestNumber,
           staff_member: targetCase.owner.legalName,
+          current_deadline: targetCase.dueAt.toISOString().split('T')[0],
           new_deadline: newDueAt.toISOString().split('T')[0],
           reason: body.reason || `Extended by ${extensionHours}h`,
         },
@@ -128,8 +132,9 @@ export async function POST(req: NextRequest) {
     }
 
     const staged = await stageAction({
-      actorId: actor.id,
+      userId: actor.id,
       actionType: 'accountability_clearance',
+      targetSubsidiaryId: targetCase.request.subsidiaryId,
       summary: `Grant Final Retiral Clearance for ${targetCase.request.requestNumber} (${targetCase.owner.legalName})`,
       materialPayload: {
         case_id: targetCase.id,

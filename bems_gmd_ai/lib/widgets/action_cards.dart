@@ -22,6 +22,132 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
   final Set<String> _remindedCaseIds = {};
   final Set<String> _processingIds = {};
 
+  String? _stagedStatus;
+  String? _stagedResultMessage;
+  String? _stagedErrorMessage;
+  String? _stagedAuditEventId;
+  bool _isStagedProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _stagedStatus = widget.data['status']?.toString();
+    _stagedResultMessage = widget.data['resultMessage']?.toString();
+    _stagedErrorMessage = widget.data['errorMessage']?.toString();
+    _stagedAuditEventId = widget.data['auditEventId']?.toString();
+    _hydrateStagedStatusIfNeeded();
+  }
+
+  Future<void> _hydrateStagedStatusIfNeeded() async {
+    final stagedId = widget.data['staged_action_id']?.toString() ?? '';
+    if (stagedId.isEmpty) return;
+
+    final serverState = await ApiService.getStagedActionStatus(stagedActionId: stagedId);
+    if (!mounted || serverState == null) return;
+
+    final status = serverState['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      setState(() {
+        _stagedStatus = status;
+        widget.data['status'] = status;
+        if (serverState['audit_event_id'] != null) {
+          _stagedAuditEventId = serverState['audit_event_id'].toString();
+          widget.data['auditEventId'] = _stagedAuditEventId;
+        }
+        final execResult = serverState['execution_result'];
+        if (execResult is Map && execResult['message'] != null) {
+          _stagedResultMessage = execResult['message'].toString();
+          widget.data['resultMessage'] = _stagedResultMessage;
+        }
+      });
+    }
+  }
+
+  Future<void> _handleConfirmStagedAction() async {
+    final stagedId = widget.data['staged_action_id']?.toString() ?? '';
+    final hash = widget.data['confirmation_hash']?.toString() ?? '';
+    if (stagedId.isEmpty || hash.isEmpty || _isStagedProcessing) return;
+
+    setState(() {
+      _isStagedProcessing = true;
+      _stagedErrorMessage = null;
+    });
+
+    final res = await ApiService.confirmStagedAction(
+      stagedActionId: stagedId,
+      confirmationHash: hash,
+    );
+
+    if (!mounted) return;
+
+    final ok = res['ok'] == true;
+    final code = res['code']?.toString() ?? '';
+    final serverStatus = res['status']?.toString() ??
+        (ok
+            ? 'EXECUTED'
+            : code == 'ALREADY_EXECUTED'
+                ? 'EXECUTED'
+                : code == 'CANCELLED'
+                    ? 'CANCELLED'
+                    : code == 'STAGED_ACTION_EXPIRED'
+                        ? 'EXPIRED'
+                        : 'PENDING');
+
+    setState(() {
+      _isStagedProcessing = false;
+      _stagedStatus = serverStatus;
+      widget.data['status'] = serverStatus;
+      if (ok) {
+        _stagedResultMessage = res['message']?.toString() ?? 'Operation committed to BEMS ledger.';
+        _stagedAuditEventId = res['audit_event_id']?.toString();
+        widget.data['resultMessage'] = _stagedResultMessage;
+        widget.data['auditEventId'] = _stagedAuditEventId;
+      } else {
+        _stagedErrorMessage = res['error']?.toString() ?? 'Failed to execute staged action.';
+        widget.data['errorMessage'] = _stagedErrorMessage;
+      }
+    });
+
+    widget.onAction?.call();
+  }
+
+  Future<void> _handleCancelStagedAction() async {
+    final stagedId = widget.data['staged_action_id']?.toString() ?? '';
+    if (stagedId.isEmpty || _isStagedProcessing) return;
+
+    setState(() {
+      _isStagedProcessing = true;
+      _stagedErrorMessage = null;
+    });
+
+    final res = await ApiService.cancelStagedAction(stagedActionId: stagedId);
+    if (!mounted) return;
+
+    final ok = res['ok'] == true;
+    final code = res['code']?.toString() ?? '';
+    final serverStatus = res['status']?.toString() ??
+        (ok
+            ? 'CANCELLED'
+            : code == 'ALREADY_EXECUTED'
+                ? 'EXECUTED'
+                : code == 'STAGED_ACTION_EXPIRED'
+                    ? 'EXPIRED'
+                    : 'PENDING');
+
+    setState(() {
+      _isStagedProcessing = false;
+      _stagedStatus = serverStatus;
+      widget.data['status'] = serverStatus;
+      if (ok) {
+        _stagedResultMessage = res['message']?.toString() ?? 'Staged proposal discarded.';
+      } else {
+        _stagedErrorMessage = res['error']?.toString() ?? 'Could not cancel staged action.';
+      }
+    });
+
+    widget.onAction?.call();
+  }
+
   Future<void> _handleApproval(String requestId, bool approve, [Map<String, dynamic>? itemData]) async {
     if (_processingIds.contains(requestId)) return;
     setState(() {
@@ -97,7 +223,12 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
 
   @override
   Widget build(BuildContext context) {
-    final type = widget.data['type'] as String? ?? '';
+    final type = (widget.data['type'] ?? widget.data['cardType'] ?? '').toString().toUpperCase();
+    final hasStagedId = (widget.data['staged_action_id']?.toString() ?? '').isNotEmpty;
+
+    if (type == 'STAGED_ACTION' || hasStagedId) {
+      return _buildStagedActionCard(context);
+    }
 
     switch (type) {
       case 'TREASURY':
@@ -111,6 +242,226 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  Widget _buildStagedActionCard(BuildContext context) {
+    final summary = widget.data['summary']?.toString() ?? 'Executive Staged Action';
+    final actionType = (widget.data['actionType'] ?? widget.data['type'] ?? 'STAGED_ACTION')
+        .toString()
+        .replaceAll('_', ' ')
+        .toUpperCase();
+    final previewMap = widget.data['preview'] is Map
+        ? Map<String, dynamic>.from(widget.data['preview'] as Map)
+        : widget.data['data'] is Map
+            ? Map<String, dynamic>.from(widget.data['data'] as Map)
+            : <String, dynamic>{};
+    final status = (_stagedStatus ?? widget.data['status'] ?? 'PENDING').toString().toUpperCase();
+    final blockingErrors = (widget.data['blocking_errors'] as List?) ?? [];
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: status == 'EXECUTED'
+              ? const Color(0xFFA7F3D0)
+              : status == 'CANCELLED' || status == 'EXPIRED'
+                  ? const Color(0xFFE2E8F0)
+                  : const Color(0xFFFED7AA),
+          width: 1.2,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x060F172A),
+            blurRadius: 14,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                actionType,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFEA580C),
+                  letterSpacing: 0.8,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: status == 'EXECUTED'
+                      ? const Color(0xFFECFDF5)
+                      : status == 'CANCELLED' || status == 'EXPIRED'
+                          ? const Color(0xFFF1F5F9)
+                          : const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: status == 'EXECUTED'
+                        ? const Color(0xFF059669)
+                        : status == 'CANCELLED' || status == 'EXPIRED'
+                            ? const Color(0xFF64748B)
+                            : const Color(0xFFEA580C),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            summary,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          if (previewMap.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: previewMap.entries.take(8).map((entry) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          entry.key.replaceAll('_', ' ').toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            '${entry.value ?? '—'}',
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+          if (_stagedErrorMessage != null && _stagedErrorMessage!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: Text(
+                _stagedErrorMessage!,
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFB91C1C)),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          if (status == 'EXECUTED')
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFA7F3D0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _stagedResultMessage ?? 'Operation committed to BEMS ledger.',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF065F46)),
+                  ),
+                  if (_stagedAuditEventId != null && _stagedAuditEventId!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Audit ID: $_stagedAuditEventId',
+                        style: const TextStyle(fontSize: 10, color: Color(0xFF047857)),
+                      ),
+                    ),
+                ],
+              ),
+            )
+          else if (status == 'CANCELLED' || status == 'EXPIRED')
+            Text(
+              status == 'CANCELLED'
+                  ? (_stagedResultMessage ?? 'Staged proposal discarded.')
+                  : 'Staged proposal expired. Ask the AI Copilot to stage a fresh preview.',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isStagedProcessing ? null : _handleCancelStagedAction,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF64748B),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('Discard', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: (_isStagedProcessing || blockingErrors.isNotEmpty)
+                        ? null
+                        : _handleConfirmStagedAction,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text(
+                      _isStagedProcessing ? 'Committing...' : 'Confirm & Commit',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
   }
 
   Widget _buildTreasuryCard(BuildContext context) {

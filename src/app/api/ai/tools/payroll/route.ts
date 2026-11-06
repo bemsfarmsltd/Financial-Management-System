@@ -394,25 +394,48 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      include: {
+        assignments: { where: { isPrimary: true }, take: 1 },
+        employmentAgreements: {
+          where: { status: 'ACTIVE' },
+          orderBy: { startDate: 'desc' },
+          take: 1,
+          include: {
+            compensations: {
+              orderBy: { version: 'desc' },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
     if (!employee) {
       return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: 'Employee not found.' }, { status: 404 });
     }
+
+    const currentComp = employee.employmentAgreements[0]?.compensations[0];
+    const expectedCompVersion = currentComp?.version ?? 0;
+    const empSubId = employee.assignments[0]?.subsidiaryId;
 
     const staged = await stageAction({
       userId: actor.id,
       actionType: 'salary_change',
       summary: `Adjust monthly salary for ${employee.legalName} to ₦${amount.toLocaleString()} effective ${effectiveDate || 'Immediately'}`,
       targetEmployeeId: employee.id,
+      targetSubsidiaryId: empSubId,
       materialPayload: {
         employee_id: employee.id,
         amount,
         effective_date: effectiveDate,
         reason,
+        expected_comp_version: expectedCompVersion,
       },
       preview: {
         employee_name: employee.legalName,
         employee_number: employee.employeeNumber,
+        current_base_gross: currentComp ? formatNaira(currentComp.grossMinor) : 'Not set',
         new_base_gross: `₦${amount.toLocaleString()}`,
         effective_date: effectiveDate || 'Immediate',
         reason,

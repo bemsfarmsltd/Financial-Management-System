@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       }
 
       const staged = await stageAction({
-        actorId: actor.id,
+        userId: actor.id,
         actionType: 'leave_action',
         summary: `Submit ${leaveType} Leave Request (${startDate} to ${endDate})`,
         materialPayload: {
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
 
     const decision = subAction.includes('REJECT') || body.decision === 'REJECTED' ? 'REJECTED' : 'APPROVED';
     const staged = await stageAction({
-      actorId: actor.id,
+      userId: actor.id,
       actionType: 'leave_action',
       summary: `${decision === 'APPROVED' ? 'Approve' : 'Reject'} ${leaveRecord.leaveType} Leave (${leaveRecord.startDate} to ${leaveRecord.endDate}) for ${leaveRecord.employee.legalName}`,
       materialPayload: {

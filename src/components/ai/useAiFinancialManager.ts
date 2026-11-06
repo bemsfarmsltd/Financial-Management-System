@@ -463,78 +463,113 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
     [businessName, businessId]
   );
 
-  // Execute confirmation for an action card
+  // Execute confirmation for an action card (strictly bound to backend confirmation endpoint)
   const handleConfirmAction = useCallback(
-    async (messageId: string, actionType: string, payload: any) => {
+    async (messageId: string, _actionType: string, payload: any) => {
       try {
         const targetMsg = messages.find((m) => m.id === messageId);
         const stagedId = payload?.staged_action_id || targetMsg?.actionCard?.staged_action_id;
         const confHash = payload?.confirmation_hash || targetMsg?.actionCard?.confirmation_hash;
 
-        if (stagedId && confHash) {
-          const res = await fetch(`/api/ai/staged-actions/${stagedId}/confirm`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Idempotency-Key': `idemp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-            },
-            body: JSON.stringify({
-              confirmed_by: userName || 'GMD Executive',
-              confirmation_hash: confHash,
-            }),
-          });
-          const result = await res.json();
-          if (res.ok) {
-            setMessages((prev) =>
-              prev.map((m) => {
-                if (m.id === messageId && m.actionCard) {
-                  return {
+        if (!stagedId || !confHash) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === messageId && m.actionCard
+                ? {
                     ...m,
                     actionCard: {
                       ...m.actionCard,
-                      confirmed: true,
-                      resultMessage: `Operation confirmed! Audit Event ID: #${result.audit_event_id || 'AUDIT-OK'}.`,
+                      status: 'EXPIRED',
+                      errorMessage: 'Unverified proposal (missing staged_action_id or confirmation_hash). Request a fresh preview.',
                     },
-                  };
-                }
-                return m;
-              })
-            );
-            return;
-          } else {
-            console.error('Staged action confirmation failed:', result);
-          }
+                  }
+                : m
+            )
+          );
+          return;
         }
 
-        if (actionType === 'approval_decision') {
-          // Call backend approval API
-          await fetch(`/api/requests/${payload.requestNumber || 'REQ-2026-0004'}/action`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: payload.action || 'APPROVE',
-              decisionReason: payload.reason || 'Approved by GMD via AI Financial Manager.',
-            }),
-          });
-        }
+        const res = await fetch(`/api/ai/staged-actions/${stagedId}/confirm`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': `idemp_${stagedId}_${confHash.slice(-10)}`,
+          },
+          body: JSON.stringify({
+            confirmed_by: userName || 'GMD Executive',
+            confirmation_hash: confHash,
+          }),
+        });
+        const result = await res.json().catch(() => ({}));
 
-        setMessages((prev) =>
-          prev.map((m) => {
-            if (m.id === messageId && m.actionCard) {
-              return {
-                ...m,
-                actionCard: {
-                  ...m.actionCard,
-                  confirmed: true,
-                  resultMessage: `Operation confirmed and committed to the BEMS audit ledger with correlation ID #AID-${Date.now().toString().slice(-6)}.`,
-                },
-              };
-            }
-            return m;
-          })
-        );
-      } catch (err) {
+        if (res.ok && result.ok) {
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id === messageId && m.actionCard) {
+                return {
+                  ...m,
+                  actionCard: {
+                    ...m.actionCard,
+                    status: 'EXECUTED',
+                    confirmed: true,
+                    cancelled: false,
+                    errorMessage: undefined,
+                    auditEventId: result.audit_event_id,
+                    recordId: result.record_id,
+                    resultUrl: result.url,
+                    executionResult: result,
+                    resultMessage: `Operation committed to ledger. Audit ID: #${result.audit_event_id || 'VERIFIED'}.`,
+                  },
+                };
+              }
+              return m;
+            })
+          );
+        } else {
+          const derivedStatus: 'PENDING' | 'EXECUTED' | 'CANCELLED' | 'EXPIRED' =
+            result.status === 'EXECUTED' || result.error_code === 'ALREADY_EXECUTED'
+              ? 'EXECUTED'
+              : result.status === 'CANCELLED' || result.error_code === 'CANCELLED'
+              ? 'CANCELLED'
+              : result.status === 'EXPIRED' ||
+                result.error_code === 'STAGED_ACTION_EXPIRED' ||
+                result.error_code === 'TARGET_CHANGED'
+              ? 'EXPIRED'
+              : 'PENDING';
+
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id === messageId && m.actionCard) {
+                return {
+                  ...m,
+                  actionCard: {
+                    ...m.actionCard,
+                    status: derivedStatus,
+                    confirmed: derivedStatus === 'EXECUTED',
+                    cancelled: derivedStatus === 'CANCELLED',
+                    errorMessage: result.message || 'Staged action confirmation failed.',
+                  },
+                };
+              }
+              return m;
+            })
+          );
+        }
+      } catch (err: any) {
         console.error('Failed to commit action:', err);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId && m.actionCard
+              ? {
+                  ...m,
+                  actionCard: {
+                    ...m.actionCard,
+                    errorMessage: err?.message || 'Network error while confirming staged action.',
+                  },
+                }
+              : m
+          )
+        );
       }
     },
     [userName, messages]
@@ -543,33 +578,141 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
   const handleCancelAction = useCallback(
     async (messageId: string, stagedActionId?: string) => {
       try {
-        if (stagedActionId) {
-          await fetch(`/api/ai/staged-actions/${stagedActionId}/cancel`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-          });
+        const targetMsg = messages.find((m) => m.id === messageId);
+        const resolvedId = stagedActionId || targetMsg?.actionCard?.staged_action_id;
+
+        if (!resolvedId) {
+          return;
         }
-        setMessages((prev) =>
-          prev.map((m) => {
-            if (m.id === messageId && m.actionCard) {
-              return {
-                ...m,
-                actionCard: {
-                  ...m.actionCard,
-                  cancelled: true,
-                  resultMessage: 'Action discarded by executive.',
-                },
-              };
-            }
-            return m;
-          })
-        );
+
+        const res = await fetch(`/api/ai/staged-actions/${resolvedId}/cancel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const result = await res.json().catch(() => ({}));
+
+        if (res.ok && result.ok) {
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id === messageId && m.actionCard) {
+                return {
+                  ...m,
+                  actionCard: {
+                    ...m.actionCard,
+                    status: 'CANCELLED',
+                    cancelled: true,
+                    confirmed: false,
+                    errorMessage: undefined,
+                    resultMessage: 'Staged action discarded by executive.',
+                  },
+                };
+              }
+              return m;
+            })
+          );
+        } else if (result.error_code === 'ALREADY_EXECUTED' || result.status === 'EXECUTED') {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === messageId && m.actionCard
+                ? {
+                    ...m,
+                    actionCard: {
+                      ...m.actionCard,
+                      status: 'EXECUTED',
+                      confirmed: true,
+                      cancelled: false,
+                      errorMessage: result.message || 'Action was already executed and cannot be cancelled.',
+                    },
+                  }
+                : m
+            )
+          );
+        } else if (result.error_code === 'STAGED_ACTION_EXPIRED' || result.status === 'EXPIRED') {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === messageId && m.actionCard
+                ? {
+                    ...m,
+                    actionCard: {
+                      ...m.actionCard,
+                      status: 'EXPIRED',
+                      errorMessage: result.message || 'Staged action has expired.',
+                    },
+                  }
+                : m
+            )
+          );
+        }
       } catch (err) {
         console.error('Failed to cancel action:', err);
       }
     },
-    []
+    [messages]
   );
+
+  // Hydrate staged action card states from backend on mount / session change
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stagedIds = Array.from(
+      new Set(
+        messages
+          .map((m) => m.actionCard?.staged_action_id)
+          .filter((id): id is string => Boolean(id && id.startsWith('sa_')))
+      )
+    );
+    if (stagedIds.length === 0) return;
+
+    fetch(`/api/ai/staged-actions/status?ids=${encodeURIComponent(stagedIds.join(','))}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.ok || !data.actions) return;
+        const serverMap = data.actions as Record<string, any>;
+        setMessages((prev) => {
+          let changed = false;
+          const next = prev.map((m) => {
+            const sid = m.actionCard?.staged_action_id;
+            if (!sid || !serverMap[sid] || !m.actionCard) return m;
+            const srv = serverMap[sid];
+            const srvStatus = srv.status as 'PENDING' | 'EXECUTED' | 'CANCELLED' | 'EXPIRED';
+            const execRes = srv.execution_result || null;
+            const nextConfirmed = srvStatus === 'EXECUTED';
+            const nextCancelled = srvStatus === 'CANCELLED';
+            if (
+              m.actionCard.status === srvStatus &&
+              m.actionCard.confirmed === nextConfirmed &&
+              m.actionCard.cancelled === nextCancelled &&
+              m.actionCard.auditEventId === (srv.audit_event_id || undefined)
+            ) {
+              return m;
+            }
+            changed = true;
+            return {
+              ...m,
+              actionCard: {
+                ...m.actionCard,
+                status: srvStatus,
+                confirmed: nextConfirmed,
+                cancelled: nextCancelled,
+                expires_at: srv.expires_at || m.actionCard.expires_at,
+                auditEventId: srv.audit_event_id || execRes?.audit_event_id || m.actionCard.auditEventId,
+                recordId: execRes?.record_id || m.actionCard.recordId,
+                resultUrl: execRes?.url || m.actionCard.resultUrl,
+                executionResult: execRes || m.actionCard.executionResult,
+                resultMessage:
+                  srvStatus === 'EXECUTED'
+                    ? m.actionCard.resultMessage ||
+                      `Operation committed to ledger. Audit ID: #${srv.audit_event_id || execRes?.audit_event_id || 'VERIFIED'}.`
+                    : srvStatus === 'CANCELLED'
+                    ? 'Staged action discarded by executive.'
+                    : m.actionCard.resultMessage,
+              },
+            };
+          });
+          return changed ? next : prev;
+        });
+      })
+      .catch(() => {});
+  }, [messages.length, activeSessionId]);
 
   return {
     messages,

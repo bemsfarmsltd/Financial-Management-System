@@ -61,26 +61,45 @@ export async function GET(req: Request) {
         exists = true;
         record = action.resultJson ? JSON.parse(action.resultJson) : { id: action.id, status: action.status };
 
-        // Check actual notification/audit delivery rather than hardcoding DELIVERED
-        const auditHit = action.auditEventId
-          ? { id: action.auditEventId }
-          : await prisma.auditEvent.findFirst({
-              where: {
-                OR: [
-                  { targetId: action.id },
-                  { correlationId: { contains: action.id } },
-                ],
-              },
-              select: { id: true },
-            });
-        const recentNotif = await prisma.systemNotification.findFirst({
-          where: {
-            createdAt: { gte: action.executedAt || action.createdAt },
-          },
-          select: { id: true },
+        const notificationIntent: string[] = Array.isArray(record?.notification_intent)
+          ? record.notification_intent
+          : [];
+        const notificationsSent: string[] = Array.isArray(record?.notifications_sent)
+          ? record.notifications_sent
+          : [];
+
+        if (notificationIntent.length === 0 && notificationsSent.length === 0) {
+          notificationDeliveryStatus = 'NOT_APPLICABLE';
+        } else {
+          const verifiedNotifCount = await prisma.systemNotification.count({
+            where: {
+              employeeId: { in: notificationIntent.length > 0 ? notificationIntent : notificationsSent },
+              createdAt: { gte: new Date((action.executedAt || action.createdAt).getTime() - 5000) },
+            },
+          });
+          notificationDeliveryStatus = verifiedNotifCount > 0 ? 'DELIVERED' : 'PENDING';
+        }
+
+        return NextResponse.json({
+          ok: true,
+          exists: true,
+          status: action.status,
+          record,
+          notification_intent: notificationIntent,
+          notifications_sent: notificationsSent,
+          notification_delivery_status: notificationDeliveryStatus,
         });
-        notificationDeliveryStatus = auditHit || recentNotif ? 'DELIVERED' : 'NOT_APPLICABLE';
       }
+
+      return NextResponse.json({
+        ok: true,
+        exists: false,
+        status: action.status,
+        record: null,
+        notification_intent: [],
+        notifications_sent: [],
+        notification_delivery_status: 'NOT_APPLICABLE',
+      });
     } else if (recordType === 'fund_request' && recordId) {
       const item = await prisma.expenditureRequest.findFirst({
         where: { OR: [{ id: recordId }, { requestNumber: recordId }] },

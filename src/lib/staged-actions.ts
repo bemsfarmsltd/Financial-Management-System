@@ -11,8 +11,66 @@ import {
   assertAiScopeAllowed,
   resolveScopeFromStagePayload,
 } from './ai-access-control';
+import { resolveAuthorizedOrganizationScope } from './organizations';
+import { assertSingleActiveGmd } from './employee-lifecycle';
+
+function normalizeThreeRole(rawRole: unknown): 'STAFF' | 'GMD' | 'SUPER_ADMIN' | null {
+  const upper = String(rawRole || '').trim().toUpperCase();
+  if (upper === 'STAFF') return 'STAFF';
+  if (upper === 'GMD') return 'GMD';
+  if (upper === 'SUPER_ADMIN' || upper === 'SYSTEM_ADMIN') return 'SUPER_ADMIN';
+  return null;
+}
+
+async function assertValidRoleAndGmdUniqueness(
+  tx: any,
+  rawRole: unknown,
+  excludeEmployeeId?: string
+): Promise<'STAFF' | 'GMD' | 'SUPER_ADMIN'> {
+  const canonical = normalizeThreeRole(rawRole);
+  if (!canonical) {
+    throw new Error(`Invalid target role "${rawRole}". Only STAFF, GMD, and SUPER_ADMIN exist.`);
+  }
+  if (canonical === 'GMD') {
+    const existingGmd = await tx.employee.findFirst({
+      where: {
+        role: 'GMD',
+        status: 'ACTIVE',
+        approvalStatus: 'APPROVED',
+        ...(excludeEmployeeId ? { id: { not: excludeEmployeeId } } : {}),
+      },
+      select: { id: true, legalName: true, workEmail: true },
+    });
+    if (existingGmd) {
+      throw new StaleTargetError(
+        `The system can only have one Group Managing Director (GMD). Active GMD is ${existingGmd.legalName} (${existingGmd.workEmail}).`
+      );
+    }
+    await assertSingleActiveGmd(excludeEmployeeId).catch((err) => {
+      throw new StaleTargetError(err.message);
+    });
+  }
+  return canonical;
+}
 
 export const STAGED_ACTION_TTL_MINUTES = 15;
+
+export class StaleTargetError extends Error {
+  errorCode = 'TARGET_CHANGED';
+  constructor(message: string) {
+    super(message);
+    this.name = 'StaleTargetError';
+  }
+}
+
+export class StagedStateConflictError extends Error {
+  errorCode: string;
+  constructor(errorCode: string, message: string) {
+    super(message);
+    this.name = 'StagedStateConflictError';
+    this.errorCode = errorCode;
+  }
+}
 
 /**
  * Deterministically sorts object keys and computes a SHA-256 confirmation hash
@@ -63,6 +121,102 @@ export type StagedActionType =
   | 'staff_message'
   | 'policy_update';
 
+export const SUPPORTED_STAGED_ACTION_TYPES: ReadonlySet<StagedActionType> = new Set<StagedActionType>([
+  'budget',
+  'approval_decision',
+  'payment_record',
+  'salary_change',
+  'payment_recorder',
+  'staff_approval',
+  'role_change',
+  'accountability_clearance',
+  'deadline_extension',
+  'treasury_account',
+  'intercompany_note',
+  'vendor_approval',
+  'emergency_override',
+  'attendance_override',
+  'admin_onboarding',
+  'subsidiary_creation',
+  'subsidiary_update',
+  'bank_account_update',
+  'payroll_action',
+  'staff_management',
+  'request_creation',
+  'grn_creation',
+  'vendor_invoice_creation',
+  'leave_action',
+  'task_action',
+  'staff_message',
+  'policy_update',
+]);
+
+export function validateStageActionProposal(
+  actionType: string,
+  materialPayload: Record<string, any>,
+  summary: string
+): asserts actionType is StagedActionType {
+  if (!SUPPORTED_STAGED_ACTION_TYPES.has(actionType as StagedActionType)) {
+    throw new Error(`Unsupported staged action type: "${actionType}". Proposal rejected before card generation.`);
+  }
+  if (!summary || !String(summary).trim()) {
+    throw new Error('A human-readable summary is required to stage an action.');
+  }
+  if (!materialPayload || typeof materialPayload !== 'object' || Array.isArray(materialPayload)) {
+    throw new Error('materialPayload must be a non-empty object.');
+  }
+
+  switch (actionType as StagedActionType) {
+    case 'approval_decision':
+      if (!materialPayload.request_id || !materialPayload.decision) {
+        throw new Error('approval_decision requires request_id and decision.');
+      }
+      break;
+    case 'payment_record':
+      if (!materialPayload.request_id || !(Number(materialPayload.amount) > 0)) {
+        throw new Error('payment_record requires request_id and a positive amount.');
+      }
+      break;
+    case 'payment_recorder':
+      if (!materialPayload.request_id || !materialPayload.assignee_user_id) {
+        throw new Error('payment_recorder requires request_id and assignee_user_id.');
+      }
+      break;
+    case 'salary_change':
+      if (!materialPayload.employee_id || Number.isNaN(Number(materialPayload.amount ?? materialPayload.new_base_salary))) {
+        throw new Error('salary_change requires employee_id and numeric amount.');
+      }
+      break;
+    case 'staff_approval':
+      if (!materialPayload.employee_id) {
+        throw new Error('staff_approval requires employee_id.');
+      }
+      break;
+    case 'role_change': {
+      if (!materialPayload.employee_id || !materialPayload.new_role) {
+        throw new Error('role_change requires employee_id and new_role.');
+      }
+      const normalizedRole = normalizeThreeRole(materialPayload.new_role);
+      if (!normalizedRole) {
+        throw new Error(`Invalid target role "${materialPayload.new_role}". Only STAFF, GMD, and SUPER_ADMIN exist.`);
+      }
+      break;
+    }
+    case 'accountability_clearance':
+      if (!materialPayload.case_id && !materialPayload.request_number) {
+        throw new Error('accountability_clearance requires case_id or request_number.');
+      }
+      break;
+    case 'deadline_extension':
+      if (!materialPayload.case_id) {
+        throw new Error('deadline_extension requires case_id.');
+      }
+      break;
+    default:
+      break;
+  }
+}
+
 export interface StageActionInput {
   userId?: string;
   actorId?: string;
@@ -73,6 +227,7 @@ export interface StageActionInput {
   clientPreview?: Record<string, any>;
   targetEmployeeId?: string;
   targetSubsidiaryId?: string;
+  targetVersion?: string | number;
   warnings?: string[];
   blockingErrors?: string[];
 }
@@ -80,23 +235,45 @@ export interface StageActionInput {
 export async function stageAction(input: StageActionInput) {
   const resolvedUserId = input.userId || input.actorId;
   if (!resolvedUserId) {
-    throw new Error('userId or actorId is required to stage an action.');
+    throw new Error('userId is required to stage an action.');
   }
+
+  validateStageActionProposal(input.actionType, input.materialPayload, input.summary);
+
+  const resolvedSubsidiaryId =
+    input.targetSubsidiaryId ||
+    input.materialPayload.subsidiaryId ||
+    input.materialPayload.organization_id ||
+    input.materialPayload.organizationId ||
+    input.materialPayload.subsidiary_id ||
+    undefined;
 
   // Enforce Admin AI Write Access Control Matrix for the specific capability scope
   const requiredScope = resolveScopeFromStagePayload(input.actionType, input.materialPayload);
-  await assertAiScopeAllowed(requiredScope, 'write', input.targetSubsidiaryId);
+  await assertAiScopeAllowed(requiredScope, 'write', resolvedSubsidiaryId);
 
   const creator = await prisma.employee.findUnique({
     where: { id: resolvedUserId },
-    select: { role: true, status: true },
+    select: { id: true, role: true, status: true, legalName: true },
   });
   if (!creator || creator.status !== 'ACTIVE') {
     throw new Error('Active authenticated employee required to stage actions.');
   }
 
+  // Persist targetSubsidiaryId & targetEmployeeId in canonical materialPayload if provided
+  const canonicalPayload: Record<string, any> = {
+    ...input.materialPayload,
+    ...(resolvedSubsidiaryId && !input.materialPayload.subsidiaryId && !input.materialPayload.organization_id
+      ? { subsidiaryId: resolvedSubsidiaryId }
+      : {}),
+    ...(input.targetEmployeeId && !input.materialPayload.employee_id && !input.materialPayload.employeeId
+      ? { employee_id: input.targetEmployeeId }
+      : {}),
+    ...(input.targetVersion !== undefined ? { expected_version: input.targetVersion } : {}),
+  };
+
   const resolvedPreview = input.preview || input.clientPreview || {};
-  const hash = computeConfirmationHash(input.materialPayload);
+  const hash = computeConfirmationHash(canonicalPayload);
   const actionId = `sa_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
   const expiresAt = new Date(Date.now() + STAGED_ACTION_TTL_MINUTES * 60 * 1000);
 
@@ -106,7 +283,7 @@ export async function stageAction(input: StageActionInput) {
       userId: resolvedUserId,
       actionType: input.actionType,
       confirmationHash: hash,
-      payload: JSON.stringify(input.materialPayload),
+      payload: JSON.stringify(canonicalPayload),
       summary: input.summary,
       previewJson: JSON.stringify(resolvedPreview),
       warnings: input.warnings ? JSON.stringify(input.warnings) : null,
@@ -124,6 +301,7 @@ export async function stageAction(input: StageActionInput) {
     confirmationHash: staged.confirmationHash,
     confirmation_hash: staged.confirmationHash,
     type: staged.actionType,
+    staged_status: 'PENDING' as const,
     expires_at: staged.expiresAt.toISOString(),
     summary: staged.summary,
     preview: resolvedPreview,
@@ -145,6 +323,7 @@ export async function stageAction(input: StageActionInput) {
       confirmation_hash: staged.confirmationHash,
       summary: staged.summary,
       action_type: staged.actionType,
+      status: 'PENDING' as const,
       expires_at: staged.expiresAt.toISOString(),
       payload_preview: resolvedPreview,
     },
@@ -155,11 +334,14 @@ export interface ConfirmResult {
   ok: boolean;
   errorCode?: string;
   message?: string;
+  status?: string;
   record_type?: string;
   record_id?: string;
   url?: string;
   record?: any;
+  notification_intent?: string[];
   notifications_sent?: string[];
+  notification_delivery_status?: 'DELIVERED' | 'QUEUED' | 'NOT_APPLICABLE';
   audit_event_id?: string;
 }
 
@@ -181,6 +363,14 @@ export async function executeStagedAction(params: {
       ok: false,
       errorCode: 'NOT_FOUND',
       message: `Staged action ${actionId} not found.`,
+    };
+  }
+
+  if (!SUPPORTED_STAGED_ACTION_TYPES.has(action.actionType as StagedActionType)) {
+    return {
+      ok: false,
+      errorCode: 'UNSUPPORTED_ACTION_TYPE',
+      message: `Unsupported action type: ${action.actionType}`,
     };
   }
 
@@ -206,10 +396,10 @@ export async function executeStagedAction(params: {
 
   // 3. Replay / Idempotency check
   if (action.status === 'EXECUTED') {
-    if (action.resultJson) {
+    if (idempotencyKey && action.idempotencyKey === idempotencyKey && action.resultJson) {
       try {
         const cached = JSON.parse(action.resultJson);
-        return { ok: true, ...cached };
+        return { ok: true, status: 'EXECUTED', ...cached };
       } catch {
         // continue
       }
@@ -217,6 +407,7 @@ export async function executeStagedAction(params: {
     return {
       ok: false,
       errorCode: 'ALREADY_EXECUTED',
+      status: 'EXECUTED',
       message: 'This staged action has already been executed.',
     };
   }
@@ -225,15 +416,24 @@ export async function executeStagedAction(params: {
     return {
       ok: false,
       errorCode: 'CANCELLED',
+      status: 'CANCELLED',
       message: 'This staged action was previously discarded.',
     };
   }
 
   // 4. Expiry check
-  if (new Date() > action.expiresAt) {
+  const now = new Date();
+  if (action.status === 'EXPIRED' || now > action.expiresAt) {
+    if (action.status === 'PENDING') {
+      await prisma.stagedAction.updateMany({
+        where: { id: actionId, status: 'PENDING' },
+        data: { status: 'EXPIRED' },
+      }).catch(() => {});
+    }
     return {
       ok: false,
       errorCode: 'STAGED_ACTION_EXPIRED',
+      status: 'EXPIRED',
       message: 'This staged action has expired. Please re-stage the request with the AI assistant.',
     };
   }
@@ -250,20 +450,107 @@ export async function executeStagedAction(params: {
     };
   }
 
-  // 6. Execute business write atomically in transaction
+  // 5b. Revalidate AI Write Scope and Authorized Entity Scope at confirmation time
+  const payloadSubId =
+    materialPayload.subsidiaryId ||
+    materialPayload.organization_id ||
+    materialPayload.organizationId ||
+    materialPayload.subsidiary_id ||
+    undefined;
+  const requiredScope = resolveScopeFromStagePayload(action.actionType as StagedActionType, materialPayload);
+  try {
+    await assertAiScopeAllowed(requiredScope, 'write', payloadSubId);
+  } catch (scopeErr: any) {
+    return {
+      ok: false,
+      errorCode: 'AI_SCOPE_DISABLED',
+      message: scopeErr.message || `AI write access for scope "${requiredScope}" is currently disabled.`,
+    };
+  }
+
+  const authorizedOrgScope = await resolveAuthorizedOrganizationScope(
+    {
+      id: actor.id,
+      role: actor.role,
+      employeeNumber: actor.employeeNumber || 'EXEC',
+      legalName: actor.legalName,
+      workEmail: '',
+      phone: null,
+      avatarUrl: null,
+    },
+    payloadSubId || 'ALL'
+  );
+  if (payloadSubId && !authorizedOrgScope.organizationIds.includes(payloadSubId) && !authorizedOrgScope.isGroup) {
+    return {
+      ok: false,
+      errorCode: 'NOT_PERMITTED',
+      message: 'Target subsidiary is outside your authorized organization scope.',
+    };
+  }
+
+  // 6. Execute business write atomically in transaction with conditional PENDING claim
   const auditEventId = `aud_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+  const effectiveIdempotencyKey = idempotencyKey || `exec_${actionId}`;
   let resultRecord: any = null;
-  let recordType = action.actionType;
+  let recordType: string = action.actionType;
   let recordId = '';
   let url = '';
-  let notificationsSent: string[] = [];
+  let resolvedSubsidiaryId: string | null = payloadSubId || null;
+  const notificationIntentIds: string[] = [];
+  const notificationsDeliveredIds: string[] = [];
 
-  await prisma.$transaction(async (tx) => {
-    if (action.actionType === 'budget') {
-      const { budget_id, organization_id, period, total_amount, allocations, mode, currency } = materialPayload;
+  try {
+    await prisma.$transaction(async (tx) => {
+      const txNow = new Date();
+
+      // Re-verify human executive status inside the transaction
+      const liveActor = await tx.employee.findUnique({
+        where: { id: actor.id },
+        select: { id: true, role: true, status: true, approvalStatus: true },
+      });
+      if (
+        !liveActor ||
+        liveActor.status !== 'ACTIVE' ||
+        !['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(liveActor.role.toUpperCase())
+      ) {
+        throw new StagedStateConflictError(
+          'NOT_PERMITTED',
+          'Executive account is no longer active or authorized to execute staged actions.'
+        );
+      }
+
+      // Atomic conditional claim of the PENDING action inside the write transaction
+      const claimed = await tx.stagedAction.updateMany({
+        where: {
+          id: actionId,
+          status: 'PENDING',
+          confirmationHash,
+          expiresAt: { gt: txNow },
+        },
+        data: {
+          status: 'EXECUTED',
+          executedAt: txNow,
+          idempotencyKey: effectiveIdempotencyKey,
+          auditEventId,
+        },
+      });
+
+      if (claimed.count === 0) {
+        const current = await tx.stagedAction.findUnique({ where: { id: actionId } });
+        if (current?.status === 'EXECUTED') {
+          throw new StagedStateConflictError('ALREADY_EXECUTED', 'This staged action has already been executed.');
+        }
+        if (current?.status === 'CANCELLED') {
+          throw new StagedStateConflictError('CANCELLED', 'This staged action was cancelled.');
+        }
+        throw new StagedStateConflictError('STAGED_ACTION_EXPIRED', 'This staged action has expired.');
+      }
+
+      if (action.actionType === 'budget') {
+      const { budget_id, organization_id, period, total_amount, allocations, mode } = materialPayload;
       const budgetMode = (mode || materialPayload.action || 'create').toLowerCase();
 
-      let targetOrgId = organization_id;
+      let targetOrgId = organization_id || materialPayload.subsidiaryId;
       if (!targetOrgId && budget_id) {
         const existing = await tx.budget.findUnique({ where: { id: budget_id } });
         if (existing) targetOrgId = existing.organizationId;
@@ -272,6 +559,7 @@ export async function executeStagedAction(params: {
         const defaultOrg = await tx.organization.findFirst({ select: { id: true } });
         targetOrgId = defaultOrg?.id;
       }
+      resolvedSubsidiaryId = targetOrgId || resolvedSubsidiaryId;
 
       let budget: any = null;
 
@@ -286,15 +574,19 @@ export async function executeStagedAction(params: {
               },
             });
 
-        if (toDelete) {
-          budget = await tx.budget.update({
-            where: { id: toDelete.id },
-            data: { status: 'CLOSED' },
-            include: { lines: true },
-          });
+        if (!toDelete) {
+          throw new StaleTargetError('Target active budget could not be found or was already closed.');
         }
+        if (toDelete.status === 'CLOSED') {
+          throw new StaleTargetError('Target budget is already closed. Please request a fresh preview.');
+        }
+
+        budget = await tx.budget.update({
+          where: { id: toDelete.id },
+          data: { status: 'CLOSED' },
+          include: { lines: true },
+        });
       } else if (budgetMode === 'reallocate' || budgetMode === 'update') {
-        // Find existing budget
         const existing = budget_id
           ? await tx.budget.findUnique({ where: { id: budget_id } })
           : await tx.budget.findFirst({
@@ -307,6 +599,12 @@ export async function executeStagedAction(params: {
             });
 
         if (existing) {
+          if (
+            materialPayload.expected_updated_at &&
+            existing.updatedAt.toISOString() !== String(materialPayload.expected_updated_at)
+          ) {
+            throw new StaleTargetError('The target budget was modified after this preview was generated. Please request a fresh preview.');
+          }
           const updatedTotal = total_amount ? Number(total_amount) : existing.totalAmount;
           await tx.budget.update({
             where: { id: existing.id },
@@ -385,6 +683,7 @@ export async function executeStagedAction(params: {
         }
       }
 
+      resolvedSubsidiaryId = budget.organizationId || resolvedSubsidiaryId;
       recordType = 'budget';
       recordId = budget.id;
       url = `/budgets`;
@@ -394,24 +693,43 @@ export async function executeStagedAction(params: {
     } else if (action.actionType === 'approval_decision') {
       const { request_id, decision, reason } = materialPayload;
 
-      const req = await tx.expenditureRequest.findUnique({
-        where: { id: request_id },
+      const req = await tx.expenditureRequest.findFirst({
+        where: { OR: [{ id: request_id }, { requestNumber: request_id }] },
         include: { requester: true },
       });
 
       if (!req) throw new Error(`Request ${request_id} not found.`);
+      resolvedSubsidiaryId = req.subsidiaryId;
 
-      const newStatus = decision === 'APPROVE' ? 'APPROVED' : decision === 'DECLINE' ? 'REJECTED' : 'REQUIRES_CLARIFICATION';
+      if (!['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(req.approvalStatus)) {
+        throw new StaleTargetError(
+          `Request ${req.requestNumber} is already ${req.approvalStatus} and can no longer be decided from this preview.`
+        );
+      }
+      if (
+        materialPayload.expected_version !== undefined &&
+        req.requestVersion !== Number(materialPayload.expected_version)
+      ) {
+        throw new StaleTargetError(
+          `Request ${req.requestNumber} was modified since staging (v${req.requestVersion}). Please request a fresh preview.`
+        );
+      }
+
+      const newStatus =
+        decision === 'APPROVE'
+          ? 'APPROVED'
+          : decision === 'DECLINE' || decision === 'REJECT'
+          ? 'REJECTED'
+          : 'CLARIFICATION_REQUESTED';
 
       const updatedReq = await tx.expenditureRequest.update({
-        where: { id: request_id },
+        where: { id: req.id },
         data: {
           approvalStatus: newStatus,
         },
         include: { requester: true },
       });
 
-      // Record approval step
       await tx.approvalStep.create({
         data: {
           requestId: req.id,
@@ -425,7 +743,19 @@ export async function executeStagedAction(params: {
         },
       });
 
-      if (req.requestedById) notificationsSent.push(req.requestedById);
+      if (req.requestedById) {
+        notificationIntentIds.push(req.requestedById);
+        await tx.systemNotification.create({
+          data: {
+            employeeId: req.requestedById,
+            kind: 'REQUEST_DECISION',
+            title: `Request ${updatedReq.requestNumber} ${newStatus}`,
+            body: `Your expenditure request "${updatedReq.title}" was marked ${newStatus} by ${actor.legalName}.`,
+            linkUrl: `/requests/${updatedReq.requestNumber}`,
+          },
+        });
+        notificationsDeliveredIds.push(req.requestedById);
+      }
 
       recordType = 'fund_request';
       recordId = updatedReq.requestNumber;
@@ -434,18 +764,26 @@ export async function executeStagedAction(params: {
         JSON.stringify(updatedReq, (_, v) => (typeof v === 'bigint' ? Number(v) : v))
       );
     } else if (action.actionType === 'payment_record') {
-      const { request_id, amount, currency, payer_account_id, beneficiary_name, beneficiary_bank, beneficiary_account, transfer_reference, payment_date } = materialPayload;
+      const { request_id, amount, currency, beneficiary_name, beneficiary_bank, beneficiary_account, transfer_reference, payment_date } = materialPayload;
 
       const req = await tx.expenditureRequest.findFirst({
         where: { OR: [{ id: request_id }, { requestNumber: request_id }] },
       });
       if (!req) throw new Error(`Request ${request_id} not found.`);
+      resolvedSubsidiaryId = req.subsidiaryId;
+
+      if (req.approvalStatus !== 'APPROVED') {
+        throw new StaleTargetError(`Request ${req.requestNumber} is ${req.approvalStatus}; only APPROVED requests can be disbursed.`);
+      }
+      if (req.paymentStatus === 'PAID' || req.paymentStatus === 'RECIPIENT_CONFIRMED') {
+        throw new StaleTargetError(`Request ${req.requestNumber} has already been paid.`);
+      }
 
       const disbursement = await tx.disbursement.create({
         data: {
           requestId: req.id,
           payerOrgId: req.subsidiaryId,
-          amountMinor: BigInt(Math.round(amount * 100)),
+          amountMinor: BigInt(Math.round(Number(amount) * 100)),
           currency: currency || req.currency || 'NGN',
           externalReference: transfer_reference || `TX-${Date.now()}`,
           bankName: 'Commercial Bank',
@@ -454,7 +792,7 @@ export async function executeStagedAction(params: {
           beneficiaryAccount: beneficiary_account || '0000000000',
           recordedById: actor.id,
           status: 'AWAITING_RECIPIENT_CONFIRMATION',
-          idempotencyKey: idempotencyKey || `disb_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          idempotencyKey: effectiveIdempotencyKey,
           paidAt: payment_date ? new Date(payment_date) : new Date(),
         },
       });
@@ -464,17 +802,86 @@ export async function executeStagedAction(params: {
         data: { paymentStatus: 'PAID' },
       });
 
+      if (req.requestedById) {
+        notificationIntentIds.push(req.requestedById);
+        await tx.systemNotification.create({
+          data: {
+            employeeId: req.requestedById,
+            kind: 'DISBURSEMENT_RECORDED',
+            title: `Disbursement Recorded for ${req.requestNumber}`,
+            body: `Payment of ${currency || req.currency || 'NGN'} ${Number(amount).toLocaleString()} has been recorded for "${req.title}".`,
+            linkUrl: `/requests/${req.requestNumber}`,
+          },
+        });
+        notificationsDeliveredIds.push(req.requestedById);
+      }
+
       recordType = 'disbursement';
       recordId = disbursement.id;
       url = `/disbursements`;
       resultRecord = JSON.parse(
         JSON.stringify(disbursement, (_, v) => (typeof v === 'bigint' ? Number(v) : v))
       );
+    } else if (action.actionType === 'payment_recorder') {
+      const { request_id, assignee_user_id, note } = materialPayload;
+
+      const [req, assignee] = await Promise.all([
+        tx.expenditureRequest.findFirst({
+          where: { OR: [{ id: request_id }, { requestNumber: request_id }] },
+        }),
+        tx.employee.findUnique({ where: { id: assignee_user_id } }),
+      ]);
+      if (!req) throw new Error(`Request ${request_id} not found.`);
+      if (!assignee || assignee.status !== 'ACTIVE') {
+        throw new StaleTargetError(`Assignee ${assignee_user_id} is not an active employee.`);
+      }
+      resolvedSubsidiaryId = req.subsidiaryId;
+
+      if (req.approvalStatus !== 'APPROVED') {
+        throw new StaleTargetError(`Request ${req.requestNumber} must be APPROVED before assigning a payment recorder (current: ${req.approvalStatus}).`);
+      }
+      if (req.paymentStatus === 'PAID' || req.paymentStatus === 'RECIPIENT_CONFIRMED') {
+        throw new StaleTargetError(`Request ${req.requestNumber} has already been paid.`);
+      }
+
+      const updatedReq = await tx.expenditureRequest.update({
+        where: { id: req.id },
+        data: { disbursementAssigneeId: assignee.id },
+      });
+
+      notificationIntentIds.push(assignee.id);
+      await tx.systemNotification.create({
+        data: {
+          employeeId: assignee.id,
+          kind: 'DISBURSEMENT_ASSIGNED',
+          title: `Disbursement Recording Assigned: ${req.requestNumber}`,
+          body: `${actor.legalName} assigned you to record payment for ${req.requestNumber} (${req.title}). ${note ? `Note: ${note}` : ''}`.trim(),
+          linkUrl: `/requests/${req.requestNumber}`,
+        },
+      });
+      notificationsDeliveredIds.push(assignee.id);
+
+      recordType = 'fund_request';
+      recordId = updatedReq.requestNumber;
+      url = `/requests/${updatedReq.requestNumber}`;
+      resultRecord = {
+        request_id: updatedReq.id,
+        request_number: updatedReq.requestNumber,
+        disbursement_assignee_id: assignee.id,
+        disbursement_assignee_name: assignee.legalName,
+      };
     } else if (action.actionType === 'salary_change') {
       const employee_id = materialPayload.employee_id;
       const amount = Number(materialPayload.amount ?? materialPayload.new_base_salary ?? 0);
       const effective_date = materialPayload.effective_date;
       const reason = materialPayload.reason;
+
+      const empWithSub = await tx.employee.findUnique({
+        where: { id: employee_id },
+        include: { assignments: { orderBy: { isPrimary: 'desc' }, take: 1 } },
+      });
+      if (!empWithSub) throw new Error(`Employee ${employee_id} not found.`);
+      resolvedSubsidiaryId = empWithSub.assignments[0]?.subsidiaryId || resolvedSubsidiaryId;
 
       let agreement = await tx.employmentAgreement.findFirst({
         where: { employeeId: employee_id, status: 'ACTIVE' },
@@ -489,32 +896,33 @@ export async function executeStagedAction(params: {
       }
 
       if (!agreement) {
-        const emp = await tx.employee.findUnique({
-          where: { id: employee_id },
-          include: { assignments: { orderBy: { isPrimary: 'desc' }, take: 1 } },
-        });
-        if (emp) {
-          const orgId = emp.assignments[0]?.subsidiaryId || (await tx.organization.findFirst({ select: { id: true } }))?.id;
-          if (orgId) {
-            agreement = await tx.employmentAgreement.create({
-              data: {
-                employeeId: emp.id,
-                employerEntityId: orgId,
-                agreementType: 'PERMANENT',
-                status: 'ACTIVE',
-              },
-            });
-          }
+        const orgId = empWithSub.assignments[0]?.subsidiaryId || (await tx.organization.findFirst({ select: { id: true } }))?.id;
+        if (orgId) {
+          agreement = await tx.employmentAgreement.create({
+            data: {
+              employeeId: empWithSub.id,
+              employerEntityId: orgId,
+              agreementType: 'PERMANENT',
+              status: 'ACTIVE',
+            },
+          });
         }
       }
 
       if (agreement) {
-        // Find highest existing version
         const maxComp = await tx.compensationAgreement.findFirst({
           where: { employmentAgreementId: agreement.id },
           orderBy: { version: 'desc' },
-          select: { version: true },
+          select: { version: true, grossMinor: true },
         });
+        if (
+          materialPayload.expected_comp_version !== undefined &&
+          (maxComp?.version || 0) !== Number(materialPayload.expected_comp_version)
+        ) {
+          throw new StaleTargetError(
+            `Salary for ${empWithSub.legalName} was already modified after this preview was generated (v${maxComp?.version}). Please request a fresh preview.`
+          );
+        }
         const nextVersion = (maxComp?.version || 1) + 1;
 
         await tx.compensationAgreement.create({
@@ -530,7 +938,18 @@ export async function executeStagedAction(params: {
         });
       }
 
-      notificationsSent.push(employee_id);
+      notificationIntentIds.push(employee_id);
+      await tx.systemNotification.create({
+        data: {
+          employeeId: employee_id,
+          kind: 'SALARY_UPDATE',
+          title: 'Compensation Schedule Updated',
+          body: `Your monthly gross salary was updated to ₦${amount.toLocaleString()} (${reason || 'Executive review'}).`,
+          linkUrl: '/payroll',
+        },
+      });
+      notificationsDeliveredIds.push(employee_id);
+
       recordType = 'compensation';
       recordId = employee_id;
       url = `/payroll`;
@@ -538,8 +957,16 @@ export async function executeStagedAction(params: {
     } else if (action.actionType === 'staff_approval') {
       const { employee_id } = materialPayload;
 
-      const emp = await tx.employee.findUnique({ where: { id: employee_id } });
+      const emp = await tx.employee.findUnique({
+        where: { id: employee_id },
+        include: { assignments: { where: { isPrimary: true }, take: 1 } },
+      });
       if (!emp) throw new Error(`Staff member ${employee_id} not found.`);
+      resolvedSubsidiaryId = emp.assignments[0]?.subsidiaryId || resolvedSubsidiaryId;
+
+      if (emp.approvalStatus === 'APPROVED' && emp.status === 'ACTIVE') {
+        throw new StaleTargetError(`Staff member ${emp.legalName} is already APPROVED and ACTIVE.`);
+      }
 
       const updated = await tx.employee.update({
         where: { id: employee_id },
@@ -549,7 +976,18 @@ export async function executeStagedAction(params: {
         },
       });
 
-      notificationsSent.push(employee_id);
+      notificationIntentIds.push(employee_id);
+      await tx.systemNotification.create({
+        data: {
+          employeeId: employee_id,
+          kind: 'ACCOUNT_APPROVED',
+          title: 'Account Approved',
+          body: `Your BEMS account has been approved by ${actor.legalName}.`,
+          linkUrl: '/',
+        },
+      });
+      notificationsDeliveredIds.push(employee_id);
+
       recordType = 'employee';
       recordId = updated.employeeNumber;
       url = `/staff`;
@@ -563,15 +1001,38 @@ export async function executeStagedAction(params: {
     } else if (action.actionType === 'role_change') {
       const { employee_id, new_role, reason } = materialPayload;
 
-      const emp = await tx.employee.findUnique({ where: { id: employee_id } });
+      const emp = await tx.employee.findUnique({
+        where: { id: employee_id },
+        include: { assignments: { where: { isPrimary: true }, take: 1 } },
+      });
       if (!emp) throw new Error(`Staff member ${employee_id} not found.`);
+      resolvedSubsidiaryId = emp.assignments[0]?.subsidiaryId || resolvedSubsidiaryId;
+
+      if (materialPayload.expected_role && emp.role !== materialPayload.expected_role) {
+        throw new StaleTargetError(
+          `Employee role changed from ${materialPayload.expected_role} to ${emp.role} after staging. Please request a fresh preview.`
+        );
+      }
+
+      const canonicalRole = await assertValidRoleAndGmdUniqueness(tx, new_role, emp.id);
 
       const updated = await tx.employee.update({
         where: { id: employee_id },
-        data: { role: new_role },
+        data: { role: canonicalRole },
       });
 
-      notificationsSent.push(employee_id);
+      notificationIntentIds.push(employee_id);
+      await tx.systemNotification.create({
+        data: {
+          employeeId: employee_id,
+          kind: 'ROLE_UPDATED',
+          title: 'System Role Updated',
+          body: `Your BEMS role was updated from ${emp.role} to ${updated.role} by ${actor.legalName}.`,
+          linkUrl: '/',
+        },
+      });
+      notificationsDeliveredIds.push(employee_id);
+
       recordType = 'employee';
       recordId = updated.employeeNumber;
       url = `/staff`;
@@ -591,6 +1052,11 @@ export async function executeStagedAction(params: {
       });
 
       if (!accCase) throw new Error(`Accountability case ${case_id} not found.`);
+      resolvedSubsidiaryId = accCase.request?.subsidiaryId || resolvedSubsidiaryId;
+
+      if (accCase.status === 'CLOSED') {
+        throw new StaleTargetError(`Accountability case for ${accCase.request?.requestNumber || accCase.id} is already CLOSED.`);
+      }
 
       const updated = await tx.accountabilityCase.update({
         where: { id: accCase.id },
@@ -600,7 +1066,20 @@ export async function executeStagedAction(params: {
         },
       });
 
-      if (accCase.ownerUserId) notificationsSent.push(accCase.ownerUserId);
+      if (accCase.ownerUserId) {
+        notificationIntentIds.push(accCase.ownerUserId);
+        await tx.systemNotification.create({
+          data: {
+            employeeId: accCase.ownerUserId,
+            kind: 'ACCOUNTABILITY_CLEARED',
+            title: `Retiral Cleared: ${accCase.request?.requestNumber || accCase.id}`,
+            body: `Your accountability case for ${accCase.request?.requestNumber || 'your advance'} has been cleared and closed by ${actor.legalName}.`,
+            linkUrl: '/accountability',
+          },
+        });
+        notificationsDeliveredIds.push(accCase.ownerUserId);
+      }
+
       recordType = 'accountability_case';
       recordId = accCase.request?.requestNumber || accCase.id;
       url = `/accountability`;
@@ -611,23 +1090,46 @@ export async function executeStagedAction(params: {
         owner: accCase.owner?.legalName,
       };
     } else if (action.actionType === 'deadline_extension') {
-      const { case_id, extension_hours, reason } = materialPayload;
+      const { case_id, extension_hours, new_due_at, reason } = materialPayload;
 
       const accCase = await tx.accountabilityCase.findUnique({ where: { id: case_id }, include: { request: true, owner: true } });
       if (!accCase) throw new Error(`Accountability case ${case_id} not found.`);
+      resolvedSubsidiaryId = accCase.request?.subsidiaryId || resolvedSubsidiaryId;
+
+      if (accCase.status === 'CLOSED') {
+        throw new StaleTargetError(`Accountability case ${accCase.request?.requestNumber || case_id} is already CLOSED and cannot be extended.`);
+      }
+      if (materialPayload.expected_due_at && accCase.dueAt.toISOString() !== String(materialPayload.expected_due_at)) {
+        throw new StaleTargetError(`Accountability deadline was already modified after staging. Please request a fresh preview.`);
+      }
 
       const hours = Number(extension_hours) || 48;
-      const newDueAt = new Date(accCase.dueAt.getTime() + hours * 3600 * 1000);
+      const newDueAt = new_due_at
+        ? new Date(new_due_at)
+        : new Date(accCase.dueAt.getTime() + hours * 3600 * 1000);
 
       const updated = await tx.accountabilityCase.update({
         where: { id: case_id },
         data: {
           dueAt: newDueAt,
-          closureNotes: `${accCase.closureNotes ? accCase.closureNotes + '\n' : ''}GMD Granted +${hours}h extension: ${reason || 'Executive discretion'}`,
+          closureNotes: `${accCase.closureNotes ? accCase.closureNotes + '\n' : ''}GMD Granted deadline extension to ${newDueAt.toISOString().split('T')[0]}: ${reason || 'Executive discretion'}`,
         },
       });
 
-      if (accCase.ownerUserId) notificationsSent.push(accCase.ownerUserId);
+      if (accCase.ownerUserId) {
+        notificationIntentIds.push(accCase.ownerUserId);
+        await tx.systemNotification.create({
+          data: {
+            employeeId: accCase.ownerUserId,
+            kind: 'ACCOUNTABILITY_EXTENDED',
+            title: `Retiral Deadline Extended: ${accCase.request?.requestNumber || accCase.id}`,
+            body: `Your accountability retirement deadline was extended to ${newDueAt.toISOString().split('T')[0]} by ${actor.legalName}.`,
+            linkUrl: '/accountability',
+          },
+        });
+        notificationsDeliveredIds.push(accCase.ownerUserId);
+      }
+
       recordType = 'accountability_case';
       recordId = accCase.request?.requestNumber || accCase.id;
       url = `/accountability`;
@@ -778,6 +1280,11 @@ export async function executeStagedAction(params: {
       });
 
       if (!reqItem) throw new Error(`Request ${request_id} not found.`);
+      resolvedSubsidiaryId = reqItem.subsidiaryId;
+
+      if (reqItem.approvalStatus === 'APPROVED') {
+        throw new StaleTargetError(`Request ${reqItem.requestNumber} is already APPROVED.`);
+      }
 
       const updated = await tx.expenditureRequest.update({
         where: { id: reqItem.id },
@@ -800,7 +1307,19 @@ export async function executeStagedAction(params: {
         },
       });
 
-      if (reqItem.requestedById) notificationsSent.push(reqItem.requestedById);
+      if (reqItem.requestedById) {
+        notificationIntentIds.push(reqItem.requestedById);
+        await tx.systemNotification.create({
+          data: {
+            employeeId: reqItem.requestedById,
+            kind: 'EMERGENCY_OVERRIDE',
+            title: `Emergency Approval Granted: ${updated.requestNumber}`,
+            body: `Your request "${updated.title}" was approved via executive emergency override.`,
+            linkUrl: `/requests/${updated.requestNumber}`,
+          },
+        });
+        notificationsDeliveredIds.push(reqItem.requestedById);
+      }
       recordType = 'fund_request';
       recordId = updated.requestNumber;
       url = `/requests/${updated.requestNumber}`;
@@ -1029,7 +1548,17 @@ export async function executeStagedAction(params: {
           include: { employee: true },
         });
 
-        notificationsSent.push(employee_id);
+        notificationIntentIds.push(employee_id);
+        await tx.systemNotification.create({
+          data: {
+            employeeId: employee_id,
+            kind: 'ATTENDANCE_OVERRIDE',
+            title: `Attendance Adjusted (${targetDate})`,
+            body: `Your attendance status for ${targetDate} was updated to ${targetStatus} by ${actor.legalName}.`,
+            linkUrl: '/attendance',
+          },
+        });
+        notificationsDeliveredIds.push(employee_id);
         recordType = 'attendance';
         recordId = attendance.id;
         url = `/attendance`;
@@ -1560,7 +2089,9 @@ export async function executeStagedAction(params: {
           }
 
           disbursedIds.push(payment.id);
-          notificationsSent.push(item.employeeId);
+          notificationIntentIds.push(item.employeeId);
+          notificationsDeliveredIds.push(item.employeeId);
+          resolvedSubsidiaryId = payingEntityId || resolvedSubsidiaryId;
         }
 
         if (batchId) {
@@ -1898,6 +2429,8 @@ export async function executeStagedAction(params: {
           throw new Error(`Staff member (${employeeId}) not found.`);
         }
 
+        resolvedSubsidiaryId = targetEmployee.assignments[0]?.subsidiaryId || resolvedSubsidiaryId;
+
         if (subAction === 'TOGGLE_ATTENDANCE_EXEMPT') {
           const isExempt =
             materialPayload.isAttendanceExempt !== undefined
@@ -1907,7 +2440,17 @@ export async function executeStagedAction(params: {
             where: { id: employeeId },
             data: { isAttendanceExempt: isExempt },
           });
-          notificationsSent.push(employeeId);
+          notificationIntentIds.push(employeeId);
+          await tx.systemNotification.create({
+            data: {
+              employeeId,
+              kind: 'ATTENDANCE_EXEMPTION',
+              title: `Attendance Exemption ${isExempt ? 'Enabled' : 'Disabled'}`,
+              body: `Your attendance clock-in exemption was ${isExempt ? 'enabled' : 'disabled'} by ${actor.legalName}.`,
+              linkUrl: '/attendance',
+            },
+          });
+          notificationsDeliveredIds.push(employeeId);
           recordType = 'employee';
           recordId = updated.id;
           url = `/hr`;
@@ -1936,7 +2479,17 @@ export async function executeStagedAction(params: {
               data: { status: 'ACTIVE' },
             });
           }
-          notificationsSent.push(employeeId);
+          notificationIntentIds.push(employeeId);
+          await tx.systemNotification.create({
+            data: {
+              employeeId,
+              kind: 'ACCOUNT_STATUS',
+              title: `Account Status: ${nextStatus}`,
+              body: `Your account status was updated to ${nextStatus} by ${actor.legalName}.`,
+              linkUrl: '/',
+            },
+          });
+          notificationsDeliveredIds.push(employeeId);
           recordType = 'employee';
           recordId = updated.id;
           url = `/hr`;
@@ -1978,7 +2531,8 @@ export async function executeStagedAction(params: {
             },
           });
 
-          notificationsSent.push(employeeId);
+          notificationIntentIds.push(employeeId);
+          notificationsDeliveredIds.push(employeeId);
           recordType = 'staff_profile_update_request';
           recordId = updateRequest.id;
           url = `/hr`;
@@ -2127,7 +2681,17 @@ export async function executeStagedAction(params: {
             }
           }
 
-          notificationsSent.push(employeeId);
+          notificationIntentIds.push(employeeId);
+          await tx.systemNotification.create({
+            data: {
+              employeeId,
+              kind: 'PROFILE_UPDATED',
+              title: 'Profile Information Updated',
+              body: `Your staff profile was updated by ${actor.legalName}.`,
+              linkUrl: '/',
+            },
+          });
+          notificationsDeliveredIds.push(employeeId);
           recordType = 'employee';
           recordId = updated.id;
           url = `/hr`;
@@ -2152,6 +2716,7 @@ export async function executeStagedAction(params: {
           include: { channel: true },
         });
         if (!reqItem) throw new Error(`Request "${reqLookup}" not found.`);
+        resolvedSubsidiaryId = reqItem.subsidiaryId;
 
         let channelId = reqItem.channel?.id;
         if (!channelId) {
@@ -2192,7 +2757,8 @@ export async function executeStagedAction(params: {
           },
         });
 
-        notificationsSent.push(reqItem.requestedById);
+        notificationIntentIds.push(reqItem.requestedById);
+        notificationsDeliveredIds.push(reqItem.requestedById);
         recordType = 'request_message';
         recordId = msg.id;
         url = `/requests/${reqItem.requestNumber}`;
@@ -2442,7 +3008,8 @@ export async function executeStagedAction(params: {
             linkUrl: '/',
           },
         });
-        notificationsSent.push(updated.employeeId);
+        notificationIntentIds.push(updated.employeeId);
+        notificationsDeliveredIds.push(updated.employeeId);
         recordType = 'leave_request';
         recordId = updated.id;
         url = `/hr`;
@@ -2484,6 +3051,7 @@ export async function executeStagedAction(params: {
           });
           if (reqItem?.channel) channelId = reqItem.channel.id;
           if (reqItem?.accountabilityCase) accountabilityCaseId = reqItem.accountabilityCase.id;
+          if (reqItem?.subsidiaryId) resolvedSubsidiaryId = reqItem.subsidiaryId;
         }
 
         if (!accountabilityCaseId && !channelId) {
@@ -2511,7 +3079,8 @@ export async function executeStagedAction(params: {
           },
         });
 
-        notificationsSent.push(assigneeId);
+        notificationIntentIds.push(assigneeId);
+        notificationsDeliveredIds.push(assigneeId);
         recordType = 'followup_task';
         recordId = created.id;
         url = `/tasks`;
@@ -2527,9 +3096,10 @@ export async function executeStagedAction(params: {
 
       const employee = await tx.employee.findUnique({
         where: { id: targetEmployeeId },
-        select: { id: true, legalName: true, workEmail: true },
+        include: { assignments: { where: { isPrimary: true }, take: 1 } },
       });
       if (!employee) throw new Error('Target staff member not found.');
+      resolvedSubsidiaryId = employee.assignments[0]?.subsidiaryId || resolvedSubsidiaryId;
 
       const newMessage = await tx.staffAdminMessage.create({
         data: {
@@ -2568,7 +3138,8 @@ export async function executeStagedAction(params: {
         }).catch(() => {});
       }
 
-      notificationsSent.push(targetEmployeeId);
+      notificationIntentIds.push(targetEmployeeId);
+      notificationsDeliveredIds.push(targetEmployeeId);
       recordType = 'staff_admin_message';
       recordId = newMessage.id;
       url = `/helpdesk`;
@@ -2583,6 +3154,7 @@ export async function executeStagedAction(params: {
         if (!organizationId || !key || !value) {
           throw new Error('organizationId, key, and value are required to update workspace settings.');
         }
+        resolvedSubsidiaryId = organizationId;
         const json = typeof value === 'string' ? value : JSON.stringify(value);
         const saved = await tx.workspaceSetting.upsert({
           where: { organizationId_key: { organizationId, key } },
@@ -2599,6 +3171,7 @@ export async function executeStagedAction(params: {
           materialPayload.maxAmount !== null && materialPayload.maxAmount !== undefined
             ? BigInt(Math.round(Number(materialPayload.maxAmount) * 100))
             : null;
+        resolvedSubsidiaryId = materialPayload.scopeSubsidiaryId || resolvedSubsidiaryId;
         const data = {
           scopeSubsidiaryId: materialPayload.scopeSubsidiaryId || null,
           category: materialPayload.category || null,
@@ -2626,45 +3199,99 @@ export async function executeStagedAction(params: {
       throw new Error(`Unsupported action type: ${action.actionType}`);
     }
 
-    // Create Audit Event
+    // Resolve actual Group & Subsidiary scope for AuditEvent
+    const groupOrg = await tx.organization.findFirst({
+      where: { OR: [{ type: 'GROUP' }, { code: 'BEMS-GROUP' }, { code: 'BEMS-HQ' }] },
+      select: { id: true },
+    });
+    const resolvedGroupId = groupOrg?.id || resolvedSubsidiaryId || 'BEMS-GROUP';
+    const deliveryStatus: 'DELIVERED' | 'QUEUED' | 'NOT_APPLICABLE' =
+      notificationsDeliveredIds.length > 0
+        ? 'DELIVERED'
+        : notificationIntentIds.length > 0
+        ? 'QUEUED'
+        : 'NOT_APPLICABLE';
+
+    // Create Audit Event scoped to actual target entity & subsidiary
     await tx.auditEvent.create({
       data: {
         id: auditEventId,
         actorId: actor.id,
         actorName: actor.legalName,
         actorRole: actor.role,
-        groupId: 'BEMS_GROUP_HOLDINGS',
+        groupId: resolvedGroupId,
+        subsidiaryId: resolvedSubsidiaryId,
         targetType: recordType.toUpperCase(),
         targetId: recordId,
         action: `AI_STAGED_${action.actionType.toUpperCase()}_EXECUTED`,
-        correlationId: idempotencyKey || auditEventId,
+        correlationId: effectiveIdempotencyKey,
         metadata: JSON.stringify({
           stagedActionId: actionId,
-          correlationId: idempotencyKey,
+          correlationId: effectiveIdempotencyKey,
           summary: action.summary,
+          subsidiaryId: resolvedSubsidiaryId,
+          notification_intent: notificationIntentIds,
+          notifications_sent: notificationsDeliveredIds,
+          notification_delivery_status: deliveryStatus,
         }),
       },
     });
 
-    // Mark staged action executed
+    // Persist committed execution result onto the claimed StagedAction
     await tx.stagedAction.update({
       where: { id: actionId },
       data: {
         status: 'EXECUTED',
-        executedAt: new Date(),
-        idempotencyKey,
+        executedAt: txNow,
+        idempotencyKey: effectiveIdempotencyKey,
         auditEventId,
         resultJson: JSON.stringify({
           record_type: recordType,
           record_id: recordId,
           url,
           record: resultRecord,
-          notifications_sent: notificationsSent,
+          subsidiary_id: resolvedSubsidiaryId,
+          notification_intent: notificationIntentIds,
+          notifications_sent: notificationsDeliveredIds,
+          notification_delivery_status: deliveryStatus,
           audit_event_id: auditEventId,
         }),
       },
     });
-  });
+    });
+  } catch (err: any) {
+    if (err instanceof StaleTargetError) {
+      // Mark the stale proposal as EXPIRED so a fresh preview must be requested
+      await prisma.stagedAction.updateMany({
+        where: { id: actionId, status: 'PENDING' },
+        data: { status: 'EXPIRED' },
+      }).catch(() => {});
+      return {
+        ok: false,
+        errorCode: 'TARGET_CHANGED',
+        status: 'EXPIRED',
+        message: err.message,
+      };
+    }
+    if (err instanceof StagedStateConflictError) {
+      return {
+        ok: false,
+        errorCode: err.errorCode,
+        status:
+          err.errorCode === 'ALREADY_EXECUTED'
+            ? 'EXECUTED'
+            : err.errorCode === 'CANCELLED'
+            ? 'CANCELLED'
+            : 'EXPIRED',
+        message: err.message,
+      };
+    }
+    return {
+      ok: false,
+      errorCode: 'EXECUTION_FAILED',
+      message: err?.message || 'Failed to execute staged action.',
+    };
+  }
 
   if (
     (action.actionType === 'grn_creation' || action.actionType === 'vendor_invoice_creation') &&
@@ -2684,13 +3311,23 @@ export async function executeStagedAction(params: {
     }
   }
 
+  const finalDeliveryStatus: 'DELIVERED' | 'QUEUED' | 'NOT_APPLICABLE' =
+    notificationsDeliveredIds.length > 0
+      ? 'DELIVERED'
+      : notificationIntentIds.length > 0
+      ? 'QUEUED'
+      : 'NOT_APPLICABLE';
+
   return {
     ok: true,
+    status: 'EXECUTED',
     record_type: recordType,
     record_id: recordId,
     url,
     record: resultRecord,
-    notifications_sent: notificationsSent,
+    notification_intent: notificationIntentIds,
+    notifications_sent: notificationsDeliveredIds,
+    notification_delivery_status: finalDeliveryStatus,
     audit_event_id: auditEventId,
   };
 }

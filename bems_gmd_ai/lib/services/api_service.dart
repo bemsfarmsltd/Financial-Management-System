@@ -285,6 +285,85 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> confirmStagedAction({
+    required String stagedActionId,
+    required String confirmationHash,
+  }) async {
+    final response = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/ai/staged-actions/${Uri.encodeComponent(stagedActionId)}/confirm'),
+        headers: authHeaders,
+        body: jsonEncode({
+          'confirmation_hash': confirmationHash,
+        }),
+      ),
+      timeout: const Duration(seconds: 25),
+    );
+
+    try {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return {
+          'httpStatus': response.statusCode,
+          ...data,
+        };
+      }
+    } catch (_) {}
+    return {
+      'httpStatus': response.statusCode,
+      'ok': false,
+      'error': 'Server returned status ${response.statusCode}',
+    };
+  }
+
+  static Future<Map<String, dynamic>> cancelStagedAction({
+    required String stagedActionId,
+  }) async {
+    final response = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/ai/staged-actions/${Uri.encodeComponent(stagedActionId)}/cancel'),
+        headers: authHeaders,
+      ),
+      timeout: const Duration(seconds: 15),
+    );
+
+    try {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return {
+          'httpStatus': response.statusCode,
+          ...data,
+        };
+      }
+    } catch (_) {}
+    return {
+      'httpStatus': response.statusCode,
+      'ok': false,
+      'error': 'Server returned status ${response.statusCode}',
+    };
+  }
+
+  static Future<Map<String, dynamic>?> getStagedActionStatus({
+    required String stagedActionId,
+  }) async {
+    try {
+      final response = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/ai/staged-actions/${Uri.encodeComponent(stagedActionId)}'),
+          headers: authHeaders,
+        ),
+        timeout: const Duration(seconds: 10),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic>) {
+          return data;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   static Future<Map<String, dynamic>> decideApprovalWithDetails({
     required String requestId,
     required String decision, // 'APPROVE' or 'REJECT'

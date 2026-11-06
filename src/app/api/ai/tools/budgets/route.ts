@@ -116,9 +116,9 @@ export async function POST(req: NextRequest) {
     summary = `Create new ${period || 'Monthly'} budget for ${orgName} totaling ₦${Number(total_amount || 0).toLocaleString()}`;
   }
 
-  // Stage action for executive confirmation
+  // Stage action for executive confirmation using unified contract
   const staged = await stageAction({
-    actorId: actor.id,
+    userId: actor.id,
     actionType: 'budget',
     summary,
     targetSubsidiaryId: targetOrgId,
@@ -131,14 +131,16 @@ export async function POST(req: NextRequest) {
       allocations,
       reason,
     },
-    clientPreview: {
+    preview: {
       business_name: orgName,
+      organization_name: orgName,
       period: period || 'Current Period',
       total_amount: `₦${Number(total_amount || 0).toLocaleString()}`,
       allocations: allocations.map((a: any) => ({
         department: a.department || a.departmentName || 'Operations',
         amount: `₦${Number(a.amount || a.allocatedAmount || 0).toLocaleString()}`,
       })),
+      allocation_lines: allocations,
       action_mode: mode,
     },
   });
@@ -146,25 +148,11 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     action: mode,
-    staged_action_id: staged.id,
-    confirmation_hash: staged.confirmationHash,
-    summary,
-    staged_action: {
-      type: 'budget',
-      cardType: 'STAGED_ACTION',
-      staged_action_id: staged.id,
-      confirmation_hash: staged.confirmationHash,
-      summary,
-      action_type: 'budget',
-      requires_executive_pin: false,
-      payload_preview: {
-        organization_name: orgName,
-        period,
-        total_amount: `₦${Number(total_amount || 0).toLocaleString()}`,
-        allocation_lines: allocations,
-        action: mode,
-      },
-    },
+    staged_action_id: staged.staged_action_id,
+    confirmation_hash: staged.confirmation_hash,
+    confirmation_button: staged.confirmation_button,
+    summary: staged.summary,
+    staged_action: staged.staged_action,
   });
 }
 

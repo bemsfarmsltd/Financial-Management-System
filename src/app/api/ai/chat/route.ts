@@ -283,19 +283,74 @@ title: "<Chart Title>"
             console.warn('Could not persist assistant reply to memory:', e);
           }
 
+          // Verify any staged_action or STAGED_ACTION card against backend database records before rendering
+          let verifiedStagedAction: Record<string, any> | null = null;
+          let verifiedActionCard: Record<string, any> | null = null;
+          const rawCandidate = n8nData.staged_action || n8nData.actionCard || null;
+
+          if (!isReadOnlyUser && rawCandidate && actor) {
+            const candidateStagedId =
+              rawCandidate.staged_action_id ||
+              rawCandidate.id ||
+              rawCandidate.stagedActionId ||
+              null;
+
+            if (candidateStagedId && String(candidateStagedId).startsWith('sa_')) {
+              const dbStaged = await prisma.stagedAction.findUnique({
+                where: { id: String(candidateStagedId) },
+              });
+              const actorRoleUpper = (actor.role || '').toUpperCase();
+              const isAuthorizedOwner =
+                dbStaged &&
+                (dbStaged.userId === actor.id || actorRoleUpper === 'GMD') &&
+                dbStaged.status === 'PENDING' &&
+                dbStaged.expiresAt > new Date();
+
+              if (isAuthorizedOwner && dbStaged) {
+                let dbPreview: Record<string, any> = {};
+                try {
+                  dbPreview = JSON.parse(dbStaged.previewJson || '{}');
+                } catch {
+                  dbPreview = {};
+                }
+                verifiedStagedAction = {
+                  id: dbStaged.id,
+                  staged_action_id: dbStaged.id,
+                  confirmation_hash: dbStaged.confirmationHash,
+                  confirmationHash: dbStaged.confirmationHash,
+                  type: dbStaged.actionType,
+                  action_type: dbStaged.actionType,
+                  cardType: 'STAGED_ACTION',
+                  summary: dbStaged.summary,
+                  status: dbStaged.status,
+                  expires_at: dbStaged.expiresAt.toISOString(),
+                  payload_preview: dbPreview,
+                  preview: dbPreview,
+                };
+                verifiedActionCard = {
+                  type: 'STAGED_ACTION',
+                  ...verifiedStagedAction,
+                };
+              } else {
+                console.warn(
+                  `[AI Chat Integrity] Suppressed unverified or expired staged_action card (${candidateStagedId}).`
+                );
+              }
+            } else if (
+              n8nData.actionCard &&
+              ['TREASURY', 'BRIEFING', 'ANALYTICS_CHART'].includes(String(n8nData.actionCard.type || ''))
+            ) {
+              // Informational read-only cards only; never actionable mutation cards without a verified stagedAction
+              verifiedActionCard = n8nData.actionCard;
+            }
+          }
+
           return NextResponse.json({
             message: isReadOnlyUser && n8nData.staged_action
-              ? `${reply}\n\n*(Note: Staged actions suppressed — the AI Analyst role has read-only informational access).*`
+              ? `${reply}\n\n*(Note: Staged actions suppressed — read-only informational access).*`
               : reply,
-            actionCard: isReadOnlyUser
-              ? null
-              : n8nData.staged_action
-                ? {
-                    type: 'STAGED_ACTION',
-                    ...n8nData.staged_action,
-                  }
-                : n8nData.actionCard || null,
-            staged_action: isReadOnlyUser ? null : (n8nData.staged_action || null),
+            actionCard: verifiedActionCard,
+            staged_action: verifiedStagedAction,
             citations: n8nData.citations || [],
             quick_replies: n8nData.quick_replies || n8nData.quickReplies || [],
             timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),

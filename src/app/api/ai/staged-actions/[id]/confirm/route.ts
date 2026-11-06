@@ -56,21 +56,42 @@ export async function POST(
     });
 
     if (!result.ok) {
-      const statusCode = result.errorCode === 'NOT_PERMITTED' ? 403 : result.errorCode === 'NOT_FOUND' ? 404 : 400;
-      return NextResponse.json({
-        ok: false,
-        error_code: result.errorCode,
-        message: result.message,
-      }, { status: statusCode });
+      const conflictCodes = new Set([
+        'ALREADY_EXECUTED',
+        'CANCELLED',
+        'STAGED_ACTION_EXPIRED',
+        'TARGET_CHANGED',
+        'HASH_MISMATCH',
+      ]);
+      const statusCode =
+        result.errorCode === 'NOT_PERMITTED' || result.errorCode === 'AI_SCOPE_DISABLED'
+          ? 403
+          : result.errorCode === 'NOT_FOUND'
+          ? 404
+          : result.errorCode && conflictCodes.has(result.errorCode)
+          ? 409
+          : 400;
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: result.errorCode,
+          status: result.status,
+          message: result.message,
+        },
+        { status: statusCode }
+      );
     }
 
     return NextResponse.json({
       ok: true,
+      status: result.status || 'EXECUTED',
       record_type: result.record_type,
       record_id: result.record_id,
       url: result.url,
       record: result.record,
+      notification_intent: result.notification_intent || [],
       notifications_sent: result.notifications_sent || [],
+      notification_delivery_status: result.notification_delivery_status || 'NOT_APPLICABLE',
       audit_event_id: result.audit_event_id,
     });
   } catch (err: any) {

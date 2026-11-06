@@ -128,8 +128,9 @@ export async function POST(request: NextRequest) {
       const proposedSalary = Number(body.proposedSalary ?? body.proposed_salary ?? 0);
 
       const staged = await stageAction({
-        actorId: actor.id,
+        userId: actor.id,
         actionType: 'staff_management',
+        targetSubsidiaryId: org.id,
         summary: `Register Offline Staff: ${legalName} (${jobTitle} at ${org.legalName})`,
         materialPayload: {
           sub_action: 'REGISTER_OFFLINE',
@@ -248,6 +249,46 @@ export async function POST(request: NextRequest) {
     }
     if (materialPayload.status) preview.new_status = String(materialPayload.status).toUpperCase();
 
+    if (subAction === 'CHANGE_ROLE' || subAction === 'ROLE_CHANGE') {
+      const requestedRole = String(body.newRole || body.new_role || body.role || '').trim().toUpperCase();
+      if (!['STAFF', 'GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(requestedRole)) {
+        return NextResponse.json(
+          { error: `Invalid role "${requestedRole}". Only STAFF, GMD, and SUPER_ADMIN exist in the 3-role architecture.` },
+          { status: 400 }
+        );
+      }
+      const canonicalRole = requestedRole === 'SYSTEM_ADMIN' ? 'SUPER_ADMIN' : requestedRole;
+      const reason = String(body.reason || 'Executive role reassignment via BEMI').trim();
+
+      const staged = await stageAction({
+        userId: actor.id,
+        actionType: 'role_change',
+        targetEmployeeId: emp.id,
+        targetSubsidiaryId: emp.assignments[0]?.subsidiaryId,
+        summary: `Change System Role for ${emp.legalName} (${emp.employeeNumber}) from ${emp.role} to ${canonicalRole}`,
+        materialPayload: {
+          employee_id: emp.id,
+          new_role: canonicalRole,
+          expected_role: emp.role,
+          reason,
+        },
+        preview: {
+          operation: 'CHANGE SYSTEM ROLE',
+          staff_member: `${emp.legalName} (${emp.employeeNumber})`,
+          prior_role: emp.role,
+          new_role: canonicalRole,
+          reason,
+        },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        staged: true,
+        message: `Staged role change for ${emp.legalName} (${emp.role} → ${canonicalRole}). Click Confirm in chat to commit.`,
+        ...staged,
+      });
+    }
+
     const summary =
       subAction === 'TOGGLE_ATTENDANCE_EXEMPT'
         ? `Set Attendance Exemption (${Boolean(materialPayload.isAttendanceExempt ?? !emp.isAttendanceExempt) ? 'Exempt' : 'Required'}) for ${emp.legalName}`
@@ -260,8 +301,10 @@ export async function POST(request: NextRequest) {
         : `Update Staff Profile: ${emp.legalName} (${emp.employeeNumber})`;
 
     const staged = await stageAction({
-      actorId: actor.id,
+      userId: actor.id,
       actionType: 'staff_management',
+      targetEmployeeId: emp.id,
+      targetSubsidiaryId: targetSubsidiaryId || emp.assignments[0]?.subsidiaryId,
       summary,
       materialPayload,
       preview,

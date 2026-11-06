@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     }
 
     const staged = await stageAction({
-      actorId: actor.id,
+      userId: actor.id,
       actionType: 'staff_message',
       summary: `Send ${channel} Helpdesk Message to ${employee.legalName}: "${messageText.slice(0, 60)}"`,
       materialPayload: {

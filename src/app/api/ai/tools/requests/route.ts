@@ -114,8 +114,9 @@ export async function POST(request: NextRequest) {
           : `Request Clarification on ${reqItem.requestNumber}: "${message.slice(0, 50)}"`;
 
       const staged = await stageAction({
-        actorId: actor.id,
+        userId: actor.id,
         actionType: 'request_creation',
+        targetSubsidiaryId: reqItem.subsidiaryId || undefined,
         summary,
         materialPayload: {
           sub_action: subAction,
@@ -174,8 +175,9 @@ export async function POST(request: NextRequest) {
     }
 
     const staged = await stageAction({
-      actorId: actor.id,
+      userId: actor.id,
       actionType: 'request_creation',
+      targetSubsidiaryId: org.id,
       summary: `Create ${isRecurring ? `Recurring (${recurringInterval}) ` : ''}Fund Request: "${title}" (₦${amount.toLocaleString()}) under ${org.legalName}`,
       materialPayload: {
         title,

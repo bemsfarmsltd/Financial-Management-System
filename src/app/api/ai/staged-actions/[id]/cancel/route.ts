@@ -20,17 +20,100 @@ export async function POST(
     const action = await prisma.stagedAction.findUnique({ where: { id } });
 
     if (!action) {
-      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Staged action ${id} not found.` }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error_code: 'NOT_FOUND', message: `Staged action ${id} not found.` },
+        { status: 404 }
+      );
     }
 
-    if (action.userId !== actor.id) {
-      return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Cannot cancel an action staged by another executive.' }, { status: 403 });
+    const actorRoleUpper = (actor.role || '').toUpperCase();
+    if (action.userId !== actor.id && actorRoleUpper !== 'GMD') {
+      return NextResponse.json(
+        { ok: false, error_code: 'NOT_PERMITTED', message: 'Cannot cancel an action staged by another executive.' },
+        { status: 403 }
+      );
     }
 
-    await prisma.stagedAction.update({
-      where: { id },
+    if (action.status === 'EXECUTED') {
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'ALREADY_EXECUTED',
+          status: 'EXECUTED',
+          message: 'Cannot cancel a staged action that has already been executed.',
+        },
+        { status: 409 }
+      );
+    }
+
+    if (action.status === 'CANCELLED') {
+      return NextResponse.json({
+        ok: true,
+        staged_action_id: id,
+        status: 'CANCELLED',
+        message: `Staged action ${id} is already cancelled.`,
+      });
+    }
+
+    const now = new Date();
+    if (action.status === 'EXPIRED' || now > action.expiresAt) {
+      if (action.status === 'PENDING') {
+        await prisma.stagedAction.updateMany({
+          where: { id, status: 'PENDING' },
+          data: { status: 'EXPIRED' },
+        });
+      }
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'STAGED_ACTION_EXPIRED',
+          status: 'EXPIRED',
+          message: 'Staged action has already expired.',
+        },
+        { status: 409 }
+      );
+    }
+
+    const claimed = await prisma.stagedAction.updateMany({
+      where: {
+        id,
+        status: 'PENDING',
+        expiresAt: { gt: now },
+      },
       data: { status: 'CANCELLED' },
     });
+
+    if (claimed.count === 0) {
+      const latest = await prisma.stagedAction.findUnique({ where: { id } });
+      if (latest?.status === 'EXECUTED') {
+        return NextResponse.json(
+          {
+            ok: false,
+            error_code: 'ALREADY_EXECUTED',
+            status: 'EXECUTED',
+            message: 'Cannot cancel a staged action that has already been executed.',
+          },
+          { status: 409 }
+        );
+      }
+      if (latest?.status === 'CANCELLED') {
+        return NextResponse.json({
+          ok: true,
+          staged_action_id: id,
+          status: 'CANCELLED',
+          message: `Staged action ${id} cancelled.`,
+        });
+      }
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'STAGED_ACTION_EXPIRED',
+          status: latest?.status || 'EXPIRED',
+          message: 'Staged action can no longer be cancelled.',
+        },
+        { status: 409 }
+      );
+    }
 
     return NextResponse.json({
       ok: true,

@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       }
 
       const staged = await stageAction({
-        actorId: actor.id,
+        userId: actor.id,
         actionType: 'task_action',
         summary: `${subAction === 'REOPEN_TASK' ? 'Reopen' : 'Complete'} Follow-up Task: "${existing.description}"`,
         materialPayload: {
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     const dueAt = body.dueAt || new Date(Date.now() + 3 * 86400_000).toISOString();
 
     const staged = await stageAction({
-      actorId: actor.id,
+      userId: actor.id,
       actionType: 'task_action',
       summary: `Assign Follow-up Task to ${assignee.legalName}: "${description}"`,
       materialPayload: {

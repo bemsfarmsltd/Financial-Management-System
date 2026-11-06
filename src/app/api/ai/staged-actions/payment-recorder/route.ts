@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req, { allowServiceToken: true });
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN'])) {
+    if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Only authorized executives can stage disbursement recorder assignments.' }, { status: 403 });
     }
 
@@ -24,7 +24,15 @@ export async function POST(req: Request) {
     ]);
 
     if (!reqItem) return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Request ${request_id} not found.` }, { status: 404 });
-    if (!assignee) return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Assignee ${assignee_user_id} not found.` }, { status: 404 });
+    if (!assignee || assignee.status !== 'ACTIVE') {
+      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Active assignee ${assignee_user_id} not found.` }, { status: 404 });
+    }
+    if (reqItem.approvalStatus !== 'APPROVED') {
+      return NextResponse.json(
+        { ok: false, error_code: 'PRECONDITION_FAILED', message: `Request ${reqItem.requestNumber} must be APPROVED before assigning a payment recorder.` },
+        { status: 400 }
+      );
+    }
 
     const materialPayload = {
       request_id: reqItem.id,
@@ -32,6 +40,7 @@ export async function POST(req: Request) {
       assignee_user_id: assignee.id,
       assignee_name: assignee.legalName,
       note: note || '',
+      expected_version: reqItem.requestVersion,
     };
 
     const summary = `Assign disbursement recording for ${reqItem.requestNumber} to ${assignee.legalName} (${assignee.role})`;
@@ -48,6 +57,7 @@ export async function POST(req: Request) {
     const staged = await stageAction({
       userId: actor.id,
       actionType: 'payment_recorder',
+      targetSubsidiaryId: reqItem.subsidiaryId,
       materialPayload,
       summary,
       preview,

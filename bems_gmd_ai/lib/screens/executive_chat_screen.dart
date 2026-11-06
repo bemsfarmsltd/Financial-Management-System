@@ -147,12 +147,32 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
         history: _messages,
       );
 
+      Map<String, dynamic>? resolvedActionCard;
+      if (response['actionCard'] is Map<String, dynamic>) {
+        resolvedActionCard = Map<String, dynamic>.from(response['actionCard']);
+      } else if (response['staged_action'] is Map<String, dynamic>) {
+        final sa = Map<String, dynamic>.from(response['staged_action']);
+        resolvedActionCard = {
+          'type': 'STAGED_ACTION',
+          'cardType': 'STAGED_ACTION',
+          'staged_action_id': sa['staged_action_id'],
+          'confirmation_hash': sa['confirmation_hash'],
+          'actionType': sa['action_type'],
+          'summary': sa['summary'],
+          'preview': sa['payload_preview'] ?? {},
+          'warnings': sa['warnings'] ?? [],
+          'blocking_errors': sa['blocking_errors'] ?? [],
+          'expires_at': sa['expires_at'],
+          'status': sa['status'] ?? 'PENDING',
+        };
+      }
+
       final assistantMsg = ChatMessage(
         id: 'ai-${DateTime.now().millisecondsSinceEpoch}',
         sender: 'assistant',
         content: response['message'] ?? 'Response generated.',
         timestamp: response['timestamp'] ?? 'Now',
-        actionCard: response['actionCard'],
+        actionCard: resolvedActionCard,
       );
 
       setState(() {

@@ -121,12 +121,18 @@ export interface AiMessage {
     summary?: string;
     staged_action_id?: string;
     confirmation_hash?: string;
+    status?: 'PENDING' | 'EXECUTED' | 'CANCELLED' | 'EXPIRED';
     expires_at?: string;
     warnings?: string[];
     blocking_errors?: string[];
     confirmed?: boolean;
     cancelled?: boolean;
     resultMessage?: string;
+    errorMessage?: string;
+    resultUrl?: string;
+    recordId?: string;
+    auditEventId?: string;
+    executionResult?: Record<string, any> | null;
   };
   references?: {
     type: 'request' | 'note' | 'budget' | 'disbursement';
