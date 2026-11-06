@@ -64,12 +64,42 @@ export async function POST(req: NextRequest) {
   try {
     const { actor, errorResponse } = await authenticateAiToolRequest(req);
     if (errorResponse || !actor) return errorResponse!;
-    if (!actor.isExecutive) {
-      return NextResponse.json({ ok: false, error: 'Executive access required.' }, { status: 403 });
-    }
 
     const body = await req.json();
     const subAction = String(body.action || body.sub_action || 'CLEAR_CASE').toUpperCase();
+
+    if (subAction === 'INITIALIZE_LEGACY_CASES' || subAction === 'INITIALIZE_CASES') {
+      if (!actor.isExecutive) {
+        return NextResponse.json({ ok: false, error: 'Executive access required.' }, { status: 403 });
+      }
+      const legacyRequests = await prisma.expenditureRequest.findMany({
+        where: { disbursements: { some: {} }, accountabilityCase: { is: null } },
+        select: { id: true, requestNumber: true },
+      });
+
+      const staged = await stageAction({
+        userId: actor.id,
+        actionType: 'accountability_clearance',
+        summary: `Initialize ${legacyRequests.length} historical accountability case(s) for disbursed requests`,
+        materialPayload: {
+          sub_action: 'INITIALIZE_LEGACY_CASES',
+          eligible_count: legacyRequests.length,
+        },
+        preview: {
+          operation: 'Initialize Legacy Accountability Cases',
+          eligible_requests_count: legacyRequests.length,
+        },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        staged: true,
+        status: 'AWAITING_CONFIRMATION',
+        message: `Staged initialization of ${legacyRequests.length} historical accountability case(s).`,
+        ...staged,
+      });
+    }
+
     const lookup = String(body.caseId || body.case_id || body.requestId || body.requestNumber || '').trim();
 
     const targetCase = lookup
@@ -84,13 +114,90 @@ export async function POST(req: NextRequest) {
           include: { request: true, owner: true },
         })
       : await prisma.accountabilityCase.findFirst({
-          where: { status: { not: 'CLOSED' } },
+          where: { status: { not: 'CLOSED' }, ...(actor.isExecutive ? {} : { ownerUserId: actor.id }) },
           include: { request: true, owner: true },
           orderBy: { dueAt: 'asc' },
         });
 
     if (!targetCase) {
       return NextResponse.json({ ok: false, error: 'Matching accountability case not found.' }, { status: 404 });
+    }
+
+    if (subAction === 'SUBMIT_EVIDENCE' || subAction === 'UPLOAD_EVIDENCE') {
+      const isAuthorized =
+        actor.isExecutive ||
+        actor.id === targetCase.ownerUserId ||
+        actor.id === targetCase.request.requestedById;
+      if (!isAuthorized) {
+        return NextResponse.json({ ok: false, error: 'Only the requester, case owner, or an executive can submit evidence.' }, { status: 403 });
+      }
+      const attachmentIds: string[] = Array.isArray(body.attachmentIds || body.attachment_ids)
+        ? body.attachmentIds || body.attachment_ids
+        : body.attachmentId
+        ? [String(body.attachmentId)]
+        : [];
+      const notes = String(body.notes || body.description || 'Post-payment evidence submitted via BEMI').trim();
+
+      const staged = await stageAction({
+        userId: actor.id,
+        actionType: 'accountability_clearance',
+        targetSubsidiaryId: targetCase.request.subsidiaryId,
+        attachmentIds,
+        summary: `Submit Accountability Evidence for ${targetCase.request.requestNumber} (${targetCase.request.title})`,
+        materialPayload: {
+          sub_action: 'SUBMIT_EVIDENCE',
+          case_id: targetCase.id,
+          request_id: targetCase.requestId,
+          request_number: targetCase.request.requestNumber,
+          attachment_ids: attachmentIds,
+          notes,
+        },
+        preview: {
+          operation: 'Submit Accountability Evidence',
+          request_number: targetCase.request.requestNumber,
+          attachments_count: attachmentIds.length,
+          notes,
+        },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        staged: true,
+        status: 'AWAITING_CONFIRMATION',
+        message: `Accountability evidence submission for ${targetCase.request.requestNumber} has been staged.`,
+        ...staged,
+      });
+    }
+
+    if (!actor.isExecutive) {
+      return NextResponse.json({ ok: false, error: 'Executive access required.' }, { status: 403 });
+    }
+
+    if (subAction === 'REVIEW_CASE') {
+      const staged = await stageAction({
+        userId: actor.id,
+        actionType: 'accountability_clearance',
+        targetSubsidiaryId: targetCase.request.subsidiaryId,
+        summary: `Review Accountability Evidence for ${targetCase.request.requestNumber} (${targetCase.owner.legalName})`,
+        materialPayload: {
+          sub_action: 'REVIEW_CASE',
+          case_id: targetCase.id,
+          request_number: targetCase.request.requestNumber,
+          clearance_notes: body.notes || body.reason || 'Evidence reviewed by executive',
+        },
+        preview: {
+          operation: 'Review Accountability Evidence',
+          request_number: targetCase.request.requestNumber,
+          staff_member: targetCase.owner.legalName,
+          notes: body.notes || body.reason || 'Evidence reviewed by executive',
+        },
+      });
+      return NextResponse.json({
+        ok: true,
+        staged: true,
+        status: 'AWAITING_CONFIRMATION',
+        ...staged,
+      });
     }
 
     if (subAction === 'EXTEND_DEADLINE' || subAction === 'DEADLINE_EXTENSION') {

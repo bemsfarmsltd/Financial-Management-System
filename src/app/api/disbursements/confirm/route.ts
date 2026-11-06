@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     const disbursementId = typeof body.disbursementId === 'string' ? body.disbursementId : '';
     const decision = body.decision;
     const note = typeof body.note === 'string' ? body.note.trim().slice(0, 1000) : '';
-    if (!disbursementId || !['RECEIVED', 'NOT_RECEIVED', 'AMOUNT_MISMATCH'].includes(decision)) {
+    if (!disbursementId || !['RECEIVED', 'NOT_RECEIVED', 'AMOUNT_MISMATCH', 'RESOLVE_ISSUE'].includes(decision)) {
       return NextResponse.json({ error: 'Choose a payment and tell us whether the funds arrived.' }, { status: 400 });
     }
     if (decision !== 'RECEIVED' && !note) {
@@ -25,8 +25,76 @@ export async function POST(request: Request) {
     if (!disbursement || (!disbursement.request && !disbursement.payrollItem)) return NextResponse.json({ error: 'Payment record not found.' }, { status: 404 });
     const isPayrollPayment = !!disbursement.payrollItem;
     const recipientId = isPayrollPayment ? disbursement.beneficiaryEmployeeId : disbursement.request?.requestedById;
+
+    // Executive retry / issue resolution path (Workflow 2: retry issue resolution)
+    if (decision === 'RESOLVE_ISSUE') {
+      if (!hasAnyRole(actor, ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'])) {
+        return NextResponse.json({ error: 'Only an executive (GMD or Super Admin) can resolve a reported payment issue.' }, { status: 403 });
+      }
+      if (disbursement.status !== 'RECIPIENT_REPORTED_ISSUE') {
+        return NextResponse.json({ error: 'Only disbursements with a reported issue can be reset for recipient re-confirmation.' }, { status: 409 });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.recipientPaymentConfirmation.deleteMany({ where: { disbursementId } });
+        await tx.disbursement.update({
+          where: { id: disbursementId },
+          data: { status: 'AWAITING_RECIPIENT_CONFIRMATION' },
+        });
+        if (!isPayrollPayment && disbursement.requestId) {
+          await tx.expenditureRequest.update({
+            where: { id: disbursement.requestId },
+            data: { paymentStatus: 'AWAITING_RECIPIENT_CONFIRMATION' },
+          });
+        }
+        if (!isPayrollPayment && disbursement.request?.channel) {
+          await tx.channelMessage.create({
+            data: {
+              channelId: disbursement.request.channel.id,
+              authorId: actor.id,
+              authorName: actor.legalName,
+              authorRole: actor.role,
+              messageType: 'AUDIT_EVENT',
+              body: `Payment issue resolved by ${actor.legalName}: ${note}. Awaiting recipient re-confirmation.`,
+            },
+          });
+        }
+        await tx.auditEvent.create({
+          data: {
+            actorId: actor.id,
+            actorName: actor.legalName,
+            actorRole: actor.role,
+            groupId: disbursement.request?.groupId || disbursement.payerOrgId,
+            subsidiaryId: disbursement.request?.subsidiaryId || undefined,
+            targetType: 'DISBURSEMENT',
+            targetId: disbursementId,
+            action: 'PAYMENT_ISSUE_RESOLVED',
+            correlationId: `CORR-RESOLVE-${disbursementId}`,
+            metadata: JSON.stringify({ note, resolvedBy: actor.id }),
+          },
+        });
+        if (recipientId) {
+          await tx.systemNotification.create({
+            data: {
+              employeeId: recipientId,
+              kind: 'PAYMENT_CONFIRMATION_REQUIRED',
+              title: 'Payment issue resolved — please re-confirm receipt',
+              body: `${actor.legalName} resolved the reported payment issue: ${note}`,
+              linkUrl: isPayrollPayment ? '/payroll' : `/requests/${disbursement.request?.requestNumber}`,
+            },
+          });
+        }
+      });
+
+      return NextResponse.json({ success: true, status: 'AWAITING_RECIPIENT_CONFIRMATION' });
+    }
+
     if (recipientId !== actor.id) return NextResponse.json({ error: 'Only the employee receiving this payment can confirm receipt.' }, { status: 403 });
-    if (!['AWAITING_RECIPIENT_CONFIRMATION', 'PENDING_VERIFICATION'].includes(disbursement.status) || disbursement.recipientConfirmation) {
+    const isReconfirmingIssue = disbursement.status === 'RECIPIENT_REPORTED_ISSUE' && decision === 'RECEIVED';
+    if (
+      !isReconfirmingIssue &&
+      (!['AWAITING_RECIPIENT_CONFIRMATION', 'PENDING_VERIFICATION'].includes(disbursement.status) || disbursement.recipientConfirmation)
+    ) {
       return NextResponse.json({ error: 'This payment has already been confirmed or flagged.' }, { status: 409 });
     }
 
@@ -39,7 +107,11 @@ export async function POST(request: Request) {
     });
 
     await prisma.$transaction(async (tx) => {
-      await tx.recipientPaymentConfirmation.create({ data: { disbursementId, employeeId: actor.id, decision, note: note || null } });
+      await tx.recipientPaymentConfirmation.upsert({
+        where: { disbursementId },
+        create: { disbursementId, employeeId: actor.id, decision, note: note || null },
+        update: { employeeId: actor.id, decision, note: note || null, confirmedAt: new Date() },
+      });
       await tx.disbursement.update({ where: { id: disbursementId }, data: { status: nextStatus } });
       if (!isPayrollPayment && disbursement.requestId) {
         await tx.expenditureRequest.update({ where: { id: disbursement.requestId }, data: { paymentStatus } });

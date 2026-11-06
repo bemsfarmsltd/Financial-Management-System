@@ -31,6 +31,117 @@ export async function GET(req: NextRequest) {
   const year = Number(url.searchParams.get('year')) || new Date().getFullYear();
   const month = Number(url.searchParams.get('month')) || new Date().getMonth() + 1;
 
+  // 0A. GET_PAYSLIP: Return detailed payslip & cost allocation breakdown for a specific itemId or employeeId
+  if (action === 'GET_PAYSLIP' || action === 'PAYSLIP') {
+    const itemId = url.searchParams.get('itemId') || url.searchParams.get('payrollItemId');
+    const employeeId = url.searchParams.get('employeeId') || url.searchParams.get('employee_id');
+
+    const item = itemId
+      ? await prisma.payrollItem.findUnique({
+          where: { id: itemId },
+          include: {
+            employee: true,
+            allocations: { include: { subsidiary: { select: { id: true, legalName: true, code: true } } } },
+            disbursement: { include: { receipt: true } },
+            batch: { include: { period: true } },
+          },
+        })
+      : employeeId
+      ? await prisma.payrollItem.findFirst({
+          where: {
+            employeeId,
+            batch: { period: { year, month } },
+          },
+          orderBy: { batch: { version: 'desc' } },
+          include: {
+            employee: true,
+            allocations: { include: { subsidiary: { select: { id: true, legalName: true, code: true } } } },
+            disbursement: { include: { receipt: true } },
+            batch: { include: { period: true } },
+          },
+        })
+      : null;
+
+    if (!item) {
+      return NextResponse.json(
+        { ok: false, error_code: 'NOT_FOUND', message: 'Payroll payslip item not found for the requested employee/period.' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      payslip: {
+        itemId: item.id,
+        period: `${item.batch.period.year}-${String(item.batch.period.month).padStart(2, '0')}`,
+        batchStatus: item.batch.status,
+        employee: {
+          id: item.employee.id,
+          legalName: item.employee.legalName,
+          employeeNumber: item.employee.employeeNumber,
+          jobTitle: item.employee.jobTitle,
+        },
+        grossSalary: Number(item.grossMinor) / 100,
+        formattedGross: formatNaira(item.grossMinor),
+        deductions: Number(item.employeeDeductionsMinor) / 100,
+        formattedDeductions: formatNaira(item.employeeDeductionsMinor),
+        netPay: Number(item.netMinor) / 100,
+        formattedNet: formatNaira(item.netMinor),
+        status: item.status,
+        allocations: item.allocations.map((a) => ({
+          subsidiaryId: a.subsidiaryId,
+          subsidiaryName: a.subsidiary.legalName,
+          subsidiaryCode: a.subsidiary.code,
+          percentage: a.percentage,
+          amountNaira: Number(a.allocableCostMinor) / 100,
+        })),
+        disbursement: item.disbursement
+          ? {
+              id: item.disbursement.id,
+              status: item.disbursement.status,
+              externalReference: item.disbursement.externalReference,
+              paidAt: item.disbursement.paidAt,
+              hasReceipt: Boolean(item.disbursement.receipt),
+            }
+          : null,
+      },
+    });
+  }
+
+  // 0B. GET_INTERCOMPANY: Return payroll intercompany recharge notes for the period
+  if (action === 'GET_INTERCOMPANY' || action === 'INTERCOMPANY_EFFECTS') {
+    const period = await prisma.payrollPeriod.findFirst({ where: { year, month } });
+    if (!period) {
+      return NextResponse.json({ ok: true, year, month, notesCount: 0, notes: [] });
+    }
+    const notes = await prisma.intercompanyNote.findMany({
+      where: { periodId: period.id },
+      include: {
+        sourceEntity: { select: { id: true, legalName: true, code: true } },
+        targetEntity: { select: { id: true, legalName: true, code: true } },
+      },
+      orderBy: { generatedAt: 'desc' },
+    });
+    return NextResponse.json({
+      ok: true,
+      year,
+      month,
+      periodId: period.id,
+      notesCount: notes.length,
+      notes: notes.map((n) => ({
+        id: n.id,
+        noteNumber: n.noteNumber,
+        noteType: n.noteType,
+        sourceEntity: n.sourceEntity.legalName,
+        targetEntity: n.targetEntity.legalName,
+        amountNaira: Number(n.totalAmountMinor) / 100,
+        formattedAmount: formatNaira(n.totalAmountMinor),
+        status: n.status,
+        description: n.description,
+      })),
+    });
+  }
+
   // 1. GET_ITEMS: Return line items for a specific month/year
   if (action === 'GET_ITEMS') {
     const period = await prisma.payrollPeriod.findFirst({
@@ -249,16 +360,21 @@ export async function POST(req: NextRequest) {
     }
 
     const batch = period.batches[0];
+    const paymentEntityId = (body.paymentEntityId || body.payerOrgId || batch.paymentEntityId || '').trim() || null;
+    const disbursementAssigneeId = (body.disbursementAssigneeId || body.assigneeId || '').trim() || null;
     const periodLabel = `${new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(year, month - 1, 1))} ${year}`;
     const staged = await stageAction({
       userId: actor.id,
       actionType: 'payroll_action',
+      targetSubsidiaryId: paymentEntityId || undefined,
       summary: `Sign off & lock payroll batch v${batch.version} for ${periodLabel} (Net: ${formatNaira(batch.totalNetMinor)})`,
       materialPayload: {
         sub_action: 'SIGN_OFF',
         year,
         month,
         batchId: batch.id,
+        paymentEntityId,
+        disbursementAssigneeId,
       },
       preview: {
         action: 'SIGN_OFF',
@@ -267,6 +383,8 @@ export async function POST(req: NextRequest) {
         version: batch.version,
         totalGross: formatNaira(batch.totalGrossMinor),
         totalNet: formatNaira(batch.totalNetMinor),
+        ...(paymentEntityId ? { paymentEntityId } : {}),
+        ...(disbursementAssigneeId ? { disbursementAssigneeId } : {}),
       },
     });
 

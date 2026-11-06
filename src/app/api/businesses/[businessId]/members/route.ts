@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
+    const actor = await getAuthenticatedEmployee(req);
+    if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+
     const { businessId } = await params;
 
     const employees = await prisma.employee.findMany({
@@ -14,61 +20,18 @@ export async function GET(
         assignments: {
           include: {
             subsidiary: {
-              select: { id: true, legalName: true, code: true }
+              select: { id: true, legalName: true, code: true },
             },
             department: {
-              select: { id: true, name: true, code: true }
-            }
-          }
-        }
+              select: { id: true, name: true, code: true },
+            },
+          },
+        },
       },
-      orderBy: { createdAt: 'asc' }
+      orderBy: { createdAt: 'asc' },
     });
 
-    const fallbackSeed = [
-      {
-        id: 'emp-gmd',
-        email: 'bemssoftbusiness@gmail.com',
-        fullName: 'Dr Pastra (GMD)',
-        role: 'GMD',
-        status: 'Active',
-        isOwner: true,
-        employeeNumber: 'BEMS-HQ-2026-0001',
-        jobTitle: 'Group Managing Director / CEO',
-        department: 'Executive Board',
-        subsidiaryName: 'BEMS Group Holding HQ'
-      },
-      {
-        id: 'emp-fc',
-        email: 'finance@bemsgroup.com',
-        fullName: 'Group Finance Controller',
-        role: 'FINANCE_CONTROLLER',
-        status: 'Active',
-        isOwner: false,
-        employeeNumber: 'BEMS-HQ-2026-0002',
-        jobTitle: 'Group Financial Controller',
-        department: 'Treasury & Finance',
-        subsidiaryName: 'BEMS Group Holding HQ'
-      },
-      {
-        id: 'emp-sysadmin',
-        email: 'admin@bemsgroup.com',
-        fullName: 'Corporate Systems Admin',
-        role: 'SYSTEM_ADMIN',
-        status: 'Active',
-        isOwner: true,
-        employeeNumber: 'BEMS-HQ-2026-0003',
-        jobTitle: 'Principal Systems Architect',
-        department: 'Information Technology',
-        subsidiaryName: 'BEMS Group Holding HQ'
-      }
-    ];
-
-    if (!employees || employees.length === 0) {
-      return NextResponse.json(fallbackSeed);
-    }
-
-    const members = employees.map(emp => {
+    const members = employees.map((emp) => {
       const primaryAssignment = emp.assignments?.[0];
       const sub = primaryAssignment?.subsidiary;
       const dept = primaryAssignment?.department;
@@ -79,20 +42,21 @@ export async function GET(
         fullName: emp.legalName || 'BEMS Employee',
         role: emp.role || 'STAFF',
         status: emp.status === 'INVITED' ? 'Invited' : emp.status === 'SUSPENDED' ? 'Suspended' : 'Active',
-        isOwner: emp.role === 'GMD' || emp.role === 'SYSTEM_ADMIN',
+        isOwner: emp.role === 'GMD' || emp.role === 'SYSTEM_ADMIN' || emp.role === 'SUPER_ADMIN',
         employeeNumber: emp.employeeNumber || `BEMS-${emp.id.slice(0, 4).toUpperCase()}`,
         jobTitle: emp.jobTitle || emp.role.replace('_', ' '),
         department: dept?.name || 'General Operations',
-        subsidiaryName: sub?.legalName || 'BEMS Group'
+        subsidiaryName: sub?.legalName || 'BEMS Group',
       };
     });
 
     if (businessId && businessId !== 'all' && businessId !== 'bems-group-hq') {
-      const filtered = members.filter(m => {
-        const emp = employees.find(e => e.id === m.id);
-        return emp?.assignments?.some(a => 
-          a.subsidiary?.id === businessId || 
-          a.subsidiary?.code?.toLowerCase() === businessId.toLowerCase()
+      const filtered = members.filter((m) => {
+        const emp = employees.find((e) => e.id === m.id);
+        return emp?.assignments?.some(
+          (a) =>
+            a.subsidiary?.id === businessId ||
+            a.subsidiary?.code?.toLowerCase() === businessId.toLowerCase()
         );
       });
       return NextResponse.json(filtered.length > 0 ? filtered : members);
@@ -101,20 +65,7 @@ export async function GET(
     return NextResponse.json(members);
   } catch (error: any) {
     console.error('Error fetching business members:', error);
-    return NextResponse.json([
-      {
-        id: 'emp-gmd',
-        email: 'bemssoftbusiness@gmail.com',
-        fullName: 'Dr Pastra (GMD)',
-        role: 'GMD',
-        status: 'Active',
-        isOwner: true,
-        employeeNumber: 'BEMS-HQ-2026-0001',
-        jobTitle: 'Group Managing Director / CEO',
-        department: 'Executive Board',
-        subsidiaryName: 'BEMS Group Holding HQ'
-      }
-    ]);
+    return NextResponse.json({ error: 'Failed to fetch business members.' }, { status: 500 });
   }
 }
 
@@ -123,21 +74,69 @@ export async function POST(
   { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
+    const actor = await getAuthenticatedEmployee(req);
+    if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Executive access is required to invite executive members.' }, { status: 403 });
+    }
+
     const { businessId } = await params;
     const body = await req.json().catch(() => ({}));
     const email = body.email?.trim()?.toLowerCase();
-    const role = body.role || 'STAFF';
+    const rawRole = String(body.role || '').trim().toUpperCase();
 
-    if (!email) {
+    if (!email || !email.includes('@')) {
       return NextResponse.json({ error: 'Valid email is required.' }, { status: 400 });
     }
 
-    const devInviteToken = `INV-${randomUUID().slice(0, 8).toUpperCase()}`;
+    if (rawRole !== 'GMD' && rawRole !== 'SUPER_ADMIN' && rawRole !== 'SYSTEM_ADMIN') {
+      return NextResponse.json(
+        {
+          error:
+            'Strict Onboarding Channel Separation: Executive email invitations are strictly reserved for SUPER_ADMIN and GMD. Staff must register via self-service.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const canonicalRole = rawRole === 'GMD' ? 'GMD' : 'SYSTEM_ADMIN';
+    if (canonicalRole === 'SYSTEM_ADMIN' && actor.role === 'GMD') {
+      return NextResponse.json(
+        { error: 'Only a Super Admin can invite another Super Admin.' },
+        { status: 403 }
+      );
+    }
+
+    const org =
+      !businessId || businessId === 'all' || businessId === 'bems-group-hq'
+        ? await prisma.organization.findFirst({ where: { OR: [{ type: 'GROUP' }, { code: 'BEMS-GROUP' }, { code: 'BEMS-HQ' }] } })
+        : await prisma.organization.findFirst({
+            where: { OR: [{ id: businessId }, { code: { equals: businessId, mode: 'insensitive' } }] },
+          });
+    if (!org) {
+      return NextResponse.json({ error: `Business "${businessId}" not found.` }, { status: 404 });
+    }
+
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    const invitation = await prisma.adminInvitation.create({
+      data: {
+        workEmail: email,
+        role: canonicalRole,
+        subsidiaryId: org.id,
+        positionName: canonicalRole === 'GMD' ? 'The Group Managing Director' : 'Super Admin',
+        token,
+        invitedById: actor.id,
+        status: 'PENDING',
+        expiresAt,
+      },
+    });
 
     return NextResponse.json({
       ok: true,
-      devInviteToken,
-      message: `Invitation issued for ${email} as ${role} in ${businessId}.`
+      invitationId: invitation.id,
+      message: `Executive invitation issued for ${email} as ${canonicalRole} in ${org.legalName}.`,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

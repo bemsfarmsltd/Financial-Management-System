@@ -5,7 +5,7 @@ import { getMobileAppGate } from '@/lib/mobile-gate';
 
 export const dynamic = 'force-dynamic';
 
-const ADMIN_ROLES = ['SYSTEM_ADMIN', 'HEAD_OF_ADMIN', 'COO', 'GMD'];
+const ADMIN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'];
 
 export async function GET(request: Request) {
   try {

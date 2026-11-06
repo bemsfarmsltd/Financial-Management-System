@@ -249,6 +249,62 @@ export async function POST(request: NextRequest) {
     }
     if (materialPayload.status) preview.new_status = String(materialPayload.status).toUpperCase();
 
+    if (subAction === 'APPROVE_ONBOARDING' || subAction === 'REJECT_ONBOARDING') {
+      const isReject = subAction === 'REJECT_ONBOARDING';
+      const staged = await stageAction({
+        userId: actor.id,
+        actionType: 'staff_approval',
+        targetEmployeeId: emp.id,
+        targetSubsidiaryId: emp.assignments[0]?.subsidiaryId,
+        summary: `${isReject ? 'Reject' : 'Approve'} Staff Onboarding for ${emp.legalName} (${emp.employeeNumber})`,
+        materialPayload: {
+          employee_id: emp.id,
+          decision: isReject ? 'REJECT' : 'APPROVE',
+          reason: body.reason || (isReject ? 'Onboarding declined by executive' : 'Onboarding approved by executive'),
+        },
+        preview: {
+          operation: isReject ? 'Reject Staff Onboarding' : 'Approve Staff Onboarding',
+          staff_member: `${emp.legalName} (${emp.employeeNumber})`,
+          current_approval_status: emp.approvalStatus,
+          decision: isReject ? 'REJECTED' : 'APPROVED',
+        },
+      });
+      return NextResponse.json({
+        ok: true,
+        staged: true,
+        message: `Staged onboarding ${isReject ? 'rejection' : 'approval'} for ${emp.legalName}.`,
+        ...staged,
+      });
+    }
+
+    if (subAction === 'SEND_PASSWORD_RESET_INVITE' || subAction === 'RESET_PASSWORD_INVITE') {
+      const staged = await stageAction({
+        userId: actor.id,
+        actionType: 'staff_management',
+        targetEmployeeId: emp.id,
+        targetSubsidiaryId: emp.assignments[0]?.subsidiaryId,
+        summary: `Send Authorized Password Reset Invitation to ${emp.legalName} (${emp.workEmail})`,
+        materialPayload: {
+          sub_action: 'SEND_PASSWORD_RESET_INVITE',
+          employeeId: emp.id,
+          workEmail: emp.workEmail,
+          reason: body.reason || 'Executive-authorized password reset invitation',
+        },
+        preview: {
+          operation: 'Send Password Reset Invitation',
+          staff_member: `${emp.legalName} (${emp.employeeNumber})`,
+          work_email: emp.workEmail,
+          security_notice: 'Identity verification and secret entry remain on the dedicated secure password reset UI.',
+        },
+      });
+      return NextResponse.json({
+        ok: true,
+        staged: true,
+        message: `Staged authorized password-reset invitation for ${emp.legalName} (${emp.workEmail}).`,
+        ...staged,
+      });
+    }
+
     if (subAction === 'CHANGE_ROLE' || subAction === 'ROLE_CHANGE') {
       const requestedRole = String(body.newRole || body.new_role || body.role || '').trim().toUpperCase();
       if (!['STAFF', 'GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(requestedRole)) {

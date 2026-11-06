@@ -153,14 +153,31 @@ async function main() {
   assert.match(digest, /^sha256:[a-f0-9]{64}$/, 'Attachment checksum must be sha256:<64-hex>');
   console.log('  ✓ Staged attachment SHA-256 checksum verified.');
 
-  // 6 & 7. Parity Inventory Consistency Check
-  console.log('[6/7] Verifying Dashboard <-> AI Command Parity Inventory...');
+  // 6 & 7. Parity Inventory Consistency Check & Audit Item 06 Coverage
+  console.log('[6/7] Verifying Dashboard <-> AI Command Parity Inventory & Audit Item 06 Coverage...');
   const parityReport = verifyParityInventoryConsistency();
   if (!parityReport.valid) {
     console.error('Parity errors:', parityReport.errors);
   }
   assert.equal(parityReport.valid, true, `Parity inventory check failed: ${parityReport.errors.join('; ')}`);
-  console.log(`  ✓ All ${PARITY_INVENTORY.length} parity inventory entries verified with 0 gaps.`);
+
+  const requiredAudit06Routes = [
+    '/api/businesses/[businessId]',
+    '/api/businesses/[businessId]/channels',
+    '/api/businesses/[businessId]/templates/[templateId]/import',
+    '/api/businesses/[businessId]/members',
+    '/api/admin/mobile-apps',
+    '/api/accountability/evidence',
+    '/api/reports/export',
+    '/api/staff/[employeeId]/password',
+  ];
+  for (const r of requiredAudit06Routes) {
+    assert.ok(
+      PARITY_INVENTORY.some((e) => e.dashboardRoute === r),
+      `Missing Audit Item 06 route in PARITY_INVENTORY: ${r}`
+    );
+  }
+  console.log(`  ✓ All ${PARITY_INVENTORY.length} parity inventory entries & Audit Item 06 workflows verified with 0 gaps.`);
 
   console.log('\n[7/7] All 7 Platform Architecture Pillars PASSED.');
 }

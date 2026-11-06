@@ -25,18 +25,51 @@ export async function GET(req: NextRequest) {
   if (status !== 'ALL') whereClause.status = status;
   if (period) whereClause.periodName = { contains: period, mode: 'insensitive' };
 
-  const budgets = await prisma.budget.findMany({
-    where: whereClause,
-    include: {
-      organization: { select: { id: true, legalName: true, code: true } },
-      lines: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const [budgets, recurringRequests] = await Promise.all([
+    prisma.budget.findMany({
+      where: whereClause,
+      include: {
+        organization: { select: { id: true, legalName: true, code: true } },
+        lines: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.expenditureRequest.findMany({
+      where: {
+        isRecurring: true,
+        ...(organizationId && organizationId !== 'ALL' ? { subsidiaryId: organizationId } : {}),
+      },
+      select: {
+        id: true,
+        requestNumber: true,
+        title: true,
+        subsidiaryId: true,
+        amountMinor: true,
+        recurringInterval: true,
+        approvalStatus: true,
+        neededBy: true,
+      },
+    }),
+  ]);
+
+  let recurringAnnualRunRateMinor = 0;
+  for (const r of recurringRequests) {
+    if (r.approvalStatus === 'APPROVED') {
+      const amt = Number(r.amountMinor);
+      const mult = r.recurringInterval === 'WEEKLY' ? 52 : r.recurringInterval === 'QUARTERLY' ? 4 : r.recurringInterval === 'YEARLY' ? 1 : 12;
+      recurringAnnualRunRateMinor += amt * mult;
+    }
+  }
 
   return NextResponse.json({
     ok: true,
     total: budgets.length,
+    recurringCommitmentsSummary: {
+      totalRecurringRequests: recurringRequests.length,
+      approvedRecurringCount: recurringRequests.filter((r) => r.approvalStatus === 'APPROVED').length,
+      annualRunRateNaira: recurringAnnualRunRateMinor / 100,
+      formattedAnnualRunRate: `₦${(recurringAnnualRunRateMinor / 100).toLocaleString()}`,
+    },
     budgets: budgets.map((b) => ({
       id: b.id,
       organizationId: b.organizationId,

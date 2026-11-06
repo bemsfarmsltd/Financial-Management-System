@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { getAuthenticatedEmployee, getHrAuthorizationScope, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { toSystemRequestId } from '@/lib/request-id';
 
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to view accountability cases.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR', 'STAFF', 'COO', 'FINANCE', 'DIRECTOR', 'HEAD_OF_ADMIN', 'AI_ANALYST', 'FINANCE_CONTROLLER'])) {
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'STAFF'])) {
     return NextResponse.json({ error: 'Accountability access is required.' }, { status: 403 });
   }
 
@@ -61,10 +61,13 @@ export async function GET(request: Request) {
 }
 
 // Idempotently initialize accountability cases for historical payments recorded before the case workflow existed.
-export async function POST() {
-  const actor = await getAuthenticatedEmployee();
+export async function POST(request: Request) {
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to initialize accountability cases.' }, { status: 401 });
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR'])) return NextResponse.json({ error: 'Admin or HR access is required.' }, { status: 403 });
+  const hrScope = await getHrAuthorizationScope(actor);
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']) && !hrScope.authorized) {
+    return NextResponse.json({ error: 'Executive or delegated HR access is required.' }, { status: 403 });
+  }
   const legacyRequests = await prisma.expenditureRequest.findMany({ where: { disbursements: { some: {} }, accountabilityCase: { is: null } }, include: { disbursements: { orderBy: { paidAt: 'asc' }, take: 1 } } });
   let createdCount = 0;
   for (const request of legacyRequests) {

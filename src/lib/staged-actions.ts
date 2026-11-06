@@ -954,33 +954,11 @@ export async function executeStagedAction(params: {
         JSON.stringify(budget, (_, v) => (typeof v === 'bigint' ? Number(v) : v))
       );
     } else if (action.actionType === 'approval_decision') {
-      const { request_id, decision, reason } = materialPayload;
-
-      const req = await tx.expenditureRequest.findFirst({
-        where: { OR: [{ id: request_id }, { requestNumber: request_id }] },
-        include: {
-          requester: true,
-          approvalSteps: { orderBy: { stageIndex: 'asc' } },
-          channel: true,
-        },
-      });
-
-      if (!req) throw new Error(`Request ${request_id} not found.`);
-      resolvedSubsidiaryId = req.subsidiaryId;
-
-      if (!['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(req.approvalStatus)) {
-        throw new StaleTargetError(
-          `Request ${req.requestNumber} is already ${req.approvalStatus} and can no longer be decided from this preview.`
-        );
-      }
-      if (
-        materialPayload.expected_version !== undefined &&
-        req.requestVersion !== Number(materialPayload.expected_version)
-      ) {
-        throw new StaleTargetError(
-          `Request ${req.requestNumber} was modified since staging (v${req.requestVersion}). Please request a fresh preview.`
-        );
-      }
+      const { request_id, request_ids, expected_versions, decision, reason } = materialPayload;
+      const targetIds: string[] =
+        Array.isArray(request_ids) && request_ids.length > 0
+          ? request_ids.map((id: any) => String(id))
+          : [String(request_id)];
 
       const normDecision = String(decision || '').toUpperCase().trim();
       const newStatus =
@@ -990,128 +968,218 @@ export async function executeStagedAction(params: {
           ? 'REJECTED'
           : 'CLARIFICATION_REQUESTED';
 
-      if (newStatus === 'APPROVED' && req.requestedById === actor.id && actor.role !== 'GMD') {
-        throw new StagedPermissionError(
-          'SEPARATION_OF_DUTIES',
-          `Separation of duties policy: You cannot approve your own request ${req.requestNumber}.`
-        );
-      }
-
-      const now = new Date();
-      const pendingStep = req.approvalSteps.find((s) => s.status === 'PENDING');
-      const decisionNote = reason || `Executive decision via AI: ${newStatus}`;
-
-      if (pendingStep) {
-        await tx.approvalStep.update({
-          where: { id: pendingStep.id },
-          data: {
-            status: newStatus === 'CLARIFICATION_REQUESTED' ? 'PENDING' : newStatus,
-            approverId: actor.id,
-            approverName: actor.legalName,
-            decidedAt: now,
-            decisionReason: decisionNote,
+      const updatedResults: any[] = [];
+      for (const targetReqId of targetIds) {
+        const req = await tx.expenditureRequest.findFirst({
+          where: { OR: [{ id: targetReqId }, { requestNumber: targetReqId }] },
+          include: {
+            requester: true,
+            approvalSteps: { orderBy: { stageIndex: 'asc' } },
+            channel: true,
           },
         });
-        if (newStatus === 'APPROVED' || newStatus === 'REJECTED') {
-          await tx.approvalStep.updateMany({
-            where: { requestId: req.id, status: 'PENDING', id: { not: pendingStep.id } },
+
+        if (!req) throw new Error(`Request ${targetReqId} not found.`);
+        resolvedSubsidiaryId = req.subsidiaryId;
+
+        if (!['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(req.approvalStatus)) {
+          throw new StaleTargetError(
+            `Request ${req.requestNumber} is already ${req.approvalStatus} and can no longer be decided from this preview.`
+          );
+        }
+        const expectedVer =
+          expected_versions && typeof expected_versions === 'object' && expected_versions[req.id] !== undefined
+            ? Number(expected_versions[req.id])
+            : targetIds.length === 1 && materialPayload.expected_version !== undefined
+            ? Number(materialPayload.expected_version)
+            : undefined;
+        if (expectedVer !== undefined && req.requestVersion !== expectedVer) {
+          throw new StaleTargetError(
+            `Request ${req.requestNumber} was modified since staging (v${req.requestVersion}). Please request a fresh preview.`
+          );
+        }
+
+        if (newStatus === 'APPROVED' && req.requestedById === actor.id && actor.role !== 'GMD') {
+          throw new StagedPermissionError(
+            'SEPARATION_OF_DUTIES',
+            `Separation of duties policy: You cannot approve your own request ${req.requestNumber}.`
+          );
+        }
+
+        const now = new Date();
+        const pendingStep = req.approvalSteps.find((s) => s.status === 'PENDING');
+        const decisionNote = reason || `Executive decision via AI: ${newStatus}`;
+
+        if (pendingStep) {
+          await tx.approvalStep.update({
+            where: { id: pendingStep.id },
             data: {
-              status: newStatus,
+              status: newStatus === 'CLARIFICATION_REQUESTED' ? 'PENDING' : newStatus,
               approverId: actor.id,
               approverName: actor.legalName,
               decidedAt: now,
               decisionReason: decisionNote,
             },
           });
-        }
-      } else {
-        await tx.approvalStep.create({
-          data: {
-            requestId: req.id,
-            stageIndex: (req.approvalSteps[req.approvalSteps.length - 1]?.stageIndex || 0) + 1,
-            assignedRole: actor.role,
-            approverId: actor.id,
-            approverName: actor.legalName,
-            status: newStatus === 'CLARIFICATION_REQUESTED' ? 'PENDING' : newStatus,
-            decisionReason: decisionNote,
-            decidedAt: now,
-          },
-        });
-      }
-
-      const updatedReq = await tx.expenditureRequest.update({
-        where: { id: req.id },
-        data: {
-          approvalStatus: newStatus,
-          updatedAt: now,
-        },
-        include: { requester: true },
-      });
-
-      if (newStatus === 'APPROVED') {
-        const activeBudget = await tx.budget.findFirst({
-          where: { organizationId: req.subsidiaryId, status: 'ACTIVE' },
-          include: { lines: true },
-          orderBy: { createdAt: 'desc' },
-        });
-        if (activeBudget) {
-          const amtNaira = Number(req.amountMinor) / 100;
-          await tx.budget.update({
-            where: { id: activeBudget.id },
-            data: { committedAmount: { increment: amtNaira } },
-          });
-          const matchedLine = activeBudget.lines.find(
-            (l) => l.category.toLowerCase() === (req.category || '').toLowerCase()
-          );
-          if (matchedLine) {
-            await tx.budgetLine.update({
-              where: { id: matchedLine.id },
-              data: { committedAmount: { increment: amtNaira } },
+          if (newStatus === 'APPROVED' || newStatus === 'REJECTED') {
+            await tx.approvalStep.updateMany({
+              where: { requestId: req.id, status: 'PENDING', id: { not: pendingStep.id } },
+              data: {
+                status: newStatus,
+                approverId: actor.id,
+                approverName: actor.legalName,
+                decidedAt: now,
+                decisionReason: decisionNote,
+              },
             });
           }
+        } else {
+          await tx.approvalStep.create({
+            data: {
+              requestId: req.id,
+              stageIndex: (req.approvalSteps[req.approvalSteps.length - 1]?.stageIndex || 0) + 1,
+              assignedRole: actor.role,
+              approverId: actor.id,
+              approverName: actor.legalName,
+              status: newStatus === 'CLARIFICATION_REQUESTED' ? 'PENDING' : newStatus,
+              decisionReason: decisionNote,
+              decidedAt: now,
+            },
+          });
         }
-      }
 
-      if (req.channel) {
-        const channelBody =
-          newStatus === 'APPROVED'
-            ? `Approved by ${actor.legalName}. Ready for Finance disbursement recording.`
-            : newStatus === 'REJECTED'
-            ? `Declined by ${actor.legalName}: ${decisionNote}`
-            : `Clarification requested by ${actor.legalName}: ${decisionNote}`;
-        await tx.channelMessage.create({
+        const updatedReq = await tx.expenditureRequest.update({
+          where: { id: req.id },
           data: {
-            channelId: req.channel.id,
-            authorId: actor.id,
-            authorName: actor.legalName,
-            authorRole: actor.role,
-            messageType: newStatus === 'CLARIFICATION_REQUESTED' ? 'CLARIFICATION' : 'AUDIT_EVENT',
-            body: channelBody,
+            approvalStatus: newStatus,
+            updatedAt: now,
           },
+          include: { requester: true },
         });
-      }
 
-      if (req.requestedById) {
-        notificationIntentIds.push(req.requestedById);
-        await tx.systemNotification.create({
-          data: {
-            employeeId: req.requestedById,
-            kind: 'REQUEST_DECISION',
-            title: `Request ${updatedReq.requestNumber} ${newStatus}`,
-            body: `Your expenditure request "${updatedReq.title}" was marked ${newStatus} by ${actor.legalName}.`,
-            linkUrl: `/requests/${updatedReq.requestNumber}`,
-          },
-        });
-        notificationsDeliveredIds.push(req.requestedById);
+        if (newStatus === 'APPROVED') {
+          const activeBudget = await tx.budget.findFirst({
+            where: { organizationId: req.subsidiaryId, status: 'ACTIVE' },
+            include: { lines: true },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (activeBudget) {
+            const amtNaira = Number(req.amountMinor) / 100;
+            await tx.budget.update({
+              where: { id: activeBudget.id },
+              data: { committedAmount: { increment: amtNaira } },
+            });
+            const matchedLine = activeBudget.lines.find(
+              (l) => l.category.toLowerCase() === (req.category || '').toLowerCase()
+            );
+            if (matchedLine) {
+              await tx.budgetLine.update({
+                where: { id: matchedLine.id },
+                data: { committedAmount: { increment: amtNaira } },
+              });
+            }
+          }
+        }
+
+        if (req.channel) {
+          const channelBody =
+            newStatus === 'APPROVED'
+              ? `Approved by ${actor.legalName}. Ready for Finance disbursement recording.`
+              : newStatus === 'REJECTED'
+              ? `Declined by ${actor.legalName}: ${decisionNote}`
+              : `Clarification requested by ${actor.legalName}: ${decisionNote}`;
+          await tx.channelMessage.create({
+            data: {
+              channelId: req.channel.id,
+              authorId: actor.id,
+              authorName: actor.legalName,
+              authorRole: actor.role,
+              messageType: newStatus === 'CLARIFICATION_REQUESTED' ? 'CLARIFICATION' : 'AUDIT_EVENT',
+              body: channelBody,
+            },
+          });
+        }
+
+        if (req.requestedById) {
+          notificationIntentIds.push(req.requestedById);
+          await tx.systemNotification.create({
+            data: {
+              employeeId: req.requestedById,
+              kind: 'REQUEST_DECISION',
+              title: `Request ${updatedReq.requestNumber} ${newStatus}`,
+              body: `Your expenditure request "${updatedReq.title}" was marked ${newStatus} by ${actor.legalName}.`,
+              linkUrl: `/requests/${updatedReq.requestNumber}`,
+            },
+          });
+          notificationsDeliveredIds.push(req.requestedById);
+        }
+
+        updatedResults.push(
+          JSON.parse(JSON.stringify(updatedReq, (_, v) => (typeof v === 'bigint' ? Number(v) : v)))
+        );
       }
 
       recordType = 'fund_request';
-      recordId = updatedReq.requestNumber;
-      url = `/requests/${updatedReq.requestNumber}`;
-      resultRecord = JSON.parse(
-        JSON.stringify(updatedReq, (_, v) => (typeof v === 'bigint' ? Number(v) : v))
-      );
+      recordId = updatedResults.map((r) => r.requestNumber).join(',');
+      url = updatedResults.length === 1 ? `/requests/${updatedResults[0].requestNumber}` : `/approvals`;
+      resultRecord = updatedResults.length === 1 ? updatedResults[0] : { count: updatedResults.length, requests: updatedResults };
     } else if (action.actionType === 'payment_record') {
+      const paymentSubAction = String(materialPayload.sub_action || 'RECORD_PAYMENT').toUpperCase();
+      if (paymentSubAction === 'RESOLVE_PAYMENT_ISSUE') {
+        const disbId = materialPayload.disbursement_id;
+        const disb = await tx.disbursement.findUnique({
+          where: { id: String(disbId) },
+          include: { request: { include: { channel: true } } },
+        });
+        if (!disb) throw new Error(`Disbursement ${disbId} not found.`);
+        if (disb.status !== 'RECIPIENT_REPORTED_ISSUE') {
+          throw new StaleTargetError(`Disbursement ${disb.externalReference} is in status ${disb.status}, not RECIPIENT_REPORTED_ISSUE.`);
+        }
+        resolvedSubsidiaryId = disb.request?.subsidiaryId || disb.payerOrgId;
+
+        await tx.recipientPaymentConfirmation.deleteMany({ where: { disbursementId: disb.id } });
+        const updatedDisb = await tx.disbursement.update({
+          where: { id: disb.id },
+          data: { status: 'AWAITING_RECIPIENT_CONFIRMATION' },
+        });
+        if (disb.requestId) {
+          await tx.expenditureRequest.update({
+            where: { id: disb.requestId },
+            data: { paymentStatus: 'AWAITING_RECIPIENT_CONFIRMATION' },
+          });
+        }
+        const noteText = String(materialPayload.resolution_note || 'Payment issue resolved; awaiting recipient re-confirmation.');
+        if (disb.request?.channel) {
+          await tx.channelMessage.create({
+            data: {
+              channelId: disb.request.channel.id,
+              authorId: actor.id,
+              authorName: actor.legalName,
+              authorRole: actor.role,
+              messageType: 'AUDIT_EVENT',
+              body: `Payment issue resolved by ${actor.legalName}: ${noteText}`,
+            },
+          });
+        }
+        const recipientId = disb.beneficiaryEmployeeId || disb.request?.requestedById;
+        if (recipientId) {
+          notificationIntentIds.push(recipientId);
+          await tx.systemNotification.create({
+            data: {
+              employeeId: recipientId,
+              kind: 'PAYMENT_CONFIRMATION_REQUIRED',
+              title: 'Payment issue resolved — please re-confirm receipt',
+              body: `${actor.legalName} resolved the reported payment issue: ${noteText}`,
+              linkUrl: disb.request ? `/requests/${disb.request.requestNumber}` : '/disbursements',
+            },
+          });
+          notificationsDeliveredIds.push(recipientId);
+        }
+        recordType = 'disbursement';
+        recordId = updatedDisb.id;
+        url = `/disbursements`;
+        resultRecord = JSON.parse(JSON.stringify(updatedDisb, (_, v) => (typeof v === 'bigint' ? Number(v) : v)));
+      } else {
       const {
         request_id,
         amount,
@@ -1333,6 +1401,7 @@ export async function executeStagedAction(params: {
       resultRecord = JSON.parse(
         JSON.stringify(disbursement, (_, v) => (typeof v === 'bigint' ? Number(v) : v))
       );
+      }
     } else if (action.actionType === 'payment_recorder') {
       const { request_id, assignee_user_id, note } = materialPayload;
 
@@ -1449,9 +1518,11 @@ export async function executeStagedAction(params: {
       };
     } else if (action.actionType === 'staff_approval') {
       const { employee_id } = materialPayload;
+      const decision = String(materialPayload.decision || 'APPROVE').toUpperCase();
+      const isReject = decision === 'REJECT' || decision === 'REJECTED' || decision === 'REJECT_ONBOARDING';
 
       if (!['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(actor.role)) {
-        throw new StagedValidationError('NOT_PERMITTED', 'Only GMD or Super Admin can approve staff onboarding.');
+        throw new StagedValidationError('NOT_PERMITTED', 'Only GMD or Super Admin can approve or reject staff onboarding.');
       }
 
       const emp = await tx.employee.findUnique({
@@ -1477,23 +1548,25 @@ export async function executeStagedAction(params: {
       const updated = await tx.employee.update({
         where: { id: employee_id },
         data: {
-          approvalStatus: 'APPROVED',
-          status: 'ACTIVE',
+          approvalStatus: isReject ? 'REJECTED' : 'APPROVED',
+          status: isReject ? 'TERMINATED' : 'ACTIVE',
         },
       });
 
       await tx.employeeAssignment.updateMany({
         where: { employeeId: employee_id, isPrimary: true },
-        data: { status: 'ACTIVE' },
+        data: { status: isReject ? 'INACTIVE' : 'ACTIVE' },
       });
 
       notificationIntentIds.push(employee_id);
       await tx.systemNotification.create({
         data: {
           employeeId: employee_id,
-          kind: 'ACCOUNT_APPROVED',
-          title: 'Account Approved',
-          body: `Your BEMS account has been approved by ${actor.legalName}.`,
+          kind: isReject ? 'ACCOUNT_REJECTED' : 'ACCOUNT_APPROVED',
+          title: isReject ? 'Account Onboarding Declined' : 'Account Approved',
+          body: isReject
+            ? `Your BEMS onboarding registration was declined by ${actor.legalName}.`
+            : `Your BEMS account has been approved by ${actor.legalName}.`,
           linkUrl: '/',
         },
       });
@@ -1570,51 +1643,132 @@ export async function executeStagedAction(params: {
         reason: reason || 'Executive role reassignment',
       };
     } else if (action.actionType === 'accountability_clearance') {
-      const { case_id, request_number, clearance_notes } = materialPayload;
+      const subAction = String(materialPayload.sub_action || materialPayload.action || 'CLEAR_CASE').toUpperCase();
 
-      const accCase = await tx.accountabilityCase.findFirst({
-        where: { OR: [{ id: case_id }, { request: { requestNumber: request_number || case_id } }] },
-        include: { request: true, owner: true },
-      });
-
-      if (!accCase) throw new Error(`Accountability case ${case_id} not found.`);
-      resolvedSubsidiaryId = accCase.request?.subsidiaryId || resolvedSubsidiaryId;
-
-      if (accCase.status === 'CLOSED') {
-        throw new StaleTargetError(`Accountability case for ${accCase.request?.requestNumber || accCase.id} is already CLOSED.`);
-      }
-
-      const updated = await tx.accountabilityCase.update({
-        where: { id: accCase.id },
-        data: {
-          status: 'CLOSED',
-          closureNotes: clearance_notes || 'Receipts inspected and cleared by GMD via Executive AI',
-        },
-      });
-
-      if (accCase.ownerUserId) {
-        notificationIntentIds.push(accCase.ownerUserId);
-        await tx.systemNotification.create({
-          data: {
-            employeeId: accCase.ownerUserId,
-            kind: 'ACCOUNTABILITY_CLEARED',
-            title: `Retiral Cleared: ${accCase.request?.requestNumber || accCase.id}`,
-            body: `Your accountability case for ${accCase.request?.requestNumber || 'your advance'} has been cleared and closed by ${actor.legalName}.`,
-            linkUrl: '/accountability',
-          },
+      if (subAction === 'INITIALIZE_LEGACY_CASES' || subAction === 'INITIALIZE_CASES') {
+        const legacyRequests = await tx.expenditureRequest.findMany({
+          where: { disbursements: { some: {} }, accountabilityCase: { is: null } },
+          include: { disbursements: { orderBy: { paidAt: 'asc' }, take: 1 } },
         });
-        notificationsDeliveredIds.push(accCase.ownerUserId);
-      }
+        let createdCount = 0;
+        for (const reqItem of legacyRequests) {
+          const firstPayment = reqItem.disbursements[0];
+          if (!firstPayment) continue;
+          const dueAt = new Date(firstPayment.paidAt.getTime() + 14 * 24 * 60 * 60 * 1000);
+          const accCase = await tx.accountabilityCase.create({
+            data: {
+              requestId: reqItem.id,
+              ownerUserId: reqItem.requestedById,
+              requiredDeliverables: reqItem.deliverable,
+              dueAt,
+              status: reqItem.accountabilityStatus === 'EVIDENCE_SUBMITTED' ? 'EVIDENCE_SUBMITTED' : 'OPEN',
+            },
+          });
+          await tx.followupTask.create({
+            data: {
+              accountabilityCaseId: accCase.id,
+              assigneeId: reqItem.requestedById,
+              description: `Submit post-payment deliverables for ${reqItem.requestNumber}`,
+              dueAt,
+            },
+          });
+          createdCount++;
+        }
+        recordType = 'accountability_case';
+        recordId = 'INITIALIZE_LEGACY_CASES';
+        url = `/accountability`;
+        resultRecord = { initializedCount: createdCount };
+      } else {
+        const { case_id, request_number, clearance_notes } = materialPayload;
 
-      recordType = 'accountability_case';
-      recordId = accCase.request?.requestNumber || accCase.id;
-      url = `/accountability`;
-      resultRecord = {
-        case_id: updated.id,
-        request_number: accCase.request?.requestNumber,
-        status: updated.status,
-        owner: accCase.owner?.legalName,
-      };
+        const accCase = await tx.accountabilityCase.findFirst({
+          where: { OR: [{ id: case_id }, { request: { requestNumber: request_number || case_id } }] },
+          include: { request: true, owner: true },
+        });
+
+        if (!accCase) throw new Error(`Accountability case ${case_id} not found.`);
+        resolvedSubsidiaryId = accCase.request?.subsidiaryId || resolvedSubsidiaryId;
+
+        if (accCase.status === 'CLOSED') {
+          throw new StaleTargetError(`Accountability case for ${accCase.request?.requestNumber || accCase.id} is already CLOSED.`);
+        }
+
+        if (subAction === 'SUBMIT_EVIDENCE' || subAction === 'UPLOAD_EVIDENCE') {
+          const attIds: string[] = Array.isArray(materialPayload.attachment_ids) ? materialPayload.attachment_ids : [];
+          const notes = String(materialPayload.notes || clearance_notes || 'Post-payment evidence submitted via BEMI');
+          if (attIds.length > 0) {
+            await tx.attachment.updateMany({
+              where: { id: { in: attIds } },
+              data: { ownerType: 'ACCOUNTABILITY', ownerId: accCase.id, requestId: accCase.requestId, notes },
+            });
+          }
+          const updated = await tx.accountabilityCase.update({
+            where: { id: accCase.id },
+            data: { status: 'EVIDENCE_SUBMITTED' },
+          });
+          await tx.expenditureRequest.update({
+            where: { id: accCase.requestId },
+            data: { accountabilityStatus: 'EVIDENCE_SUBMITTED', paymentStatus: 'RECIPIENT_CONFIRMED' },
+          });
+          recordType = 'accountability_case';
+          recordId = accCase.request?.requestNumber || accCase.id;
+          url = `/accountability`;
+          resultRecord = {
+            case_id: updated.id,
+            request_number: accCase.request?.requestNumber,
+            status: updated.status,
+            attachments_linked: attIds.length,
+          };
+        } else if (subAction === 'REVIEW_CASE') {
+          const updated = await tx.accountabilityCase.update({
+            where: { id: accCase.id },
+            data: {
+              status: 'UNDER_REVIEW',
+              closureNotes: clearance_notes || 'Evidence reviewed by executive',
+            },
+          });
+          recordType = 'accountability_case';
+          recordId = accCase.request?.requestNumber || accCase.id;
+          url = `/accountability`;
+          resultRecord = {
+            case_id: updated.id,
+            request_number: accCase.request?.requestNumber,
+            status: updated.status,
+          };
+        } else {
+          const updated = await tx.accountabilityCase.update({
+            where: { id: accCase.id },
+            data: {
+              status: 'CLOSED',
+              closureNotes: clearance_notes || 'Receipts inspected and cleared by GMD via Executive AI',
+            },
+          });
+
+          if (accCase.ownerUserId) {
+            notificationIntentIds.push(accCase.ownerUserId);
+            await tx.systemNotification.create({
+              data: {
+                employeeId: accCase.ownerUserId,
+                kind: 'ACCOUNTABILITY_CLEARED',
+                title: `Retiral Cleared: ${accCase.request?.requestNumber || accCase.id}`,
+                body: `Your accountability case for ${accCase.request?.requestNumber || 'your advance'} has been cleared and closed by ${actor.legalName}.`,
+                linkUrl: '/accountability',
+              },
+            });
+            notificationsDeliveredIds.push(accCase.ownerUserId);
+          }
+
+          recordType = 'accountability_case';
+          recordId = accCase.request?.requestNumber || accCase.id;
+          url = `/accountability`;
+          resultRecord = {
+            case_id: updated.id,
+            request_number: accCase.request?.requestNumber,
+            status: updated.status,
+            owner: accCase.owner?.legalName,
+          };
+        }
+      }
     } else if (action.actionType === 'deadline_extension') {
       const { case_id, extension_hours, new_due_at, reason } = materialPayload;
 
@@ -1914,6 +2068,54 @@ export async function executeStagedAction(params: {
         recordId = paired.debitNote.noteNumber;
         url = `/intercompany`;
         resultRecord = paired;
+      } else if (mode === 'AMEND_NOTE' || mode === 'UPDATE_NOTE' || mode === 'AMEND') {
+        const noteId = materialPayload.noteId || materialPayload.id;
+        const noteNumber = materialPayload.noteNumber;
+        const existingNote = await tx.intercompanyNote.findFirst({
+          where: { OR: [{ id: String(noteId || '') }, { noteNumber: String(noteNumber || '') }] },
+        });
+        if (!existingNote) {
+          throw new StaleTargetError('Target intercompany note not found.');
+        }
+        if (existingNote.status !== 'ISSUED') {
+          throw new StaleTargetError(`Intercompany note ${existingNote.noteNumber} is ${existingNote.status} and cannot be amended.`);
+        }
+        if (
+          materialPayload.priorAmountMinor !== undefined &&
+          Number(existingNote.totalAmountMinor) !== Number(materialPayload.priorAmountMinor)
+        ) {
+          throw new StaleTargetError(`Intercompany note ${existingNote.noteNumber} amount changed since staging.`);
+        }
+        const nextAmountMinor = BigInt(Math.round(Number(materialPayload.amountMinor || existingNote.totalAmountMinor)));
+        const nextDescription = String(materialPayload.description || existingNote.description).trim();
+
+        const updatedNote = await tx.intercompanyNote.update({
+          where: { id: existingNote.id },
+          data: {
+            totalAmountMinor: nextAmountMinor,
+            description: nextDescription,
+          },
+        });
+
+        // Also update paired counterpart note if one exists with matching suffix
+        const suffix = existingNote.noteNumber.replace(/^(DN|CN)-/, '');
+        const counterpartNumber = existingNote.noteNumber.startsWith('DN-') ? `CN-${suffix}` : `DN-${suffix}`;
+        await tx.intercompanyNote.updateMany({
+          where: { noteNumber: counterpartNumber, status: 'ISSUED' },
+          data: { totalAmountMinor: nextAmountMinor },
+        });
+
+        resolvedSubsidiaryId = existingNote.sourceEntityId;
+        recordType = 'intercompany_note';
+        recordId = updatedNote.noteNumber;
+        url = `/intercompany`;
+        resultRecord = {
+          id: updatedNote.id,
+          noteNumber: updatedNote.noteNumber,
+          amountMinor: Number(updatedNote.totalAmountMinor),
+          description: updatedNote.description,
+          status: updatedNote.status,
+        };
       } else {
         throw new StagedValidationError(
           'UNSUPPORTED_INTERCOMPANY_MODE',
@@ -1943,6 +2145,56 @@ export async function executeStagedAction(params: {
         recordId = requestId;
         url = `/vendors`;
         resultRecord = matchResult;
+      } else if (mode === 'RESOLVE_MATCH_EXCEPTION' || mode === 'OVERRIDE_MATCH_EXCEPTION') {
+        const requestId = materialPayload.request_id || materialPayload.requestId;
+        const reason = String(materialPayload.reason || 'Executive 3-Way Match Exception Override').trim();
+        const reqItem = await tx.expenditureRequest.findFirst({
+          where: { OR: [{ id: String(requestId) }, { requestNumber: String(requestId) }] },
+          include: { invoices: { take: 1, orderBy: { createdAt: 'desc' } }, goodsReceipts: { take: 1, orderBy: { receivedAt: 'desc' } } },
+        });
+        if (!reqItem) throw new StaleTargetError(`Request ${requestId} not found.`);
+        resolvedSubsidiaryId = reqItem.subsidiaryId;
+
+        const existingMatch = await tx.threeWayMatchRecord.findUnique({ where: { requestId: reqItem.id } });
+        let resolvedMatch: any;
+        if (existingMatch) {
+          resolvedMatch = await tx.threeWayMatchRecord.update({
+            where: { id: existingMatch.id },
+            data: { status: 'MATCH_CONFIRMED', matchedAt: new Date() },
+          });
+        } else if (reqItem.invoices[0]) {
+          const inv = reqItem.invoices[0];
+          resolvedMatch = await tx.threeWayMatchRecord.create({
+            data: {
+              requestId: reqItem.id,
+              invoiceId: inv.id,
+              grnId: reqItem.goodsReceipts[0]?.id || null,
+              poAmountMinor: reqItem.amountMinor,
+              invoiceAmountMinor: inv.amountMinor,
+              varianceMinor: inv.amountMinor - reqItem.amountMinor,
+              status: 'MATCH_CONFIRMED',
+            },
+          });
+        } else {
+          resolvedMatch = { requestId: reqItem.id, status: 'MATCH_CONFIRMED', overrideReason: reason };
+        }
+
+        if (reqItem.invoices[0]) {
+          await tx.vendorInvoice.update({
+            where: { id: reqItem.invoices[0].id },
+            data: { status: 'MATCHED' },
+          });
+        }
+
+        recordType = 'three_way_match';
+        recordId = reqItem.requestNumber;
+        url = `/vendors`;
+        resultRecord = {
+          requestNumber: reqItem.requestNumber,
+          status: 'MATCH_CONFIRMED',
+          overrideReason: reason,
+          matchId: resolvedMatch.id || reqItem.id,
+        };
       } else if (mode === 'APPROVE_EXISTING_VENDOR' || mode === 'APPROVE') {
         const targetVendorId = String(materialPayload.vendor_id || materialPayload.vendorId || '').trim();
         const existingVendor = targetVendorId
@@ -3070,14 +3322,34 @@ export async function executeStagedAction(params: {
           throw new Error(`No prepared payroll batch found for ${month}/${year}.`);
         }
         const batch = period.batches[0];
+        const paymentEntityId = materialPayload.paymentEntityId || batch.paymentEntityId || null;
+        const disbursementAssigneeId = materialPayload.disbursementAssigneeId || batch.disbursementAssigneeId || null;
         const updated = await tx.payrollBatch.update({
           where: { id: batch.id },
-          data: { status: 'APPROVED', approvedAt: new Date() },
+          data: {
+            status: 'APPROVED',
+            approvedAt: new Date(),
+            ...(paymentEntityId ? { paymentEntityId } : {}),
+            ...(disbursementAssigneeId ? { disbursementAssigneeId } : {}),
+          },
         });
         await tx.payrollPeriod.update({
           where: { id: period.id },
           data: { lockStatus: 'LOCKED' },
         });
+        if (disbursementAssigneeId) {
+          notificationIntentIds.push(disbursementAssigneeId);
+          await tx.systemNotification.create({
+            data: {
+              employeeId: disbursementAssigneeId,
+              kind: 'DISBURSEMENT_ASSIGNED',
+              title: `Payroll Disbursement Assigned (${year}-${String(month).padStart(2, '0')})`,
+              body: `${actor.legalName} approved payroll batch v${updated.version} and assigned you to record salary payouts.`,
+              linkUrl: '/payroll',
+            },
+          });
+          notificationsDeliveredIds.push(disbursementAssigneeId);
+        }
         recordType = 'payroll_batch';
         recordId = updated.id;
         url = `/payroll`;
@@ -3085,6 +3357,8 @@ export async function executeStagedAction(params: {
           id: updated.id,
           status: updated.status,
           version: updated.version,
+          paymentEntityId: updated.paymentEntityId,
+          disbursementAssigneeId: updated.disbursementAssigneeId,
           totalNet: Number(updated.totalNetMinor) / 100,
           approvedAt: updated.approvedAt,
         };
@@ -3097,11 +3371,11 @@ export async function executeStagedAction(params: {
         const targetItems = itemId
           ? await tx.payrollItem.findMany({
               where: { id: itemId },
-              include: { employee: true, disbursement: true, batch: { include: { period: true } } },
+              include: { employee: true, allocations: true, disbursement: true, batch: { include: { period: true } } },
             })
           : await tx.payrollItem.findMany({
               where: { batchId },
-              include: { employee: true, disbursement: true, batch: { include: { period: true } } },
+              include: { employee: true, allocations: true, disbursement: true, batch: { include: { period: true } } },
             });
 
         if (!targetItems.length) {
@@ -3110,6 +3384,7 @@ export async function executeStagedAction(params: {
 
         const defaultOrg = await tx.organization.findFirst({ orderBy: { type: 'asc' }, select: { id: true } });
         const disbursedIds: string[] = [];
+        const generatedIntercompanyNoteNumbers: string[] = [];
 
         for (const item of targetItems) {
           if (item.disbursement) continue;
@@ -3144,6 +3419,28 @@ export async function executeStagedAction(params: {
             where: { id: item.id },
             data: { status: 'PAID' },
           });
+
+          // Automatically generate intercompany recharge notes for cross-subsidiary payroll allocations
+          for (const alloc of item.allocations || []) {
+            if (alloc.subsidiaryId !== payingEntityId) {
+              const periodLabel = `${item.batch.period.year}-${String(item.batch.period.month).padStart(2, '0')}`;
+              const noteNumber = `DN-${item.batch.period.year}${String(item.batch.period.month).padStart(2, '0')}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+              await tx.intercompanyNote.create({
+                data: {
+                  periodId: item.batch.periodId,
+                  sourceEntityId: payingEntityId,
+                  targetEntityId: alloc.subsidiaryId,
+                  noteType: 'DEBIT_NOTE',
+                  noteNumber,
+                  totalAmountMinor: alloc.allocableCostMinor,
+                  currency: item.currency,
+                  description: `Automated Payroll Cost Recharge: ${item.employee.legalName} (${alloc.percentage}% allocation for ${periodLabel})`,
+                  status: 'ISSUED',
+                },
+              });
+              generatedIntercompanyNoteNumbers.push(noteNumber);
+            }
+          }
 
           await tx.systemNotification.create({
             data: {
@@ -3191,6 +3488,7 @@ export async function executeStagedAction(params: {
         resultRecord = {
           disbursedCount: disbursedIds.length,
           disbursementIds: disbursedIds,
+          generatedIntercompanyNotes: generatedIntercompanyNoteNumbers,
         };
       } else if (subAction === 'REMOVE_ITEM') {
         const itemId = materialPayload.itemId || materialPayload.payrollItemId;
@@ -3632,6 +3930,40 @@ export async function executeStagedAction(params: {
           recordId = updateRequest.id;
           url = `/hr`;
           resultRecord = updateRequest;
+        } else if (subAction === 'SEND_PASSWORD_RESET_INVITE' || subAction === 'RESET_PASSWORD_INVITE') {
+          const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+          const codeHash = crypto.createHash('sha256').update(otpCode).digest('hex');
+          const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+          await tx.emailVerificationToken.create({
+            data: {
+              email: targetEmployee.workEmail.toLowerCase(),
+              codeHash,
+              expiresAt,
+            },
+          });
+
+          await tx.systemNotification.create({
+            data: {
+              employeeId,
+              kind: 'SECURITY_RESET_INVITE',
+              title: 'Password Reset Authorized',
+              body: `${actor.legalName} issued an authorized password reset invitation for your account. Complete verification on the dedicated password reset screen.`,
+              linkUrl: '/login?reset=1',
+            },
+          });
+
+          notificationIntentIds.push(employeeId);
+          notificationsDeliveredIds.push(employeeId);
+          recordType = 'password_reset_invitation';
+          recordId = targetEmployee.id;
+          url = `/hr`;
+          resultRecord = {
+            employeeId: targetEmployee.id,
+            workEmail: targetEmployee.workEmail,
+            expiresAt: expiresAt.toISOString(),
+            resetUrl: '/login?reset=1',
+          };
         } else if (subAction === 'DELETE_OR_DEACTIVATE') {
           if (targetEmployee.id === actor.id) {
             throw new Error('You cannot delete your own active session account.');
@@ -3884,6 +4216,41 @@ export async function executeStagedAction(params: {
         recordId = reqItem.requestNumber;
         url = `/requests`;
         resultRecord = { requestNumber: reqItem.requestNumber, title: reqItem.title, status: 'DELETED' };
+      } else if (
+        subAction === 'UPDATE_RECURRING' ||
+        subAction === 'PAUSE_RECURRING' ||
+        subAction === 'CANCEL_RECURRING'
+      ) {
+        const reqLookup = materialPayload.requestId || materialPayload.requestNumber;
+        const reqItem = await tx.expenditureRequest.findFirst({
+          where: { OR: [{ id: reqLookup }, { requestNumber: reqLookup }] },
+        });
+        if (!reqItem) throw new Error(`Request "${reqLookup}" not found.`);
+        resolvedSubsidiaryId = reqItem.subsidiaryId;
+
+        const nextRecurring = subAction === 'UPDATE_RECURRING' ? Boolean(materialPayload.isRecurring ?? true) : false;
+        const nextInterval = nextRecurring ? String(materialPayload.recurringInterval || 'MONTHLY').toUpperCase() : null;
+        const nextNeededBy = materialPayload.neededBy ? new Date(materialPayload.neededBy) : reqItem.neededBy;
+
+        const updatedRec = await tx.expenditureRequest.update({
+          where: { id: reqItem.id },
+          data: {
+            isRecurring: nextRecurring,
+            recurringInterval: nextInterval,
+            neededBy: nextNeededBy,
+          },
+        });
+
+        recordType = 'fund_request';
+        recordId = updatedRec.requestNumber;
+        url = `/requests/${updatedRec.requestNumber}`;
+        resultRecord = {
+          id: updatedRec.id,
+          requestNumber: updatedRec.requestNumber,
+          isRecurring: updatedRec.isRecurring,
+          recurringInterval: updatedRec.recurringInterval,
+          neededBy: updatedRec.neededBy,
+        };
       } else {
         const title = String(materialPayload.title || '').trim();
         const justification = String(materialPayload.justification || title).trim();
@@ -3899,11 +4266,15 @@ export async function executeStagedAction(params: {
           throw new Error('Request title and positive amount are required.');
         }
 
-        const subsidiaryOrg = materialPayload.subsidiaryId
-          ? await tx.organization.findUnique({ where: { id: materialPayload.subsidiaryId } })
-          : (await tx.organization.findFirst({ where: { type: 'SUBSIDIARY' } })) ||
-            (await tx.organization.findFirst());
+        if (!materialPayload.subsidiaryId) {
+          throw new StagedValidationError('SUBSIDIARY_REQUIRED', 'An explicit subsidiaryId is required to create a fund request.');
+        }
+        const subsidiaryOrg = await tx.organization.findUnique({ where: { id: String(materialPayload.subsidiaryId) } });
         if (!subsidiaryOrg) throw new Error('Valid subsidiary organization not found.');
+        resolvedSubsidiaryId = subsidiaryOrg.id;
+
+        const targetRequesterId = String(materialPayload.requestedById || actor.id);
+        const isOnBehalf = targetRequesterId !== actor.id;
 
         const groupId = subsidiaryOrg.parentGroupId || subsidiaryOrg.id;
         const requestNumber = `REQ-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`;
@@ -3916,7 +4287,7 @@ export async function executeStagedAction(params: {
             requestNumber,
             groupId,
             subsidiaryId: subsidiaryOrg.id,
-            requestedById: actor.id,
+            requestedById: targetRequesterId,
             vendorId: materialPayload.vendorId || null,
             requestType: materialPayload.requestType || 'ORDINARY',
             category,
@@ -3936,10 +4307,11 @@ export async function executeStagedAction(params: {
                 classification: 'GENERAL',
                 messages: {
                   create: {
+                    authorId: actor.id,
                     authorName: actor.legalName,
                     authorRole: actor.role,
                     messageType: 'AUDIT_EVENT',
-                    body: `Fund request ${requestNumber} created and submitted via BEMI (${currency} ${(Number(amountMinor) / 100).toLocaleString()}).`,
+                    body: `Fund request ${requestNumber} created and submitted via BEMI (${currency} ${(Number(amountMinor) / 100).toLocaleString()})${isOnBehalf ? ` by ${actor.legalName} on behalf of requester` : ''}.`,
                   },
                 },
               },
@@ -4198,6 +4570,24 @@ export async function executeStagedAction(params: {
       if (!employee) throw new Error('Target staff member not found.');
       resolvedSubsidiaryId = employee.assignments[0]?.subsidiaryId || resolvedSubsidiaryId;
 
+      if (targetChannel === 'GMD' && actor.role !== 'GMD') {
+        throw new StagedValidationError(
+          'FORBIDDEN_CHANNEL',
+          'Only the Group Managing Director can send messages on the confidential GMD Executive Line.'
+        );
+      }
+
+      let attachmentUrl: string | null = null;
+      let attachmentName: string | null = null;
+      const attIds: string[] = Array.isArray(materialPayload.attachmentIds) ? materialPayload.attachmentIds : [];
+      if (attIds.length > 0) {
+        const firstAtt = await tx.attachment.findUnique({ where: { id: String(attIds[0]) } });
+        if (firstAtt) {
+          attachmentUrl = firstAtt.fileUrl;
+          attachmentName = firstAtt.fileName;
+        }
+      }
+
       const newMessage = await tx.staffAdminMessage.create({
         data: {
           employeeId: targetEmployeeId,
@@ -4206,6 +4596,8 @@ export async function executeStagedAction(params: {
           senderId: actor.id,
           senderName: actor.legalName,
           message: messageText,
+          attachmentUrl,
+          attachmentName,
           isReadByStaff: false,
           isReadByAdmin: true,
         },
@@ -4244,7 +4636,139 @@ export async function executeStagedAction(params: {
     } else if (action.actionType === 'policy_update') {
       const subAction = String(materialPayload.sub_action || materialPayload.action || 'UPDATE_APPROVAL_POLICY').toUpperCase();
 
-      if (subAction === 'UPDATE_WORKSPACE_SETTINGS' || subAction === 'UPDATE_SETTINGS') {
+      if (subAction === 'UPDATE_MOBILE_GATE' || subAction === 'MOBILE_GATE') {
+        const appId = String(materialPayload.appId || 'GMD_APP').toUpperCase();
+        const minimumAllowedVersion = String(materialPayload.minimumAllowedVersion || '1.0.0');
+        const latestVersionAvailable = String(materialPayload.latestVersionAvailable || minimumAllowedVersion);
+        const forceUpdate = materialPayload.forceUpdate !== undefined ? Boolean(materialPayload.forceUpdate) : true;
+        const directDownloadUrl = String(
+          materialPayload.directDownloadUrl ||
+            (appId === 'GMD_APP' ? 'https://bemserp.work/download/gmd-app.apk' : 'https://bemserp.work/download/staff-app.apk')
+        );
+        const upgradePromptNotes = String(materialPayload.upgradePromptNotes || '');
+
+        const gate = await tx.mobileAppGate.upsert({
+          where: { appId },
+          update: {
+            minimumAllowedVersion,
+            latestVersionAvailable,
+            forceUpdate,
+            directDownloadUrl,
+            upgradePromptNotes,
+            updatedById: actor.id,
+          },
+          create: {
+            appId,
+            appName: appId === 'GMD_APP' ? 'BEMS GMD AI' : 'BEMS Staff App',
+            packageName: appId === 'GMD_APP' ? 'com.bemsgroup.gmd_ai' : 'com.bemsgroup.staff',
+            minimumAllowedVersion,
+            latestVersionAvailable,
+            forceUpdate,
+            directDownloadUrl,
+            upgradePromptNotes,
+            updatedById: actor.id,
+          },
+        });
+        recordType = 'mobile_app_gate';
+        recordId = gate.id;
+        url = `/settings`;
+        resultRecord = gate;
+      } else if (subAction === 'ACTIVATE_MOBILE_APK' || subAction === 'UPLOAD_APK') {
+        const appId = String(materialPayload.appId || 'GMD_APP').toUpperCase();
+        const version = String(materialPayload.version || '1.0.0');
+        const fileName = String(materialPayload.fileName || `${appId.toLowerCase()}-v${version}.apk`);
+        const fileSize = String(materialPayload.fileSize || '58.0 MB');
+        const downloadUrl = String(
+          materialPayload.downloadUrl || (appId === 'GMD_APP' ? '/download/gmd-app.apk' : '/download/staff-app.apk')
+        );
+
+        await tx.mobileAppRelease.updateMany({
+          where: { appId, status: 'ACTIVE' },
+          data: { status: 'ARCHIVE' },
+        });
+
+        await tx.mobileAppGate.upsert({
+          where: { appId },
+          update: { latestVersionAvailable: version, directDownloadUrl: downloadUrl, updatedById: actor.id },
+          create: {
+            appId,
+            appName: appId === 'GMD_APP' ? 'BEMS GMD AI' : 'BEMS Staff App',
+            packageName: appId === 'GMD_APP' ? 'com.bemsgroup.gmd_ai' : 'com.bemsgroup.staff',
+            minimumAllowedVersion: version,
+            latestVersionAvailable: version,
+            forceUpdate: true,
+            directDownloadUrl: downloadUrl,
+            updatedById: actor.id,
+          },
+        });
+
+        const release = await tx.mobileAppRelease.create({
+          data: {
+            appId,
+            version,
+            fileName,
+            fileSize,
+            downloadUrl,
+            status: 'ACTIVE',
+            notes: materialPayload.notes || `Activated via BEMI by ${actor.legalName}`,
+            uploadedBy: actor.legalName,
+          },
+        });
+        recordType = 'mobile_app_release';
+        recordId = release.id;
+        url = `/settings`;
+        resultRecord = release;
+      } else if (subAction === 'CONFIGURE_CHANNEL' || subAction === 'IMPORT_TEMPLATE') {
+        const organizationId = String(materialPayload.organizationId || '');
+        if (!organizationId) throw new Error('organizationId is required.');
+        resolvedSubsidiaryId = organizationId;
+
+        if (subAction === 'IMPORT_TEMPLATE') {
+          const templateId = String(materialPayload.templateId || 'STANDARD_CORPORATE').toUpperCase();
+          const saved = await tx.workspaceSetting.upsert({
+            where: { organizationId_key: { organizationId, key: 'governance.template' } },
+            create: {
+              organizationId,
+              key: 'governance.template',
+              value: JSON.stringify({ templateId, importedAt: new Date().toISOString(), importedById: actor.id }),
+              updatedById: actor.id,
+            },
+            update: {
+              value: JSON.stringify({ templateId, importedAt: new Date().toISOString(), importedById: actor.id }),
+              updatedById: actor.id,
+            },
+          });
+          recordType = 'workspace_setting';
+          recordId = saved.id;
+          url = `/settings`;
+          resultRecord = { organizationId, templateId, settingId: saved.id };
+        } else {
+          const existing = await tx.workspaceSetting.findUnique({
+            where: { organizationId_key: { organizationId, key: 'notification.channels' } },
+          });
+          let channels: any[] = [];
+          if (existing?.value) {
+            try {
+              const parsed = JSON.parse(existing.value);
+              if (Array.isArray(parsed)) channels = parsed;
+            } catch {}
+          }
+          const chan = materialPayload.channel || { name: 'WhatsApp Bot Bridge', status: 'Live' };
+          const idx = channels.findIndex((c) => String(c.name || '').toLowerCase() === String(chan.name || '').toLowerCase());
+          if (idx >= 0) channels[idx] = { ...channels[idx], ...chan };
+          else channels.push(chan);
+
+          const saved = await tx.workspaceSetting.upsert({
+            where: { organizationId_key: { organizationId, key: 'notification.channels' } },
+            create: { organizationId, key: 'notification.channels', value: JSON.stringify(channels), updatedById: actor.id },
+            update: { value: JSON.stringify(channels), updatedById: actor.id },
+          });
+          recordType = 'workspace_setting';
+          recordId = saved.id;
+          url = `/settings`;
+          resultRecord = { organizationId, channel: chan, channelsCount: channels.length };
+        }
+      } else if (subAction === 'UPDATE_WORKSPACE_SETTINGS' || subAction === 'UPDATE_SETTINGS') {
         const organizationId = materialPayload.organizationId;
         const key = String(materialPayload.key || '');
         const value = materialPayload.value;

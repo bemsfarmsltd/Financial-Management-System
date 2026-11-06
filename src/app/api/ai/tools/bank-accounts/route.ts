@@ -3,8 +3,75 @@ import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
 import { matchBank } from '@/lib/bank-utils';
 import { stageAction } from '@/lib/staged-actions';
+import { resolveOrganizationScope } from '@/lib/organizations';
+import { buildReadCatalogEnvelope } from '@/lib/platform/read-catalog';
 
 export const dynamic = 'force-dynamic';
+
+export async function GET(req: NextRequest) {
+  const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  if (errorResponse) return errorResponse;
+  if (!actor || !actor.isExecutive) {
+    return NextResponse.json(
+      { ok: false, error_code: 'FORBIDDEN', message: 'Executive access is required to view corporate treasury balances.' },
+      { status: 403 }
+    );
+  }
+
+  const { searchParams } = new URL(req.url);
+  const requestedOrg = searchParams.get('organizationId') || searchParams.get('subsidiaryId') || searchParams.get('organization_id') || 'ALL';
+  const statusFilter = (searchParams.get('status') || 'ACTIVE').toUpperCase();
+  const orgScope = await resolveOrganizationScope(requestedOrg);
+
+  const whereClause: any = {};
+  if (statusFilter !== 'ALL') whereClause.status = statusFilter;
+  if (!orgScope.isGroup) {
+    whereClause.organizationId = { in: orgScope.organizationIds };
+  }
+
+  const accounts = await prisma.companyBankAccount.findMany({
+    where: whereClause,
+    include: {
+      organization: { select: { id: true, legalName: true, code: true } },
+    },
+    orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
+  });
+
+  const totalBalanceNaira = accounts
+    .filter((a) => a.status === 'ACTIVE')
+    .reduce((sum, a) => sum + Number(a.balance || 0), 0);
+
+  const mappedAccounts = accounts.map((a) => ({
+    id: a.id,
+    organizationId: a.organizationId,
+    organizationName: a.organization.legalName,
+    organizationCode: a.organization.code,
+    bankName: a.bankName,
+    accountNumber: a.accountNumber,
+    accountName: a.accountName,
+    accountType: a.accountType,
+    currency: a.currency,
+    balance: Number(a.balance || 0),
+    formattedBalance: `₦${Number(a.balance || 0).toLocaleString()}`,
+    dailyLimit: Number(a.dailyLimit || 0),
+    status: a.status,
+  }));
+
+  return NextResponse.json({
+    ...buildReadCatalogEnvelope({
+      queryName: 'bems.treasury.bank_accounts',
+      isGroup: orgScope.isGroup,
+      organizationIds: orgScope.organizationIds,
+      limit: mappedAccounts.length || 50,
+      offset: 0,
+      total: mappedAccounts.length,
+      data: mappedAccounts,
+    }),
+    totalActiveBalanceNaira: totalBalanceNaira,
+    formattedTotalActiveBalance: `₦${totalBalanceNaira.toLocaleString()}`,
+    accounts: mappedAccounts,
+  });
+}
 
 export async function POST(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);

@@ -115,13 +115,87 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const identifier: string = (body.requestId || body.requestNumber || body.id || '').trim();
+  const subAction = String(body.action || body.sub_action || '').toUpperCase().trim();
+  const assigneeLookup = String(body.assignee_user_id || body.assigneeId || body.assignee || '').trim();
+
+  // Support assigning a disbursement owner (payment_recorder)
+  if (subAction === 'ASSIGN_DISBURSEMENT_OWNER' || subAction === 'ASSIGN_RECORDER' || assigneeLookup) {
+    const reqIdLookup = String(body.requestId || body.requestNumber || body.request_id || body.id || '').trim();
+    if (!reqIdLookup || !assigneeLookup) {
+      return NextResponse.json(
+        { ok: false, error_code: 'VALIDATION_FAILED', message: 'requestId and assignee_user_id are required to assign a disbursement owner.' },
+        { status: 400 }
+      );
+    }
+
+    const [targetReq, targetAssignee] = await Promise.all([
+      prisma.expenditureRequest.findFirst({
+        where: { OR: [{ id: reqIdLookup }, { requestNumber: reqIdLookup }] },
+        include: { subsidiary: true },
+      }),
+      prisma.employee.findFirst({
+        where: {
+          status: 'ACTIVE',
+          approvalStatus: 'APPROVED',
+          OR: [
+            { id: assigneeLookup },
+            { employeeNumber: { equals: assigneeLookup, mode: 'insensitive' } },
+            { workEmail: { equals: assigneeLookup, mode: 'insensitive' } },
+            { legalName: { equals: assigneeLookup, mode: 'insensitive' } },
+          ],
+        },
+      }),
+    ]);
+
+    if (!targetReq) {
+      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Fund request "${reqIdLookup}" not found.` }, { status: 404 });
+    }
+    if (!targetAssignee) {
+      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Active employee "${assigneeLookup}" not found.` }, { status: 404 });
+    }
+
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'payment_recorder',
+      targetSubsidiaryId: targetReq.subsidiaryId,
+      targetEmployeeId: targetAssignee.id,
+      summary: `Assign ${targetAssignee.legalName} as Disbursement Recorder for ${targetReq.requestNumber} (${targetReq.title})`,
+      materialPayload: {
+        request_id: targetReq.id,
+        request_number: targetReq.requestNumber,
+        assignee_user_id: targetAssignee.id,
+        note: String(body.note || body.reason || body.comment || 'Assigned via BEMI').trim(),
+      },
+      preview: {
+        operation: 'Assign Disbursement Owner',
+        request_number: targetReq.requestNumber,
+        title: targetReq.title,
+        assigned_recorder: `${targetAssignee.legalName} (${targetAssignee.employeeNumber})`,
+        subsidiary: targetReq.subsidiary?.legalName || 'BEMS Group',
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      staged: true,
+      status: 'AWAITING_CONFIRMATION',
+      message: `Disbursement owner assignment for ${targetReq.requestNumber} has been staged.`,
+      ...staged,
+    });
+  }
+
+  // Support batch approval/decline/clarification when requestIds or requestNumbers array is provided
+  const rawBatchList: string[] = Array.isArray(body.requestIds || body.request_ids || body.requestNumbers)
+    ? (body.requestIds || body.request_ids || body.requestNumbers).map((x: any) => String(x || '').trim()).filter(Boolean)
+    : [];
+
+  const identifier: string = (body.requestId || body.requestNumber || body.id || rawBatchList[0] || '').trim();
   const decision: string = (body.decision || 'APPROVE').toUpperCase().trim();
   const comment: string = (body.comment || body.reason || body.note || 'Authorized via BEMS AI Automation').trim();
 
-  if (!identifier) {
+  if (!identifier && rawBatchList.length === 0) {
     return NextResponse.json(
-      { ok: false, error_code: 'VALIDATION_FAILED', message: 'requestId or requestNumber is required.' },
+      { ok: false, error_code: 'VALIDATION_FAILED', message: 'requestId, requestNumber, or requestIds[] is required.' },
       { status: 400 }
     );
   }
@@ -151,6 +225,73 @@ export async function POST(req: NextRequest) {
       : decision === 'REQUEST_CLARIFICATION' || decision === 'CLARIFICATION_REQUESTED' || decision === 'NEEDS_CLARIFICATION'
       ? 'REQUEST_CLARIFICATION'
       : 'DECLINE';
+
+  if (rawBatchList.length > 1) {
+    const batchReqs = await prisma.expenditureRequest.findMany({
+      where: {
+        OR: [{ id: { in: rawBatchList } }, { requestNumber: { in: rawBatchList } }],
+      },
+      include: {
+        requester: { select: { id: true, legalName: true } },
+        subsidiary: { select: { id: true, legalName: true, code: true } },
+      },
+    });
+    if (batchReqs.length !== rawBatchList.length) {
+      return NextResponse.json(
+        { ok: false, error_code: 'NOT_FOUND', message: `One or more requests in the batch (${rawBatchList.join(', ')}) were not found.` },
+        { status: 404 }
+      );
+    }
+    for (const r of batchReqs) {
+      if (!['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(r.approvalStatus)) {
+        return NextResponse.json(
+          { ok: false, error_code: 'ALREADY_DECIDED', message: `Request ${r.requestNumber} is already ${r.approvalStatus}.` },
+          { status: 409 }
+        );
+      }
+      if (canonicalDecision === 'APPROVE' && r.requestedById === actor.id && actor.role !== 'GMD') {
+        return NextResponse.json(
+          { ok: false, error_code: 'SEPARATION_OF_DUTIES', message: `You cannot approve your own request ${r.requestNumber}.` },
+          { status: 403 }
+        );
+      }
+    }
+
+    const totalMinor = batchReqs.reduce((acc, r) => acc + r.amountMinor, BigInt(0));
+    const totalNaira = Number(totalMinor) / 100;
+
+    const stagedBatch = await stageAction({
+      userId: actor.id,
+      actionType: 'approval_decision',
+      targetSubsidiaryId: batchReqs[0].subsidiaryId,
+      summary: `Batch ${canonicalDecision} ${batchReqs.length} Fund Requests (${batchReqs.map((r) => r.requestNumber).join(', ')}) — Total ₦${totalNaira.toLocaleString()}`,
+      materialPayload: {
+        request_id: batchReqs[0].id,
+        request_ids: batchReqs.map((r) => r.id),
+        request_numbers: batchReqs.map((r) => r.requestNumber),
+        expected_versions: Object.fromEntries(batchReqs.map((r) => [r.id, r.requestVersion])),
+        decision: canonicalDecision,
+        reason: comment,
+        amount_minor: Number(totalMinor),
+      },
+      preview: {
+        operation: `Batch ${canonicalDecision} (${batchReqs.length} Requests)`,
+        requests: batchReqs.map((r) => `${r.requestNumber}: ${r.title} (₦${(Number(r.amountMinor) / 100).toLocaleString()})`),
+        total_amount: `₦${totalNaira.toLocaleString()}`,
+        decision_to_apply: canonicalDecision,
+        reason: comment,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      staged: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
+      message: `Batch ${canonicalDecision.toLowerCase()} for ${batchReqs.length} requests has been staged.`,
+      ...stagedBatch,
+    });
+  }
 
   // Find expenditure request
   const expReq = await prisma.expenditureRequest.findFirst({

@@ -15,9 +15,15 @@ export async function GET(request: NextRequest) {
   if (errorResponse || !actor) return errorResponse!;
 
   const { searchParams } = new URL(request.url);
+  const mode = (searchParams.get('mode') || '').toLowerCase();
   const status = searchParams.get('status') || undefined;
-  const isRecurring = searchParams.get('recurring') === 'true' ? true : undefined;
-  const subsidiary = searchParams.get('subsidiary') || undefined;
+  const isRecurring =
+    mode === 'recurring_commitments' || mode === 'recurring'
+      ? true
+      : searchParams.get('recurring') === 'true'
+      ? true
+      : undefined;
+  const subsidiary = searchParams.get('subsidiary') || searchParams.get('organization_id') || undefined;
 
   const where: any = {};
   if (!actor.isExecutive) {
@@ -25,7 +31,7 @@ export async function GET(request: NextRequest) {
   }
   if (status) where.approvalStatus = status.toUpperCase();
   if (isRecurring !== undefined) where.isRecurring = isRecurring;
-  if (subsidiary) {
+  if (subsidiary && subsidiary !== 'ALL') {
     where.subsidiary = {
       OR: [
         { id: subsidiary },
@@ -45,6 +51,57 @@ export async function GET(request: NextRequest) {
     orderBy: { createdAt: 'desc' },
     take: 50,
   });
+
+  if (mode === 'recurring_commitments' || mode === 'recurring') {
+    const annualMultipliers: Record<string, bigint> = {
+      MONTHLY: BigInt(12),
+      QUARTERLY: BigInt(4),
+      ANNUAL: BigInt(1),
+    };
+    const nonRejected = requests.filter((r) => r.approvalStatus !== 'REJECTED');
+    const approved = nonRejected.filter((r) => r.approvalStatus === 'APPROVED');
+    const nextDue = approved
+      .filter((r) => r.neededBy && new Date(r.neededBy).getTime() >= Date.now())
+      .sort((a, b) => new Date(a.neededBy).getTime() - new Date(b.neededBy).getTime())[0];
+    const annualRunRateMinor = approved.reduce((total, r) => {
+      const mult = r.recurringInterval ? annualMultipliers[r.recurringInterval] : undefined;
+      return total + (mult ? r.amountMinor * mult : BigInt(0));
+    }, BigInt(0));
+
+    return NextResponse.json({
+      ok: true,
+      mode: 'recurring_commitments',
+      summary: {
+        approvedCount: approved.length,
+        pendingCount: nonRejected.filter((r) =>
+          ['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(r.approvalStatus)
+        ).length,
+        annualRunRateMinor: annualRunRateMinor.toString(),
+        annualRunRateNaira: Number(annualRunRateMinor) / 100,
+        nextDueRequestId: nextDue?.id ?? null,
+      },
+      count: nonRejected.length,
+      requests: nonRejected.map((r) => ({
+        id: r.id,
+        requestNumber: r.requestNumber,
+        title: r.title,
+        category: r.category,
+        amount: Number(r.amountMinor) / 100,
+        amountMinor: r.amountMinor.toString(),
+        currency: r.currency,
+        approvalStatus: r.approvalStatus,
+        paymentStatus: r.paymentStatus,
+        accountabilityStatus: r.accountabilityStatus,
+        isRecurring: r.isRecurring,
+        recurringInterval: r.recurringInterval,
+        neededBy: r.neededBy,
+        subsidiary: r.subsidiary,
+        requester: r.requester,
+        vendor: r.vendor,
+        createdAt: r.createdAt,
+      })),
+    });
+  }
 
   return NextResponse.json({
     ok: true,
@@ -92,7 +149,10 @@ export async function POST(request: NextRequest) {
       subAction === 'SEND_MESSAGE' ||
       subAction === 'REQUEST_CLARIFICATION' ||
       subAction === 'CLARIFY' ||
-      subAction === 'DELETE_REQUEST'
+      subAction === 'DELETE_REQUEST' ||
+      subAction === 'UPDATE_RECURRING' ||
+      subAction === 'PAUSE_RECURRING' ||
+      subAction === 'CANCEL_RECURRING'
     ) {
       const reqLookup = String(body.requestId || body.requestNumber || body.id || '').trim();
       if (!reqLookup) {
@@ -103,6 +163,54 @@ export async function POST(request: NextRequest) {
       });
       if (!reqItem) {
         return NextResponse.json({ ok: false, error: `Request "${reqLookup}" not found.` }, { status: 404 });
+      }
+
+      if (
+        subAction === 'UPDATE_RECURRING' ||
+        subAction === 'PAUSE_RECURRING' ||
+        subAction === 'CANCEL_RECURRING'
+      ) {
+        const nextRecurring = subAction === 'CANCEL_RECURRING' || subAction === 'PAUSE_RECURRING' ? false : true;
+        const nextInterval = nextRecurring
+          ? String(body.recurringInterval || body.recurring_interval || reqItem.recurringInterval || 'MONTHLY').toUpperCase()
+          : null;
+        const nextNeededBy = body.neededBy ? new Date(body.neededBy).toISOString() : reqItem.neededBy.toISOString();
+
+        const recSummary =
+          subAction === 'UPDATE_RECURRING'
+            ? `Update Recurring Schedule for ${reqItem.requestNumber} (${nextInterval})`
+            : `Stop Recurring Schedule for ${reqItem.requestNumber} (${reqItem.title})`;
+
+        const staged = await stageAction({
+          userId: actor.id,
+          actionType: 'request_creation',
+          targetSubsidiaryId: reqItem.subsidiaryId || undefined,
+          summary: recSummary,
+          materialPayload: {
+            sub_action: subAction,
+            requestId: reqItem.id,
+            requestNumber: reqItem.requestNumber,
+            isRecurring: nextRecurring,
+            recurringInterval: nextInterval,
+            neededBy: nextNeededBy,
+          },
+          preview: {
+            operation: recSummary,
+            request_number: reqItem.requestNumber,
+            title: reqItem.title,
+            recurring_active: nextRecurring,
+            recurring_interval: nextInterval || 'NONE',
+            next_due_date: nextNeededBy.split('T')[0],
+          },
+        });
+
+        return NextResponse.json({
+          ok: true,
+          staged: true,
+          status: 'AWAITING_CONFIRMATION',
+          message: `${recSummary} has been staged. Click Confirm to execute.`,
+          ...staged,
+        });
       }
 
       const message = String(body.message || body.text || body.reason || 'Please provide additional clarification.').trim();
@@ -156,29 +264,96 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const subsidiaryLookup = String(body.subsidiaryId || body.subsidiary_id || body.subsidiary || '').trim();
-    const org = subsidiaryLookup
-      ? await prisma.organization.findFirst({
-          where: {
-            OR: [
-              { id: subsidiaryLookup },
-              { code: { equals: subsidiaryLookup, mode: 'insensitive' } },
-              { legalName: { contains: subsidiaryLookup, mode: 'insensitive' } },
-            ],
+    // Resolve requester (either the authenticated actor or an explicit Staff member when staged by an executive on their behalf)
+    const requesterLookup = String(
+      body.requestedById || body.requesterId || body.onBehalfOfEmployeeId || body.requesterName || ''
+    ).trim();
+    let targetRequester = {
+      id: actor.id,
+      legalName: actor.legalName,
+      role: actor.role,
+      primarySubsidiaryId: null as string | null,
+    };
+
+    if (requesterLookup && requesterLookup !== actor.id) {
+      if (!actor.isExecutive) {
+        return NextResponse.json(
+          { ok: false, error: 'Only an executive (GMD or Super Admin) can stage a fund request on behalf of another staff member.' },
+          { status: 403 }
+        );
+      }
+      const foundEmp = await prisma.employee.findFirst({
+        where: {
+          status: 'ACTIVE',
+          approvalStatus: 'APPROVED',
+          OR: [
+            { id: requesterLookup },
+            { employeeNumber: { equals: requesterLookup, mode: 'insensitive' } },
+            { workEmail: { equals: requesterLookup, mode: 'insensitive' } },
+            { legalName: { equals: requesterLookup, mode: 'insensitive' } },
+          ],
+        },
+        include: {
+          assignments: {
+            where: { status: 'ACTIVE' },
+            orderBy: [{ isPrimary: 'desc' }, { startsOn: 'desc' }],
+            take: 1,
           },
-        })
-      : (await prisma.organization.findFirst({ where: { type: 'SUBSIDIARY' } })) ||
-        (await prisma.organization.findFirst());
+        },
+      });
+      if (!foundEmp) {
+        return NextResponse.json(
+          { ok: false, error: `Active target requester "${requesterLookup}" not found.` },
+          { status: 404 }
+        );
+      }
+      targetRequester = {
+        id: foundEmp.id,
+        legalName: foundEmp.legalName,
+        role: foundEmp.role,
+        primarySubsidiaryId: foundEmp.assignments[0]?.subsidiaryId || null,
+      };
+    } else {
+      const ownAssignment = await prisma.employeeAssignment.findFirst({
+        where: { employeeId: actor.id, status: 'ACTIVE' },
+        orderBy: [{ isPrimary: 'desc' }, { startsOn: 'desc' }],
+      });
+      targetRequester.primarySubsidiaryId = ownAssignment?.subsidiaryId || null;
+    }
+
+    const subsidiaryLookup = String(
+      body.subsidiaryId || body.subsidiary_id || body.subsidiary || targetRequester.primarySubsidiaryId || ''
+    ).trim();
+    if (!subsidiaryLookup) {
+      return NextResponse.json(
+        { ok: false, error: 'An explicit subsidiaryId (or active requester subsidiary assignment) is required to stage a fund request.' },
+        { status: 400 }
+      );
+    }
+
+    const org = await prisma.organization.findFirst({
+      where: {
+        status: 'ACTIVE',
+        OR: [
+          { id: subsidiaryLookup },
+          { code: { equals: subsidiaryLookup, mode: 'insensitive' } },
+          { legalName: { equals: subsidiaryLookup, mode: 'insensitive' } },
+        ],
+      },
+    });
 
     if (!org) {
-      return NextResponse.json({ ok: false, error: 'Subsidiary organization not found.' }, { status: 404 });
+      return NextResponse.json({ ok: false, error: `Active subsidiary organization "${subsidiaryLookup}" not found.` }, { status: 404 });
     }
+
+    const isStagedOnBehalf = targetRequester.id !== actor.id;
 
     const staged = await stageAction({
       userId: actor.id,
       actionType: 'request_creation',
       targetSubsidiaryId: org.id,
-      summary: `Create ${isRecurring ? `Recurring (${recurringInterval}) ` : ''}Fund Request: "${title}" (₦${amount.toLocaleString()}) under ${org.legalName}`,
+      targetEmployeeId: targetRequester.id,
+      summary: `Create ${isRecurring ? `Recurring (${recurringInterval}) ` : ''}Fund Request: "${title}" (₦${amount.toLocaleString()}) under ${org.legalName}${isStagedOnBehalf ? ` on behalf of ${targetRequester.legalName}` : ''}`,
       materialPayload: {
         title,
         amount,
@@ -187,6 +362,8 @@ export async function POST(request: NextRequest) {
         justification,
         deliverable,
         subsidiaryId: org.id,
+        requestedById: targetRequester.id,
+        stagedById: actor.id,
         departmentId: body.departmentId || null,
         vendorId: body.vendorId || null,
         isRecurring,
@@ -199,6 +376,8 @@ export async function POST(request: NextRequest) {
         amount: `${currency} ${amount.toLocaleString()}`,
         category,
         subsidiary: `${org.legalName} (${org.code})`,
+        requester: targetRequester.legalName,
+        ...(isStagedOnBehalf ? { staged_by_executive: actor.legalName } : {}),
         justification,
         ...(isRecurring ? { recurring_interval: recurringInterval } : {}),
       },

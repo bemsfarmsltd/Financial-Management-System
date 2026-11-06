@@ -285,8 +285,77 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // -------------------------------------------------------------
+  // ACTION 3: AMEND_NOTE (Amend an ISSUED unsettled intercompany note)
+  // -------------------------------------------------------------
+  if (action === 'AMEND_NOTE' || action === 'UPDATE_NOTE' || action === 'AMEND') {
+    const noteLookup = String(body.noteId || body.noteNumber || body.id || '').trim();
+    if (!noteLookup) {
+      return NextResponse.json(
+        { ok: false, error_code: 'MISSING_NOTE_ID', message: 'noteId or noteNumber is required to amend an intercompany note.' },
+        { status: 400 }
+      );
+    }
+
+    const existingNote = await prisma.intercompanyNote.findFirst({
+      where: { OR: [{ id: noteLookup }, { noteNumber: noteLookup }] },
+      include: {
+        sourceEntity: { select: { id: true, legalName: true } },
+        targetEntity: { select: { id: true, legalName: true } },
+      },
+    });
+    if (!existingNote) {
+      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Intercompany note "${noteLookup}" not found.` }, { status: 404 });
+    }
+    if (existingNote.status !== 'ISSUED') {
+      return NextResponse.json(
+        { ok: false, error_code: 'NOTE_IMMUTABLE', message: `Only ISSUED (unsettled) notes can be amended (current status: ${existingNote.status}).` },
+        { status: 409 }
+      );
+    }
+
+    const newAmountNaira = body.amount !== undefined ? Number(body.amount) : Number(existingNote.totalAmountMinor) / 100;
+    if (!Number.isFinite(newAmountNaira) || newAmountNaira <= 0) {
+      return NextResponse.json({ ok: false, error_code: 'INVALID_AMOUNT', message: 'Amended amount must be positive.' }, { status: 400 });
+    }
+    const newAmountMinor = Math.round(newAmountNaira * 100);
+    const newDescription = body.description ? String(body.description).trim() : existingNote.description;
+
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'intercompany_note',
+      targetSubsidiaryId: existingNote.sourceEntityId,
+      summary: `Amend intercompany note ${existingNote.noteNumber} to ₦${newAmountNaira.toLocaleString()}`,
+      materialPayload: {
+        mode: 'AMEND_NOTE',
+        noteId: existingNote.id,
+        noteNumber: existingNote.noteNumber,
+        priorAmountMinor: Number(existingNote.totalAmountMinor),
+        amountMinor: newAmountMinor,
+        description: newDescription,
+      },
+      preview: {
+        mode: 'AMEND_NOTE',
+        noteNumber: existingNote.noteNumber,
+        source: existingNote.sourceEntity.legalName,
+        target: existingNote.targetEntity.legalName,
+        priorAmount: `₦${(Number(existingNote.totalAmountMinor) / 100).toLocaleString()}`,
+        newAmount: `₦${newAmountNaira.toLocaleString()}`,
+        description: newDescription,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
+      message: `Amendment for intercompany note ${existingNote.noteNumber} has been staged. Click Confirm to commit.`,
+      ...staged,
+    });
+  }
+
   return NextResponse.json(
-    { ok: false, error_code: 'INVALID_ACTION', message: `Unknown action "${action}". Allowed: CREATE_NOTE, STAGE_SETTLEMENT.` },
+    { ok: false, error_code: 'INVALID_ACTION', message: `Unknown action "${action}". Allowed: CREATE_NOTE, STAGE_SETTLEMENT, AMEND_NOTE.` },
     { status: 400 }
   );
 }

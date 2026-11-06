@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
     if (errorResponse || !actor) return errorResponse!;
 
     const body = await request.json();
-    const subAction = String(body.action || body.sub_action || (body.leaveId || body.id ? 'APPROVE_LEAVE' : 'CREATE_LEAVE')).toUpperCase();
+    const rawSubAction = String(body.action || body.sub_action || (body.leaveId || body.id ? 'APPROVE_LEAVE' : 'CREATE_LEAVE')).toUpperCase();
+    const subAction = rawSubAction === 'REQUEST_LEAVE' || rawSubAction === 'SUBMIT_LEAVE' ? 'CREATE_LEAVE' : rawSubAction;
 
     if (subAction === 'CREATE_LEAVE') {
       const startDate = body.startDate || body.start_date;

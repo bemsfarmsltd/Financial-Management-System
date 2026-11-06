@@ -314,6 +314,48 @@ export const PARITY_INVENTORY: ReadonlyArray<ParityInventoryEntry> = [
     status: 'AI_PARITY_VERIFIED',
     commandType: 'subsidiary_update',
   },
+  {
+    dashboardRoute: '/api/businesses/[businessId]/channels',
+    methods: ['POST'],
+    status: 'AI_PARITY_VERIFIED',
+    commandType: 'policy_update',
+  },
+  {
+    dashboardRoute: '/api/businesses/[businessId]/templates/[templateId]/import',
+    methods: ['POST'],
+    status: 'AI_PARITY_VERIFIED',
+    commandType: 'policy_update',
+  },
+  {
+    dashboardRoute: '/api/businesses/[businessId]/members',
+    methods: ['POST'],
+    status: 'AI_PARITY_VERIFIED',
+    commandType: 'admin_onboarding',
+  },
+  {
+    dashboardRoute: '/api/admin/mobile-apps',
+    methods: ['POST'],
+    status: 'AI_PARITY_VERIFIED',
+    commandType: 'policy_update',
+  },
+  {
+    dashboardRoute: '/api/accountability/evidence',
+    methods: ['POST'],
+    status: 'AI_PARITY_VERIFIED',
+    commandType: 'accountability_clearance',
+  },
+  {
+    dashboardRoute: '/api/reports/export',
+    methods: ['POST'],
+    status: 'DASHBOARD_ONLY_INTENTIONAL',
+    justification: 'Generates a read-only scoped download URL for /api/audit?export=true; no financial state mutation.',
+  },
+  {
+    dashboardRoute: '/api/staff/[employeeId]/password',
+    methods: ['POST', 'PATCH'],
+    status: 'DASHBOARD_ONLY_INTENTIONAL',
+    justification: 'Identity secret entry is strictly human-bound on the dedicated UI; BEMI stages SEND_PASSWORD_RESET_INVITE via staff_management.',
+  },
 
   // 12. Accountability, Leave, Tasks, Messages & Policies
   {

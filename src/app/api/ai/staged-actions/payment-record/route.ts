@@ -29,12 +29,74 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
+    const subAction = String(body.action || body.sub_action || 'RECORD_PAYMENT').toUpperCase().trim();
     const request_id = body.request_id || body.requestId || body.request_number;
+    const disbursement_id = body.disbursement_id || body.disbursementId;
+
+    // Support staging retry/issue resolution for a disbursement in RECIPIENT_REPORTED_ISSUE
+    if (subAction === 'RESOLVE_PAYMENT_ISSUE' || subAction === 'RESOLVE_ISSUE' || subAction === 'RETRY_ISSUE_RESOLUTION') {
+      const targetDisb = disbursement_id
+        ? await prisma.disbursement.findUnique({
+            where: { id: String(disbursement_id) },
+            include: { request: true },
+          })
+        : request_id
+        ? await prisma.disbursement.findFirst({
+            where: {
+              request: { OR: [{ id: String(request_id) }, { requestNumber: String(request_id) }] },
+              status: 'RECIPIENT_REPORTED_ISSUE',
+            },
+            include: { request: true },
+          })
+        : null;
+
+      if (!targetDisb) {
+        return NextResponse.json(
+          { ok: false, error_code: 'NOT_FOUND', message: 'Disbursement with reported issue not found.' },
+          { status: 404 }
+        );
+      }
+
+      const resolutionNote = String(body.note || body.reason || 'Bank transfer verified and reconciled; ready for recipient re-confirmation.').trim();
+      const reqNum = targetDisb.request?.requestNumber || targetDisb.id;
+
+      const stagedResolve = await stageAction({
+        userId: actor.id,
+        actionType: 'payment_record',
+        targetSubsidiaryId: targetDisb.request?.subsidiaryId || targetDisb.payerOrgId,
+        summary: `Resolve Reported Payment Issue for ${reqNum} (Ref: ${targetDisb.externalReference}) and Request Recipient Re-confirmation`,
+        materialPayload: {
+          sub_action: 'RESOLVE_PAYMENT_ISSUE',
+          request_id: targetDisb.requestId || targetDisb.id,
+          disbursement_id: targetDisb.id,
+          amount: Number(targetDisb.amountMinor) / 100,
+          payer_account_id: targetDisb.payerOrgId,
+          transfer_reference: targetDisb.externalReference,
+          resolution_note: resolutionNote,
+        },
+        preview: {
+          operation: 'Resolve Reported Payment Issue',
+          request_number: reqNum,
+          disbursement_reference: targetDisb.externalReference,
+          amount: `₦${(Number(targetDisb.amountMinor) / 100).toLocaleString()}`,
+          resolution_note: resolutionNote,
+          next_status: 'AWAITING_RECIPIENT_CONFIRMATION',
+        },
+      });
+
+      return NextResponse.json(stagedResolve);
+    }
+
     const amount = body.amount_paid !== undefined ? body.amount_paid : body.amount;
     const transfer_reference = String(body.reference || body.transfer_reference || body.externalReference || '').trim();
     const payer_account_id = body.bank_account_id || body.payer_account_id || body.payerAccountId;
     const payment_date = body.payment_date;
     const currency = body.currency;
+    const attachmentIds: string[] = Array.isArray(body.attachment_ids || body.attachmentIds)
+      ? body.attachment_ids || body.attachmentIds
+      : body.attachment_id || body.attachmentId
+      ? [String(body.attachment_id || body.attachmentId)]
+      : [];
 
     if (!request_id || amount === undefined || !transfer_reference) {
       return NextResponse.json(
@@ -212,6 +274,7 @@ export async function POST(req: Request) {
       userId: actor.id,
       actionType: 'payment_record',
       targetSubsidiaryId: reqItem.subsidiaryId,
+      attachmentIds,
       materialPayload,
       summary,
       preview,

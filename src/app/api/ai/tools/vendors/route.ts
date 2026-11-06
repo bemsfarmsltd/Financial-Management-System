@@ -202,6 +202,65 @@ export async function POST(req: NextRequest) {
   }
 
   // -------------------------------------------------------------
+  // ACTION 1C: RESOLVE_MATCH_EXCEPTION (Staged Executive Match Exception Override)
+  // -------------------------------------------------------------
+  if (action === 'RESOLVE_MATCH_EXCEPTION' || action === 'OVERRIDE_MATCH_EXCEPTION') {
+    if (!isExecutive) {
+      return NextResponse.json(
+        { ok: false, error_code: 'FORBIDDEN', message: 'Executive authority is required to resolve or override a 3-way match exception.' },
+        { status: 403 }
+      );
+    }
+
+    const requestId: string = (body.requestId || body.requestNumber || '').trim();
+    const reason: string = (body.reason || body.notes || '').trim();
+    if (!requestId || reason.length < 5) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'VALIDATION_FAILED',
+          message: 'requestId/requestNumber and a reason (min 5 chars) are required to resolve a 3-way match exception.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const request = await prisma.expenditureRequest.findFirst({
+      where: { OR: [{ id: requestId }, { requestNumber: requestId }] },
+    });
+    if (!request) {
+      return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Request "${requestId}" not found.` }, { status: 404 });
+    }
+
+    const staged = await stageAction({
+      userId: actor.id,
+      actionType: 'vendor_approval',
+      targetSubsidiaryId: request.subsidiaryId,
+      summary: `Authorize 3-Way Match Exception Override for ${request.requestNumber} (${request.title})`,
+      materialPayload: {
+        mode: 'RESOLVE_MATCH_EXCEPTION',
+        request_id: request.id,
+        request_number: request.requestNumber,
+        reason,
+      },
+      preview: {
+        action: 'RESOLVE_MATCH_EXCEPTION',
+        requestNumber: request.requestNumber,
+        title: request.title,
+        reason,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      status: 'AWAITING_CONFIRMATION',
+      requires_gmd_action: true,
+      message: `3-Way Match exception override for ${request.requestNumber} has been staged. Click Confirm to authorize.`,
+      ...staged,
+    });
+  }
+
+  // -------------------------------------------------------------
   // ACTION 2: REGISTER (Register verified vendor with NUBAN check)
   // -------------------------------------------------------------
   if (action === 'REGISTER') {

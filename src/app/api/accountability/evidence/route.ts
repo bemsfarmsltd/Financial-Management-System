@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { getAuthenticatedEmployee, getHrAuthorizationScope, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -56,8 +56,9 @@ export async function POST(request: Request) {
 
   const accCase = await prisma.accountabilityCase.findUnique({ where: { id: caseId }, include: { request: { include: { channel: true, disbursements: true } }, owner: true } });
   if (!accCase) return NextResponse.json({ error: 'Accountability case not found.' }, { status: 404 });
-  const isAuthorized = hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'HR']) || actor.id === accCase.ownerUserId || actor.id === accCase.request.requestedById;
-  if (!isAuthorized) return NextResponse.json({ error: 'Only the requester, case owner, or an authorized verifier can submit evidence.' }, { status: 403 });
+  const hrScope = await getHrAuthorizationScope(actor);
+  const isAuthorized = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']) || hrScope.authorized || actor.id === accCase.ownerUserId || actor.id === accCase.request.requestedById;
+  if (!isAuthorized) return NextResponse.json({ error: 'Only the requester, case owner, or an authorized executive can submit evidence.' }, { status: 403 });
   if (!accCase.request.disbursements.length) return NextResponse.json({ error: 'Evidence can only be submitted for a request with a recorded payment.' }, { status: 409 });
   if (accCase.status === 'CLOSED') return NextResponse.json({ error: 'This accountability case is already closed.' }, { status: 409 });
 
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
   const setting = await prisma.workspaceSetting.findUnique({ where: { organizationId_key: { organizationId: accCase.request.subsidiaryId, key: 'notifications.preferences' } }, select: { value: true } });
   let notifyReviewers = true;
   try { if (setting?.value && JSON.parse(setting.value).reviewEvidenceAlerts === false) notifyReviewers = false; } catch { /* Keep mandatory review alerts on when settings cannot be read. */ }
-  const reviewers = notifyReviewers ? await prisma.employee.findMany({ where: { role: { in: ['GMD', 'SYSTEM_ADMIN', 'VERIFIER'] }, status: 'ACTIVE', approvalStatus: 'APPROVED', id: { not: actor.id } }, select: { id: true } }) : [];
+  const reviewers = notifyReviewers ? await prisma.employee.findMany({ where: { role: { in: ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED', id: { not: actor.id } }, select: { id: true } }) : [];
   if (reviewers.length) await prisma.systemNotification.createMany({ data: reviewers.map(reviewer => ({ employeeId: reviewer.id, kind: 'ACCOUNTABILITY_EVIDENCE_SUBMITTED', title: 'Evidence ready for review', body: `${accCase.request.requestNumber} has new post-payment evidence from ${actor.legalName}.`, linkUrl: '/' })) });
   return NextResponse.json({ success: true, attachment: { id: attachment.id, fileName: attachment.fileName, url: attachment.fileUrl } }, { status: 201 });
 }
