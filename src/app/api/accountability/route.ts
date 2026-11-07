@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, getHrAuthorizationScope, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { toSystemRequestId } from '@/lib/request-id';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,12 +13,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Accountability access is required.' }, { status: 403 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const rawSubsidiary = searchParams.get('subsidiaryId') || searchParams.get('subsidiary') || 'ALL';
+  const scope = await resolveAuthorizedOrganizationScope(actor, rawSubsidiary);
+
   // Staff can see and submit proof only for requests they own or requested.
   const ownCasesOnly = actor.role === 'STAFF';
 
   const cases = await prisma.accountabilityCase.findMany({
     where: ownCasesOnly
       ? { OR: [{ ownerUserId: actor.id }, { request: { requestedById: actor.id } }] }
+      : !scope.isGroup
+      ? { request: { subsidiaryId: { in: scope.organizationIds } } }
       : undefined,
     include: {
       owner: { select: { id: true, legalName: true, workEmail: true } },
@@ -30,7 +37,14 @@ export async function GET(request: Request) {
     },
     orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
   });
-  const attachments = await prisma.attachment.findMany({ where: { ownerType: 'ACCOUNTABILITY' }, select: { id: true, ownerId: true, fileName: true, contentType: true, uploadedAt: true, notes: true }, orderBy: { uploadedAt: 'desc' } });
+  const caseIds = cases.map(c => c.id);
+  const attachments = caseIds.length > 0
+    ? await prisma.attachment.findMany({
+        where: { ownerType: 'ACCOUNTABILITY', ownerId: { in: caseIds } },
+        select: { id: true, ownerId: true, fileName: true, contentType: true, uploadedAt: true, notes: true },
+        orderBy: { uploadedAt: 'desc' },
+      })
+    : [];
   const attachmentMap = new Map<string, typeof attachments>();
   for (const attachment of attachments) if (attachment.ownerId) attachmentMap.set(attachment.ownerId, [...(attachmentMap.get(attachment.ownerId) || []), attachment]);
   const safeCases = cases.map(c => {

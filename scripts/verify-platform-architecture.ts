@@ -46,6 +46,9 @@ import {
   PARITY_INVENTORY,
   verifyParityInventoryConsistency,
 } from '../src/lib/platform/parity-inventory';
+import {
+  PART_III_API_ROUTE_INVENTORY,
+} from '../src/lib/platform/api-route-inventory';
 import { computeBufferSha256 } from '../src/lib/platform/staged-attachments';
 import {
   SUPPORTED_STAGED_ACTION_TYPES,
@@ -355,7 +358,58 @@ async function main() {
 
   console.log('  ✓ All Audit Item 09 & Part II Security/Financial Integrity Controls (S01–S08) verified.');
 
-  console.log('\nAll 9 Platform Architecture Pillars & Audit Item 07/08/09 + Part II Checks PASSED.');
+  // 10. Part III Complete API Route Inventory & Method Declarations
+  console.log('[10/10] Verifying Part III Complete API Route Inventory & Method Declarations...');
+  assert.ok(PART_III_API_ROUTE_INVENTORY.length >= 60, 'Part III route inventory must cover accountability through briefing');
+
+  for (const entry of PART_III_API_ROUTE_INVENTORY) {
+    const absPath = path.join(repoRoot, entry.relativeFilePath);
+    assert.ok(fs.existsSync(absPath), `Missing Part III API route file: ${entry.relativeFilePath} (${entry.apiPath})`);
+    const routeSource = fs.readFileSync(absPath, 'utf8');
+    for (const method of entry.declaredMethods) {
+      const exportPattern = new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\b`);
+      assert.ok(
+        exportPattern.test(routeSource),
+        `Route ${entry.apiPath} (${entry.relativeFilePath}) is missing declared HTTP handler export: ${method}`
+      );
+    }
+  }
+
+  // Verify Part III analytics, leadership, station QR, and accountability hardening
+  const analyticsSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/analytics/route.ts'), 'utf8');
+  assert.ok(analyticsSource.includes('where: { ...subsidiaryFilter, ...staffFilter }'), 'Analytics availableCategories must include staffFilter');
+
+  const cashForecastSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/analytics/cash-forecast/route.ts'), 'utf8');
+  assert.ok(
+    cashForecastSource.includes('resolveAuthorizedOrganizationScope') &&
+      cashForecastSource.includes('isRecurring: true') &&
+      !cashForecastSource.includes('280000') &&
+      !cashForecastSource.includes('850000'),
+    'Cash forecast route must use live recurring ExpenditureRequest and CompensationAgreement queries without hardcoded estimates'
+  );
+
+  const leadershipSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/admin/leadership/route.ts'), 'utf8');
+  assert.ok(
+    !leadershipSource.includes("'HR'") && !leadershipSource.includes("'HR_ADMIN'"),
+    'Leadership route must strictly query 3-role executive roles without legacy HR role strings'
+  );
+
+  const stationQrSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/attendance/station/qr/route.ts'), 'utf8');
+  assert.ok(
+    stationQrSource.includes('checkRateLimit') && stationQrSource.includes("where: { code: stationCode, status: 'ACTIVE' }"),
+    'Station QR route must enforce rate limiting and active station status on explicit stationCode'
+  );
+
+  const accountabilityListSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/accountability/route.ts'), 'utf8');
+  assert.ok(
+    accountabilityListSource.includes('ownerId: { in: caseIds }') &&
+      accountabilityListSource.includes('resolveAuthorizedOrganizationScope'),
+    'Accountability GET must scope cases by organization and restrict attachment query to loaded caseIds'
+  );
+
+  console.log(`  ✓ All ${PART_III_API_ROUTE_INVENTORY.length} Part III API routes and method contracts verified.`);
+
+  console.log('\nAll 10 Platform Architecture Pillars & Audit Item 07/08/09 + Part II/III Checks PASSED.');
 }
 
 main().catch((err) => {

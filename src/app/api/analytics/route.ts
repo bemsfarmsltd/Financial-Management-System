@@ -81,7 +81,14 @@ export async function GET(request: Request) {
     prisma.disbursement.findMany({ where: paymentWhere(start, end), select: { amountMinor: true, status: true, paidAt: true } }),
     prisma.disbursement.findMany({ where: paymentWhere(previousStart, previousEnd), select: { amountMinor: true } }),
     prisma.expenditureRequest.findMany({
-      where: { ...subsidiaryFilter, ...(category === 'ALL' ? {} : { category }), ...(status === 'ALL' || status === 'APPROVED' ? { approvalStatus: 'APPROVED' } : { id: { in: [] } }), paymentStatus: { in: unpaidStatuses }, neededBy: { gte: now, lt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) } },
+      where: {
+        ...subsidiaryFilter,
+        ...staffFilter,
+        ...(category === 'ALL' ? {} : { category }),
+        ...(status === 'ALL' || status === 'APPROVED' ? { approvalStatus: 'APPROVED' } : { id: { in: [] } }),
+        paymentStatus: { in: unpaidStatuses },
+        neededBy: { gte: now, lt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) },
+      },
       select: { id: true, amountMinor: true },
     }),
     prisma.disbursement.findMany({
@@ -97,8 +104,17 @@ export async function GET(request: Request) {
       },
       select: { amountMinor: true },
     }),
-    prisma.organization.findMany({ where: { type: 'SUBSIDIARY', status: 'ACTIVE' }, select: { id: true, legalName: true }, orderBy: { legalName: 'asc' } }),
-    prisma.expenditureRequest.findMany({ where: subsidiaryFilter, distinct: ['category'], select: { category: true }, orderBy: { category: 'asc' } }),
+    prisma.organization.findMany({
+      where: { type: 'SUBSIDIARY', status: 'ACTIVE', id: { in: scope.organizationIds } },
+      select: { id: true, legalName: true },
+      orderBy: { legalName: 'asc' },
+    }),
+    prisma.expenditureRequest.findMany({
+      where: { ...subsidiaryFilter, ...staffFilter },
+      distinct: ['category'],
+      select: { category: true },
+      orderBy: { category: 'asc' },
+    }),
   ]);
 
   const sum = (rows: { amountMinor: bigint }[]) => rows.reduce((total, row) => total + Number(row.amountMinor), 0);

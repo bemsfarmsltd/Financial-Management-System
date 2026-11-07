@@ -1,24 +1,44 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateStationQrToken } from '@/lib/attendance/token';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 import QRCode from 'qrcode';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
+    const clientIp = getClientIp(request);
+    const rateLimit = checkRateLimit(`station-qr:${clientIp}`, {
+      maxAttempts: 60,
+      windowMs: 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many station QR refresh requests. Please wait before retrying.' },
+        { status: 429 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
-    const stationCode = searchParams.get('stationCode');
+    const stationCode = searchParams.get('stationCode')?.trim();
+    const providedSecret =
+      request.headers.get('x-station-secret')?.trim() ||
+      searchParams.get('stationSecret')?.trim();
 
     let station = null;
     if (stationCode) {
-      station = await prisma.attendanceStation.findUnique({
-        where: { code: stationCode },
+      station = await prisma.attendanceStation.findFirst({
+        where: { code: stationCode, status: 'ACTIVE' },
         include: { organization: { select: { legalName: true } } },
       });
-    }
-
-    if (!station) {
+      if (!station) {
+        return NextResponse.json(
+          { error: `Active attendance station "${stationCode}" not found.` },
+          { status: 404 }
+        );
+      }
+    } else {
       station = await prisma.attendanceStation.findFirst({
         where: { status: 'ACTIVE' },
         include: { organization: { select: { legalName: true } } },
@@ -27,6 +47,10 @@ export async function GET(request: Request) {
 
     if (!station) {
       return NextResponse.json({ error: 'No active attendance station configured' }, { status: 404 });
+    }
+
+    if (providedSecret && providedSecret !== station.activeSecret) {
+      return NextResponse.json({ error: 'Invalid attendance station secret.' }, { status: 403 });
     }
 
     const { token, expiresInSeconds } = generateStationQrToken(station.code, station.activeSecret);
@@ -68,6 +92,8 @@ export async function GET(request: Request) {
       resumptionTime: policy?.resumptionTime || '08:00',
       gracePeriodMinutes: policy?.gracePeriodMinutes || 15,
       timestamp: new Date().toISOString(),
+    }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' },
     });
   } catch (error: any) {
     console.error('Error generating station QR token:', error);

@@ -9,6 +9,13 @@ function getBootstrapSecret(): string | null {
   return secret && secret.trim().length >= 16 ? secret.trim() : null;
 }
 
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    configured: Boolean(getBootstrapSecret()),
+  });
+}
+
 export async function POST(request: Request) {
   const bootstrapSecret = getBootstrapSecret();
   if (!bootstrapSecret) {

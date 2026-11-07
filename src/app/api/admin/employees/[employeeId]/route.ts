@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole, invalidateSessionCache } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,8 +10,8 @@ export async function DELETE(
 ) {
   try {
     const actor = await getAuthenticatedEmployee(request);
-    if (!actor || !hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN'])) {
-      return NextResponse.json({ error: 'Executive authorization (GMD or SYSTEM_ADMIN) required to delete accounts.' }, { status: 403 });
+    if (!actor || !hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
+      return NextResponse.json({ error: 'Executive authorization (GMD or SUPER_ADMIN) required to delete accounts.' }, { status: 403 });
     }
 
     const { employeeId } = await params;
@@ -64,6 +64,7 @@ export async function DELETE(
       await prisma.employeeAssignment.deleteMany({ where: { employeeId } });
       await prisma.staffWorkSchedule.deleteMany({ where: { employeeId } });
       await prisma.systemNotification.deleteMany({ where: { employeeId } });
+      invalidateSessionCache();
 
       return NextResponse.json({
         success: true,
@@ -107,6 +108,8 @@ export async function DELETE(
         where: { id: employeeId },
       });
     });
+
+    invalidateSessionCache();
 
     return NextResponse.json({
       success: true,

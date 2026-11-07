@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
@@ -12,24 +15,29 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const dataset = searchParams.get('dataset') || 'requests';
-    const orgId = searchParams.get('organization_id');
+    const orgId = searchParams.get('organization_id') || searchParams.get('subsidiaryId') || 'ALL';
+
+    const scope = await resolveAuthorizedOrganizationScope(actor, orgId);
+    if (scope.organizationIds.length === 0) {
+      return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Outside authorized organization scope.' }, { status: 403 });
+    }
 
     // Aggregate real metrics based on dataset
     const [requests, disbursements, budgets, cases] = await Promise.all([
       prisma.expenditureRequest.findMany({
-        where: orgId ? { subsidiaryId: orgId } : undefined,
+        where: !scope.isGroup ? { subsidiaryId: { in: scope.organizationIds } } : undefined,
         select: { id: true, amountMinor: true, approvalStatus: true, category: true, createdAt: true },
       }),
       prisma.disbursement.findMany({
-        where: orgId ? { payerOrgId: orgId } : undefined,
+        where: !scope.isGroup ? { payerOrgId: { in: scope.organizationIds } } : undefined,
         select: { id: true, amountMinor: true, status: true, paidAt: true },
       }),
       prisma.budget.findMany({
-        where: orgId ? { organizationId: orgId } : undefined,
+        where: !scope.isGroup ? { organizationId: { in: scope.organizationIds } } : undefined,
         include: { lines: true },
       }),
       prisma.accountabilityCase.findMany({
-        where: orgId ? { request: { subsidiaryId: orgId } } : undefined,
+        where: !scope.isGroup ? { request: { subsidiaryId: { in: scope.organizationIds } } } : undefined,
         select: { id: true, status: true, dueAt: true },
       }),
     ]);
