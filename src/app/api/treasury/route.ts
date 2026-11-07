@@ -32,8 +32,8 @@ export async function GET(req: NextRequest) {
     let bankWhere: any = { status: 'ACTIVE' };
 
     if (subsidiary && subsidiary !== 'ALL') {
-      const { resolveOrganizationScope } = await import('@/lib/organizations');
-      const scope = await resolveOrganizationScope(subsidiary);
+      const { resolveAuthorizedOrganizationScope } = await import('@/lib/organizations');
+      const scope = await resolveAuthorizedOrganizationScope(actor, subsidiary);
       if (!scope.isGroup) {
         reqWhere.subsidiaryId = { in: scope.organizationIds };
         disbWhere.request = { subsidiaryId: { in: scope.organizationIds } };

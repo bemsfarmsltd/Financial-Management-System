@@ -2,7 +2,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { prisma } from '@/lib/prisma';
 import { computeBufferSha256 } from '@/lib/platform/staged-attachments';
@@ -114,10 +114,12 @@ export async function POST(request: Request) {
       const url = `/uploads/${subDir}/${filename}`;
       const checksum = computeBufferSha256(bytes);
 
-      // 3. If an employeeId was provided for an avatar update, atomically update employee.avatarUrl
+      // 3. If an employeeId was provided for an avatar update, atomically update employee.avatarUrl ONLY for an authenticated owner or executive
       const formEmployeeId = formData.get('employeeId')?.toString()?.trim() || request.headers.get('x-employee-id')?.trim();
       if (!isPdf && formEmployeeId) {
-        const canUpdate = !actor || actor.id === formEmployeeId || actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN';
+        const canUpdate =
+          Boolean(actor) &&
+          (actor!.id === formEmployeeId || hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']));
         if (canUpdate) {
           await prisma.employee.update({
             where: { id: formEmployeeId },
@@ -216,7 +218,9 @@ export async function POST(request: Request) {
 
       const bodyEmployeeId = typeof body.employeeId === 'string' ? body.employeeId.trim() : request.headers.get('x-employee-id')?.trim();
       if (bodyEmployeeId) {
-        const canUpdate = !actor || actor.id === bodyEmployeeId || actor.role === 'GMD' || actor.role === 'SYSTEM_ADMIN';
+        const canUpdate =
+          Boolean(actor) &&
+          (actor!.id === bodyEmployeeId || hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']));
         if (canUpdate) {
           await prisma.employee.update({
             where: { id: bodyEmployeeId },

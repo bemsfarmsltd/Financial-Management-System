@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { executeThreeWayMatch } from '@/lib/services/three-way-match';
 import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
+import { buildDatedRequestPrefix } from '@/lib/request-number';
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,12 +16,17 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const requestId = searchParams.get('requestId') || undefined;
     const status = searchParams.get('status') || undefined;
+    const subsidiaryId = searchParams.get('subsidiaryId') || searchParams.get('subsidiary') || 'ALL';
+    const scope = await resolveAuthorizedOrganizationScope(user, subsidiaryId);
 
     const grns = await prisma.goodsReceiptNote.findMany({
       where: {
         requestId,
         status,
-        ...(!isExecutive ? { request: { requestedById: user.id } } : {}),
+        request: {
+          ...(!scope.isGroup ? { subsidiaryId: { in: scope.organizationIds } } : {}),
+          ...(!isExecutive ? { requestedById: user.id } : {}),
+        },
       },
       include: {
         request: { select: { id: true, requestNumber: true, title: true, amountMinor: true } },
@@ -111,10 +117,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Forbidden: Outside authorized subsidiary scope.' }, { status: 403 });
     }
 
-    // Generate sequential GRN number
-    const count = await prisma.goodsReceiptNote.count();
-    const year = new Date().getFullYear();
-    const grnNumber = `GRN-${year}-${String(count + 1).padStart(4, '0')}`;
+    // Generate collision-safe dated GRN number (e.g., GRN-2026-0001)
+    const grnPrefix = buildDatedRequestPrefix('GRN');
+    const existingGrns = await prisma.goodsReceiptNote.findMany({
+      where: { grnNumber: { startsWith: grnPrefix } },
+      select: { grnNumber: true },
+    });
+    const maxSuffix = existingGrns.reduce((max, item) => {
+      const parts = item.grnNumber.split('-');
+      const parsed = parseInt(parts[parts.length - 1], 10);
+      return !isNaN(parsed) && parsed > max ? parsed : max;
+    }, 0);
+    const grnNumber = `${grnPrefix}-${String(maxSuffix + 1).padStart(4, '0')}`;
 
     const grn = await prisma.goodsReceiptNote.create({
       data: {

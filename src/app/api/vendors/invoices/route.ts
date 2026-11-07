@@ -16,13 +16,22 @@ export async function GET(req: NextRequest) {
     const vendorId = searchParams.get('vendorId') || undefined;
     const requestId = searchParams.get('requestId') || undefined;
     const status = searchParams.get('status') || undefined;
+    const subsidiaryId = searchParams.get('subsidiaryId') || searchParams.get('subsidiary') || 'ALL';
+    const scope = await resolveAuthorizedOrganizationScope(user, subsidiaryId);
 
     const invoices = await prisma.vendorInvoice.findMany({
       where: {
         vendorId,
         requestId,
         status,
-        ...(!isExecutive ? { request: { requestedById: user.id } } : {}),
+        ...(!isExecutive || !scope.isGroup
+          ? {
+              request: {
+                ...(!scope.isGroup ? { subsidiaryId: { in: scope.organizationIds } } : {}),
+                ...(!isExecutive ? { requestedById: user.id } : {}),
+              },
+            }
+          : {}),
       },
       include: {
         vendor: { select: { id: true, name: true, code: true } },

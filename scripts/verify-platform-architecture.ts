@@ -469,6 +469,26 @@ async function main() {
     'Receipts list route must enforce resolveAuthorizedOrganizationScope'
   );
 
+  const uploadRouteSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/upload/route.ts'), 'utf8');
+  assert.ok(
+    !uploadRouteSource.includes('!actor || actor.id ===') &&
+      uploadRouteSource.includes("hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])"),
+    'Upload route must require an authenticated owner or executive before mutating employee.avatarUrl'
+  );
+
+  const settingsRouteSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/settings/route.ts'), 'utf8');
+  assert.ok(
+    settingsRouteSource.includes('resolveAuthorizedOrganizationScope'),
+    'Settings GET route must enforce resolveAuthorizedOrganizationScope'
+  );
+
+  const vendorsGrnSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/vendors/grn/route.ts'), 'utf8');
+  assert.ok(
+    vendorsGrnSource.includes("buildDatedRequestPrefix('GRN')") &&
+      vendorsGrnSource.includes('resolveAuthorizedOrganizationScope'),
+    'Vendors GRN route must use buildDatedRequestPrefix("GRN") and resolveAuthorizedOrganizationScope'
+  );
+
   console.log(`  ✓ All ${PART_III_API_ROUTE_INVENTORY.length} Part III API routes and method contracts verified.`);
 
   console.log('\nAll 10 Platform Architecture Pillars & Audit Item 07/08/09 + Part II/III Checks PASSED.');

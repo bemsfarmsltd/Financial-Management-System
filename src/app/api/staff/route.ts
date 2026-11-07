@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
-import { resolveOrganizationScope } from '@/lib/organizations';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 import { projectSafeEmployeeDto } from '@/lib/platform/read-catalog';
 
 export const dynamic = 'force-dynamic';
@@ -78,7 +78,7 @@ export async function GET(req: Request) {
 
     let filtered = processedEmployees;
     if (orgId && orgId !== 'ALL' && orgId !== 'all') {
-      const scope = await resolveOrganizationScope(orgId);
+      const scope = await resolveAuthorizedOrganizationScope(actor, orgId);
       if (!scope.isGroup) {
         filtered = processedEmployees.filter((e: any) =>
           e.assignments?.some((a: any) =>

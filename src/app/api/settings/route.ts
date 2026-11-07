@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 import { getAiAccessMatrix, normalizeAiAccessMatrix } from '@/lib/ai-access-control';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,10 @@ export async function GET(request: Request) {
   if (!organizationId) return NextResponse.json({ error: 'organizationId is required.' }, { status: 400 });
   if (!(await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } }))) {
     return NextResponse.json({ error: 'Company not found.' }, { status: 404 });
+  }
+  const scope = await resolveAuthorizedOrganizationScope(actor, organizationId);
+  if (scope.organizationIds.length === 0 || (!scope.isGroup && !scope.organizationIds.includes(organizationId))) {
+    return NextResponse.json({ error: 'Forbidden: You do not have access to this company\'s workspace settings.' }, { status: 403 });
   }
   const rows = await prisma.workspaceSetting.findMany({ where: { organizationId } });
   const settings: Record<string, unknown> = {};
