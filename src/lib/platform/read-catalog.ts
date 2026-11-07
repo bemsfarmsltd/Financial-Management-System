@@ -176,3 +176,43 @@ export function buildReadCatalogEnvelope<T>(params: {
   };
 }
 
+/**
+ * Projects a Prisma Employee record into an explicit safe DTO, stripping all authentication
+ * material (`passwordHash`, `securityPinHash`, `kioskPin`) and masking statutory PII (`nin`, `bvn`)
+ * for non-executive viewers.
+ */
+export function projectSafeEmployeeDto<T extends Record<string, any> | null | undefined>(
+  employee: T,
+  viewerRole?: string | null
+): T {
+  if (!employee || typeof employee !== 'object') {
+    return employee;
+  }
+
+  const normalizedRole = String(viewerRole || '').toUpperCase();
+  const isExecutive =
+    normalizedRole === 'SYSTEM_ADMIN' ||
+    normalizedRole === 'SUPER_ADMIN' ||
+    normalizedRole === 'GMD';
+
+  const cloned: Record<string, any> = { ...employee };
+  delete cloned.passwordHash;
+  delete cloned.password_hash;
+  delete cloned.securityPinHash;
+  delete cloned.security_pin_hash;
+  delete cloned.kioskPin;
+  delete cloned.kiosk_pin;
+  delete cloned.tokenHash;
+
+  if (!isExecutive) {
+    if ('nin' in cloned) cloned.nin = maskIdentifierPii(cloned.nin);
+    if ('bvn' in cloned) cloned.bvn = maskIdentifierPii(cloned.bvn);
+  } else {
+    if ('nin' in cloned && cloned.nin) cloned.nin = maskIdentifierPii(cloned.nin);
+    if ('bvn' in cloned && cloned.bvn) cloned.bvn = maskIdentifierPii(cloned.bvn);
+  }
+
+  return cloned as T;
+}
+
+

@@ -297,6 +297,12 @@ export const PARITY_INVENTORY: ReadonlyArray<ParityInventoryEntry> = [
 
   // 11. Subsidiaries & Organizations
   {
+    dashboardRoute: '/api/departments',
+    methods: ['POST'],
+    status: 'AI_PARITY_VERIFIED',
+    commandType: 'policy_update',
+  },
+  {
     dashboardRoute: '/api/organizations',
     methods: ['POST'],
     status: 'AI_PARITY_VERIFIED',

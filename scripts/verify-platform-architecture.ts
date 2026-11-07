@@ -21,7 +21,18 @@ import {
   clampPagination,
   redactUntrustedAndSensitiveFields,
   buildReadCatalogEnvelope,
+  projectSafeEmployeeDto,
 } from '../src/lib/platform/read-catalog';
+import {
+  normalizeApprovalStatus,
+  normalizePaymentStatus,
+  canTransitionApprovalStatus,
+  nairaToKoboBigInt,
+  koboToNairaExact,
+} from '../src/lib/domain-states';
+import {
+  buildDatedRequestPrefix,
+} from '../src/lib/request-number';
 import {
   COMMAND_CATALOG,
   getCommandDescriptor,
@@ -170,16 +181,57 @@ async function main() {
     '/api/accountability/evidence',
     '/api/reports/export',
     '/api/staff/[employeeId]/password',
+    '/api/departments',
   ];
   for (const r of requiredAudit06Routes) {
     assert.ok(
       PARITY_INVENTORY.some((e) => e.dashboardRoute === r),
-      `Missing Audit Item 06 route in PARITY_INVENTORY: ${r}`
+      `Missing required route in PARITY_INVENTORY: ${r}`
     );
   }
-  console.log(`  ✓ All ${PARITY_INVENTORY.length} parity inventory entries & Audit Item 06 workflows verified with 0 gaps.`);
+  console.log(`  ✓ All ${PARITY_INVENTORY.length} parity inventory entries & Audit Item 06/07 workflows verified with 0 gaps.`);
 
-  console.log('\n[7/7] All 7 Platform Architecture Pillars PASSED.');
+  // 7. Audit Item 07: Canonical Domain States, Exact Kobo Money Serialization & Safe DTO Projections
+  console.log('[7/7] Verifying Audit Item 07 Domain States, Exact Money Math & Safe DTO Projections...');
+  assert.equal(normalizeApprovalStatus('REQUIRES_CLARIFICATION'), 'CLARIFICATION_REQUESTED');
+  assert.equal(normalizeApprovalStatus('PAID'), 'APPROVED');
+  assert.equal(normalizePaymentStatus('PAID'), 'SETTLED');
+  assert.equal(canTransitionApprovalStatus('SUBMITTED', 'APPROVED'), true);
+  assert.equal(canTransitionApprovalStatus('REJECTED', 'APPROVED'), false);
+
+  // Exact string-based kobo conversion (no IEEE-754 float drift)
+  const kobo = nairaToKoboBigInt('1999999.99');
+  assert.equal(kobo, BigInt(199999999));
+  const serializedMoney = koboToNairaExact(kobo);
+  assert.equal(serializedMoney.minor, '199999999');
+  assert.equal(serializedMoney.nairaExact, '1999999.99');
+  assert.equal(serializedMoney.naira, 1999999.99);
+
+  // Dated request prefix in Africa/Lagos timezone
+  const emgPrefix = buildDatedRequestPrefix('EMG', new Date('2026-11-07T10:00:00Z'));
+  assert.equal(emgPrefix, 'EMG-2026');
+
+  // Safe Employee DTO projection
+  const projected = projectSafeEmployeeDto(
+    {
+      id: 'emp_test',
+      legalName: 'Test Staff',
+      passwordHash: 'scrypt$secret',
+      securityPinHash: 'pin$secret',
+      kioskPin: '9999',
+      nin: '12345678901',
+      bvn: '22334455667',
+    },
+    'GMD'
+  );
+  assert.equal('passwordHash' in (projected as any), false);
+  assert.equal('securityPinHash' in (projected as any), false);
+  assert.equal('kioskPin' in (projected as any), false);
+  assert.equal(projected?.nin, '*******8901');
+  assert.equal(projected?.bvn, '*******5667');
+  console.log('  ✓ Canonical domain states, exact kobo serialization, dated prefixes, and safe DTO projections verified.');
+
+  console.log('\nAll 7 Platform Architecture Pillars & Audit Item 07 Checks PASSED.');
 }
 
 main().catch((err) => {

@@ -30,7 +30,10 @@ jobs:
         run: npx prisma generate
 
       - name: Typecheck Codebase
-        run: npx tsc --noEmit || true
+        run: npx tsc --noEmit
+
+      - name: Verify Platform Architecture & Parity Regressions
+        run: npx tsx scripts/verify-platform-architecture.ts
 
       - name: Build Next.js Production Bundle
         env:

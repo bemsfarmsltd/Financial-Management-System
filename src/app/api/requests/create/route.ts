@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getAuthenticatedEmployee, hasAnyRole } from "@/lib/auth";
 import { toSystemRequestId } from "@/lib/request-id";
 import { notifyApprovalRequired } from "@/lib/notifications/bridge";
-import { createWithUniqueRequestNumber } from "@/lib/request-number";
+import { buildDatedRequestPrefix, createWithUniqueRequestNumber } from "@/lib/request-number";
+import { nairaToKoboBigInt } from "@/lib/domain-states";
 
 export async function POST(request: Request) {
   try {
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
       category = "OFFICE_EXPENSE";
     }
 
-    // Resolve subsidiaryId if omitted (e.g. from mobile app)
+    // Resolve subsidiaryId from the requester's active assignment if omitted (never fall back to an arbitrary first organization)
     if (!subsidiaryId) {
       const assignment = await prisma.employeeAssignment.findFirst({
         where: { employeeId: actor.id, status: "ACTIVE" },
@@ -59,28 +60,30 @@ export async function POST(request: Request) {
       });
       if (assignment) {
         subsidiaryId = assignment.subsidiaryId;
-      } else {
-        const defaultOrg = await prisma.organization.findFirst({
-          where: { status: "ACTIVE" },
-        });
-        subsidiaryId = defaultOrg?.id;
       }
     }
 
     if (!subsidiaryId) {
-      return NextResponse.json({ error: "Could not resolve organization subsidiary for requester." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Explicit subsidiaryId or an active subsidiary assignment is required to submit a fund request." },
+        { status: 400 }
+      );
     }
 
-    // Resolve minor unit amount (kobo)
+    // Resolve minor unit amount (kobo) using exact integer string math
     let amountMinor: bigint;
-    if (inputAmountMinor !== undefined && inputAmountMinor !== null) {
-      amountMinor = BigInt(Math.round(Number(inputAmountMinor)));
-    } else if (amountNaira !== undefined && amountNaira !== null) {
-      amountMinor = BigInt(Math.round(parseFloat(String(amountNaira)) * 100));
-    } else if (body.amount !== undefined && body.amount !== null) {
-      amountMinor = BigInt(Math.round(parseFloat(String(body.amount)) * 100));
-    } else {
-      return NextResponse.json({ error: "Specify a valid expenditure amount." }, { status: 400 });
+    try {
+      if (inputAmountMinor !== undefined && inputAmountMinor !== null) {
+        amountMinor = BigInt(Math.round(Number(inputAmountMinor)));
+      } else if (amountNaira !== undefined && amountNaira !== null) {
+        amountMinor = nairaToKoboBigInt(amountNaira);
+      } else if (body.amount !== undefined && body.amount !== null) {
+        amountMinor = nairaToKoboBigInt(body.amount);
+      } else {
+        return NextResponse.json({ error: "Specify a valid expenditure amount." }, { status: 400 });
+      }
+    } catch {
+      return NextResponse.json({ error: "Specify a valid numeric expenditure amount." }, { status: 400 });
     }
 
     if (amountMinor <= BigInt(0)) {
@@ -92,9 +95,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Single expenditure request exceeds maximum corporate threshold of ₦100,000,000." }, { status: 400 });
     }
 
-    const titleStr = typeof title === "string" ? title.trim() : "Expenditure Request";
-    const justStr = justification || rationale || "Official business operational expense.";
-    const delivStr = deliverable || "Itemized receipt and proof of delivery.";
+    const titleStr = typeof title === "string" ? title.trim() : "";
+    const justStr = String(justification || rationale || "").trim();
+    if (titleStr.length < 3) {
+      return NextResponse.json({ error: "A clear requisition title (at least 3 characters) is required." }, { status: 400 });
+    }
+    if (justStr.length < 5) {
+      return NextResponse.json({ error: "A business justification (at least 5 characters) is required." }, { status: 400 });
+    }
+    const delivStr = (typeof deliverable === "string" && deliverable.trim()) || "Itemized receipt and proof of delivery.";
     const needDate = neededBy ? new Date(neededBy) : new Date(Date.now() + 7 * 24 * 3600 * 1000);
 
     // In 3-role model, staff submits and GMD approves directly
@@ -104,10 +113,13 @@ export async function POST(request: Request) {
     const sub = await prisma.organization.findUnique({
       where: { id: subsidiaryId },
     });
-    const groupId = sub?.parentGroupId || sub?.id || "";
+    if (!sub || sub.status !== "ACTIVE") {
+      return NextResponse.json({ error: "Target subsidiary was not found or is inactive." }, { status: 404 });
+    }
+    const groupId = sub.parentGroupId || sub.id;
 
     // Create request atomically with channel and initial approval step
-    const newRequest = await createWithUniqueRequestNumber("REQ-2026", async (reqNum) => {
+    const newRequest = await createWithUniqueRequestNumber(buildDatedRequestPrefix("REQ"), async (reqNum) => {
       return await prisma.expenditureRequest.create({
         data: {
           requestNumber: reqNum,

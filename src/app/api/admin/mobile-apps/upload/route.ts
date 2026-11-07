@@ -1,29 +1,32 @@
 import { NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-const ADMIN_ROLES = ['SYSTEM_ADMIN', 'HEAD_OF_ADMIN', 'COO', 'GMD'];
-
 export async function POST(request: Request) {
   try {
     const employee = await getAuthenticatedEmployee(request);
-    if (!employee || !ADMIN_ROLES.includes(employee.role)) {
+    if (!employee || !hasAnyRole(employee, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
       return NextResponse.json({ error: 'Unauthorized administrative access.' }, { status: 403 });
     }
 
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const appId = (formData.get('appId') as string) || 'GMD_APP';
-    const version = (formData.get('version') as string) || '1.0.0';
-    const notes = (formData.get('notes') as string) || '';
+    const version = ((formData.get('version') as string) || '').trim();
+    const notes = ((formData.get('notes') as string) || '').trim();
     const applyAsMin = formData.get('applyAsMin') === 'true';
 
     if (!file) {
       return NextResponse.json({ error: 'No APK file uploaded.' }, { status: 400 });
+    }
+
+    if (!version || !/^\d+\.\d+\.\d+([+-][a-zA-Z0-9.-]+)?$/.test(version)) {
+      return NextResponse.json({ error: 'Explicit semantic version (e.g., 1.0.2) is required.' }, { status: 400 });
     }
 
     if (!file.name.toLowerCase().endsWith('.apk')) {
@@ -32,6 +35,22 @@ export async function POST(request: Request) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+
+    // Verify ZIP/APK local file header magic bytes (PK\x03\x04)
+    if (
+      buffer.length < 4 ||
+      buffer[0] !== 0x50 ||
+      buffer[1] !== 0x4b ||
+      buffer[2] !== 0x03 ||
+      buffer[3] !== 0x04
+    ) {
+      return NextResponse.json(
+        { error: 'Uploaded binary failed APK/ZIP header signature verification (PK\\x03\\x04).' },
+        { status: 400 }
+      );
+    }
+
+    const sha256Checksum = `sha256:${createHash('sha256').update(buffer).digest('hex')}`;
 
     // Ensure public/downloads directory exists
     const downloadsDir = path.join(process.cwd(), 'public', 'downloads');
@@ -50,6 +69,9 @@ export async function POST(request: Request) {
 
     const sizeInMB = (buffer.length / (1024 * 1024)).toFixed(1) + ' MB';
     const downloadUrl = `/downloads/${canonicalName}`;
+    const releaseNotesWithChecksum = notes
+      ? `${notes} [${sha256Checksum}]`
+      : `Verified build [${sha256Checksum}]`;
 
     // Archive previous releases
     await prisma.mobileAppRelease.updateMany({
@@ -66,7 +88,7 @@ export async function POST(request: Request) {
         fileSize: sizeInMB,
         downloadUrl,
         status: 'ACTIVE',
-        notes,
+        notes: releaseNotesWithChecksum,
         uploadedBy: employee.workEmail,
       },
     });
@@ -78,7 +100,7 @@ export async function POST(request: Request) {
         latestVersionAvailable: version,
         ...(applyAsMin ? { minimumAllowedVersion: version } : {}),
         directDownloadUrl: `https://bemserp.work${downloadUrl}`,
-        upgradePromptNotes: notes || undefined,
+        upgradePromptNotes: releaseNotesWithChecksum,
         updatedById: employee.id,
       },
       create: {
@@ -89,19 +111,19 @@ export async function POST(request: Request) {
         latestVersionAvailable: version,
         forceUpdate: true,
         directDownloadUrl: `https://bemserp.work${downloadUrl}`,
-        upgradePromptNotes: notes || 'New APK build deployed.',
+        upgradePromptNotes: releaseNotesWithChecksum,
         updatedById: employee.id,
       },
     });
 
     return NextResponse.json({
       ok: true,
-      message: `APK for ${isGmd ? 'BEMS GMD AI' : 'BEMS Staff App'} v${version} deployed successfully (${sizeInMB}).`,
+      checksum: sha256Checksum,
+      message: `APK for ${isGmd ? 'BEMS GMD AI' : 'BEMS Staff App'} v${version} deployed and checksum-verified (${sizeInMB}).`,
       release,
-      downloadUrl: `https://bemserp.work${downloadUrl}`,
     });
-  } catch (error) {
-    console.error('[admin/mobile-apps/upload] Error uploading APK:', error);
-    return NextResponse.json({ error: 'Failed to process and deploy APK.' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Error in POST /api/admin/mobile-apps/upload:', error);
+    return NextResponse.json({ error: error.message || 'Failed to upload APK.' }, { status: 500 });
   }
 }

@@ -11,6 +11,11 @@ async function hashPassword(password) {
 }
 
 async function main() {
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_PRODUCTION_SEED !== "true") {
+    throw new Error(
+      "[Seed Guard] Refusing to run prisma/seed.js in production without ALLOW_PRODUCTION_SEED=true."
+    );
+  }
   console.log("Synchronizing core organizations, departments, vendors, and initial live telemetry...");
 
   // 1. Organizations

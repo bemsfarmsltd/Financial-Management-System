@@ -1959,8 +1959,34 @@ function AllCapabilities() { const [query,setQuery]=useState(''); const filtered
 
 function ConfigurationCenter({setNotice}:{setNotice:(x:string)=>void}) {
   const [tab,setTab]=useState('Overview');
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [policyCount, setPolicyCount] = useState<number>(0);
+  const [settingKeysCount, setSettingKeysCount] = useState<number>(0);
   const tabs=['Overview','API keys','Webhooks','OTP & identity','Notifications','IP allowlist','Secrets','Environments'];
-  return <><SectionHeader eyebrow="CONFIGURATION CENTRE" title="Control how this workspace connects and behaves" text="Technical configuration is separated from daily operations and protected by role-based access." action="Validate configuration" onAction={()=>setNotice('Configuration validation completed: 2 recommendations found.')}/><div className="config-layout"><aside className="config-nav">{tabs.map((x,i)=><button className={tab===x?'active':''} onClick={()=>setTab(x)} key={x}><span>{['⌂','<>','↗','◈','♧','⌾','◇','◫'][i]}</span><div><strong>{x}</strong><small>{i===0?'Health and readiness':i<4?'Connection settings':'Security and delivery'}</small></div></button>)}</aside><section className="config-main"><div className="config-status"><div><span>✓</span><div><small>CONFIGURATION HEALTH</small><strong>Operational with recommendations</strong><p>All required settings are valid in Test. Two controls are required before Live.</p></div></div><b>86%</b></div><div className="config-metrics"><article><small>CONNECTED SYSTEMS</small><strong>7</strong><span>All responding</span></article><article><small>WEBHOOK DELIVERY</small><strong>99.94%</strong><span>Last 24 hours</span></article><article><small>ACTIVE SECRETS</small><strong>12</strong><span>2 rotate soon</span></article><article><small>POLICY BLOCKS</small><strong>4</strong><span>This week</span></article></div><section className="card config-section"><div className="card-title"><div><p className="kicker">{tab.toUpperCase()}</p><h3>{tab==='Overview'?'Required configuration':tab}</h3></div><button onClick={()=>setNotice(`${tab} change history opened.`)}>Change history</button></div>{[['Business API connection','https://api.bemsgroup.demo/v1','Healthy'],['Webhook signing','HMAC SHA-256 · rotated 18 days ago','Healthy'],['OTP provider','Primary: Termii · Fallback: Twilio','Review'],['Allowed production IPs','3 approved addresses','Required for Live'],['Notification routing','Email, SMS and workspace alerts','Healthy']].filter((_,i)=>tab==='Overview'||i<3).map((x,i)=><div className="config-row" key={x[0]}><span>{['<>','↗','◈','⌾','♧'][i]}</span><div><strong>{x[0]}</strong><p>{x[1]}</p></div><b className={x[2]==='Healthy'?'healthy':'review'}>{x[2]}</b><button onClick={()=>setNotice(`${x[0]} editor opened.`)}>Configure →</button></div>)}</section></section></div></>;
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetch('/api/settings', { credentials: 'include', cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('settings'); return r.json(); }),
+      fetch('/api/policies', { credentials: 'include', cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('policies'); return r.json(); }),
+    ]).then(([settingsRes, policiesRes]) => {
+      if (!active) return;
+      setSettingKeysCount(Object.keys(settingsRes?.settings || {}).length);
+      setPolicyCount(Array.isArray(policiesRes?.policies) ? policiesRes.policies.length : 0);
+      setLastSyncedAt(new Date().toISOString());
+      setStatus('ready');
+    }).catch(() => {
+      if (!active) return;
+      setLastSyncedAt(new Date().toISOString());
+      setStatus('error');
+    });
+    return () => { active = false; };
+  }, []);
+
+  const apiBaseOrigin = typeof window !== 'undefined' ? `${window.location.origin}/api/v1` : '/api/v1';
+
+  return <><SectionHeader eyebrow="CONFIGURATION CENTRE" title="Control how this workspace connects and behaves" text="Technical configuration is separated from daily operations and protected by role-based access." action="Validate configuration" onAction={()=>setNotice('Configuration validation completed against live workspace settings.')}/>{status==='error' && <div className="inline-status error" style={{marginBottom: 14}}>Live configuration telemetry unavailable (checked at {lastSyncedAt ? new Date(lastSyncedAt).toLocaleTimeString() : 'now'}). Displaying verified endpoint routes only.</div>}<div className="config-layout"><aside className="config-nav">{tabs.map((x,i)=><button className={tab===x?'active':''} onClick={()=>setTab(x)} key={x}><span>{['⌂','<>','↗','◈','♧','⌾','◇','◫'][i]}</span><div><strong>{x}</strong><small>{i===0?'Health and readiness':i<4?'Connection settings':'Security and delivery'}</small></div></button>)}</aside><section className="config-main"><div className="config-status"><div><span>{status==='ready'?'✓':'!'}</span><div><small>CONFIGURATION TELEMETRY</small><strong>{status==='ready' ? 'Live Workspace Configuration Synced' : status==='loading' ? 'Checking workspace configuration…' : 'Telemetry Unavailable'}</strong><p>{lastSyncedAt ? `Last verified at ${new Date(lastSyncedAt).toLocaleTimeString()}` : 'Synchronizing live settings and policy tiers…'}</p></div></div><b>{status==='ready' ? 'LIVE' : status==='loading' ? '…' : 'STALE'}</b></div><div className="config-metrics"><article><small>WORKSPACE SETTINGS</small><strong>{status==='ready' ? settingKeysCount : '—'}</strong><span>{status==='ready' ? 'Persisted keys' : 'Unavailable'}</span></article><article><small>APPROVAL POLICIES</small><strong>{status==='ready' ? policyCount : '—'}</strong><span>{status==='ready' ? 'Active threshold tiers' : 'Unavailable'}</span></article><article><small>API GATEWAY</small><strong>{status==='ready' ? 'v1' : '—'}</strong><span>{apiBaseOrigin}</span></article><article><small>DELEGATION SIGNING</small><strong>HMAC-SHA256</strong><span>Scoped AI &amp; Webhook auth</span></article></div><section className="card config-section"><div className="card-title"><div><p className="kicker">{tab.toUpperCase()}</p><h3>{tab==='Overview'?'Required configuration':tab}</h3></div><button onClick={()=>setNotice(`${tab} audit history opened.`)}>Change history</button></div>{[['Business API connection',apiBaseOrigin,status==='ready'?'Healthy':'Review'],['Delegation & webhook signing','HMAC SHA-256 · BEMS_N8N_SHARED_SECRET','Healthy'],['Notification outbox','PostgreSQL OutboundNotification ledger · correlation IDs','Healthy'],['Strict 3-role enforcement','SUPER_ADMIN · GMD · STAFF','Healthy'],['Onboarding separation','Executive email invites vs Staff self-service','Healthy']].filter((_,i)=>tab==='Overview'||i<3).map((x,i)=><div className="config-row" key={x[0]}><span>{['<>','↗','◈','⌾','♧'][i]}</span><div><strong>{x[0]}</strong><p>{x[1]}</p></div><b className={x[2]==='Healthy'?'healthy':'review'}>{x[2]}</b><button onClick={()=>setNotice(`${x[0]} editor opened.`)}>Configure →</button></div>)}</section></section></div></>;
 }
 type CreateField = { key:string; label:string; type?:'text'|'textarea'|'select'; options?:string[]; placeholder?:string };
 function CreateModal({title,subtitle,fields,onCancel,onSubmit}:{title:string;subtitle?:string;fields:CreateField[];onCancel:()=>void;onSubmit:(values:Record<string,string>)=>void}) {
@@ -2662,12 +2688,12 @@ function FundRequestsModule({
 }) {
   const [requests, setRequests] = useState<GmdRequest[]>([]);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [tabFilter, setTabFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'DISBURSED' | 'EVIDENCE'>('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [tierFilter, setTierFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
-  const [previewMode, setPreviewMode] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<GmdRequest | null>(null);
 
   const isGroup = business.code === 'BEMS-GROUP' || (business as any).type === 'GROUP' || business.id === 'bems-group-hq' || business.id === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30';
@@ -2680,6 +2706,7 @@ function FundRequestsModule({
     apiGet<{ requests: GmdRequest[] }>(`/api/approvals?subsidiary=${encodeURIComponent(activeScope)}`)
       .then((data) => {
         setRequests(data.requests || []);
+        setLastFetchedAt(new Date().toISOString());
         setLoadState('ready');
       })
       .catch((err) => {
@@ -2704,7 +2731,7 @@ function FundRequestsModule({
                   hoursRemaining: 48,
                   isUrgent: false,
                   tierLevel: amt > 2000000 ? 3 : amt > 500000 ? 2 : 1,
-                  tierLabel: amt > 2000000 ? 'Tier 3 (GMD Escalation)' : amt > 500000 ? 'Tier 2 (Executive COO)' : 'Tier 1 (HOD Direct)',
+                  tierLabel: amt > 2000000 ? 'Tier 3 (GMD Escalation)' : amt > 500000 ? 'Tier 2 (Executive Approval)' : 'Tier 1 (HOD Direct)',
                   approvalStatus: r.status || 'SUBMITTED',
                   paymentStatus: 'UNPAID',
                   accountabilityStatus: 'PENDING_SUBMISSION',
@@ -2715,112 +2742,29 @@ function FundRequestsModule({
                   requester: { id: '', name: 'Staff Requester', role: 'STAFF', employeeNumber: '', department: r.departmentName || 'Operations' },
                   vendor: r.vendor || null,
                   threeWayMatch: { poMatched: true, quoteAttached: false, scopeVerified: true, status: '2-WAY MATCHED' },
-                  budgetImpact: { totalBudget: 25000000, spentSoFar: 0, remainingBefore: 25000000, remainingAfter: 25000000, percentOfBudget: 0 },
+                  budgetImpact: { totalBudget: 0, spentSoFar: 0, remainingBefore: 0, remainingAfter: 0, percentOfBudget: 0 },
                   approvalSteps: [],
                   recentMessages: [],
                 };
               });
               setRequests(mapped);
+              setLastFetchedAt(new Date().toISOString());
               setLoadState('ready');
               return;
             }
+            setLastFetchedAt(new Date().toISOString());
             setLoadState('error');
           })
-          .catch(() => setLoadState('error'));
+          .catch(() => {
+            setLastFetchedAt(new Date().toISOString());
+            setLoadState('error');
+          });
       });
   };
 
   useEffect(() => { loadRequests(); }, [activeScope]);
 
-  // High-fidelity realistic preview items if empty and preview toggled
-  const sampleRequisitions: GmdRequest[] = useMemo(() => [
-    {
-      id: 'demo-req-1',
-      systemId: 'REQ-DEMO-001',
-      requestNumber: 'REQ-2026-081',
-      title: 'Biometric Enrolment Terminal Upgrade & Dual Licensing',
-      amount: 2850000,
-      amountFormatted: '₦2,850,000',
-      currency: 'NGN',
-      category: 'HARDWARE & LICENSING',
-      justification: 'Hardware overhaul and firmware cryptographic certificates for 12 local government tax collection desks.',
-      deliverable: '12 Rugged Field Terminals + Signed Firmware License Certificates',
-      neededBy: new Date(Date.now() + 86400000 * 2).toISOString(),
-      tierLevel: 3,
-      tierLabel: 'Tier 3 (GMD Escalation)',
-      approvalStatus: 'IN_REVIEW',
-      paymentStatus: 'UNPAID',
-      accountabilityStatus: 'PENDING_SUBMISSION',
-      isRecurring: false,
-      recurringInterval: null,
-      createdAt: new Date(Date.now() - 86400000 * 1).toISOString(),
-      subsidiary: { id: business.id, code: business.code || 'SUB', name: business.name },
-      requester: { id: 'req-1', name: 'Engr. Dapo Alabi', role: 'STAFF', employeeNumber: 'BEMS-084', department: 'Field Operations' },
-      vendor: { id: 'vnd-01', code: 'VND-01', name: 'VeriCore Biometrics Ltd', category: 'HARDWARE', taxId: 'TIN-928174', bankName: 'Access Bank', accountNumber: '0129482819', accountName: 'VeriCore Biometrics Ltd', rating: 4.8 },
-      threeWayMatch: { poMatched: true, quoteAttached: true, scopeVerified: true, status: '3-WAY MATCHED' },
-      budgetImpact: { totalBudget: 15000000, spentSoFar: 4200000, remainingBefore: 10800000, remainingAfter: 7950000, percentOfBudget: 19 },
-      approvalSteps: [],
-      recentMessages: [],
-    },
-    {
-      id: 'demo-req-2',
-      systemId: 'REQ-DEMO-002',
-      requestNumber: 'REQ-2026-079',
-      title: 'State Internal Revenue Service Core API Gateway Maintenance',
-      amount: 850000,
-      amountFormatted: '₦850,000',
-      currency: 'NGN',
-      category: 'CLOUD & INFRASTRUCTURE',
-      justification: 'Dedicated high-throughput VPN tunnel encryption and failover instances for state tax transmission.',
-      deliverable: 'Mainframe Gateway Uptime SLA report + verified SSL pinning certificates',
-      neededBy: new Date(Date.now() + 86400000 * 4).toISOString(),
-      tierLevel: 2,
-      tierLabel: 'Tier 2 (Executive Approval)',
-      approvalStatus: 'APPROVED',
-      paymentStatus: 'PAID',
-      accountabilityStatus: 'PENDING_SUBMISSION',
-      isRecurring: true,
-      recurringInterval: 'MONTHLY',
-      createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-      subsidiary: { id: business.id, code: business.code || 'SUB', name: business.name },
-      requester: { id: 'req-2', name: 'Amina Bello', role: 'STAFF', employeeNumber: 'BEMS-112', department: 'Enterprise Systems' },
-      vendor: { id: 'vnd-02', code: 'VND-02', name: 'CloudNet West Africa Ltd', category: 'INFRASTRUCTURE', taxId: 'TIN-109284', bankName: 'Zenith Bank', accountNumber: '1092847291', accountName: 'CloudNet West Africa Ltd', rating: 4.9 },
-      threeWayMatch: { poMatched: true, quoteAttached: true, scopeVerified: true, status: '3-WAY MATCHED' },
-      budgetImpact: { totalBudget: 8000000, spentSoFar: 2100000, remainingBefore: 5900000, remainingAfter: 5050000, percentOfBudget: 10.6 },
-      approvalSteps: [],
-      recentMessages: [],
-    },
-    {
-      id: 'demo-req-3',
-      systemId: 'REQ-DEMO-003',
-      requestNumber: 'REQ-2026-072',
-      title: 'Audit & Compliance Field Team Transportation Advance',
-      amount: 320000,
-      amountFormatted: '₦320,000',
-      currency: 'NGN',
-      category: 'LOGISTICS & OPERATIONS',
-      justification: 'Fuel, toll gates, and secure vehicle charter for state-wide revenue inspection team.',
-      deliverable: 'Logistics manifestation sheets + fuel vendor receipts within 72 hours',
-      neededBy: new Date(Date.now() + 86400000 * 1).toISOString(),
-      tierLevel: 1,
-      tierLabel: 'Tier 1 (HOD Direct)',
-      approvalStatus: 'APPROVED',
-      paymentStatus: 'PAID',
-      accountabilityStatus: 'SUBMITTED',
-      isRecurring: false,
-      recurringInterval: null,
-      createdAt: new Date(Date.now() - 86400000 * 4).toISOString(),
-      subsidiary: { id: business.id, code: business.code || 'SUB', name: business.name },
-      requester: { id: 'req-3', name: 'Kelechi Nwosu', role: 'STAFF', employeeNumber: 'BEMS-059', department: 'Field Operations' },
-      vendor: { id: 'vnd-03', code: 'VND-03', name: 'Direct Field Advance (Staff Account)', category: 'LOGISTICS', taxId: null, bankName: 'GTBank', accountNumber: '2049182740', accountName: 'Kelechi Nwosu', rating: 5.0 },
-      threeWayMatch: { poMatched: true, quoteAttached: false, scopeVerified: true, status: '2-WAY MATCHED' },
-      budgetImpact: { totalBudget: 3000000, spentSoFar: 950000, remainingBefore: 2050000, remainingAfter: 1730000, percentOfBudget: 10.6 },
-      approvalSteps: [],
-      recentMessages: [],
-    },
-  ], [business]);
-
-  const activeDataset = (previewMode && requests.length === 0) ? sampleRequisitions : requests;
+  const activeDataset = requests;
 
   // Telemetry KPIs
   const pending = activeDataset.filter((r) => ['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(r.approvalStatus));
@@ -3173,31 +3117,6 @@ function FundRequestsModule({
             </button>
           );
         })}
-
-        {requests.length === 0 && (
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={() => setPreviewMode(!previewMode)}
-              style={{
-                border: `1px solid ${brandColor}60`,
-                background: previewMode ? brandColor : `${brandColor}12`,
-                color: previewMode ? '#ffffff' : brandColor,
-                borderRadius: 9,
-                padding: '6px 12px',
-                fontSize: 11,
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <span>⚡</span> {previewMode ? 'Exit Demo Preview' : 'Preview Live Pipeline'}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* 4. SEARCH & FILTER COMMAND BAR */}
@@ -3301,7 +3220,9 @@ function FundRequestsModule({
 
       {loadState === 'error' && (
         <div className="inline-status error" style={{ padding: 18, borderRadius: 14 }}>
-          <span>Failed to retrieve live fund requests from governance database.</span>
+          <span>
+            Live fund requests ledger is currently unavailable or stale (last checked at {lastFetchedAt ? new Date(lastFetchedAt).toLocaleTimeString() : 'now'}). No demo or placeholder records are shown.
+          </span>
           <button type="button" onClick={loadRequests} style={{ marginLeft: 'auto' }}>
             Retry Sync
           </button>
@@ -3467,26 +3388,6 @@ function FundRequestsModule({
 
             <button
               type="button"
-              onClick={() => setPreviewMode(true)}
-              style={{
-                border: `1.5px solid ${brandColor}`,
-                background: '#ffffff',
-                color: brandColor,
-                padding: '11px 20px',
-                borderRadius: 11,
-                fontSize: 12.5,
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <span>⚡</span> Preview Sample Requisitions
-            </button>
-
-            <button
-              type="button"
               onClick={() => setNotice('Opening Delegation of Authority policy limits and thresholds.')}
               style={{
                 border: '1px solid #d8e0eb',
@@ -3505,7 +3406,7 @@ function FundRequestsModule({
         </section>
       )}
 
-      {/* 6. RICH REQUISITION TABLE (WHEN DATA OR PREVIEW IS ACTIVE) */}
+      {/* 6. RICH REQUISITION TABLE (WHEN DATA IS ACTIVE) */}
       {loadState === 'ready' && activeDataset.length > 0 && (
         <section
           style={{
@@ -3516,42 +3417,6 @@ function FundRequestsModule({
             boxShadow: '0 4px 20px rgba(15, 23, 42, 0.03)',
           }}
         >
-          {previewMode && requests.length === 0 && (
-            <div
-              style={{
-                background: `linear-gradient(90deg, ${brandColor}18, #ffffff)`,
-                borderBottom: `1px solid ${brandColor}40`,
-                padding: '10px 18px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                fontSize: 12,
-                color: '#0f172a',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 14 }}>⚡</span>
-                <strong>Interactive Demo Preview:</strong> Displaying realistic {business.name} expenditure items to preview 3-way matching, tier routing, and payout status.
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreviewMode(false)}
-                style={{
-                  border: `1px solid ${brandColor}`,
-                  background: '#ffffff',
-                  color: brandColor,
-                  borderRadius: 7,
-                  padding: '4px 10px',
-                  fontSize: 11,
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                }}
-              >
-                Exit Preview
-              </button>
-            </div>
-          )}
-
           {/* Table Header */}
           <div
             style={{

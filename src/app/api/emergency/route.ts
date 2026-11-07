@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { toSystemRequestId } from '@/lib/request-id';
-import { createWithUniqueRequestNumber } from '@/lib/request-number';
+import { buildDatedRequestPrefix, createWithUniqueRequestNumber } from '@/lib/request-number';
+import { nairaToKoboBigInt } from '@/lib/domain-states';
 
 export const dynamic = 'force-dynamic';
 
@@ -219,10 +220,10 @@ export async function POST(req: NextRequest) {
     }
 
     const declarer = actor;
-    const amountMinor = BigInt(Math.round(amountNum * 100));
+    const amountMinor = nairaToKoboBigInt(amountNum);
 
     // Emergency request is immediately pre-authorized for disbursement with 24h accountability
-    const request = await createWithUniqueRequestNumber('EMG-2026', async (reqNum) => {
+    const request = await createWithUniqueRequestNumber(buildDatedRequestPrefix('EMG'), async (reqNum) => {
       return await prisma.expenditureRequest.create({
         data: {
           requestNumber: reqNum,

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, getHrAuthorizationScope } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { projectSafeEmployeeDto } from '@/lib/platform/read-catalog';
 import {
   approveEmployeeOnboarding,
   LifecycleAuthorizationError,
@@ -148,7 +149,7 @@ export async function GET(req: Request) {
       const activeAgreement = s.employmentAgreements[0];
       const activeComp = activeAgreement?.compensations[0];
 
-      return {
+      return projectSafeEmployeeDto({
         id: s.id,
         employeeNumber: s.employeeNumber,
         legalName: s.legalName,
@@ -192,7 +193,7 @@ export async function GET(req: Request) {
         totalAttendancePunches: s._count.attendanceRecords,
         totalLeaves: s._count.leaveRequests,
         createdAt: s.createdAt,
-      };
+      }, actor.role);
     });
 
     return NextResponse.json({
@@ -232,7 +233,7 @@ export async function POST(req: Request) {
         requireStaffRoleOnly: true,
       });
 
-      return NextResponse.json({ success: true, employee: updated });
+      return NextResponse.json({ success: true, employee: projectSafeEmployeeDto(updated, actor.role) });
     }
 
     if (action === 'REJECT_ONBOARDING') {
@@ -244,7 +245,7 @@ export async function POST(req: Request) {
         requireStaffRoleOnly: true,
       });
 
-      return NextResponse.json({ success: true, employee: updated });
+      return NextResponse.json({ success: true, employee: projectSafeEmployeeDto(updated, actor.role) });
     }
 
     if (action === 'UPDATE_STATUS') {
@@ -261,7 +262,7 @@ export async function POST(req: Request) {
         requireStaffRoleOnly: true,
       });
 
-      return NextResponse.json({ success: true, employee: updated });
+      return NextResponse.json({ success: true, employee: projectSafeEmployeeDto(updated, actor.role) });
     }
 
     if (action === 'REQUEST_PROFILE_UPDATE') {

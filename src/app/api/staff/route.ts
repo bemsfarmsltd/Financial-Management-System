@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { resolveOrganizationScope } from '@/lib/organizations';
+import { projectSafeEmployeeDto } from '@/lib/platform/read-catalog';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -65,18 +66,21 @@ export async function GET(req: Request) {
         e.employmentAgreements[0].compensations = [activeComp];
       }
 
-      return {
-        ...e,
-        activeCompensation: activeComp,
-        upcomingCompensation: upcomingComp,
-      };
+      return projectSafeEmployeeDto(
+        {
+          ...e,
+          activeCompensation: activeComp,
+          upcomingCompensation: upcomingComp,
+        },
+        actor.role
+      );
     });
 
     let filtered = processedEmployees;
     if (orgId && orgId !== 'ALL' && orgId !== 'all') {
       const scope = await resolveOrganizationScope(orgId);
       if (!scope.isGroup) {
-        filtered = safeEmployees.filter((e: any) =>
+        filtered = processedEmployees.filter((e: any) =>
           e.assignments?.some((a: any) =>
             scope.organizationIds.includes(a.subsidiaryId) ||
             scope.organizationIds.includes(a.subsidiary?.id) ||

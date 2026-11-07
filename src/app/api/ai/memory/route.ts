@@ -6,13 +6,43 @@ import { redactUntrustedAndSensitiveFields } from "@/lib/platform/read-catalog";
 
 export const dynamic = "force-dynamic";
 
+const RETENTION_PURGE_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+let lastRetentionPurgeAtMs = 0;
+
+function maybeRunScheduledChatRetentionPurge() {
+  const now = Date.now();
+  if (now - lastRetentionPurgeAtMs < RETENTION_PURGE_INTERVAL_MS) {
+    return;
+  }
+  lastRetentionPurgeAtMs = now;
+  prisma.$executeRaw`
+    DELETE FROM n8n_chat_histories
+    WHERE created_at < NOW() - INTERVAL '30 days'
+  `.catch((err) => console.error("[AI Memory] Scheduled retention purge error:", err));
+}
+
 function isAuthorizedSessionForActor(sessionId: string, actorId: string): boolean {
   return sessionId === `conv_${actorId}` || sessionId.startsWith(`conv_${actorId}_`);
 }
 
+function sanitizeAllowedMetadata(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {};
+  }
+  const source = raw as Record<string, unknown>;
+  const safe: Record<string, string> = {};
+  for (const key of ["staged_action_id", "correlation_id", "scope_id"]) {
+    const val = source[key];
+    if (typeof val === "string" && val.trim().length > 0 && val.length <= 128) {
+      safe[key] = val.trim();
+    }
+  }
+  return safe;
+}
+
 /**
- * GET /api/v1/ai/memory?session_id=...&limit=20
- * Retrieves conversation memory for a session
+ * GET /api/v1/ai/memory?session_id=...&limit=40&before_id=...
+ * Retrieves conversation memory for an owned session with indexed cursor pagination
  */
 export async function GET(req: NextRequest) {
   try {
@@ -23,14 +53,16 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const scope = searchParams.get("scope");
-    const defaultSessionId = (!scope || scope === 'group_hq' || scope === 'bems-group-hq' || scope === 'ALL')
+    const defaultSessionId = (!scope || scope === "group_hq" || scope === "bems-group-hq" || scope === "ALL")
       ? `conv_${actor.id}`
       : `conv_${actor.id}_${scope}`;
     const sessionId = searchParams.get("session_id") || defaultSessionId;
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "40", 10), 1), 100);
+    const beforeIdRaw = searchParams.get("before_id");
+    const beforeId = beforeIdRaw ? parseInt(beforeIdRaw, 10) : null;
     const mode = searchParams.get("mode");
 
-    // Mode: return all distinct sessions for this actor
+    // Mode: return all distinct sessions owned by this actor
     if (mode === "sessions") {
       const sessionPrefix = `conv_${actor.id}%`;
       const sessionRows = await prisma.$queryRaw<Array<{ session_id: string; total_turns: bigint; latest_at: Date }>>`
@@ -87,18 +119,29 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Query n8n_chat_histories in reverse order to get the latest turns, then order chronologically
-    const rows = await prisma.$queryRaw<Array<{ id: number; session_id: string; message: any; created_at: Date }>>`
-      SELECT id, session_id, message, created_at
-      FROM (
-        SELECT id, session_id, message, created_at
-        FROM n8n_chat_histories
-        WHERE session_id = ${sessionId}
-        ORDER BY id DESC
-        LIMIT ${limit}
-      ) sub
-      ORDER BY id ASC
-    `;
+    const rows = (beforeId !== null && Number.isFinite(beforeId) && beforeId > 0)
+      ? await prisma.$queryRaw<Array<{ id: number; session_id: string; message: any; created_at: Date }>>`
+          SELECT id, session_id, message, created_at
+          FROM (
+            SELECT id, session_id, message, created_at
+            FROM n8n_chat_histories
+            WHERE session_id = ${sessionId} AND id < ${beforeId}
+            ORDER BY id DESC
+            LIMIT ${limit}
+          ) sub
+          ORDER BY id ASC
+        `
+      : await prisma.$queryRaw<Array<{ id: number; session_id: string; message: any; created_at: Date }>>`
+          SELECT id, session_id, message, created_at
+          FROM (
+            SELECT id, session_id, message, created_at
+            FROM n8n_chat_histories
+            WHERE session_id = ${sessionId}
+            ORDER BY id DESC
+            LIMIT ${limit}
+          ) sub
+          ORDER BY id ASC
+        `;
 
     const messages = rows.map((r) => {
       let parsed = r.message;
@@ -119,22 +162,26 @@ export async function GET(req: NextRequest) {
       });
     });
 
+    const nextBeforeId = rows.length > 0 ? rows[0].id : null;
+
     return NextResponse.json({
       ok: true,
       session_id: sessionId,
       count: messages.length,
+      next_before_id: nextBeforeId,
+      has_more: rows.length === limit,
       retention: "30_days",
       messages,
     });
   } catch (error: any) {
-    console.error("Memory GET error:", error);
-    return NextResponse.json({ ok: false, error: error.message || "Failed to fetch memory." }, { status: 500 });
+    console.error("[AI Memory] GET error:", error?.message || "Unknown error");
+    return NextResponse.json({ ok: false, error: "Failed to fetch conversation memory." }, { status: 500 });
   }
 }
 
 /**
  * POST /api/v1/ai/memory
- * Appends a message turn to conversation memory and enforces 30-day retention
+ * Appends a verified turn to conversation memory with strict role & metadata binding
  */
 export async function POST(req: NextRequest) {
   try {
@@ -144,9 +191,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const sessionId = body.session_id || (actor ? `conv_${actor.id}` : "");
-    const role = (body.role || (body.message && body.message.role) || "assistant").toLowerCase();
-    const content = body.content || body.text || (typeof body.message === "string" ? body.message : body.message?.content || "");
+    const sessionId = String(body.session_id || (actor ? `conv_${actor.id}` : "")).trim();
+    const requestedRole = String(body.role || (body.message && body.message.role) || "").trim().toLowerCase();
+    const rawContent = body.content || body.text || (typeof body.message === "string" ? body.message : body.message?.content || "");
+    const content = String(rawContent || "").trim();
 
     if (!sessionId || !content) {
       return NextResponse.json(
@@ -162,35 +210,51 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (requestedRole === "system" || requestedRole === "developer" || requestedRole === "tool") {
+      return NextResponse.json(
+        { ok: false, error_code: "NOT_PERMITTED", message: "System or tool roles cannot be injected via memory API." },
+        { status: 403 }
+      );
+    }
+
+    const hasAutomationHeader = Boolean(
+      req.headers.get("x-bems-delegation-token") ||
+      req.headers.get("x-service-secret") ||
+      req.headers.get("x-bems-webhook-secret")
+    );
+    const isAutomationPrincipal =
+      (actor as any).principalType === "automation_delegated" || hasAutomationHeader;
+    const boundRole: "user" | "assistant" = isAutomationPrincipal
+      ? (requestedRole === "user" ? "user" : "assistant")
+      : "user";
+
+    const safeMeta = sanitizeAllowedMetadata(body.metadata);
+
     const messageObj = redactUntrustedAndSensitiveFields({
-      role,
-      content,
+      ...safeMeta,
+      role: boundRole,
+      content: content.slice(0, 16000),
       actor_id: actor.id,
+      auth_source: isAutomationPrincipal ? "automation_delegated" : "session",
       timestamp: new Date().toISOString(),
-      ...(body.metadata || {}),
     });
 
-    // Insert into n8n_chat_histories
     await prisma.$executeRaw`
       INSERT INTO n8n_chat_histories (session_id, message, created_at)
       VALUES (${sessionId}, ${JSON.stringify(messageObj)}::jsonb, NOW())
     `;
 
-    // Asynchronously purge messages older than 30 days
-    prisma.$executeRaw`
-      DELETE FROM n8n_chat_histories
-      WHERE created_at < NOW() - INTERVAL '30 days'
-    `.catch((err) => console.error("Retention purge error:", err));
+    maybeRunScheduledChatRetentionPurge();
 
     return NextResponse.json({
       ok: true,
       session_id: sessionId,
-      role,
+      role: boundRole,
       status: "PERSISTED",
       retention_window: "30_days",
     });
   } catch (error: any) {
-    console.error("Memory POST error:", error);
-    return NextResponse.json({ ok: false, error: error.message || "Failed to save memory." }, { status: 500 });
+    console.error("[AI Memory] POST error:", error?.message || "Unknown error");
+    return NextResponse.json({ ok: false, error: "Failed to persist conversation memory." }, { status: 500 });
   }
 }
