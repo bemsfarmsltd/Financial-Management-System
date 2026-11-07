@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { executeThreeWayMatch } from '@/lib/services/three-way-match';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,6 +11,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
     }
 
+    const isExecutive = hasAnyRole(user, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
     const { searchParams } = new URL(req.url);
     const requestId = searchParams.get('requestId') || undefined;
     const status = searchParams.get('status') || undefined;
@@ -18,6 +20,7 @@ export async function GET(req: NextRequest) {
       where: {
         requestId,
         status,
+        ...(!isExecutive ? { request: { requestedById: user.id } } : {}),
       },
       include: {
         request: { select: { id: true, requestNumber: true, title: true, amountMinor: true } },
@@ -93,6 +96,19 @@ export async function POST(req: NextRequest) {
 
     if (!request) {
       return NextResponse.json({ ok: false, error: `Request "${requestId}" not found.` }, { status: 404 });
+    }
+
+    const isExecutive = hasAnyRole(user, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
+    if (!isExecutive && request.requestedById !== user.id) {
+      return NextResponse.json(
+        { ok: false, error: 'Forbidden: Only an executive or the original requester can record a Goods Receipt Note for this Purchase Order.' },
+        { status: 403 }
+      );
+    }
+
+    const scopeCheck = await resolveAuthorizedOrganizationScope(user, request.subsidiaryId);
+    if (scopeCheck.organizationIds.length === 0 && !isExecutive && request.requestedById !== user.id) {
+      return NextResponse.json({ ok: false, error: 'Forbidden: Outside authorized subsidiary scope.' }, { status: 403 });
     }
 
     // Generate sequential GRN number

@@ -50,8 +50,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
   const pathname = usePathname();
   const [currentRole, setCurrentRole] = useState<SystemRole>(() => {
     if (initialRole) return initialRole;
-    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/staff')) return 'Staff';
-    return 'GMD';
+    return 'Staff';
   });
   const [collapsed, setCollapsed] = useState(true);
   const [subsidiaries, setSubsidiaries] = useState<Subsidiary[]>(defaultSubsidiaries);

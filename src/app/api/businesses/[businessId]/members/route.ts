@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { randomBytes } from 'node:crypto';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,11 @@ export async function GET(
     if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
     const { businessId } = await params;
+
+    const scopeCheck = await resolveAuthorizedOrganizationScope(actor, businessId);
+    if (scopeCheck.organizationIds.length === 0) {
+      return NextResponse.json({ error: 'Forbidden: Outside authorized subsidiary scope.' }, { status: 403 });
+    }
 
     const employees = await prisma.employee.findMany({
       include: {
@@ -59,7 +65,7 @@ export async function GET(
             a.subsidiary?.code?.toLowerCase() === businessId.toLowerCase()
         );
       });
-      return NextResponse.json(filtered.length > 0 ? filtered : members);
+      return NextResponse.json(filtered);
     }
 
     return NextResponse.json(members);

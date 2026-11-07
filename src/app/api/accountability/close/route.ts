@@ -32,6 +32,22 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Only the request owner or executive can submit retirement evidence." }, { status: 403 });
       }
 
+      // Guard against submitting retirement before funds have been disbursed
+      if (expRequest.paymentStatus === "UNPAID" && expRequest.disbursements.length === 0) {
+        return NextResponse.json(
+          { error: "Cannot submit retirement evidence before payment has been disbursed for this request." },
+          { status: 409 }
+        );
+      }
+
+      // Prevent reopening an already CLOSED accountability case
+      if (expRequest.accountabilityCase?.status === "CLOSED" || expRequest.accountabilityStatus === "CLOSED") {
+        return NextResponse.json(
+          { error: "This accountability case has already been verified and closed." },
+          { status: 409 }
+        );
+      }
+
       // Ensure accountability case exists
       let accCase = expRequest.accountabilityCase;
       if (!accCase) {
@@ -39,8 +55,8 @@ export async function POST(request: Request) {
           data: {
             requestId: expRequest.id,
             ownerUserId: expRequest.requestedById,
-            requiredDeliverables: "Itemized expense receipts and retirement declaration",
-            dueAt: new Date(Date.now() + 72 * 3600 * 1000), // 72 hours SLA
+            requiredDeliverables: expRequest.deliverable || "Itemized expense receipts and retirement declaration",
+            dueAt: new Date(Date.now() + 14 * 24 * 3600 * 1000), // Canonical 14-day SLA
             status: "OPEN",
           },
         });
@@ -142,6 +158,28 @@ export async function POST(request: Request) {
     if (decision === "CLOSE" || !decision) {
       if (!["OPEN", "EVIDENCE_SUBMITTED", "VERIFIED"].includes(accCase.status)) {
         return NextResponse.json({ error: "This case cannot be closed from its current state." }, { status: 409 });
+      }
+
+      if (accCase.request.paymentStatus === "UNPAID" && accCase.request.disbursements.length === 0) {
+        return NextResponse.json(
+          { error: "Cannot close an accountability case before payment has been disbursed." },
+          { status: 409 }
+        );
+      }
+
+      const evidenceCount = await prisma.attachment.count({
+        where: {
+          OR: [
+            { requestId: accCase.requestId },
+            { ownerId: accCase.id },
+          ],
+        },
+      });
+      if (evidenceCount === 0) {
+        return NextResponse.json(
+          { error: "Supporting retirement evidence or deliverable attachment is required before closing an accountability case." },
+          { status: 409 }
+        );
       }
 
       await prisma.$transaction(async (tx) => {

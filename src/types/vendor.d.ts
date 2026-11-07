@@ -54,3 +54,4 @@ declare module 'nodemailer' {
   };
   export default nodemailer;
 }
+

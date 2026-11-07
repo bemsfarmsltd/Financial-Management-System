@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole, invalidateSessionCache } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 import {
   LifecycleAuthorizationError,
   transitionEmployeeStatus,
@@ -40,6 +41,11 @@ export async function PATCH(
       reason: typeof reason === 'string' ? reason : null,
       requireStaffRoleOnly: false,
     });
+
+    if (status !== 'ACTIVE') {
+      await prisma.authSession.deleteMany({ where: { employeeId } }).catch(() => {});
+    }
+    invalidateSessionCache();
 
     const actionLabel = status === 'ACTIVE' ? 'reactivated' : status === 'TERMINATED' ? 'terminated' : 'suspended';
 

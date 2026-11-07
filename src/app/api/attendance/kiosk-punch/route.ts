@@ -2,19 +2,32 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getLagosTime, serializeAttendanceRecord } from '@/lib/attendance/token';
 import { notifyGmdStaffClockIn } from '@/lib/notifications/attendance';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    const clientIp = getClientIp(request);
+    const rateLimit = checkRateLimit(`kiosk-punch:${clientIp}`, {
+      maxAttempts: 12,
+      windowMs: 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many kiosk punch attempts. Please wait a minute before trying again.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const staffIdentifier = typeof body.staffIdentifier === 'string' ? body.staffIdentifier.trim() : '';
     const kioskPin = typeof body.kioskPin === 'string' ? body.kioskPin.trim() : '';
     const action = body.action === 'CHECK_OUT' ? 'CHECK_OUT' : 'CHECK_IN';
 
-    if (!staffIdentifier || !kioskPin) {
+    if (!staffIdentifier || !kioskPin || kioskPin.length < 4) {
       return NextResponse.json(
-        { error: 'Please enter both your Staff ID (or Name) and your 4-Digit Kiosk PIN.' },
+        { error: 'Please enter both your exact Staff ID (e.g. BEMS-001) and your 4-Digit Kiosk PIN.' },
         { status: 400 }
       );
     }
@@ -43,8 +56,7 @@ export async function POST(request: Request) {
     const matched = candidates.find(
       (c) =>
         c.employeeNumber.toLowerCase() === q ||
-        c.employeeNumber.toLowerCase().endsWith(q) ||
-        c.legalName.toLowerCase().includes(q)
+        c.workEmail.toLowerCase() === q
     );
 
     if (!matched) {

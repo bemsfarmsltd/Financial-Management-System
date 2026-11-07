@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthenticatedEmployee } from "@/lib/auth";
+import { getAuthenticatedEmployee, hasAnyRole } from "@/lib/auth";
+import { resolveAuthorizedOrganizationScope } from "@/lib/organizations";
 
 export const dynamic = "force-dynamic";
+
+function maskAccountNumber(acc?: string | null): string | null {
+  if (!acc) return null;
+  const trimmed = String(acc).trim();
+  if (trimmed.length <= 4) return "****";
+  return `******${trimmed.slice(-4)}`;
+}
 
 export async function GET(
   request: Request,
@@ -10,6 +18,9 @@ export async function GET(
 ) {
   try {
     const actor = await getAuthenticatedEmployee(request);
+    if (!actor) {
+      return NextResponse.json({ error: "Authentication required to read request dossier." }, { status: 401 });
+    }
     const resolvedParams = await params;
     const id = resolvedParams.requestNumber || resolvedParams.id;
 
@@ -56,29 +67,52 @@ export async function GET(
       );
     }
 
+    const isExecutive = hasAnyRole(actor, ["SYSTEM_ADMIN", "SUPER_ADMIN", "GMD"]);
+    const isOwner = expenditure.requestedById === actor.id;
+    const isApprover = expenditure.approvalSteps.some((s) => s.approverId === actor.id);
+    const isDisbursementAssignee = expenditure.disbursementAssigneeId === actor.id;
+
+    if (!isExecutive && !isOwner && !isApprover && !isDisbursementAssignee) {
+      return NextResponse.json(
+        { error: "Access denied. You do not have permission to view this request dossier." },
+        { status: 403 }
+      );
+    }
+
+    const scopeCheck = await resolveAuthorizedOrganizationScope(actor, expenditure.subsidiaryId);
+    if (scopeCheck.organizationIds.length === 0 && !isOwner) {
+      return NextResponse.json(
+        { error: "Access denied. This request belongs to an organization outside your authorized scope." },
+        { status: 403 }
+      );
+    }
+
+    const canViewFullBankDetails = isExecutive || isDisbursementAssignee;
     const amountNaira = Number(expenditure.amountMinor) / 100;
 
     // Compute budget impact if department/subsidiary budget exists
     let budgetImpact = null;
-    try {
-      const budget = await prisma.budget.findFirst({
-        where: {
-          organizationId: expenditure.subsidiaryId,
-        },
-        include: { lines: true },
-      });
-      if (budget) {
-        const totalAllocated = budget.totalAmount;
-        budgetImpact = {
-          budgetId: budget.id,
-          totalAllocated,
-          currency: 'NGN',
-          impactAmount: amountNaira,
-          status: budget.status,
-        };
+    if (isExecutive) {
+      try {
+        const budget = await prisma.budget.findFirst({
+          where: {
+            organizationId: expenditure.subsidiaryId,
+          },
+          include: { lines: true },
+        });
+        if (budget) {
+          const totalAllocated = budget.totalAmount;
+          budgetImpact = {
+            budgetId: budget.id,
+            totalAllocated,
+            currency: 'NGN',
+            impactAmount: amountNaira,
+            status: budget.status,
+          };
+        }
+      } catch {
+        // Non-blocking budget impact calculation
       }
-    } catch {
-      // Non-blocking budget impact calculation
     }
 
     return NextResponse.json({
@@ -110,7 +144,9 @@ export async function GET(
           name: expenditure.vendor.name,
           code: expenditure.vendor.code,
           category: expenditure.vendor.category,
-          accountNumber: expenditure.vendor.accountNumber,
+          accountNumber: canViewFullBankDetails
+            ? expenditure.vendor.accountNumber
+            : maskAccountNumber(expenditure.vendor.accountNumber),
           bankName: expenditure.vendor.bankName,
         } : null,
         approvalSteps: expenditure.approvalSteps.map((step) => ({
@@ -129,7 +165,9 @@ export async function GET(
           bankName: d.bankName,
           beneficiaryName: d.beneficiaryName,
           beneficiaryBank: d.beneficiaryBank,
-          beneficiaryAccount: d.beneficiaryAccount,
+          beneficiaryAccount: canViewFullBankDetails
+            ? d.beneficiaryAccount
+            : maskAccountNumber(d.beneficiaryAccount),
           disbursedAt: d.paidAt,
           status: d.status,
         })),

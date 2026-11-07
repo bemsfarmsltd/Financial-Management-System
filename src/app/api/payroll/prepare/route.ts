@@ -105,123 +105,135 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Check if a batch already exists for this period
-    let batch = period.batches[0];
-    let isRegeneration = false;
+    const existingBatch = period.batches[0];
+    const isRegeneration = Boolean(existingBatch);
 
-    if (batch) {
-      const hasPaidItems = batch.items.some((item) => Boolean(item.disbursement));
+    if (existingBatch) {
+      const hasPaidItems = existingBatch.items.some((item) => Boolean(item.disbursement));
       if (hasPaidItems) {
         return NextResponse.json(
           { error: 'Cannot regenerate this payroll batch because salary disbursements have already been recorded for one or more staff.' },
           { status: 409 }
         );
       }
-      isRegeneration = true;
-
-      // Clear previous items and allocations before regenerating
-      await prisma.payrollItemAllocation.deleteMany({
-        where: { item: { batchId: batch.id } },
-      });
-      await prisma.payrollItem.deleteMany({
-        where: { batchId: batch.id },
-      });
-
-      // Re-open period if it was locked
-      if (period.lockStatus === 'LOCKED') {
-        await prisma.payrollPeriod.update({
-          where: { id: period.id },
-          data: { lockStatus: 'OPEN' },
-        });
-      }
-    } else {
-      batch = await prisma.payrollBatch.create({
-        data: {
-          periodId: period.id,
-          version: 1,
-          status: 'SUBMITTED',
-          totalGrossMinor: BigInt(0),
-          totalNetMinor: BigInt(0),
-        },
-        include: { items: { include: { disbursement: true } } },
-      });
     }
 
-    // 4. Generate Payroll Items & Intercompany Allocations for all eligible staff
-    let totalGross = BigInt(0);
-    let totalNet = BigInt(0);
+    const periodId = period.id;
+    const periodLockStatus = period.lockStatus;
 
-    for (const staff of eligibleStaff) {
-      const agreement = staff.employmentAgreements[0];
-      const comp = agreement.compensations[0];
-      const grossMinor = comp.grossMinor;
-      const grossNum = Number(grossMinor);
+    // 4. Atomically regenerate or create Payroll Batch, Items, and Intercompany Allocations inside a single transaction
+    const { batchId, nextVersion } = await prisma.$transaction(async (tx) => {
+      let targetBatchId: string;
+      let targetVersion: number;
+      let targetPaymentEntityId: string | null = null;
 
-      // Company Policy: Zero Tax / PAYE / Pension Deductions. Lateness deductions are evaluated dynamically from AttendanceRecords.
-      const item = await prisma.payrollItem.create({
-        data: {
-          batchId: batch.id,
-          employeeId: staff.id,
-          agreementId: agreement.id,
-          grossMinor,
-          employeeDeductionsMinor: BigInt(0),
-          employerCostMinor: BigInt(0),
-          netMinor: grossMinor,
-          currency: comp.currency || 'NGN',
-          status: 'CALCULATED',
-        },
-      });
+      if (existingBatch) {
+        targetBatchId = existingBatch.id;
+        targetVersion = existingBatch.version + 1;
+        targetPaymentEntityId = existingBatch.paymentEntityId;
 
-      totalGross += grossMinor;
-      totalNet += grossMinor;
+        await tx.payrollItemAllocation.deleteMany({
+          where: { item: { batchId: targetBatchId } },
+        });
+        await tx.payrollItem.deleteMany({
+          where: { batchId: targetBatchId },
+        });
 
-      const allocations = comp.costAllocations || [];
-      if (allocations.length > 0) {
-        for (const alloc of allocations) {
-          const allocCost = BigInt(Math.round(grossNum * (alloc.percentage / 100)));
-          await prisma.payrollItemAllocation.create({
-            data: {
-              itemId: item.id,
-              subsidiaryId: alloc.subsidiaryId,
-              allocableCostMinor: allocCost,
-              percentage: alloc.percentage,
-            },
+        if (periodLockStatus === 'LOCKED') {
+          await tx.payrollPeriod.update({
+            where: { id: periodId },
+            data: { lockStatus: 'OPEN' },
           });
         }
       } else {
-        const subId = staff.assignments[0]?.subsidiaryId || agreement.employerEntityId || defaultSubId;
-        await prisma.payrollItemAllocation.create({
+        const createdBatch = await tx.payrollBatch.create({
           data: {
-            itemId: item.id,
-            subsidiaryId: subId,
-            allocableCostMinor: grossMinor,
-            percentage: 100,
+            periodId,
+            version: 1,
+            status: 'SUBMITTED',
+            totalGrossMinor: BigInt(0),
+            totalNetMinor: BigInt(0),
           },
         });
+        targetBatchId = createdBatch.id;
+        targetVersion = 1;
       }
-    }
 
-    // 5. Update batch totals and bump version if regenerated
-    const nextVersion = isRegeneration ? batch.version + 1 : batch.version;
-    await prisma.payrollBatch.update({
-      where: { id: batch.id },
-      data: {
-        version: nextVersion,
-        status: 'SUBMITTED',
-        approvedAt: null,
-        snapshotHash: null,
-        paymentEntityId: batch.paymentEntityId || defaultSubId,
-        submittedById: actor.id,
-        submittedByName: actor.legalName,
-        totalGrossMinor: totalGross,
-        totalNetMinor: totalNet,
-      },
+      let totalGross = BigInt(0);
+      let totalNet = BigInt(0);
+
+      for (const staff of eligibleStaff) {
+        const agreement = staff.employmentAgreements[0];
+        const comp = agreement.compensations[0];
+        const grossMinor = comp.grossMinor;
+        const grossNum = Number(grossMinor);
+
+        const item = await tx.payrollItem.create({
+          data: {
+            batchId: targetBatchId,
+            employeeId: staff.id,
+            agreementId: agreement.id,
+            grossMinor,
+            employeeDeductionsMinor: BigInt(0),
+            employerCostMinor: BigInt(0),
+            netMinor: grossMinor,
+            currency: comp.currency || 'NGN',
+            status: 'CALCULATED',
+          },
+        });
+
+        totalGross += grossMinor;
+        totalNet += grossMinor;
+
+        const allocations = comp.costAllocations || [];
+        if (allocations.length > 0) {
+          for (const alloc of allocations) {
+            const allocCost = BigInt(Math.round(grossNum * (alloc.percentage / 100)));
+            await tx.payrollItemAllocation.create({
+              data: {
+                itemId: item.id,
+                subsidiaryId: alloc.subsidiaryId,
+                allocableCostMinor: allocCost,
+                percentage: alloc.percentage,
+              },
+            });
+          }
+        } else {
+          const subId = staff.assignments[0]?.subsidiaryId || agreement.employerEntityId || defaultSubId;
+          await tx.payrollItemAllocation.create({
+            data: {
+              itemId: item.id,
+              subsidiaryId: subId,
+              allocableCostMinor: grossMinor,
+              percentage: 100,
+            },
+          });
+        }
+      }
+
+      await tx.payrollBatch.update({
+        where: { id: targetBatchId },
+        data: {
+          version: targetVersion,
+          status: 'SUBMITTED',
+          approvedAt: null,
+          snapshotHash: null,
+          paymentEntityId: targetPaymentEntityId || defaultSubId,
+          submittedById: actor.id,
+          submittedByName: actor.legalName,
+          totalGrossMinor: totalGross,
+          totalNetMinor: totalNet,
+        },
+      });
+
+      return { batchId: targetBatchId, nextVersion: targetVersion };
     });
 
     const skippedNotice = skippedCount > 0 ? ` (${skippedCount} staff skipped with no salary set yet)` : '';
     return NextResponse.json({
       success: true,
       message: `Payroll batch (Version ${nextVersion}) ${isRegeneration ? 'regenerated' : 'prepared'} for ${eligibleStaff.length} staff members${skippedNotice}.`,
-      batchId: batch.id,
+      batchId,
       version: nextVersion,
       employeeCount: eligibleStaff.length,
     });

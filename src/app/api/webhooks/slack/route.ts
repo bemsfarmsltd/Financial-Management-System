@@ -8,17 +8,39 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const slackSigningSecret = process.env.SLACK_SIGNING_SECRET;
-    if (slackSigningSecret) {
-      const timestamp = request.headers.get("x-slack-request-timestamp");
-      const signature = request.headers.get("x-slack-signature");
-      if (!timestamp || !signature) {
-        return NextResponse.json({ error: "Missing Slack verification headers." }, { status: 401 });
-      }
-      const timeDiff = Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp));
-      if (timeDiff > 300) {
-        return NextResponse.json({ error: "Slack request timestamp expired." }, { status: 401 });
-      }
+    const slackSigningSecret = process.env.SLACK_SIGNING_SECRET?.trim();
+    if (!slackSigningSecret) {
+      return NextResponse.json(
+        { error: "Slack webhook integration is disabled: SLACK_SIGNING_SECRET is not configured." },
+        { status: 503 }
+      );
+    }
+
+    const timestamp = request.headers.get("x-slack-request-timestamp");
+    const signature = request.headers.get("x-slack-signature");
+    if (!timestamp || !signature) {
+      return NextResponse.json({ error: "Missing Slack verification headers." }, { status: 401 });
+    }
+    const parsedTimestamp = Number(timestamp);
+    if (!Number.isFinite(parsedTimestamp)) {
+      return NextResponse.json({ error: "Invalid Slack request timestamp." }, { status: 401 });
+    }
+    const timeDiff = Math.abs(Math.floor(Date.now() / 1000) - parsedTimestamp);
+    if (timeDiff > 300) {
+      return NextResponse.json({ error: "Slack request timestamp expired." }, { status: 401 });
+    }
+
+    const rawBody = await request.text();
+    const sigBaseString = `v0:${timestamp}:${rawBody}`;
+    const expectedSignature = `v0=${crypto
+      .createHmac("sha256", slackSigningSecret)
+      .update(sigBaseString, "utf8")
+      .digest("hex")}`;
+
+    const sigBuf = Buffer.from(signature, "utf8");
+    const expectedBuf = Buffer.from(expectedSignature, "utf8");
+    if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+      return NextResponse.json({ error: "Invalid Slack HMAC signature." }, { status: 401 });
     }
 
     const contentType = request.headers.get("content-type") || "";
@@ -26,8 +48,8 @@ export async function POST(request: Request) {
     let userSlackName = "Slack User";
 
     if (contentType.includes("application/x-www-form-urlencoded")) {
-      const formData = await request.formData();
-      const payloadStr = formData.get("payload");
+      const params = new URLSearchParams(rawBody);
+      const payloadStr = params.get("payload");
       if (typeof payloadStr === "string") {
         const payload = JSON.parse(payloadStr);
         userSlackName = payload.user?.name || payload.user?.username || "Slack User";
@@ -41,15 +63,27 @@ export async function POST(request: Request) {
         }
       }
     } else {
-      const body = await request.json().catch(() => ({}));
-      actionData = body;
+      try {
+        actionData = JSON.parse(rawBody);
+      } catch {
+        actionData = null;
+      }
     }
 
     if (!actionData?.requestNumber || !actionData?.action) {
       return NextResponse.json({ error: "Invalid Slack interactive payload" }, { status: 400 });
     }
 
-    const { requestNumber, action } = actionData;
+    const normalizedAction = String(actionData.action).trim().toUpperCase();
+    if (normalizedAction !== "APPROVE" && normalizedAction !== "REJECT" && normalizedAction !== "DECLINE") {
+      return NextResponse.json(
+        { error: `Unrecognized Slack decision action "${actionData.action}". Allowed: APPROVE, REJECT, DECLINE.` },
+        { status: 400 }
+      );
+    }
+
+    const requestNumber = String(actionData.requestNumber).trim();
+    const action = normalizedAction;
 
     // Look up the request
     const expRequest = await prisma.expenditureRequest.findUnique({

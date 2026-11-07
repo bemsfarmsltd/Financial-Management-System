@@ -1,10 +1,27 @@
 import { NextResponse } from 'next/server';
 import { validateMonnifyBankAccount, STANDARD_NIGERIAN_BANKS } from '@/lib/monnify';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
+    const clientIp = getClientIp(req);
+    const rateLimit = checkRateLimit(`nuban-lookup:${clientIp}`, {
+      maxAttempts: 15,
+      windowMs: 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          isValid: false,
+          status: 'error',
+          message: 'Too many account verification requests. Please wait a minute before trying again.',
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const rawAccount = body.accountNumber || body.account_number || body.account;
     const rawBankCode = body.bankCode || body.bank_code || body.code;

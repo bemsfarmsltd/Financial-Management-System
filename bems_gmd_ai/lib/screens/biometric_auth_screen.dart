@@ -58,6 +58,20 @@ class _BiometricAuthScreenState extends State<BiometricAuthScreen>
   }
 
   Future<void> _loadBiometricDetails() async {
+    final user = await ChatStorageService.getSavedUser();
+    final role = (user?.role ?? '').trim().toUpperCase();
+    final isExecutive = role == 'GMD' || role == 'SYSTEM_ADMIN' || role == 'SUPER_ADMIN';
+    if (user == null || !isExecutive) {
+      await ChatStorageService.clearUser();
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
+      return;
+    }
+
     final label = await ChatStorageService.getBiometricFingerLabel();
     if (mounted) {
       setState(() => _fingerLabel = label);

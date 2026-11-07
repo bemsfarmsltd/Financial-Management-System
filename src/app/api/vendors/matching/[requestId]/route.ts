@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 import { getThreeWayMatchSummary } from '@/lib/services/three-way-match';
 
 export async function GET(
@@ -15,7 +16,6 @@ export async function GET(
 
     const { requestId } = await params;
 
-    // Resolve target request
     const request = await prisma.expenditureRequest.findFirst({
       where: {
         OR: [{ id: requestId }, { requestNumber: requestId }],
@@ -24,6 +24,18 @@ export async function GET(
 
     if (!request) {
       return NextResponse.json({ ok: false, error: `Request "${requestId}" not found.` }, { status: 404 });
+    }
+
+    const isExecutive = hasAnyRole(user, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
+    const scope = await resolveAuthorizedOrganizationScope(user, 'ALL');
+    const withinOrgScope = scope.organizationIds.includes(request.subsidiaryId);
+    const isOwnerOrExec = isExecutive || request.requestedById === user.id;
+
+    if (!withinOrgScope || !isOwnerOrExec) {
+      return NextResponse.json(
+        { ok: false, error: 'Forbidden: You do not have access to this request match dossier.' },
+        { status: 403 }
+      );
     }
 
     const matchResult = await getThreeWayMatchSummary(request.id);
@@ -38,4 +50,3 @@ export async function GET(
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 }
-

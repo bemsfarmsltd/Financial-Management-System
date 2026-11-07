@@ -59,6 +59,10 @@ export default function QuickPayPage({ params }: { params: Promise<{ id: string 
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [disbursing, setDisbursing] = useState(false);
   const [disbursedSuccess, setDisbursedSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [externalReference, setExternalReference] = useState('');
+  const [payerBankName, setPayerBankName] = useState('Corporate Treasury Account');
+  const [payerOrgId, setPayerOrgId] = useState('');
 
   useEffect(() => {
     async function loadDetails() {
@@ -66,38 +70,13 @@ export default function QuickPayPage({ params }: { params: Promise<{ id: string 
         setLoading(true);
         const res = await fetch(`/api/requests/${identifier}`);
         if (!res.ok) {
-          // Try approvals tool endpoint
-          const toolRes = await fetch(`/api/ai/tools/approvals?status=ALL&limit=50`);
-          if (toolRes.ok) {
-            const toolData = await toolRes.json();
-            const found = toolData.requests?.find(
-              (r: any) => r.id === identifier || r.requestNumber === identifier
-            );
-            if (found) {
-              setData({
-                request: {
-                  id: found.id,
-                  requestNumber: found.requestNumber,
-                  title: found.title,
-                  amount: found.amount,
-                  formattedAmount: found.formattedAmount,
-                  status: found.status,
-                  subsidiary: found.subsidiary,
-                  requester: found.requester,
-                  createdAt: found.createdAt,
-                },
-                beneficiary: found.accountDetails,
-                disbursement: found.disbursement,
-              });
-              setLoading(false);
-              return;
-            }
-          }
-          throw new Error('Expenditure request not found');
+          const errJson = await res.json().catch(() => ({}));
+          throw new Error(errJson.error || 'Authorized expenditure request not found.');
         }
 
         const json = await res.json();
         const r = json.request || json;
+        setPayerOrgId(r.subsidiary?.id || r.subsidiaryId || '');
         const amountNaira = Number(r.amountMinor) / 100;
         const beneficiary = r.vendor
           ? {
@@ -166,26 +145,41 @@ export default function QuickPayPage({ params }: { params: Promise<{ id: string 
 
   const handleMarkAsDisbursed = async () => {
     if (!data?.request.id) return;
+    const trimmedRef = externalReference.trim();
+    if (trimmedRef.length < 4) {
+      setSubmitError('Please enter your verified Bank Transfer Reference / NIP Session ID before recording payment.');
+      return;
+    }
+
     try {
       setDisbursing(true);
+      setSubmitError(null);
+
+      const formData = new FormData();
+      formData.append('requestId', data.request.id);
+      formData.append('payerOrgId', payerOrgId || 'bems-group-hq');
+      formData.append('beneficiaryName', data.beneficiary.name);
+      formData.append('beneficiaryBank', data.beneficiary.bankName);
+      formData.append('beneficiaryAccount', data.beneficiary.accountNumber);
+      formData.append('amountMinor', String(Math.round(data.request.amount * 100)));
+      formData.append('externalReference', trimmedRef);
+      formData.append('bankName', payerBankName);
+
       const res = await fetch('/api/disbursements', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          requestId: data.request.id,
-          amountMinor: Math.round(data.request.amount * 100),
-          notes: 'Disbursed directly by GMD via Quick-Pay launcher',
-        }),
+        body: formData,
       });
 
-      if (res.ok) {
+      const payload = await res.json().catch(() => ({}));
+      if (res.ok && (payload.disbursement || payload.success)) {
         setDisbursedSuccess(true);
       } else {
-        // Fallback to updating status
-        setDisbursedSuccess(true);
+        setDisbursedSuccess(false);
+        setSubmitError(payload.error || 'Server rejected payment recording. Verify bank reference and try again.');
       }
-    } catch (e) {
-      setDisbursedSuccess(true);
+    } catch (e: any) {
+      setDisbursedSuccess(false);
+      setSubmitError(e.message || 'Network error while recording disbursement. Payment was NOT marked as completed.');
     } finally {
       setDisbursing(false);
     }
@@ -355,7 +349,26 @@ export default function QuickPayPage({ params }: { params: Promise<{ id: string 
         )}
 
         {/* Mark as Disbursed Action Button */}
-        <div className="pt-2">
+        <div className="pt-2 space-y-3">
+          {!disbursedSuccess && (
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Bank Transfer Reference / NIP Session ID (Required)
+              </label>
+              <input
+                type="text"
+                value={externalReference}
+                onChange={(e) => setExternalReference(e.target.value)}
+                placeholder="e.g. NIP-20261107-884920"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white focus:outline-none focus:border-orange-500"
+              />
+            </div>
+          )}
+          {submitError && (
+            <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs font-semibold">
+              {submitError}
+            </div>
+          )}
           {disbursedSuccess ? (
             <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-center text-xs font-bold flex items-center justify-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -368,7 +381,7 @@ export default function QuickPayPage({ params }: { params: Promise<{ id: string 
               className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-emerald-600/20 transition-all active:scale-[0.98]"
             >
               <ShieldCheck className="w-5 h-5" />
-              <span>{disbursing ? 'Recording Disbursement...' : 'I Have Paid — Mark as Disbursed'}</span>
+              <span>{disbursing ? 'Recording Disbursement...' : 'I Have Paid — Record Confirmed Transfer'}</span>
             </button>
           )}
         </div>

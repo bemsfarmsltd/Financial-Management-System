@@ -36,6 +36,9 @@ import {
   buildDatedRequestPrefix,
 } from '../src/lib/request-number';
 import {
+  computeThreeWayMatchFromLoadedRequest,
+} from '../src/lib/services/three-way-match';
+import {
   COMMAND_CATALOG,
   getCommandDescriptor,
 } from '../src/lib/platform/command-catalog';
@@ -287,7 +290,72 @@ async function main() {
   assert.ok(aiAuthSource.includes('SERVICE_TOKEN_MISSING_DELEGATION'), 'authenticateAiToolRequest must not default unscoped service tokens to an executive');
   console.log('  ✓ All Audit Item 08 read-leakage, delegation boundary, and onboarding checks verified.');
 
-  console.log('\nAll 8 Platform Architecture Pillars & Audit Item 07/08 Checks PASSED.');
+  // 9. Audit Item 09 & Part II Security / Financial Integrity Controls (S01–S08)
+  console.log('[9/9] Verifying Audit Item 09 & Part II Security/Financial Integrity Controls (S01–S08)...');
+
+  // 9a. Pure 3-way match evaluation (no DB writes on GET)
+  const pureMatchEvaluation = computeThreeWayMatchFromLoadedRequest({
+    id: 'req_pure_test',
+    requestNumber: 'REQ-2026-0999',
+    amountMinor: BigInt(50000000),
+    vendor: { name: 'Apex Systems Ltd' },
+    invoices: [
+      {
+        id: 'inv_1',
+        invoiceNumber: 'INV-2026-88',
+        amountMinor: BigInt(50000000),
+      },
+    ],
+    goodsReceipts: [
+      {
+        id: 'grn_1',
+        grnNumber: 'GRN-2026-0001',
+        status: 'ACCEPTED',
+      },
+    ],
+    threeWayMatch: null,
+  });
+  assert.equal(pureMatchEvaluation.matchStatus, 'MATCH_CONFIRMED');
+  assert.equal(pureMatchEvaluation.summary.canDisburse, true);
+  assert.equal(pureMatchEvaluation.varianceMinor, 0);
+
+  // 9b. Briefing Server Component & API share loadAuthorizedExecutiveBriefing and ConnectAppShell defaults to least privilege
+  const briefingPageSource = fs.readFileSync(path.join(repoRoot, 'src/app/briefing/page.tsx'), 'utf8');
+  const briefingApiSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/briefing/route.ts'), 'utf8');
+  const appShellSource = fs.readFileSync(path.join(repoRoot, 'src/components/layout/ConnectAppShell.tsx'), 'utf8');
+  assert.ok(briefingPageSource.includes('loadAuthorizedExecutiveBriefing'), 'Briefing page must use loadAuthorizedExecutiveBriefing');
+  assert.ok(briefingApiSource.includes('loadAuthorizedExecutiveBriefing'), 'Briefing API must use loadAuthorizedExecutiveBriefing');
+  assert.ok(appShellSource.includes("return 'Staff';"), 'ConnectAppShell must default role to Staff');
+
+  // 9c. Vendors page & API enforce explicit field projection and Quick Pay requires server confirmation
+  const vendorsPageSource = fs.readFileSync(path.join(repoRoot, 'src/app/vendors/page.tsx'), 'utf8');
+  const quickPaySource = fs.readFileSync(path.join(repoRoot, 'src/app/pay/[id]/page.tsx'), 'utf8');
+  assert.ok(vendorsPageSource.includes('getAuthenticatedEmployee') && vendorsPageSource.includes('isExecutive'), 'Vendors page must authenticate and project fields by role');
+  assert.ok(!quickPaySource.includes('/api/ai/tools/approvals'), 'Quick Pay page must not fall back to AI approvals list');
+  assert.ok(quickPaySource.includes("fetch('/api/disbursements'"), 'Quick Pay page must submit to canonical /api/disbursements endpoint');
+
+  // 9d. GMD Flutter app removes email-based privilege inference
+  const gmdLoginDart = fs.readFileSync(path.join(repoRoot, 'bems_gmd_ai/lib/screens/login_screen.dart'), 'utf8');
+  assert.ok(!gmdLoginDart.includes("contains('gmd@')"), 'GMD mobile login must not infer executive status from gmd@ email substring');
+
+  // 9e. S01–S07 Route Hardening Checks
+  const resetPasswordSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/auth/reset-password/route.ts'), 'utf8');
+  assert.ok(resetPasswordSource.includes('emailVerificationToken') && resetPasswordSource.includes('invalidateSessionCache'), 'reset-password must verify single-use token and invalidate session cache');
+
+  const slackWebhookSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/webhooks/slack/route.ts'), 'utf8');
+  const whatsappWebhookSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/webhooks/whatsapp/route.ts'), 'utf8');
+  assert.ok(slackWebhookSource.includes('timingSafeEqual'), 'Slack webhook must verify HMAC signature with timingSafeEqual');
+  assert.ok(whatsappWebhookSource.includes('timingSafeEqual') && !whatsappWebhookSource.includes('bems_group_webhook_secret'), 'WhatsApp webhook must verify HMAC signature and remove hardcoded fallback secret');
+
+  const disbursementsRouteSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/disbursements/route.ts'), 'utf8');
+  assert.ok(disbursementsRouteSource.includes('escapeXml') && disbursementsRouteSource.includes('BigInt(amountMinor) <= BigInt(0)'), 'Disbursements POST must escape SVG XML and reject non-positive amounts');
+
+  const payrollPrepareSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/payroll/prepare/route.ts'), 'utf8');
+  assert.ok(payrollPrepareSource.includes('prisma.$transaction'), 'Payroll regeneration must run inside prisma.$transaction');
+
+  console.log('  ✓ All Audit Item 09 & Part II Security/Financial Integrity Controls (S01–S08) verified.');
+
+  console.log('\nAll 9 Platform Architecture Pillars & Audit Item 07/08/09 + Part II Checks PASSED.');
 }
 
 main().catch((err) => {

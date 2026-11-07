@@ -38,22 +38,29 @@ export async function GET(req: NextRequest) {
       orderBy: { name: 'asc' },
     });
 
+    const isExecutive = hasAnyRole(user, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
+
     return NextResponse.json({
       ok: true,
       count: vendors.length,
+      projection: isExecutive ? 'EXECUTIVE_FULL' : 'DIRECTORY_RESTRICTED',
       vendors: vendors.map((v) => ({
         id: v.id,
         name: v.name,
         code: v.code,
         category: v.category,
-        taxId: v.taxId,
-        contactEmail: v.contactEmail,
-        contactPhone: v.contactPhone,
-        bankName: v.bankName,
-        accountNumber: v.accountNumber,
-        accountName: v.accountName,
+        ...(isExecutive
+          ? {
+              taxId: v.taxId,
+              contactEmail: v.contactEmail,
+              contactPhone: v.contactPhone,
+              bankName: v.bankName,
+              accountNumber: v.accountNumber,
+              accountName: v.accountName,
+              notes: v.notes,
+            }
+          : {}),
         rating: v.rating,
-        notes: v.notes,
         totalRequests: v._count.requests,
         totalInvoices: v._count.invoices,
         createdAt: v.createdAt.toISOString(),

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { executeThreeWayMatch } from '@/lib/services/three-way-match';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,6 +11,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
     }
 
+    const isExecutive = hasAnyRole(user, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
     const { searchParams } = new URL(req.url);
     const vendorId = searchParams.get('vendorId') || undefined;
     const requestId = searchParams.get('requestId') || undefined;
@@ -20,6 +22,7 @@ export async function GET(req: NextRequest) {
         vendorId,
         requestId,
         status,
+        ...(!isExecutive ? { request: { requestedById: user.id } } : {}),
       },
       include: {
         vendor: { select: { id: true, name: true, code: true } },
@@ -106,7 +109,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: `Request "${requestId}" not found.` }, { status: 404 });
     }
 
-    const effectiveVendorId = vendorIdParam || request.vendorId;
+    const isExecutive = hasAnyRole(user, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
+    if (!isExecutive && request.requestedById !== user.id) {
+      return NextResponse.json(
+        { ok: false, error: 'Forbidden: Only an executive or the original requester can attach a vendor invoice to this Purchase Order.' },
+        { status: 403 }
+      );
+    }
+
+    const scopeCheck = await resolveAuthorizedOrganizationScope(user, request.subsidiaryId);
+    if (scopeCheck.organizationIds.length === 0 && !isExecutive && request.requestedById !== user.id) {
+      return NextResponse.json({ ok: false, error: 'Forbidden: Outside authorized subsidiary scope.' }, { status: 403 });
+    }
+
+    if (vendorIdParam && request.vendorId && vendorIdParam !== request.vendorId) {
+      return NextResponse.json(
+        { ok: false, error: 'Vendor mismatch: The supplied invoice vendorId does not match the vendor assigned to the Purchase Order.' },
+        { status: 400 }
+      );
+    }
+
+    const effectiveVendorId = request.vendorId || vendorIdParam;
     if (!effectiveVendorId) {
       return NextResponse.json(
         { ok: false, error: 'No vendor is linked to this request. Please specify a vendorId or assign a vendor to the request.' },

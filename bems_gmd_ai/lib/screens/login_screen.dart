@@ -12,8 +12,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _emailController = TextEditingController(text: 'bemssoftbusiness@gmail.com');
-  final TextEditingController _passwordController = TextEditingController(text: 'BemsGmd2026!');
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
   String? _errorMessage;
@@ -42,10 +42,11 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final user = await ApiService.login(email: email, password: password);
 
-      // Strict Access Restriction: Only the Group Managing Director (GMD) is authorized
-      final role = user.role.toUpperCase();
-      final isExecutive = role == 'GMD' || role == 'SYSTEM_ADMIN' || role == 'SUPER_ADMIN' || email.toLowerCase().contains('gmd@');
+      // Strict Access Restriction: Only server-verified GMD or Super Admin roles are authorized
+      final role = user.role.trim().toUpperCase();
+      final isExecutive = role == 'GMD' || role == 'SYSTEM_ADMIN' || role == 'SUPER_ADMIN';
       if (!isExecutive) {
+        await ChatStorageService.clearUser();
         throw Exception('Access Denied: The BEMi AI App is strictly reserved for The Group Managing Director (GMD) and Super admin. Corporate staff should use the BEMS Staff App.');
       }
 

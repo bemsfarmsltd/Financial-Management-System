@@ -16,6 +16,15 @@ function formatNaira(minor: bigint | number): string {
   }).format(naira);
 }
 
+function escapeXml(unsafe: string): string {
+  return String(unsafe || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 export async function GET(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
@@ -172,7 +181,9 @@ export async function POST(req: NextRequest) {
     if (!requestIdentifier || !payerOrgId || !externalReference || !bankName) {
       return NextResponse.json({ error: 'Complete the payment details with corporate bank and external reference.' }, { status: 400 });
     }
-    if (!/^\d+$/.test(amountMinor) || !Number.isSafeInteger(Number(amountMinor))) return NextResponse.json({ error: 'Payment amount is invalid.' }, { status: 400 });
+    if (!/^\d+$/.test(amountMinor) || !Number.isSafeInteger(Number(amountMinor)) || BigInt(amountMinor) <= BigInt(0)) {
+      return NextResponse.json({ error: 'Payment amount must be a positive integer in minor units (kobo).' }, { status: 400 });
+    }
 
     const hasReceiptFile = receiptFile instanceof File && receiptFile.size > 0;
     let fileBytes: Buffer;
@@ -187,9 +198,15 @@ export async function POST(req: NextRequest) {
       fileName = receiptFile.name.replace(/[\\/]/g, '_').slice(0, 180);
       mimeType = receiptFile.type;
     } else {
-      fileName = `voucher-${externalReference}.svg`;
+      const safeRefSlug = externalReference.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
+      fileName = `voucher-${safeRefSlug}.svg`;
       mimeType = 'image/svg+xml';
       const formattedNaira = (Number(amountMinor) / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+      const safeExternalRef = escapeXml(externalReference);
+      const safeBeneficiaryName = escapeXml(beneficiaryName || 'Approved Beneficiary');
+      const safeBeneficiaryBank = escapeXml(beneficiaryBank);
+      const safeBeneficiaryAccount = escapeXml(beneficiaryAccount);
+      const safeBankName = escapeXml(bankName);
       const voucherSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380" viewBox="0 0 600 380" style="background:#0f172a;font-family:sans-serif;color:#fff;">
   <rect width="600" height="380" fill="#0f172a" rx="16"/>
   <rect x="20" y="20" width="560" height="340" fill="#1e293b" rx="12" stroke="#334155" stroke-width="2"/>
@@ -199,15 +216,15 @@ export async function POST(req: NextRequest) {
   <text x="88" y="70" font-size="11" fill="#94a3b8">Off-Platform Direct Bank Transfer Record</text>
   <line x1="40" y1="92" x2="560" y2="92" stroke="#334155" stroke-width="1"/>
   <text x="40" y="120" font-size="11" fill="#94a3b8">BANK REFERENCE</text>
-  <text x="40" y="140" font-size="15" font-weight="bold" fill="#38bdf8">${externalReference}</text>
+  <text x="40" y="140" font-size="15" font-weight="bold" fill="#38bdf8">${safeExternalRef}</text>
   <text x="320" y="120" font-size="11" fill="#94a3b8">AMOUNT TRANSFERRED</text>
   <text x="320" y="142" font-size="18" font-weight="bold" fill="#34d399">NGN ${formattedNaira}</text>
   <text x="40" y="180" font-size="11" fill="#94a3b8">BENEFICIARY</text>
-  <text x="40" y="200" font-size="13" font-weight="bold" fill="#ffffff">${beneficiaryName || 'Approved Beneficiary'}</text>
-  <text x="40" y="218" font-size="12" fill="#cbd5e1">${beneficiaryBank} • ${beneficiaryAccount}</text>
+  <text x="40" y="200" font-size="13" font-weight="bold" fill="#ffffff">${safeBeneficiaryName}</text>
+  <text x="40" y="218" font-size="12" fill="#cbd5e1">${safeBeneficiaryBank} • ${safeBeneficiaryAccount}</text>
   <text x="320" y="180" font-size="11" fill="#94a3b8">PAYER SOURCE</text>
-  <text x="320" y="200" font-size="13" font-weight="bold" fill="#ffffff">${bankName}</text>
-  <text x="320" y="218" font-size="11" fill="#94a3b8">Recorded: ${new Date().toUTCString()}</text>
+  <text x="320" y="200" font-size="13" font-weight="bold" fill="#ffffff">${safeBankName}</text>
+  <text x="320" y="218" font-size="11" fill="#94a3b8">Recorded: ${escapeXml(new Date().toUTCString())}</text>
   <line x1="40" y1="245" x2="560" y2="245" stroke="#334155" stroke-width="1"/>
   <text x="40" y="272" font-size="10" fill="#64748b">Direct transfer verified and recorded by corporate administrator.</text>
   <text x="40" y="290" font-size="10" fill="#475569">BEMS ERP Secure Audit Trail</text>
@@ -281,6 +298,20 @@ export async function POST(req: NextRequest) {
     }
 
     const disbursement = await prisma.$transaction(async (tx) => {
+      const activeInTx = await tx.disbursement.findFirst({
+        where: { requestId, status: 'AWAITING_RECIPIENT_CONFIRMATION' },
+      });
+      if (activeInTx) {
+        throw new Error('CONFLICT: This request already has a payment awaiting staff confirmation.');
+      }
+
+      const existingRefInTx = await tx.disbursement.findFirst({
+        where: { externalReference },
+      });
+      if (existingRefInTx) {
+        throw new Error(`CONFLICT: Bank Reference ${externalReference} already recorded in system.`);
+      }
+
       const created = await tx.disbursement.create({
         data: {
           requestId,
@@ -294,7 +325,7 @@ export async function POST(req: NextRequest) {
           bankName,
           recordedById: maker.id,
           status: 'AWAITING_RECIPIENT_CONFIRMATION',
-          idempotencyKey: `IDEMP-${requestId}-${Date.now()}`,
+          idempotencyKey: `IDEMP-${requestId}-${externalReference}`,
         }
       });
       const receiptId = crypto.randomUUID();
@@ -310,7 +341,7 @@ export async function POST(req: NextRequest) {
       } });
       await tx.expenditureRequest.update({ where: { id: requestId }, data: { paymentStatus: 'AWAITING_RECIPIENT_CONFIRMATION' } });
 
-      // FIN-001: Deduct company bank account balance with floor validation
+      // FIN-001: Deduct company bank account balance atomically inside transaction using exact bank match
       const amountNaira = Number(amountMinor) / 100;
       const bankAccount = await tx.companyBankAccount.findFirst({
         where: {
@@ -318,20 +349,21 @@ export async function POST(req: NextRequest) {
           status: 'ACTIVE',
           bankName: { contains: bankName, mode: 'insensitive' },
         },
-      }) || await tx.companyBankAccount.findFirst({
-        where: {
-          organizationId: payerOrgId,
-          status: 'ACTIVE',
-        },
       });
 
       if (bankAccount) {
         const currentBal = Number(bankAccount.balance);
-        const newBal = Math.max(0, currentBal - amountNaira);
-        await tx.companyBankAccount.update({
-          where: { id: bankAccount.id },
-          data: { balance: newBal },
-        });
+        if (currentBal >= amountNaira) {
+          await tx.companyBankAccount.update({
+            where: { id: bankAccount.id },
+            data: { balance: { decrement: amountNaira } },
+          });
+        } else {
+          await tx.companyBankAccount.update({
+            where: { id: bankAccount.id },
+            data: { balance: 0 },
+          });
+        }
       }
 
       let accountabilityCase = await tx.accountabilityCase.findUnique({ where: { requestId } });
@@ -340,22 +372,30 @@ export async function POST(req: NextRequest) {
         accountabilityCase = await tx.accountabilityCase.create({ data: { requestId, ownerUserId: request.requestedById, requiredDeliverables: request.deliverable, dueAt, status: 'OPEN' } });
         await tx.followupTask.create({ data: { accountabilityCaseId: accountabilityCase.id, assigneeId: request.requestedById, description: `Submit post-payment deliverables for ${request.requestNumber}`, dueAt } });
       }
-      return { ...created, accountabilityCaseId: accountabilityCase.id };
-    });
 
-    await prisma.auditEvent.create({
-      data: {
-        actorId: maker.id,
-        actorName: maker.legalName,
-        actorRole: maker.role,
-        groupId: payerOrgId,
-        subsidiaryId: payerOrgId,
-        targetType: 'DISBURSEMENT',
-        targetId: disbursement.id,
-        action: 'CREATED',
-        correlationId: `CORR-DISB-${disbursement.id}`,
-        metadata: JSON.stringify({ externalReference, bankName, amountMinor, receiptHash, receiptName: fileName })
-      }
+      await tx.auditEvent.create({
+        data: {
+          actorId: maker.id,
+          actorName: maker.legalName,
+          actorRole: maker.role,
+          groupId: payerOrgId,
+          subsidiaryId: payerOrgId,
+          targetType: 'DISBURSEMENT',
+          targetId: created.id,
+          action: 'CREATED',
+          correlationId: `CORR-DISB-${created.id}`,
+          metadata: JSON.stringify({
+            externalReference,
+            bankName,
+            amountMinor,
+            receiptHash,
+            receiptName: fileName,
+            evidenceSource: hasReceiptFile ? 'BANK_SLIP' : 'INTERNAL_VOUCHER',
+          }),
+        },
+      });
+
+      return { ...created, accountabilityCaseId: accountabilityCase.id };
     });
 
     await prisma.systemNotification.create({ data: {

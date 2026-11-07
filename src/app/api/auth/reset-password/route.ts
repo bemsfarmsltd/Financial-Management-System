@@ -1,10 +1,19 @@
+import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { hashPassword } from '@/lib/auth';
+import { hashPassword, invalidateSessionCache } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rate-limiter';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const clientIp =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      request.headers.get('x-real-ip') ||
+      'unknown';
+
+    const body = await request.json().catch(() => ({}));
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const code = typeof body.code === 'string' ? body.code.trim() : '';
     const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
@@ -13,39 +22,98 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Please provide a valid work email address.' }, { status: 400 });
     }
 
-    if (!code || code.length < 4) {
-      return NextResponse.json({ error: 'Please enter the verification code sent to your email.' }, { status: 400 });
-    }
-
-    if (!newPassword || newPassword.length < 8) {
-      return NextResponse.json({ error: 'New password must be at least 8 characters long.' }, { status: 400 });
-    }
-
-    const employee = await prisma.employee.findUnique({
-      where: { workEmail: email },
+    const rateKey = `reset-pwd:${clientIp}:${email}`;
+    const rateCheck = checkRateLimit(rateKey, {
+      windowMs: 15 * 60 * 1000,
+      maxAttempts: 5,
+      blockDurationMs: 15 * 60 * 1000,
     });
-
-    if (!employee) {
-      return NextResponse.json({ error: 'No employee account found with this email address.' }, { status: 404 });
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Too many password reset attempts. Please wait 15 minutes before trying again.' },
+        { status: 429 }
+      );
     }
 
-    if (employee.approvalStatus !== 'APPROVED' || employee.status !== 'ACTIVE') {
-      return NextResponse.json({ error: 'This account is not active. Contact your System Admin.' }, { status: 403 });
+    if (!code || code.length < 6) {
+      return NextResponse.json({ error: 'Please enter the 6-digit verification code sent to your email.' }, { status: 400 });
     }
 
-    // Hash the new password and update employee
+    if (!newPassword || newPassword.length < 10) {
+      return NextResponse.json({ error: 'New password must be at least 10 characters long.' }, { status: 400 });
+    }
+
+    const [employee, tokenRecord] = await Promise.all([
+      prisma.employee.findUnique({ where: { workEmail: email } }),
+      prisma.emailVerificationToken.findFirst({
+        where: { email },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    if (
+      !employee ||
+      employee.approvalStatus !== 'APPROVED' ||
+      employee.status !== 'ACTIVE' ||
+      !tokenRecord ||
+      tokenRecord.expiresAt < new Date() ||
+      tokenRecord.attempts >= 5
+    ) {
+      return NextResponse.json(
+        { error: 'Verification code is invalid or has expired. Please request a fresh reset code.' },
+        { status: 400 }
+      );
+    }
+
+    const submittedHash = crypto.createHash('sha256').update(code).digest('hex');
+    const submittedBuf = Buffer.from(submittedHash, 'utf8');
+    const storedBuf = Buffer.from(tokenRecord.codeHash, 'utf8');
+    const isCodeValid =
+      submittedBuf.length === storedBuf.length &&
+      crypto.timingSafeEqual(submittedBuf, storedBuf);
+
+    if (!isCodeValid) {
+      await prisma.emailVerificationToken.update({
+        where: { id: tokenRecord.id },
+        data: { attempts: { increment: 1 } },
+      });
+      return NextResponse.json(
+        { error: 'Verification code is invalid or has expired. Please request a fresh reset code.' },
+        { status: 400 }
+      );
+    }
+
     const passwordHash = await hashPassword(newPassword);
-    await prisma.employee.update({
-      where: { id: employee.id },
-      data: { passwordHash },
+
+    // Consume single-use token, update password, and revoke all existing sessions atomically
+    await prisma.$transaction(async (tx) => {
+      const consumed = await tx.emailVerificationToken.deleteMany({
+        where: { id: tokenRecord.id, email },
+      });
+      if (consumed.count === 0) {
+        throw new Error('Verification code has already been consumed.');
+      }
+
+      await tx.emailVerificationToken.deleteMany({ where: { email } });
+
+      await tx.employee.update({
+        where: { id: employee.id },
+        data: { passwordHash },
+      });
+
+      await tx.authSession.deleteMany({
+        where: { employeeId: employee.id },
+      });
     });
+
+    invalidateSessionCache();
 
     return NextResponse.json({
       success: true,
-      message: 'Your password has been successfully reset. You may now sign in.',
+      message: 'Your password has been successfully reset and prior sessions have been revoked. You may now sign in.',
     });
   } catch (error: any) {
     console.error('Password reset error:', error);
-    return NextResponse.json({ error: 'Failed to reset password. Please try again.' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to reset password. Please try again.' }, { status: 400 });
   }
 }

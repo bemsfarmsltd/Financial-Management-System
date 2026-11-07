@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import { prisma } from '@/lib/prisma';
+import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +54,7 @@ async function findStoredFileWithRetry(filename: string, retries = 3) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
@@ -71,14 +72,66 @@ export async function GET(
     const ext = path.extname(filename).toLowerCase();
     const defaultContentType = MIME_TYPES[ext] || 'application/octet-stream';
 
+    // Public branding logos may be rendered on login screens; all evidence/profile/voucher files require authentication
+    const isPublicBrandAsset = filename.startsWith('logo-') || filename.startsWith('brand-');
+    let actor = null;
+    if (!isPublicBrandAsset) {
+      actor = await getAuthenticatedEmployee(request);
+      if (!actor) {
+        return new NextResponse('Authentication required to access uploaded documents.', {
+          status: 401,
+          headers: {
+            'Content-Type': 'text/plain',
+            'Cache-Control': 'private, no-store, no-cache, must-revalidate',
+            'X-Content-Type-Options': 'nosniff',
+          },
+        });
+      }
+
+      // Check Attachment ownership if this file is bound to a specific request/accountability attachment
+      const isExecutive = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
+      if (!isExecutive && !filename.startsWith('avatar-')) {
+        const attachment = await prisma.attachment.findFirst({
+          where: { fileUrl: { endsWith: filename } },
+          include: {
+            request: {
+              select: {
+                requestedById: true,
+                disbursementAssigneeId: true,
+              },
+            },
+          },
+        });
+        if (
+          attachment?.request &&
+          attachment.request.requestedById !== actor.id &&
+          attachment.request.disbursementAssigneeId !== actor.id &&
+          attachment.uploadedById !== actor.id
+        ) {
+          return new NextResponse('Forbidden: You do not have access to this evidence document.', {
+            status: 403,
+            headers: {
+              'Content-Type': 'text/plain',
+              'Cache-Control': 'private, no-store, no-cache, must-revalidate',
+              'X-Content-Type-Options': 'nosniff',
+            },
+          });
+        }
+      }
+    }
+
+    const cacheControlHeader = isPublicBrandAsset
+      ? 'public, max-age=86400'
+      : 'private, no-store, no-cache, must-revalidate';
+
     // 0. Check fast in-memory cache first (<1ms, zero DB load)
     const memCached = getFromMemoryCache(filename);
     if (memCached) {
       return new NextResponse(new Uint8Array(memCached.data), {
         headers: {
           'Content-Type': memCached.mimeType || defaultContentType,
-          'Cache-Control': 'public, max-age=31536000, immutable',
-          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': cacheControlHeader,
+          'X-Content-Type-Options': 'nosniff',
         },
       });
     }
@@ -100,8 +153,8 @@ export async function GET(
         return new NextResponse(new Uint8Array(buf), {
           headers: {
             'Content-Type': resolvedMime,
-            'Cache-Control': 'public, max-age=31536000, immutable',
-            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': cacheControlHeader,
+            'X-Content-Type-Options': 'nosniff',
           },
         });
       }
@@ -117,8 +170,8 @@ export async function GET(
       return new NextResponse(new Uint8Array(fileBuffer), {
         headers: {
           'Content-Type': defaultContentType,
-          'Cache-Control': 'public, max-age=31536000, immutable',
-          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': cacheControlHeader,
+          'X-Content-Type-Options': 'nosniff',
         },
       });
     } catch {
@@ -126,8 +179,8 @@ export async function GET(
         status: 404,
         headers: {
           'Content-Type': 'text/plain',
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
-          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'private, no-store, no-cache, must-revalidate',
+          'X-Content-Type-Options': 'nosniff',
         },
       });
     }
@@ -135,7 +188,8 @@ export async function GET(
     return new NextResponse('Error loading file', {
       status: 500,
       headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Cache-Control': 'private, no-store, no-cache, must-revalidate',
+        'X-Content-Type-Options': 'nosniff',
       },
     });
   }
