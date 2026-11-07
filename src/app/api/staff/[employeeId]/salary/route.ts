@@ -9,7 +9,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request, { params }: { params: Promise<{ employeeId: string }> }) {
-  const actor = await getAuthenticatedEmployee();
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to update salary.' }, { status: 401 });
   if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
     return NextResponse.json({ error: 'Only the GMD or Super Admin can update staff salary.' }, { status: 403 });

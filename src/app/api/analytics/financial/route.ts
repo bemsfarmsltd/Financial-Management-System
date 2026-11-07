@@ -4,9 +4,9 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(req: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN'])) {
+    if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Executive authority required for financial analytics.' }, { status: 403 });
     }
 

@@ -7,9 +7,9 @@ import { resolveOrganizationScope } from '@/lib/organizations';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  const actor = await getAuthenticatedEmployee();
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to search receipt records.' }, { status: 401 });
-  const privileged = hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE', 'VERIFIER', 'AUDITOR']);
+  const privileged = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
 
   const { searchParams } = new URL(request.url);
   const subsidiary = searchParams.get('subsidiary') || searchParams.get('organization_id');

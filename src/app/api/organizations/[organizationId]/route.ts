@@ -5,10 +5,10 @@ import { prisma } from '@/lib/prisma';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ organizationId: string }> }) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to update a subsidiary.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) {
-      return NextResponse.json({ error: 'Only the GMD or System Admin can update a subsidiary profile.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Only the GMD or Super Admin can update a subsidiary profile.' }, { status: 403 });
     }
 
     const { organizationId } = await params;

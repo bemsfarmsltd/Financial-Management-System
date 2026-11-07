@@ -2,6 +2,7 @@ import { createHash, randomBytes, scrypt as nodeScrypt, timingSafeEqual } from '
 import { promisify } from 'node:util';
 import { cookies, headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
+import { verifyScopedAutomationToken } from '@/lib/platform/actor-scope';
 
 const scrypt = promisify(nodeScrypt);
 const COOKIE_NAME = 'bems_session';
@@ -97,12 +98,18 @@ export async function getAuthenticatedEmployee(
   options?: { disallowServiceToken?: boolean; allowServiceToken?: boolean }
 ): Promise<AuthenticatedEmployee | null> {
   let authHeader: string | null = null;
+  let apiKeyHeader: string | null = null;
+  let delegationHeader: string | null = null;
   let cookieToken: string | null = null;
   let method = 'GET';
 
   // Direct extraction from incoming Request object (fastest, bypasses AsyncLocalStorage detachment)
   if (req) {
     authHeader = req.headers.get('authorization');
+    apiKeyHeader = req.headers.get('x-api-key');
+    delegationHeader =
+      req.headers.get('x-bems-delegation-token') ||
+      req.headers.get('x-delegation-token');
     method = (req.method || 'GET').toUpperCase();
     const cookieHeader = req.headers.get('cookie') || '';
     const match = cookieHeader.match(/(?:^|;\s*)bems_session=([^;]+)/);
@@ -110,36 +117,81 @@ export async function getAuthenticatedEmployee(
   }
 
   // 1. Fallback to Next.js headers() store if not supplied via req
-  if (!authHeader) {
+  if (!authHeader && !apiKeyHeader && !delegationHeader) {
     try {
       const headerStore = await headers();
       authHeader = headerStore.get('authorization');
+      apiKeyHeader = headerStore.get('x-api-key');
+      delegationHeader =
+        headerStore.get('x-bems-delegation-token') ||
+        headerStore.get('x-delegation-token');
     } catch {
       // Async storage not available
     }
   }
 
-  // Service token is only permitted for read-only GET requests or when explicitly enabled for staging routes
+  // Service token is only permitted for read-only GET/HEAD requests or when explicitly enabled for staging routes
   const canUseServiceToken =
     !options?.disallowServiceToken &&
-    (options?.allowServiceToken === true || (req ? method === 'GET' : false));
+    (options?.allowServiceToken === true || method === 'GET' || method === 'HEAD');
 
-  if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
-    const token = authHeader.substring(7).trim();
+  const bearerToken =
+    authHeader && authHeader.toLowerCase().startsWith('bearer ')
+      ? authHeader.substring(7).trim()
+      : null;
+  const candidateToken = bearerToken || (apiKeyHeader ? apiKeyHeader.trim() : null);
+
+  // A0. Check Scoped Automation Delegation Token (bems_del_v1.*) when service/delegation tokens are permitted
+  const candidateDelegation =
+    delegationHeader ||
+    (candidateToken?.startsWith('bems_del_v1.') ? candidateToken : null);
+  if (canUseServiceToken && candidateDelegation) {
+    const verified = verifyScopedAutomationToken(candidateDelegation);
+    if (verified.valid && verified.delegation) {
+      const employee = await prisma.employee.findFirst({
+        where: {
+          id: verified.delegation.requesterId,
+          status: 'ACTIVE',
+          approvalStatus: 'APPROVED',
+        },
+      });
+      if (employee) {
+        return {
+          id: employee.id,
+          employeeNumber: employee.employeeNumber,
+          legalName: employee.legalName,
+          workEmail: employee.workEmail,
+          phone: employee.phone,
+          role: employee.role,
+          avatarUrl: employee.avatarUrl,
+        };
+      }
+    }
+  }
+
+  if (candidateToken) {
+    const token = candidateToken;
 
     // A. Check service API key ONLY when service tokens are permitted (never for human confirmation or ordinary dashboard mutations)
-    const configuredServiceSecret = process.env.BEMS_AI_SERVICE_TOKEN;
-    if (canUseServiceToken && configuredServiceSecret && configuredServiceSecret.length >= 24) {
+    const serviceSecrets = [
+      process.env.BEMS_AI_SERVICE_TOKEN,
+      process.env.BEMS_N8N_SHARED_SECRET,
+    ].filter((s): s is string => Boolean(s && s.length >= 16));
+
+    if (canUseServiceToken && token.length >= 16 && serviceSecrets.length > 0) {
       const tokenBuf = Buffer.from(token);
-      const secretBuf = Buffer.from(configuredServiceSecret);
-      if (tokenBuf.length === secretBuf.length && timingSafeEqual(tokenBuf, secretBuf)) {
+      const matchedSecret = serviceSecrets.some((sec) => {
+        const secretBuf = Buffer.from(sec);
+        return tokenBuf.length === secretBuf.length && timingSafeEqual(tokenBuf, secretBuf);
+      });
+      if (matchedSecret) {
         let targetUserId: string | null = null;
         if (req) {
-          targetUserId = req.headers.get('x-user-id') || req.headers.get('x-employee-id');
+          targetUserId = req.headers.get('x-user-id') || req.headers.get('x-employee-id') || req.headers.get('x-actor-id');
         } else {
           try {
             const hs = await headers();
-            targetUserId = hs.get('x-user-id') || hs.get('x-employee-id');
+            targetUserId = hs.get('x-user-id') || hs.get('x-employee-id') || hs.get('x-actor-id');
           } catch {}
         }
 

@@ -4,14 +4,14 @@ import { getIntercompanyMatrix } from "@/lib/services/intercompany";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor) {
       return NextResponse.json({ error: "Sign in to view intercompany reconciliation." }, { status: 401 });
     }
-    if (!hasAnyRole(actor, ["SYSTEM_ADMIN", "GMD", "COO", "FINANCE"])) {
-      return NextResponse.json({ error: "Finance or executive access required." }, { status: 403 });
+    if (!hasAnyRole(actor, ["SYSTEM_ADMIN", "SUPER_ADMIN", "GMD"])) {
+      return NextResponse.json({ error: "Executive access required." }, { status: 403 });
     }
 
     const matrix = await getIntercompanyMatrix();

@@ -8,10 +8,10 @@ export async function GET(
   { params }: { params: Promise<{ employeeId: string }> }
 ) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN'])) {
-      return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Only GMD or System Admin can access staff compensation records.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
+      return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Only GMD or Super Admin can access staff compensation records.' }, { status: 403 });
     }
 
     const { employeeId } = await params;

@@ -8,8 +8,8 @@ function formatNaira(minor: bigint | number) {
   return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(Number(minor) / 100);
 }
 
-export async function GET(_request: Request, { params }: { params: Promise<{ employeeId: string }> }) {
-  const actor = await getAuthenticatedEmployee();
+export async function GET(request: Request, { params }: { params: Promise<{ employeeId: string }> }) {
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to view staff payroll details.' }, { status: 401 });
   if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
     return NextResponse.json({ error: 'Executive or Super admin access is required to view staff payroll details.' }, { status: 403 });
@@ -242,7 +242,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ emp
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ employeeId: string }> }) {
-  const actor = await getAuthenticatedEmployee();
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to update profile.' }, { status: 401 });
   if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
     return NextResponse.json({ error: 'Executive or Super admin access is required.' }, { status: 403 });

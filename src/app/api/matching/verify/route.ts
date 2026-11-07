@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: "Sign in to inspect matching." }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
@@ -53,10 +53,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const actor = await getAuthenticatedEmployee();
+    const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: "Sign in to perform 3-way match." }, { status: 401 });
-    if (!hasAnyRole(actor, ["SYSTEM_ADMIN", "GMD", "COO", "FINANCE", "VERIFIER"])) {
-      return NextResponse.json({ error: "Finance, executive, or verifier role required." }, { status: 403 });
+    if (!hasAnyRole(actor, ["SYSTEM_ADMIN", "SUPER_ADMIN", "GMD"])) {
+      return NextResponse.json({ error: "Executive role required." }, { status: 403 });
     }
 
     const body = await request.json();

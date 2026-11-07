@@ -5,10 +5,10 @@ import { prisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ receiptId: string }> },
 ) {
-  const actor = await getAuthenticatedEmployee();
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to view this receipt.' }, { status: 401 });
   const { receiptId } = await params;
   const receipt = await prisma.paymentReceipt.findUnique({
@@ -16,10 +16,10 @@ export async function GET(
     include: { disbursement: { include: { request: { include: { approvalSteps: true } }, payrollItem: true } } },
   });
   if (!receipt) return NextResponse.json({ error: 'Receipt not found.' }, { status: 404 });
-  const request = receipt.disbursement.request;
-  const canViewByRole = hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'FINANCE']);
-  const isRequester = request?.requestedById === actor.id;
-  const isApprover = request?.approvalSteps.some((step) => step.approverId === actor.id) || false;
+  const reqRecord = receipt.disbursement.request;
+  const canViewByRole = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
+  const isRequester = reqRecord?.requestedById === actor.id;
+  const isApprover = reqRecord?.approvalSteps.some((step) => step.approverId === actor.id) || false;
   const isPayrollRecipient = receipt.disbursement.beneficiaryEmployeeId === actor.id && !!receipt.disbursement.payrollItemId;
   if (!canViewByRole && !isRequester && !isApprover && !isPayrollRecipient) return NextResponse.json({ error: 'You are not allowed to view this receipt.' }, { status: 403 });
   if (!receipt.fileData) return NextResponse.json({ error: 'The uploaded receipt file is unavailable.' }, { status: 404 });

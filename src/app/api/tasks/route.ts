@@ -5,12 +5,12 @@ import { prisma } from '@/lib/prisma';
 import { toSystemRequestId } from '@/lib/request-id';
 
 export const dynamic = 'force-dynamic';
-const taskManagers = ['SYSTEM_ADMIN', 'GMD', 'COO', 'FINANCE', 'VERIFIER'];
+const taskManagers = ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'];
 
-export async function GET() {
-  const actor = await getAuthenticatedEmployee();
+export async function GET(request: Request) {
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to view follow-up tasks.' }, { status: 401 });
-  if (!hasAnyRole(actor, [...taskManagers, 'HR', 'STAFF', 'DEPT_HEAD', 'HEAD_OF_ADMIN'])) return NextResponse.json({ error: 'You are not allowed to view these tasks.' }, { status: 403 });
+  if (!hasAnyRole(actor, [...taskManagers, 'STAFF'])) return NextResponse.json({ error: 'You are not allowed to view these tasks.' }, { status: 403 });
   const tasks = await prisma.followupTask.findMany({
     where: hasAnyRole(actor, taskManagers) ? undefined : { assigneeId: actor.id },
     include: { assignee: { select: { id: true, legalName: true, role: true } }, accountabilityCase: { include: { request: { select: { id: true, requestNumber: true, title: true } } } }, channel: { include: { request: { select: { id: true, requestNumber: true, title: true } } } } },
@@ -20,7 +20,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const actor = await getAuthenticatedEmployee();
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to assign a task.' }, { status: 401 });
   if (!hasAnyRole(actor, taskManagers)) return NextResponse.json({ error: 'Manager access is required to assign follow-up tasks.' }, { status: 403 });
   const body = await request.json().catch(() => ({}));

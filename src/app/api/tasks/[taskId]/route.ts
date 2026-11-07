@@ -4,12 +4,12 @@ import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ taskId: string }> }) {
-  const actor = await getAuthenticatedEmployee();
+  const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to update a task.' }, { status: 401 });
   const { taskId } = await params;
   const task = await prisma.followupTask.findUnique({ where: { id: taskId }, include: { accountabilityCase: { include: { request: { include: { channel: true } } } }, channel: { include: { request: true } } } });
   if (!task) return NextResponse.json({ error: 'Task not found.' }, { status: 404 });
-  const canManage = hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD', 'COO', 'FINANCE', 'VERIFIER']);
+  const canManage = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
   if (!canManage && task.assigneeId !== actor.id) return NextResponse.json({ error: 'Only the assignee or an authorized manager can update this task.' }, { status: 403 });
   const body = await request.json().catch(() => ({}));
   if (body.status !== 'COMPLETED' && body.status !== 'PENDING') return NextResponse.json({ error: 'Choose a supported task status.' }, { status: 400 });
