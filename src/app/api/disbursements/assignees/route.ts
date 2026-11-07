@@ -4,14 +4,14 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-const disbursementRoles = ['SYSTEM_ADMIN', 'GMD', 'FINANCE'];
+const disbursementRoles = ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'];
 
 export async function GET(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee(request);
     if (!actor) return NextResponse.json({ error: 'Sign in to assign disbursement recording.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'GMD'])) {
-      return NextResponse.json({ error: 'Only the GMD or System Admin can assign disbursement recording.' }, { status: 403 });
+    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
+      return NextResponse.json({ error: 'Only the GMD or Super Admin can assign disbursement recording.' }, { status: 403 });
     }
 
     const employees = await prisma.employee.findMany({

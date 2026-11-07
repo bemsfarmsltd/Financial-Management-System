@@ -24,7 +24,7 @@ export function getLagosBusinessYear(now: Date = new Date()): number {
  * using the current Africa/Lagos business year rather than a hardcoded literal year.
  */
 export function buildDatedRequestPrefix(
-  kind: "REQ" | "EMG" | "ICN" = "REQ",
+  kind: "REQ" | "EMG" | "ICN" | "GRN" = "REQ",
   now: Date = new Date()
 ): string {
   return `${kind}-${getLagosBusinessYear(now)}`;
@@ -40,6 +40,9 @@ function normalizeRequestPrefix(prefix?: string): string {
   }
   if (clean === "ICN") {
     return buildDatedRequestPrefix("ICN");
+  }
+  if (clean === "GRN") {
+    return buildDatedRequestPrefix("GRN");
   }
   return clean;
 }

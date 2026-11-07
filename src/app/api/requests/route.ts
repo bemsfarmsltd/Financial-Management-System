@@ -89,6 +89,13 @@ export async function GET(request: Request) {
         channel: {
           include: {
             messages: {
+              where: {
+                OR: [
+                  { visibility: "GROUP" },
+                  { visibility: "PRIVATE", authorId: actor.id },
+                  { visibility: "PRIVATE", recipientId: actor.id },
+                ],
+              },
               orderBy: { createdAt: "asc" },
               take: 20,
             },

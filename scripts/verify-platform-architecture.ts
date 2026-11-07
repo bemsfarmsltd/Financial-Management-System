@@ -360,22 +360,43 @@ async function main() {
 
   // 10. Part III Complete API Route Inventory & Method Declarations
   console.log('[10/10] Verifying Part III Complete API Route Inventory & Method Declarations...');
-  assert.ok(PART_III_API_ROUTE_INVENTORY.length >= 60, 'Part III route inventory must cover accountability through briefing');
+  assert.ok(PART_III_API_ROUTE_INVENTORY.length >= 154, 'Part III route inventory must cover all 154 API route files');
+
+  const collectRouteFiles = (dir: string, acc: string[] = []): string[] => {
+    for (const dirent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, dirent.name);
+      if (dirent.isDirectory()) {
+        collectRouteFiles(fullPath, acc);
+      } else if (dirent.isFile() && dirent.name === 'route.ts') {
+        acc.push(path.relative(repoRoot, fullPath).replace(/\\/g, '/'));
+      }
+    }
+    return acc;
+  };
+
+  const physicalRoutes = collectRouteFiles(path.join(repoRoot, 'src/app/api')).sort();
+  const registeredRoutes = PART_III_API_ROUTE_INVENTORY.map((e) => e.relativeFilePath).sort();
+  assert.deepEqual(
+    registeredRoutes,
+    physicalRoutes,
+    'PART_III_API_ROUTE_INVENTORY must maintain 100% 1-to-1 coverage with all physical src/app/api/**/route.ts files'
+  );
 
   for (const entry of PART_III_API_ROUTE_INVENTORY) {
     const absPath = path.join(repoRoot, entry.relativeFilePath);
     assert.ok(fs.existsSync(absPath), `Missing Part III API route file: ${entry.relativeFilePath} (${entry.apiPath})`);
     const routeSource = fs.readFileSync(absPath, 'utf8');
     for (const method of entry.declaredMethods) {
-      const exportPattern = new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\b`);
+      const fnExportPattern = new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\b`);
+      const reExportPattern = new RegExp(`export\\s*\\{[^}]*\\b${method}\\b[^}]*\\}`);
       assert.ok(
-        exportPattern.test(routeSource),
+        fnExportPattern.test(routeSource) || reExportPattern.test(routeSource),
         `Route ${entry.apiPath} (${entry.relativeFilePath}) is missing declared HTTP handler export: ${method}`
       );
     }
   }
 
-  // Verify Part III analytics, leadership, station QR, and accountability hardening
+  // Verify Part III analytics, leadership, station QR, accountability, and remaining group hardening
   const analyticsSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/analytics/route.ts'), 'utf8');
   assert.ok(analyticsSource.includes('where: { ...subsidiaryFilter, ...staffFilter }'), 'Analytics availableCategories must include staffFilter');
 
@@ -405,6 +426,47 @@ async function main() {
     accountabilityListSource.includes('ownerId: { in: caseIds }') &&
       accountabilityListSource.includes('resolveAuthorizedOrganizationScope'),
     'Accountability GET must scope cases by organization and restrict attachment query to loaded caseIds'
+  );
+
+  const disbursementsAssigneesSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/disbursements/assignees/route.ts'), 'utf8');
+  assert.ok(
+    !disbursementsAssigneesSource.includes("'FINANCE'") && disbursementsAssigneesSource.includes("'SUPER_ADMIN'"),
+    'Disbursements assignees route must enforce strict 3-role architecture without legacy FINANCE role'
+  );
+
+  const matchingVerifySource = fs.readFileSync(path.join(repoRoot, 'src/app/api/matching/verify/route.ts'), 'utf8');
+  assert.ok(
+    matchingVerifySource.includes('resolveAuthorizedOrganizationScope') &&
+      matchingVerifySource.includes('buildDatedRequestPrefix("GRN")') &&
+      !matchingVerifySource.includes('GRN-2026-'),
+    'Matching verify route must enforce organization/owner scope and dynamic GRN year prefix'
+  );
+
+  const businessSearchSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/businesses/[businessId]/search/route.ts'), 'utf8');
+  assert.ok(
+    businessSearchSource.includes('getAuthenticatedEmployee') &&
+      businessSearchSource.includes('resolveAuthorizedOrganizationScope'),
+    'Business search route must authenticate caller and enforce organization scope'
+  );
+
+  const portfolioSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/portfolio/route.ts'), 'utf8');
+  assert.ok(
+    portfolioSource.includes('companyBankAccount.findMany') &&
+      !portfolioSource.includes('+234 800 000 0000') &&
+      !portfolioSource.includes('VERIFIED_PAID'),
+    'Portfolio route must query real companyBankAccount records and canonical paymentStatus values without fake phone fallbacks'
+  );
+
+  const requestsListSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/requests/route.ts'), 'utf8');
+  assert.ok(
+    requestsListSource.includes('visibility: "GROUP"') && requestsListSource.includes('recipientId: actor.id'),
+    'Requests list route must filter channel messages by visibility and participant ID (S02)'
+  );
+
+  const receiptsListSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/receipts/route.ts'), 'utf8');
+  assert.ok(
+    receiptsListSource.includes('resolveAuthorizedOrganizationScope'),
+    'Receipts list route must enforce resolveAuthorizedOrganizationScope'
   );
 
   console.log(`  ✓ All ${PART_III_API_ROUTE_INVENTORY.length} Part III API routes and method contracts verified.`);

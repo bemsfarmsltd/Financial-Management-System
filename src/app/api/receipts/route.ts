@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { toSystemRequestId } from '@/lib/request-id';
-import { resolveOrganizationScope } from '@/lib/organizations';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const subsidiary = searchParams.get('subsidiary') || searchParams.get('organization_id');
-  const scope = subsidiary ? await resolveOrganizationScope(subsidiary) : { isGroup: true, organizationIds: [] };
+  const scope = await resolveAuthorizedOrganizationScope(actor, subsidiary);
 
   const basePrivilegeFilter = privileged
     ? {}

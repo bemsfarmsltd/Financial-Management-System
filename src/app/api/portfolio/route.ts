@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
       return NextResponse.json({ error: 'Executive access is required to view the group portfolio.' }, { status: 403 });
     }
-    const [organizations, budgets, requests, intercompanyNotes, employees, departments, assignments, disbursements, accountabilityCases] = await Promise.all([
+    const [organizations, budgets, requests, intercompanyNotes, departments, assignments, disbursements, accountabilityCases, companyBankAccounts] = await Promise.all([
       prisma.organization.findMany({
         orderBy: { createdAt: 'asc' },
       }),
@@ -25,7 +25,14 @@ export async function GET(request: Request) {
       prisma.expenditureRequest.findMany({
         include: {
           subsidiary: true,
-          requester: true,
+          requester: {
+            select: {
+              id: true,
+              legalName: true,
+              workEmail: true,
+              role: true,
+            },
+          },
           approvalSteps: true,
         },
         orderBy: { createdAt: 'desc' },
@@ -37,11 +44,20 @@ export async function GET(request: Request) {
         },
         orderBy: { generatedAt: 'desc' },
       }),
-      prisma.employee.findMany(),
       prisma.department.findMany(),
       prisma.employeeAssignment.findMany({
         include: {
-          employee: true,
+          employee: {
+            select: {
+              id: true,
+              employeeNumber: true,
+              legalName: true,
+              workEmail: true,
+              phone: true,
+              role: true,
+              status: true,
+            },
+          },
           department: true,
         },
         orderBy: { startsOn: 'asc' },
@@ -56,6 +72,10 @@ export async function GET(request: Request) {
           request: true,
         },
       }),
+      prisma.companyBankAccount.findMany({
+        where: { status: 'ACTIVE' },
+        orderBy: { balance: 'desc' },
+      }),
     ]);
 
     const portfolio = organizations.map((org) => {
@@ -67,7 +87,7 @@ export async function GET(request: Request) {
 
       const orgRequests = requests.filter((r) => r.subsidiaryId === org.id);
       const totalCommitted = orgRequests
-        .filter((r) => r.approvalStatus === 'APPROVED' && r.paymentStatus !== 'VERIFIED_PAID')
+        .filter((r) => r.approvalStatus === 'APPROVED' && !['SETTLED', 'RECIPIENT_CONFIRMED', 'PAID'].includes(r.paymentStatus))
         .reduce((acc, r) => acc + Number(r.amountMinor) / 100, 0);
 
       const moneyLeft = Math.max(0, totalBudget - (totalSpent + totalCommitted));
@@ -109,14 +129,13 @@ export async function GET(request: Request) {
             employeeNumber: a.employee.employeeNumber,
             name: a.employee.legalName,
             email: a.employee.workEmail,
-            phone: a.employee.phone || '+234 800 000 0000',
+            phone: a.employee.phone || null,
             role: a.employee.role,
             positionName: a.positionName,
             departmentName: a.department?.name || 'General Operations',
             departmentCode: a.department?.code || 'OPS',
             status: a.employee.status || 'ACTIVE',
             employmentType: 'Full-Time Permanent',
-            grossMonthlySalary: 0,
             intercompanySplit: a.isPrimary ? 'Primary (100%)' : 'Secondary Split (Cost-share)',
           };
         });
@@ -127,12 +146,12 @@ export async function GET(request: Request) {
       const closedCases = orgCases.filter((c) => c.status === 'CLOSED' || c.status === 'VERIFIED').length;
       const receiptsScore = orgCases.length > 0 ? Math.round((closedCases / orgCases.length) * 100) : 0;
 
-      const uniqueBanks = Array.from(new Set(orgDisbursements.map((d) => d.bankName).filter(Boolean)));
-      const bankAccounts = uniqueBanks.map((bName, bIdx) => ({
-        bankName: bName,
-        accountNumber: `Disbursement Bank · ${bIdx + 1}`,
-        accountType: 'Corporate Operational (NGN)',
-        balanceNaira: moneyLeft,
+      const orgBankAccounts = companyBankAccounts.filter((b) => b.organizationId === org.id);
+      const bankAccounts = orgBankAccounts.map((b) => ({
+        bankName: b.bankName,
+        accountNumber: b.accountNumber,
+        accountType: b.accountType || 'Corporate Operational (NGN)',
+        balanceNaira: Number(b.balance),
       }));
 
       return {

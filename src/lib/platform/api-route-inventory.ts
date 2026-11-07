@@ -1,7 +1,7 @@
 /**
  * Part III · Complete API Route Inventory Registry
  *
- * Canonical source-of-truth inventory for BEMS ERP API routes across:
+ * Canonical source-of-truth inventory for all 154 BEMS ERP API routes across:
  * - accountability
  * - admin
  * - ai (chat, memory, staged-actions, tools, verify)
@@ -12,6 +12,33 @@
  * - auth
  * - banking
  * - briefing
+ * - budgets
+ * - businesses
+ * - departments
+ * - disbursements
+ * - download
+ * - emergency
+ * - hr
+ * - intercompany
+ * - matching
+ * - meta
+ * - mobile
+ * - notifications
+ * - organizations
+ * - payroll
+ * - policies
+ * - portfolio
+ * - receipts
+ * - recurring
+ * - reports
+ * - requests
+ * - settings
+ * - staff
+ * - tasks
+ * - treasury
+ * - upload
+ * - vendors
+ * - webhooks
  *
  * Verified automatically by scripts/verify-platform-architecture.ts against physical
  * route files and exported HTTP method handlers.
@@ -28,18 +55,47 @@ export type RouteSurfaceClassification =
   | 'AUTH'
   | 'WEBHOOK';
 
+export type ApiRouteGroup =
+  | 'accountability'
+  | 'admin'
+  | 'ai'
+  | 'analytics'
+  | 'approvals'
+  | 'attendance'
+  | 'audit'
+  | 'auth'
+  | 'banking'
+  | 'briefing'
+  | 'budgets'
+  | 'businesses'
+  | 'departments'
+  | 'disbursements'
+  | 'download'
+  | 'emergency'
+  | 'hr'
+  | 'intercompany'
+  | 'matching'
+  | 'meta'
+  | 'mobile'
+  | 'notifications'
+  | 'organizations'
+  | 'payroll'
+  | 'policies'
+  | 'portfolio'
+  | 'receipts'
+  | 'recurring'
+  | 'reports'
+  | 'requests'
+  | 'settings'
+  | 'staff'
+  | 'tasks'
+  | 'treasury'
+  | 'upload'
+  | 'vendors'
+  | 'webhooks';
+
 export interface ApiRouteInventoryEntry {
-  group:
-    | 'accountability'
-    | 'admin'
-    | 'ai'
-    | 'analytics'
-    | 'approvals'
-    | 'attendance'
-    | 'audit'
-    | 'auth'
-    | 'banking'
-    | 'briefing';
+  group: ApiRouteGroup;
   apiPath: string;
   relativeFilePath: string;
   declaredMethods: HttpMethod[];
@@ -47,7 +103,7 @@ export interface ApiRouteInventoryEntry {
 }
 
 export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
-  // accountability
+  // accountability (4)
   {
     group: 'accountability',
     apiPath: '/api/accountability/close',
@@ -77,7 +133,14 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     classification: 'READ_AND_MUTATION',
   },
 
-  // admin
+  // admin (7)
+  {
+    group: 'admin',
+    apiPath: '/api/admin/employees/[employeeId]/attendance-exemption',
+    relativeFilePath: 'src/app/api/admin/employees/[employeeId]/attendance-exemption/route.ts',
+    declaredMethods: ['PATCH'],
+    classification: 'MUTATION',
+  },
   {
     group: 'admin',
     apiPath: '/api/admin/employees/[employeeId]/request-update',
@@ -121,7 +184,7 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     classification: 'MUTATION',
   },
 
-  // ai
+  // ai (37)
   {
     group: 'ai',
     apiPath: '/api/ai/chat',
@@ -152,6 +215,20 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
   },
   {
     group: 'ai',
+    apiPath: '/api/ai/staged-actions/[id]/retry-effects',
+    relativeFilePath: 'src/app/api/ai/staged-actions/[id]/retry-effects/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'AI_STAGED_ACTION',
+  },
+  {
+    group: 'ai',
+    apiPath: '/api/ai/staged-actions/[id]',
+    relativeFilePath: 'src/app/api/ai/staged-actions/[id]/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'AI_STAGED_ACTION',
+  },
+  {
+    group: 'ai',
     apiPath: '/api/ai/staged-actions/accountability-clearance',
     relativeFilePath: 'src/app/api/ai/staged-actions/accountability-clearance/route.ts',
     declaredMethods: ['POST'],
@@ -168,6 +245,13 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     group: 'ai',
     apiPath: '/api/ai/staged-actions/budget',
     relativeFilePath: 'src/app/api/ai/staged-actions/budget/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'AI_STAGED_ACTION',
+  },
+  {
+    group: 'ai',
+    apiPath: '/api/ai/staged-actions/deadline-extension',
+    relativeFilePath: 'src/app/api/ai/staged-actions/deadline-extension/route.ts',
     declaredMethods: ['POST'],
     classification: 'AI_STAGED_ACTION',
   },
@@ -215,6 +299,13 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
   },
   {
     group: 'ai',
+    apiPath: '/api/ai/staged-actions/status',
+    relativeFilePath: 'src/app/api/ai/staged-actions/status/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'AI_STAGED_ACTION',
+  },
+  {
+    group: 'ai',
     apiPath: '/api/ai/staged-actions/treasury-account',
     relativeFilePath: 'src/app/api/ai/staged-actions/treasury-account/route.ts',
     declaredMethods: ['POST'],
@@ -229,9 +320,16 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
   },
   {
     group: 'ai',
+    apiPath: '/api/ai/tools/accountability',
+    relativeFilePath: 'src/app/api/ai/tools/accountability/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'AI_TOOL',
+  },
+  {
+    group: 'ai',
     apiPath: '/api/ai/tools/admin-onboarding',
     relativeFilePath: 'src/app/api/ai/tools/admin-onboarding/route.ts',
-    declaredMethods: ['POST'],
+    declaredMethods: ['GET', 'POST'],
     classification: 'AI_TOOL',
   },
   {
@@ -252,13 +350,20 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     group: 'ai',
     apiPath: '/api/ai/tools/bank-accounts',
     relativeFilePath: 'src/app/api/ai/tools/bank-accounts/route.ts',
-    declaredMethods: ['POST'],
+    declaredMethods: ['GET', 'POST'],
     classification: 'AI_TOOL',
   },
   {
     group: 'ai',
     apiPath: '/api/ai/tools/budgets',
     relativeFilePath: 'src/app/api/ai/tools/budgets/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'AI_TOOL',
+  },
+  {
+    group: 'ai',
+    apiPath: '/api/ai/tools/hr-leave',
+    relativeFilePath: 'src/app/api/ai/tools/hr-leave/route.ts',
     declaredMethods: ['GET', 'POST'],
     classification: 'AI_TOOL',
   },
@@ -271,8 +376,29 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
   },
   {
     group: 'ai',
+    apiPath: '/api/ai/tools/messages',
+    relativeFilePath: 'src/app/api/ai/tools/messages/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'AI_TOOL',
+  },
+  {
+    group: 'ai',
     apiPath: '/api/ai/tools/payroll',
     relativeFilePath: 'src/app/api/ai/tools/payroll/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'AI_TOOL',
+  },
+  {
+    group: 'ai',
+    apiPath: '/api/ai/tools/policies',
+    relativeFilePath: 'src/app/api/ai/tools/policies/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'AI_TOOL',
+  },
+  {
+    group: 'ai',
+    apiPath: '/api/ai/tools/requests',
+    relativeFilePath: 'src/app/api/ai/tools/requests/route.ts',
     declaredMethods: ['GET', 'POST'],
     classification: 'AI_TOOL',
   },
@@ -285,8 +411,22 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
   },
   {
     group: 'ai',
+    apiPath: '/api/ai/tools/staff',
+    relativeFilePath: 'src/app/api/ai/tools/staff/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'AI_TOOL',
+  },
+  {
+    group: 'ai',
     apiPath: '/api/ai/tools/subsidiary',
     relativeFilePath: 'src/app/api/ai/tools/subsidiary/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'AI_TOOL',
+  },
+  {
+    group: 'ai',
+    apiPath: '/api/ai/tools/tasks',
+    relativeFilePath: 'src/app/api/ai/tools/tasks/route.ts',
     declaredMethods: ['GET', 'POST'],
     classification: 'AI_TOOL',
   },
@@ -305,7 +445,7 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     classification: 'AI_TOOL',
   },
 
-  // analytics
+  // analytics (3)
   {
     group: 'analytics',
     apiPath: '/api/analytics/cash-forecast',
@@ -328,7 +468,7 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     classification: 'READ',
   },
 
-  // approvals
+  // approvals (2)
   {
     group: 'approvals',
     apiPath: '/api/approvals/decide',
@@ -344,7 +484,7 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     classification: 'READ',
   },
 
-  // attendance
+  // attendance (10)
   {
     group: 'attendance',
     apiPath: '/api/attendance/admin/daily-roster',
@@ -416,7 +556,7 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     classification: 'READ',
   },
 
-  // audit
+  // audit (1)
   {
     group: 'audit',
     apiPath: '/api/audit',
@@ -425,7 +565,7 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     classification: 'READ',
   },
 
-  // auth
+  // auth (10)
   {
     group: 'auth',
     apiPath: '/api/auth/approvals',
@@ -497,7 +637,7 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     classification: 'AUTH',
   },
 
-  // banking
+  // banking (2)
   {
     group: 'banking',
     apiPath: '/api/banking/banks',
@@ -513,7 +653,7 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     classification: 'READ',
   },
 
-  // briefing
+  // briefing (1)
   {
     group: 'briefing',
     apiPath: '/api/briefing',
@@ -521,5 +661,597 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     declaredMethods: ['GET'],
     classification: 'READ',
   },
-];
 
+  // budgets (2)
+  {
+    group: 'budgets',
+    apiPath: '/api/budgets/[id]',
+    relativeFilePath: 'src/app/api/budgets/[id]/route.ts',
+    declaredMethods: ['GET', 'PATCH', 'DELETE'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'budgets',
+    apiPath: '/api/budgets',
+    relativeFilePath: 'src/app/api/budgets/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+
+  // businesses (7)
+  {
+    group: 'businesses',
+    apiPath: '/api/businesses/[businessId]/audit-logs',
+    relativeFilePath: 'src/app/api/businesses/[businessId]/audit-logs/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'businesses',
+    apiPath: '/api/businesses/[businessId]/channels',
+    relativeFilePath: 'src/app/api/businesses/[businessId]/channels/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'businesses',
+    apiPath: '/api/businesses/[businessId]/members',
+    relativeFilePath: 'src/app/api/businesses/[businessId]/members/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'businesses',
+    apiPath: '/api/businesses/[businessId]',
+    relativeFilePath: 'src/app/api/businesses/[businessId]/route.ts',
+    declaredMethods: ['PATCH'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'businesses',
+    apiPath: '/api/businesses/[businessId]/search',
+    relativeFilePath: 'src/app/api/businesses/[businessId]/search/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'businesses',
+    apiPath: '/api/businesses/[businessId]/templates/[templateId]/import',
+    relativeFilePath: 'src/app/api/businesses/[businessId]/templates/[templateId]/import/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'businesses',
+    apiPath: '/api/businesses/[businessId]/templates',
+    relativeFilePath: 'src/app/api/businesses/[businessId]/templates/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+
+  // departments (1)
+  {
+    group: 'departments',
+    apiPath: '/api/departments',
+    relativeFilePath: 'src/app/api/departments/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+
+  // disbursements (5)
+  {
+    group: 'disbursements',
+    apiPath: '/api/disbursements/assignees',
+    relativeFilePath: 'src/app/api/disbursements/assignees/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'disbursements',
+    apiPath: '/api/disbursements/confirm',
+    relativeFilePath: 'src/app/api/disbursements/confirm/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'disbursements',
+    apiPath: '/api/disbursements/record',
+    relativeFilePath: 'src/app/api/disbursements/record/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'disbursements',
+    apiPath: '/api/disbursements',
+    relativeFilePath: 'src/app/api/disbursements/route.ts',
+    declaredMethods: ['GET', 'POST', 'PATCH'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'disbursements',
+    apiPath: '/api/disbursements/verify',
+    relativeFilePath: 'src/app/api/disbursements/verify/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+
+  // download (1)
+  {
+    group: 'download',
+    apiPath: '/api/download/kiosk-launcher',
+    relativeFilePath: 'src/app/api/download/kiosk-launcher/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+
+  // emergency (1)
+  {
+    group: 'emergency',
+    apiPath: '/api/emergency',
+    relativeFilePath: 'src/app/api/emergency/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+
+  // hr (4)
+  {
+    group: 'hr',
+    apiPath: '/api/hr/attendance',
+    relativeFilePath: 'src/app/api/hr/attendance/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'hr',
+    apiPath: '/api/hr/leave',
+    relativeFilePath: 'src/app/api/hr/leave/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'hr',
+    apiPath: '/api/hr/overview',
+    relativeFilePath: 'src/app/api/hr/overview/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'hr',
+    apiPath: '/api/hr/staff',
+    relativeFilePath: 'src/app/api/hr/staff/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+
+  // intercompany (5)
+  {
+    group: 'intercompany',
+    apiPath: '/api/intercompany/[noteId]',
+    relativeFilePath: 'src/app/api/intercompany/[noteId]/route.ts',
+    declaredMethods: ['PATCH'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'intercompany',
+    apiPath: '/api/intercompany/matrix',
+    relativeFilePath: 'src/app/api/intercompany/matrix/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'intercompany',
+    apiPath: '/api/intercompany/reconciliation',
+    relativeFilePath: 'src/app/api/intercompany/reconciliation/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'intercompany',
+    apiPath: '/api/intercompany',
+    relativeFilePath: 'src/app/api/intercompany/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'intercompany',
+    apiPath: '/api/intercompany/settle',
+    relativeFilePath: 'src/app/api/intercompany/settle/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+
+  // matching (1)
+  {
+    group: 'matching',
+    apiPath: '/api/matching/verify',
+    relativeFilePath: 'src/app/api/matching/verify/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+
+  // meta (1)
+  {
+    group: 'meta',
+    apiPath: '/api/meta/structure',
+    relativeFilePath: 'src/app/api/meta/structure/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+
+  // mobile (1)
+  {
+    group: 'mobile',
+    apiPath: '/api/mobile/version-check',
+    relativeFilePath: 'src/app/api/mobile/version-check/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+
+  // notifications (1)
+  {
+    group: 'notifications',
+    apiPath: '/api/notifications',
+    relativeFilePath: 'src/app/api/notifications/route.ts',
+    declaredMethods: ['GET', 'PATCH'],
+    classification: 'READ_AND_MUTATION',
+  },
+
+  // organizations (2)
+  {
+    group: 'organizations',
+    apiPath: '/api/organizations/[organizationId]',
+    relativeFilePath: 'src/app/api/organizations/[organizationId]/route.ts',
+    declaredMethods: ['PATCH'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'organizations',
+    apiPath: '/api/organizations',
+    relativeFilePath: 'src/app/api/organizations/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+
+  // payroll (8)
+  {
+    group: 'payroll',
+    apiPath: '/api/payroll/assignees',
+    relativeFilePath: 'src/app/api/payroll/assignees/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'payroll',
+    apiPath: '/api/payroll/items/[itemId]',
+    relativeFilePath: 'src/app/api/payroll/items/[itemId]/route.ts',
+    declaredMethods: ['DELETE'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'payroll',
+    apiPath: '/api/payroll/my-payments',
+    relativeFilePath: 'src/app/api/payroll/my-payments/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'payroll',
+    apiPath: '/api/payroll/prepare',
+    relativeFilePath: 'src/app/api/payroll/prepare/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'payroll',
+    apiPath: '/api/payroll/record',
+    relativeFilePath: 'src/app/api/payroll/record/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'payroll',
+    apiPath: '/api/payroll',
+    relativeFilePath: 'src/app/api/payroll/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'payroll',
+    apiPath: '/api/payroll/staff/[employeeId]',
+    relativeFilePath: 'src/app/api/payroll/staff/[employeeId]/route.ts',
+    declaredMethods: ['GET', 'PATCH'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'payroll',
+    apiPath: '/api/payroll/summary',
+    relativeFilePath: 'src/app/api/payroll/summary/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+
+  // policies (1)
+  {
+    group: 'policies',
+    apiPath: '/api/policies',
+    relativeFilePath: 'src/app/api/policies/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+
+  // portfolio (1)
+  {
+    group: 'portfolio',
+    apiPath: '/api/portfolio',
+    relativeFilePath: 'src/app/api/portfolio/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+
+  // receipts (2)
+  {
+    group: 'receipts',
+    apiPath: '/api/receipts/[receiptId]',
+    relativeFilePath: 'src/app/api/receipts/[receiptId]/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'receipts',
+    apiPath: '/api/receipts',
+    relativeFilePath: 'src/app/api/receipts/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+
+  // recurring (1)
+  {
+    group: 'recurring',
+    apiPath: '/api/recurring',
+    relativeFilePath: 'src/app/api/recurring/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+
+  // reports (1)
+  {
+    group: 'reports',
+    apiPath: '/api/reports/export',
+    relativeFilePath: 'src/app/api/reports/export/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'READ',
+  },
+
+  // requests (4)
+  {
+    group: 'requests',
+    apiPath: '/api/requests/[requestNumber]/action',
+    relativeFilePath: 'src/app/api/requests/[requestNumber]/action/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'requests',
+    apiPath: '/api/requests/[requestNumber]',
+    relativeFilePath: 'src/app/api/requests/[requestNumber]/route.ts',
+    declaredMethods: ['GET', 'DELETE'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'requests',
+    apiPath: '/api/requests/create',
+    relativeFilePath: 'src/app/api/requests/create/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'requests',
+    apiPath: '/api/requests',
+    relativeFilePath: 'src/app/api/requests/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+
+  // settings (1)
+  {
+    group: 'settings',
+    apiPath: '/api/settings',
+    relativeFilePath: 'src/app/api/settings/route.ts',
+    declaredMethods: ['GET', 'PUT'],
+    classification: 'READ_AND_MUTATION',
+  },
+
+  // staff (16)
+  {
+    group: 'staff',
+    apiPath: '/api/staff/[employeeId]/banking',
+    relativeFilePath: 'src/app/api/staff/[employeeId]/banking/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/[employeeId]/compensation',
+    relativeFilePath: 'src/app/api/staff/[employeeId]/compensation/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/[employeeId]/contact',
+    relativeFilePath: 'src/app/api/staff/[employeeId]/contact/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/[employeeId]/password',
+    relativeFilePath: 'src/app/api/staff/[employeeId]/password/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/[employeeId]/salary',
+    relativeFilePath: 'src/app/api/staff/[employeeId]/salary/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/chat/admin',
+    relativeFilePath: 'src/app/api/staff/chat/admin/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/chat/unread',
+    relativeFilePath: 'src/app/api/staff/chat/unread/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/disbursements',
+    relativeFilePath: 'src/app/api/staff/disbursements/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/invite/resend',
+    relativeFilePath: 'src/app/api/staff/invite/resend/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/invite',
+    relativeFilePath: 'src/app/api/staff/invite/route.ts',
+    declaredMethods: ['GET', 'POST', 'DELETE'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/offline',
+    relativeFilePath: 'src/app/api/staff/offline/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/onboard/complete',
+    relativeFilePath: 'src/app/api/staff/onboard/complete/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'AUTH',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/onboard',
+    relativeFilePath: 'src/app/api/staff/onboard/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/profile/pending-update',
+    relativeFilePath: 'src/app/api/staff/profile/pending-update/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff/profile/submit-update',
+    relativeFilePath: 'src/app/api/staff/profile/submit-update/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'staff',
+    apiPath: '/api/staff',
+    relativeFilePath: 'src/app/api/staff/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+
+  // tasks (2)
+  {
+    group: 'tasks',
+    apiPath: '/api/tasks/[taskId]',
+    relativeFilePath: 'src/app/api/tasks/[taskId]/route.ts',
+    declaredMethods: ['PATCH'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'tasks',
+    apiPath: '/api/tasks',
+    relativeFilePath: 'src/app/api/tasks/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+
+  // treasury (1)
+  {
+    group: 'treasury',
+    apiPath: '/api/treasury',
+    relativeFilePath: 'src/app/api/treasury/route.ts',
+    declaredMethods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    classification: 'READ_AND_MUTATION',
+  },
+
+  // upload (1)
+  {
+    group: 'upload',
+    apiPath: '/api/upload',
+    relativeFilePath: 'src/app/api/upload/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+
+  // vendors (4)
+  {
+    group: 'vendors',
+    apiPath: '/api/vendors/grn',
+    relativeFilePath: 'src/app/api/vendors/grn/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'vendors',
+    apiPath: '/api/vendors/invoices',
+    relativeFilePath: 'src/app/api/vendors/invoices/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'vendors',
+    apiPath: '/api/vendors/matching/[requestId]',
+    relativeFilePath: 'src/app/api/vendors/matching/[requestId]/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'vendors',
+    apiPath: '/api/vendors',
+    relativeFilePath: 'src/app/api/vendors/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
+  },
+
+  // webhooks (2)
+  {
+    group: 'webhooks',
+    apiPath: '/api/webhooks/slack',
+    relativeFilePath: 'src/app/api/webhooks/slack/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'WEBHOOK',
+  },
+  {
+    group: 'webhooks',
+    apiPath: '/api/webhooks/whatsapp',
+    relativeFilePath: 'src/app/api/webhooks/whatsapp/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'WEBHOOK',
+  },
+];
