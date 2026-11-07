@@ -114,8 +114,7 @@ export async function POST(req: NextRequest) {
         const correlationId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const sessionId = isGroupScope ? `conv_${actor.id}` : `conv_${actor.id}_${scopedOrgId}`;
 
-        // Provide valid service token and scoped automation delegation token so n8n tools operate with bounded conversation authority
-        const authToken = process.env.BEMS_AI_SERVICE_TOKEN || '';
+        // Issue signed, expiring scoped automation delegation token so n8n tools operate strictly within caller's role, entity scope, and operation mode
         const canonicalActorRole = normalizeCanonicalRole(actor.role) || 'STAFF';
         const delegationToken = createScopedAutomationToken({
           requesterId: actor.id,
@@ -123,8 +122,10 @@ export async function POST(req: NextRequest) {
           conversationId: sessionId,
           scopedOrganizationId: scopedOrgId,
           allowedScopes: 'ALL',
+          operationMode: isReadOnlyUser ? 'READ_ONLY' : 'READ_AND_STAGE',
           ttlMs: 5 * 60 * 1000,
         });
+        const authToken = delegationToken;
 
         // Fetch recent conversation history from BEMS PostgreSQL memory
         let conversationHistory: any[] = [];

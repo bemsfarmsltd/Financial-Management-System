@@ -25,6 +25,8 @@ export function normalizeCanonicalRole(rawRole: unknown): CanonicalRole | null {
   return null;
 }
 
+export type DelegationOperationMode = 'READ_ONLY' | 'READ_AND_STAGE';
+
 export interface ScopedAutomationDelegation {
   tokenVersion: 1;
   requesterId: string;
@@ -32,6 +34,7 @@ export interface ScopedAutomationDelegation {
   conversationId: string;
   scopedOrganizationId: string | null;
   allowedScopes: AiAccessScopeKey[] | 'ALL';
+  operationMode: DelegationOperationMode;
   issuedAtMs: number;
   expiresAtMs: number;
 }
@@ -69,9 +72,18 @@ export function createScopedAutomationToken(input: {
   conversationId: string;
   scopedOrganizationId?: string | null;
   allowedScopes?: AiAccessScopeKey[] | 'ALL';
+  operationMode?: DelegationOperationMode;
   ttlMs?: number;
 }): string {
   const now = Date.now();
+  const isExecutiveRole = input.requesterRole === 'GMD' || input.requesterRole === 'SUPER_ADMIN';
+  const effectiveOperationMode: DelegationOperationMode =
+    !isExecutiveRole
+      ? 'READ_ONLY'
+      : input.operationMode === 'READ_ONLY'
+      ? 'READ_ONLY'
+      : 'READ_AND_STAGE';
+
   const payload: ScopedAutomationDelegation = {
     tokenVersion: 1,
     requesterId: input.requesterId,
@@ -79,6 +91,7 @@ export function createScopedAutomationToken(input: {
     conversationId: input.conversationId,
     scopedOrganizationId: input.scopedOrganizationId || null,
     allowedScopes: input.allowedScopes || 'ALL',
+    operationMode: effectiveOperationMode,
     issuedAtMs: now,
     expiresAtMs: now + (input.ttlMs ?? DELEGATION_TTL_MS),
   };
@@ -139,7 +152,20 @@ export function verifyScopedAutomationToken(token: string | null | undefined): {
       return { valid: false, reason: 'Delegation token has expired.' };
     }
 
-    return { valid: true, delegation: { ...parsed, requesterRole: role } };
+    const isExecutiveRole = role === 'GMD' || role === 'SUPER_ADMIN';
+    const normalizedOperationMode: DelegationOperationMode =
+      !isExecutiveRole || parsed.operationMode === 'READ_ONLY'
+        ? 'READ_ONLY'
+        : 'READ_AND_STAGE';
+
+    return {
+      valid: true,
+      delegation: {
+        ...parsed,
+        requesterRole: role,
+        operationMode: normalizedOperationMode,
+      },
+    };
   } catch {
     return { valid: false, reason: 'Failed to decode delegation payload.' };
   }

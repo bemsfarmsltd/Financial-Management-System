@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
-import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
+import { queryAuthorizedBudgets } from '@/lib/services/budget-read';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,37 +9,24 @@ export async function GET(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to view budgets.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
-      return NextResponse.json({ error: 'Executive access is required to view budgets.' }, { status: 403 });
-    }
     const { searchParams } = new URL(req.url);
     const organizationId = searchParams.get('organizationId') || searchParams.get('subsidiary');
 
-    const scope = await resolveAuthorizedOrganizationScope(actor, organizationId);
-    if (scope.organizationIds.length === 0) {
-      return NextResponse.json(
-        { budgets: [] },
-        { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' } }
-      );
-    }
-
-    const whereClause: any = {
-      organizationId: { in: scope.organizationIds },
-    };
-
-    const budgets = await prisma.budget.findMany({
-      where: whereClause,
-      include: {
-        organization: {
-          select: { id: true, legalName: true, code: true },
-        },
-        lines: true,
-      },
-      orderBy: { createdAt: 'desc' },
+    const result = await queryAuthorizedBudgets({
+      actor,
+      organizationId,
+      period: searchParams.get('period'),
+      status: searchParams.get('status') || 'ALL',
+      limit: searchParams.get('limit'),
+      offset: searchParams.get('offset'),
     });
 
+    if (!result.authorized) {
+      return NextResponse.json({ error: result.error }, { status: 403 });
+    }
+
     return NextResponse.json(
-      { budgets },
+      { budgets: result.budgets, scope: result.scope, pagination: result.pagination },
       { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' } }
     );
   } catch (error: any) {

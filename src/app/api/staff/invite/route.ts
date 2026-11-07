@@ -12,11 +12,18 @@ import {
 export const dynamic = 'force-dynamic';
 
 // Strict 3-Role Architecture & Onboarding Channel Separation:
-// Executive Email Invitations are strictly reserved for Super admin (SYSTEM_ADMIN / SUPER_ADMIN) and GMD.
+// Executive Email Invitations (POST /api/staff/invite) are strictly reserved for Super admin (SYSTEM_ADMIN / SUPER_ADMIN) and GMD.
 const ALLOWED_INVITE_ROLES = [
   'SYSTEM_ADMIN',
   'SUPER_ADMIN',
   'GMD',
+] as const;
+
+const ALLOWED_TOKEN_COMPLETION_ROLES = [
+  'SYSTEM_ADMIN',
+  'SUPER_ADMIN',
+  'GMD',
+  'STAFF',
 ] as const;
 
 // GET: Validate an invitation token OR list pending invitations for administrators
@@ -50,8 +57,8 @@ export async function GET(request: Request) {
         return NextResponse.json({ valid: false, error: 'This invitation link expired after 7 days. Please request a new invite.' }, { status: 410 });
       }
 
-      if (!ALLOWED_INVITE_ROLES.includes(invitation.role as any)) {
-        return NextResponse.json({ valid: false, error: 'This invitation specifies a non-executive role and is no longer valid.' }, { status: 403 });
+      if (!ALLOWED_TOKEN_COMPLETION_ROLES.includes(invitation.role as any)) {
+        return NextResponse.json({ valid: false, error: 'This invitation specifies an unrecognized role and is no longer valid.' }, { status: 403 });
       }
 
       let departmentName = '';

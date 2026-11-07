@@ -7,6 +7,8 @@ import {
   reconcileIntercompanyNotes,
 } from '@/lib/services/intercompany';
 import { stageAction } from '@/lib/staged-actions';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
+import { clampPagination } from '@/lib/platform/read-catalog';
 
 /**
  * AI & n8n Automation Tool: Automated Intercompany Debit/Credit Ledger
@@ -31,30 +33,80 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const matrix = await getIntercompanyMatrix();
+  const url = new URL(req.url);
+  const requestedOrgId =
+    url.searchParams.get('subsidiary') ||
+    url.searchParams.get('organization_id') ||
+    url.searchParams.get('subsidiary_id') ||
+    actor.scopedOrganizationId ||
+    'ALL';
+  const scope = await resolveAuthorizedOrganizationScope(actor as any, requestedOrgId);
+  const { limit, offset } = clampPagination(
+    url.searchParams.get('limit'),
+    url.searchParams.get('offset'),
+    50,
+    25
+  );
+
+  const fullMatrix = await getIntercompanyMatrix();
+  const scopedMatrix = scope.isGroup
+    ? fullMatrix
+    : fullMatrix.filter((row) => scope.organizationIds.includes(row.organizationId));
+
+  const totalReceivables = scopedMatrix.reduce((acc, m) => acc + m.receivables, 0);
+  const totalPayables = scopedMatrix.reduce((acc, m) => acc + m.payables, 0);
+
+  const notesWhere: Record<string, any> = {
+    status: 'ISSUED',
+    ...(scope.isGroup
+      ? {}
+      : {
+          OR: [
+            { sourceEntityId: { in: scope.organizationIds } },
+            { targetEntityId: { in: scope.organizationIds } },
+          ],
+        }),
+  };
+
   const notes = await prisma.intercompanyNote.findMany({
-    where: { status: 'ISSUED' },
+    where: notesWhere,
     include: {
       sourceEntity: { select: { id: true, legalName: true, code: true } },
       targetEntity: { select: { id: true, legalName: true, code: true } },
     },
     orderBy: { generatedAt: 'desc' },
-    take: 50,
+    take: limit,
+    skip: offset,
   });
+
+  const activeNotesTotalAmount = notes.reduce(
+    (acc, n) => acc + Number(n.totalAmountMinor) / 100,
+    0
+  );
 
   return NextResponse.json({
     ok: true,
     service: 'BEMS AI Intercompany Clearing Ledger',
+    scope: {
+      isGroup: scope.isGroup,
+      organizationIds: scope.organizationIds,
+    },
     matrixSummary: {
-      totalEntities: matrix.length,
-      matrix,
+      totalEntities: scopedMatrix.length,
+      totalReceivables,
+      totalPayables,
+      isBalanced: scope.isGroup ? Math.abs(totalReceivables - totalPayables) < 0.01 : undefined,
+      matrix: scopedMatrix,
     },
     activeNotesCount: notes.length,
+    activeNotesTotalAmount,
     activeNotes: notes.map((n) => ({
       id: n.id,
       noteNumber: n.noteNumber,
       noteType: n.noteType,
+      sourceEntityId: n.sourceEntityId,
       source: n.sourceEntity.legalName,
+      targetEntityId: n.targetEntityId,
       target: n.targetEntity.legalName,
       amount: Number(n.totalAmountMinor) / 100,
       currency: n.currency,

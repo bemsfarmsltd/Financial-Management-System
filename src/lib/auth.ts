@@ -148,6 +148,10 @@ export async function getAuthenticatedEmployee(
   if (canUseServiceToken && candidateDelegation) {
     const verified = verifyScopedAutomationToken(candidateDelegation);
     if (verified.valid && verified.delegation) {
+      const isWriteMethod = method !== 'GET' && method !== 'HEAD';
+      if (isWriteMethod && verified.delegation.operationMode === 'READ_ONLY') {
+        return null;
+      }
       const employee = await prisma.employee.findFirst({
         where: {
           id: verified.delegation.requesterId,
@@ -172,7 +176,7 @@ export async function getAuthenticatedEmployee(
   if (candidateToken) {
     const token = candidateToken;
 
-    // A. Check service API key ONLY when service tokens are permitted (never for human confirmation or ordinary dashboard mutations)
+    // A. Check service API key ONLY when service tokens are permitted and an explicit targetUserId is provided
     const serviceSecrets = [
       process.env.BEMS_AI_SERVICE_TOKEN,
       process.env.BEMS_N8N_SHARED_SECRET,
@@ -195,9 +199,14 @@ export async function getAuthenticatedEmployee(
           } catch {}
         }
 
-        const employee = targetUserId
-          ? await prisma.employee.findFirst({ where: { id: targetUserId, status: 'ACTIVE', approvalStatus: 'APPROVED' } })
-          : await prisma.employee.findFirst({ where: { role: { in: ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] }, status: 'ACTIVE', approvalStatus: 'APPROVED' } });
+        const trimmedTargetId = (targetUserId || '').trim();
+        if (!trimmedTargetId) {
+          return null;
+        }
+
+        const employee = await prisma.employee.findFirst({
+          where: { id: trimmedTargetId, status: 'ACTIVE', approvalStatus: 'APPROVED' },
+        });
 
         if (employee) {
           return {

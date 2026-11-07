@@ -12,6 +12,8 @@
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   normalizeCanonicalRole,
   createScopedAutomationToken,
@@ -79,6 +81,22 @@ async function main() {
   assert.equal(verified.delegation.conversationId, 'conv_emp_test_gmd');
   assert.equal(verified.delegation.scopedOrganizationId, 'org_bbh');
   assert.deepEqual(verified.delegation.allowedScopes, ['budgets', 'approvals']);
+  assert.equal(verified.delegation.operationMode, 'READ_AND_STAGE');
+
+  const staffToken = createScopedAutomationToken({
+    requesterId: 'emp_test_staff',
+    requesterRole: 'STAFF',
+    conversationId: 'conv_emp_test_staff',
+    scopedOrganizationId: 'org_bbh',
+    operationMode: 'READ_AND_STAGE', // Non-executive must still be forced to READ_ONLY
+  });
+  const verifiedStaff = verifyScopedAutomationToken(staffToken);
+  assert.equal(verifiedStaff.valid, true);
+  assert.equal(
+    verifiedStaff.delegation?.operationMode,
+    'READ_ONLY',
+    'Non-executive delegation token must always enforce READ_ONLY operationMode'
+  );
 
   const tampered = token.slice(0, -4) + 'ffff';
   assert.equal(verifyScopedAutomationToken(tampered).valid, false, 'Tampered delegation token must be rejected');
@@ -231,7 +249,45 @@ async function main() {
   assert.equal(projected?.bvn, '*******5667');
   console.log('  ✓ Canonical domain states, exact kobo serialization, dated prefixes, and safe DTO projections verified.');
 
-  console.log('\nAll 7 Platform Architecture Pillars & Audit Item 07 Checks PASSED.');
+  // 8. Audit Item 08: Read Leakage Prevention, Delegated Scope Enforcement & Expiring Onboarding Invites
+  console.log('[8/8] Verifying Audit Item 08 Read Leakage Prevention & Expiring Single-Use Onboarding...');
+  const repoRoot = path.resolve(__dirname, '..');
+  const approvalsSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/ai/tools/approvals/route.ts'), 'utf8');
+  assert.ok(approvalsSource.includes('resolveAuthorizedOrganizationScope'), 'Approvals GET must enforce entity scope');
+  assert.ok(approvalsSource.includes('ALLOWED_APPROVAL_STATUS_FILTERS'), 'Approvals GET must validate status filter');
+  assert.ok(approvalsSource.includes('maskIdentifierPii'), 'Approvals GET must mask bank account numbers');
+  assert.ok(approvalsSource.includes('beneficiaryId'), 'Approvals GET must include exact beneficiaryId');
+
+  const vendorsSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/ai/tools/vendors/route.ts'), 'utf8');
+  assert.ok(vendorsSource.includes('resolveAuthorizedOrganizationScope'), 'Vendors GET must enforce entity scope');
+  assert.ok(vendorsSource.includes('includeFinancialDetails'), 'Vendors GET must gate financial details independently');
+  assert.ok(vendorsSource.includes('DIRECTORY_RESTRICTED'), 'Vendors GET must use restricted projection by default');
+
+  const intercompanySource = fs.readFileSync(path.join(repoRoot, 'src/app/api/ai/tools/intercompany/route.ts'), 'utf8');
+  assert.ok(intercompanySource.includes('resolveAuthorizedOrganizationScope'), 'Intercompany GET must enforce entity scope');
+  assert.ok(intercompanySource.includes('scopedMatrix'), 'Intercompany GET must apply entity scope to matrix rows and totals');
+
+  const subsidiarySource = fs.readFileSync(path.join(repoRoot, 'src/app/api/ai/tools/subsidiary/route.ts'), 'utf8');
+  assert.ok(subsidiarySource.includes('resolveAuthorizedOrganizationScope'), 'Subsidiary GET must scope to approved entities');
+  assert.ok(subsidiarySource.includes('PUBLIC_DIRECTORY_METADATA'), 'Subsidiary GET must split public metadata from executive metrics');
+
+  const budgetsToolSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/ai/tools/budgets/route.ts'), 'utf8');
+  const budgetsDashboardSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/budgets/route.ts'), 'utf8');
+  assert.ok(budgetsToolSource.includes('queryAuthorizedBudgets'), 'AI budgets GET must share queryAuthorizedBudgets');
+  assert.ok(budgetsDashboardSource.includes('queryAuthorizedBudgets'), 'Dashboard budgets GET must share queryAuthorizedBudgets');
+
+  const onboardSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/staff/onboard/route.ts'), 'utf8');
+  assert.ok(
+    onboardSource.includes('adminInvitation.create') && onboardSource.includes('Caller-supplied initial passwords are not accepted'),
+    'POST /api/staff/onboard must reject caller-supplied passwords and issue expiring single-use invitations'
+  );
+
+  const aiAuthSource = fs.readFileSync(path.join(repoRoot, 'src/lib/ai-tools-auth.ts'), 'utf8');
+  assert.ok(aiAuthSource.includes('DELEGATION_READ_ONLY'), 'authenticateAiToolRequest must enforce READ_ONLY delegation boundary');
+  assert.ok(aiAuthSource.includes('SERVICE_TOKEN_MISSING_DELEGATION'), 'authenticateAiToolRequest must not default unscoped service tokens to an executive');
+  console.log('  ✓ All Audit Item 08 read-leakage, delegation boundary, and onboarding checks verified.');
+
+  console.log('\nAll 8 Platform Architecture Pillars & Audit Item 07/08 Checks PASSED.');
 }
 
 main().catch((err) => {

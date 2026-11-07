@@ -77,11 +77,12 @@ export async function authenticateAiToolRequest(
 
   const delegationHeader =
     req.headers.get('x-bems-delegation-token') ||
-    req.headers.get('x-delegation-token');
+    req.headers.get('x-delegation-token') ||
+    url.searchParams.get('delegation_token');
   const apiKey = req.headers.get('x-api-key');
   const authHeader = req.headers.get('authorization');
   const bearerToken = authHeader?.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : null;
-  const candidateSecret = apiKey || bearerToken;
+  const candidateSecret = apiKey || bearerToken || url.searchParams.get('auth_token');
 
   // 1. Check Scoped Automation Delegation Token (bems_del_v1.*) first
   const candidateDelegation =
@@ -105,6 +106,20 @@ export async function authenticateAiToolRequest(
     }
 
     const del = verified.delegation;
+    if (mode === 'write' && del.operationMode === 'READ_ONLY') {
+      return {
+        actor: null,
+        errorResponse: NextResponse.json(
+          {
+            ok: false,
+            error_code: 'DELEGATION_READ_ONLY',
+            message: 'Read-only delegation cannot stage or execute write operations.',
+          },
+          { status: 403 }
+        ),
+      };
+    }
+
     if (
       scopeKey &&
       Array.isArray(del.allowedScopes) &&
@@ -177,23 +192,49 @@ export async function authenticateAiToolRequest(
     });
 
     if (matchedSecret) {
-      const targetUserId = (req.headers.get('x-user-id') || req.headers.get('x-employee-id') || '').trim();
-      const conversationId = (req.headers.get('x-conversation-id') || req.headers.get('x-session-id') || '').trim() || null;
-      const employee = targetUserId
-        ? await prisma.employee.findFirst({
-            where: { id: targetUserId, status: 'ACTIVE', approvalStatus: 'APPROVED' },
-          })
-        : await prisma.employee.findFirst({
-            where: {
-              role: { in: ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] },
-              status: 'ACTIVE',
-              approvalStatus: 'APPROVED',
+      const targetUserId = (
+        req.headers.get('x-user-id') ||
+        req.headers.get('x-employee-id') ||
+        req.headers.get('x-actor-id') ||
+        url.searchParams.get('user_id') ||
+        url.searchParams.get('employee_id') ||
+        ''
+      ).trim();
+      if (!targetUserId) {
+        return {
+          actor: null,
+          errorResponse: NextResponse.json(
+            {
+              ok: false,
+              error_code: 'SERVICE_TOKEN_MISSING_DELEGATION',
+              message:
+                'Service token requests must supply a signed delegation token (bems_del_v1.*) or an explicit x-user-id / x-employee-id header.',
             },
-            orderBy: { role: 'asc' },
-          });
+            { status: 401 }
+          ),
+        };
+      }
+      const conversationId = (req.headers.get('x-conversation-id') || req.headers.get('x-session-id') || '').trim() || null;
+      const employee = await prisma.employee.findFirst({
+        where: { id: targetUserId, status: 'ACTIVE', approvalStatus: 'APPROVED' },
+      });
 
       const canonicalRole = employee ? normalizeCanonicalRole(employee.role) : null;
       if (employee && canonicalRole) {
+        const isExec = hasAnyRole(employee, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
+        if (mode === 'write' && !isExec) {
+          return {
+            actor: null,
+            errorResponse: NextResponse.json(
+              {
+                ok: false,
+                error_code: 'DELEGATION_READ_ONLY',
+                message: 'Non-executive callers cannot stage or execute AI tool write operations.',
+              },
+              { status: 403 }
+            ),
+          };
+        }
         return {
           actor: {
             id: employee.id,
@@ -202,7 +243,7 @@ export async function authenticateAiToolRequest(
             canonicalRole,
             workEmail: employee.workEmail,
             phone: employee.phone,
-            isExecutive: hasAnyRole(employee, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']),
+            isExecutive: isExec,
             authSource: 'SERVICE_TOKEN',
             conversationId: conversationId || `conv_${employee.id}`,
             scopedOrganizationId: req.headers.get('x-subsidiary-id') || null,

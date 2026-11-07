@@ -4,6 +4,8 @@ import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
 import { getThreeWayMatchSummary } from '@/lib/services/three-way-match';
 import { stageAction } from '@/lib/staged-actions';
 import { checkAiScopeOrResponse } from '@/lib/ai-access-control';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
+import { clampPagination, maskIdentifierPii } from '@/lib/platform/read-catalog';
 
 /**
  * AI & n8n Automation Tool: Vendor Registry & 3-Way Match Verification
@@ -15,24 +17,32 @@ import { checkAiScopeOrResponse } from '@/lib/ai-access-control';
  *   - Action 'CHECK_MATCH': Evaluate 3-way match (PO vs GRN vs Invoice)
  */
 export async function GET(req: NextRequest) {
-  const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const { searchParams } = new URL(req.url);
+  const requestId = (searchParams.get('requestId') || searchParams.get('request_id') || '').trim();
+  const search = (searchParams.get('search') || '').trim();
+  const includeFinancialDetails =
+    searchParams.get('includeFinancialDetails') === 'true' ||
+    searchParams.get('financial_details') === 'true';
+
+  const { actor, errorResponse } = await authenticateAiToolRequest(req, {
+    scope: requestId ? 'three_way_match' : 'vendors',
+    mode: 'read',
+  });
   if (errorResponse) return errorResponse;
   if (!actor) {
     return NextResponse.json({ ok: false, error_code: 'UNAUTHORIZED', message: 'Unauthorized' }, { status: 401 });
   }
   const isExecutive = actor.isExecutive;
-  if (!isExecutive) {
-    return NextResponse.json(
-      { ok: false, error_code: 'FORBIDDEN', message: 'Executive access is required to inspect the vendor banking registry and 3-way match dossiers.' },
-      { status: 403 }
-    );
-  }
 
-  const { searchParams } = new URL(req.url);
-  const requestId = searchParams.get('requestId') || '';
-  const search = searchParams.get('search') || '';
+  const requestedOrgId =
+    searchParams.get('subsidiary') ||
+    searchParams.get('organization_id') ||
+    searchParams.get('subsidiary_id') ||
+    actor.scopedOrganizationId ||
+    'ALL';
+  const scope = await resolveAuthorizedOrganizationScope(actor as any, requestedOrgId);
 
-  // If requestId provided, return 3-Way Match Verification Dossier
+  // 1. Request Match Dossier permission & target ownership check
   if (requestId) {
     const request = await prisma.expenditureRequest.findFirst({
       where: {
@@ -44,15 +54,50 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Request "${requestId}" not found.` }, { status: 404 });
     }
 
+    const withinOrgScope = scope.organizationIds.includes(request.subsidiaryId);
+    const isOwnerOrExec = isExecutive || request.requestedById === actor.id;
+    if (!withinOrgScope || !isOwnerOrExec) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'FORBIDDEN',
+          message: 'You do not have permission or entity scope to inspect the 3-way match dossier for this request.',
+        },
+        { status: 403 }
+      );
+    }
+
     const match = await getThreeWayMatchSummary(request.id);
     return NextResponse.json({
       ok: true,
       service: 'BEMS AI 3-Way Match Inspector',
+      requestId: request.id,
+      requestNumber: request.requestNumber,
+      subsidiaryId: request.subsidiaryId,
       threeWayMatch: match.summary,
     });
   }
 
-  // Otherwise list vendors
+  // 2. Financial-detail permission check
+  if (includeFinancialDetails && !isExecutive) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error_code: 'FORBIDDEN',
+        message: 'Executive access is required to inspect vendor tax IDs and banking details.',
+      },
+      { status: 403 }
+    );
+  }
+
+  // 3. Vendor Directory read with restricted projections
+  const { limit, offset } = clampPagination(
+    searchParams.get('limit'),
+    searchParams.get('offset'),
+    50,
+    25
+  );
+
   const where: any = {};
   if (search) {
     where.OR = [
@@ -69,31 +114,55 @@ export async function GET(req: NextRequest) {
         select: { requests: true, invoices: true },
       },
     },
-    take: 50,
+    take: limit,
+    skip: offset,
     orderBy: { name: 'asc' },
   });
 
   return NextResponse.json({
     ok: true,
     service: 'BEMS AI Vendor Registry',
+    projection: isExecutive && includeFinancialDetails ? 'EXECUTIVE_FINANCIAL' : 'DIRECTORY_RESTRICTED',
     count: vendors.length,
-    vendors: vendors.map((v) => ({
-      id: v.id,
-      name: v.name,
-      code: v.code,
-      category: v.category,
-      taxId: v.taxId,
-      contactEmail: v.contactEmail,
-      contactPhone: v.contactPhone,
-      bank: {
-        bankName: v.bankName,
-        accountNumber: v.accountNumber,
-        accountName: v.accountName,
-      },
-      rating: v.rating,
-      totalPOs: v._count.requests,
-      totalInvoices: v._count.invoices,
-    })),
+    vendors: vendors.map((v) => {
+      const baseDirectoryProjection = {
+        id: v.id,
+        name: v.name,
+        code: v.code,
+        category: v.category,
+        rating: v.rating,
+        totalPOs: v._count.requests,
+        totalInvoices: v._count.invoices,
+      };
+
+      if (!isExecutive) {
+        return baseDirectoryProjection;
+      }
+
+      if (!includeFinancialDetails) {
+        return {
+          ...baseDirectoryProjection,
+          taxId: v.taxId ? maskIdentifierPii(v.taxId) : null,
+          bank: {
+            bankName: v.bankName,
+            accountNumber: v.accountNumber ? maskIdentifierPii(v.accountNumber) : null,
+            accountName: v.accountName,
+          },
+        };
+      }
+
+      return {
+        ...baseDirectoryProjection,
+        taxId: v.taxId ? maskIdentifierPii(v.taxId) : null,
+        contactEmail: v.contactEmail,
+        contactPhone: v.contactPhone,
+        bank: {
+          bankName: v.bankName,
+          accountNumber: v.accountNumber ? maskIdentifierPii(v.accountNumber) : null,
+          accountName: v.accountName,
+        },
+      };
+    }),
   });
 }
 
@@ -132,6 +201,20 @@ export async function POST(req: NextRequest) {
 
     if (!request) {
       return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Request "${requestId}" not found.` }, { status: 404 });
+    }
+
+    const scope = await resolveAuthorizedOrganizationScope(actor as any, actor.scopedOrganizationId || 'ALL');
+    const withinOrgScope = scope.organizationIds.includes(request.subsidiaryId);
+    const isOwnerOrExec = isExecutive || request.requestedById === actor.id;
+    if (!withinOrgScope || !isOwnerOrExec) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error_code: 'FORBIDDEN',
+          message: 'You do not have permission or entity scope to inspect the 3-way match dossier for this request.',
+        },
+        { status: 403 }
+      );
     }
 
     const match = await getThreeWayMatchSummary(request.id);

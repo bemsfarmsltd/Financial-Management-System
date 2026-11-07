@@ -3,8 +3,20 @@ import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
 import { generateDisbursementLinks } from '@/lib/bank-utils';
 import { stageAction } from '@/lib/staged-actions';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
+import { clampPagination, maskIdentifierPii } from '@/lib/platform/read-catalog';
 
 export const dynamic = 'force-dynamic';
+
+const ALLOWED_APPROVAL_STATUS_FILTERS = new Set([
+  'PENDING',
+  'SUBMITTED',
+  'IN_REVIEW',
+  'CLARIFICATION_REQUESTED',
+  'APPROVED',
+  'REJECTED',
+  'ALL',
+]);
 
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
@@ -17,14 +29,52 @@ export async function GET(req: NextRequest) {
   }
 
   const url = new URL(req.url);
-  const statusFilter = url.searchParams.get('status') || 'PENDING';
-  const limit = Math.min(Number(url.searchParams.get('limit')) || 20, 50);
+  const statusFilter = (url.searchParams.get('status') || 'PENDING').toUpperCase().trim();
+  if (!ALLOWED_APPROVAL_STATUS_FILTERS.has(statusFilter)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error_code: 'INVALID_STATUS_FILTER',
+        message: `Invalid status filter "${statusFilter}". Allowed values: PENDING, SUBMITTED, IN_REVIEW, CLARIFICATION_REQUESTED, APPROVED, REJECTED, ALL.`,
+      },
+      { status: 400 }
+    );
+  }
 
-  const whereClause: any = {};
+  const requestedOrgId =
+    url.searchParams.get('subsidiary') ||
+    url.searchParams.get('organization_id') ||
+    url.searchParams.get('subsidiary_id') ||
+    actor.scopedOrganizationId ||
+    'ALL';
+  const scope = await resolveAuthorizedOrganizationScope(actor as any, requestedOrgId);
+  if (scope.organizationIds.length === 0) {
+    return NextResponse.json({
+      ok: true,
+      count: 0,
+      scope: { isGroup: scope.isGroup, organizationIds: [] },
+      requests: [],
+    });
+  }
+
+  const { limit, offset } = clampPagination(
+    url.searchParams.get('limit'),
+    url.searchParams.get('offset'),
+    50,
+    20
+  );
+  const requestIdFilter = (url.searchParams.get('requestId') || url.searchParams.get('request_id') || '').trim();
+
+  const whereClause: any = {
+    subsidiaryId: { in: scope.organizationIds },
+  };
   if (statusFilter === 'PENDING') {
-    whereClause.approvalStatus = { in: ['SUBMITTED', 'IN_REVIEW'] };
-  } else if (statusFilter === 'APPROVED') {
-    whereClause.approvalStatus = 'APPROVED';
+    whereClause.approvalStatus = { in: ['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'] };
+  } else if (statusFilter !== 'ALL') {
+    whereClause.approvalStatus = statusFilter;
+  }
+  if (requestIdFilter) {
+    whereClause.OR = [{ id: requestIdFilter }, { requestNumber: requestIdFilter }];
   }
 
   const requests = await prisma.expenditureRequest.findMany({
@@ -50,6 +100,7 @@ export async function GET(req: NextRequest) {
     },
     orderBy: { createdAt: 'desc' },
     take: limit,
+    skip: offset,
   });
 
   const baseUrl = req.nextUrl.origin || 'https://bemserp.work';
@@ -57,32 +108,46 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     count: requests.length,
+    scope: {
+      isGroup: scope.isGroup,
+      organizationIds: scope.organizationIds,
+    },
     requests: requests.map((r) => {
       const amountNaira = Number(r.amountMinor) / 100;
+      const beneficiaryId = r.vendor ? r.vendor.id : r.requester.id;
+      const beneficiaryType: 'VENDOR' | 'STAFF' = r.vendor ? 'VENDOR' : 'STAFF';
+      const rawAccountNumber = r.vendor ? r.vendor.accountNumber : r.requester.accountNumber;
+      const maskedAccountNumber = rawAccountNumber ? maskIdentifierPii(rawAccountNumber) || 'Not Set' : 'Not Set';
+
       const accountHolder = r.vendor
         ? {
+            beneficiaryId: r.vendor.id,
+            beneficiaryType: 'VENDOR' as const,
             name: r.vendor.accountName || r.vendor.name,
             bankName: r.vendor.bankName || 'Not Set',
-            accountNumber: r.vendor.accountNumber || 'Not Set',
-            type: 'VENDOR',
+            accountNumber: maskedAccountNumber,
+            type: 'VENDOR' as const,
           }
         : {
+            beneficiaryId: r.requester.id,
+            beneficiaryType: 'STAFF' as const,
             name: r.requester.accountName || r.requester.legalName,
             bankName: r.requester.bankName || 'Not Set',
-            accountNumber: r.requester.accountNumber || 'Not Set',
-            type: 'STAFF',
+            accountNumber: maskedAccountNumber,
+            type: 'STAFF' as const,
           };
 
-      const links = accountHolder.accountNumber !== 'Not Set'
-        ? generateDisbursementLinks({
-            amountNaira,
-            accountNumber: accountHolder.accountNumber,
-            accountName: accountHolder.name,
-            bankName: accountHolder.bankName,
-            reference: r.requestNumber,
-            baseUrl,
-          })
-        : null;
+      const links =
+        requestIdFilter && rawAccountNumber
+          ? generateDisbursementLinks({
+              amountNaira,
+              accountNumber: rawAccountNumber,
+              accountName: accountHolder.name,
+              bankName: accountHolder.bankName,
+              reference: r.requestNumber,
+              baseUrl,
+            })
+          : null;
 
       return {
         id: r.id,
@@ -93,11 +158,15 @@ export async function GET(req: NextRequest) {
         status: r.approvalStatus,
         category: r.category,
         requestType: r.requestType,
+        subsidiaryId: r.subsidiaryId,
         subsidiary: r.subsidiary?.legalName || 'BEMS Group',
+        requesterId: r.requester.id,
         requester: r.requester.legalName,
+        beneficiaryId,
+        beneficiaryType,
         createdAt: r.createdAt,
         accountDetails: accountHolder,
-        disbursement: links,
+        ...(links ? { disbursement: links } : {}),
       };
     }),
   });

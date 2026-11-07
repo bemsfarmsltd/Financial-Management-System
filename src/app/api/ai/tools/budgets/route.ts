@@ -2,55 +2,66 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
 import { stageAction } from '@/lib/staged-actions';
+import { queryAuthorizedBudgets } from '@/lib/services/budget-read';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
   if (errorResponse) return errorResponse;
-  if (!actor || !actor.isExecutive) {
+  if (!actor) {
     return NextResponse.json(
-      { ok: false, error_code: 'FORBIDDEN', message: 'Executive access is required to view budgets.' },
-      { status: 403 }
+      { ok: false, error_code: 'UNAUTHORIZED', message: 'Authentication is required to view budgets.' },
+      { status: 401 }
     );
   }
 
   const { searchParams } = new URL(req.url);
-  const organizationId = searchParams.get('organization_id') || searchParams.get('subsidiary_id');
+  const organizationId =
+    searchParams.get('organization_id') ||
+    searchParams.get('subsidiary_id') ||
+    searchParams.get('organizationId') ||
+    searchParams.get('subsidiary');
   const period = searchParams.get('period');
   const status = searchParams.get('status') || 'ACTIVE';
 
-  const whereClause: any = {};
-  if (organizationId) whereClause.organizationId = organizationId;
-  if (status !== 'ALL') whereClause.status = status;
-  if (period) whereClause.periodName = { contains: period, mode: 'insensitive' };
+  const result = await queryAuthorizedBudgets({
+    actor,
+    organizationId,
+    period,
+    status,
+    limit: searchParams.get('limit'),
+    offset: searchParams.get('offset'),
+  });
 
-  const [budgets, recurringRequests] = await Promise.all([
-    prisma.budget.findMany({
-      where: whereClause,
-      include: {
-        organization: { select: { id: true, legalName: true, code: true } },
-        lines: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.expenditureRequest.findMany({
-      where: {
-        isRecurring: true,
-        ...(organizationId && organizationId !== 'ALL' ? { subsidiaryId: organizationId } : {}),
-      },
-      select: {
-        id: true,
-        requestNumber: true,
-        title: true,
-        subsidiaryId: true,
-        amountMinor: true,
-        recurringInterval: true,
-        approvalStatus: true,
-        neededBy: true,
-      },
-    }),
-  ]);
+  if (!result.authorized) {
+    return NextResponse.json(
+      { ok: false, error_code: 'FORBIDDEN', message: result.error },
+      { status: 403 }
+    );
+  }
+
+  const budgets = result.budgets;
+  const recurringRequests =
+    result.scope.organizationIds.length > 0
+      ? await prisma.expenditureRequest.findMany({
+          where: {
+            isRecurring: true,
+            subsidiaryId: { in: result.scope.organizationIds },
+          },
+          select: {
+            id: true,
+            requestNumber: true,
+            title: true,
+            subsidiaryId: true,
+            amountMinor: true,
+            recurringInterval: true,
+            approvalStatus: true,
+            neededBy: true,
+          },
+          take: result.pagination.limit,
+        })
+      : [];
 
   let recurringAnnualRunRateMinor = 0;
   for (const r of recurringRequests) {
@@ -64,6 +75,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     total: budgets.length,
+    scope: result.scope,
+    pagination: result.pagination,
     recurringCommitmentsSummary: {
       totalRecurringRequests: recurringRequests.length,
       approvedRecurringCount: recurringRequests.filter((r) => r.approvalStatus === 'APPROVED').length,

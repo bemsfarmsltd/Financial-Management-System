@@ -3,21 +3,51 @@ import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
 import { stageAction } from '@/lib/staged-actions';
 import { checkAiScopeOrResponse } from '@/lib/ai-access-control';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
+import { clampPagination } from '@/lib/platform/read-catalog';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
   if (errorResponse) return errorResponse;
-  if (!actor || !actor.isExecutive) {
+  if (!actor) {
     return NextResponse.json(
-      { ok: false, error_code: 'FORBIDDEN', message: 'Executive access is required to view group subsidiary financial metrics.' },
-      { status: 403 }
+      { ok: false, error_code: 'UNAUTHORIZED', message: 'Authentication is required to view subsidiary directory.' },
+      { status: 401 }
     );
   }
 
+  const url = new URL(req.url);
+  const requestedOrgId =
+    url.searchParams.get('subsidiary') ||
+    url.searchParams.get('organization_id') ||
+    url.searchParams.get('subsidiary_id') ||
+    actor.scopedOrganizationId ||
+    'ALL';
+  const scope = await resolveAuthorizedOrganizationScope(actor as any, requestedOrgId);
+  const { limit, offset } = clampPagination(
+    url.searchParams.get('limit'),
+    url.searchParams.get('offset'),
+    50,
+    25
+  );
+
+  if (scope.organizationIds.length === 0) {
+    return NextResponse.json({
+      ok: true,
+      total: 0,
+      projection: actor.isExecutive ? 'EXECUTIVE_OPERATING_METRICS' : 'PUBLIC_DIRECTORY_METADATA',
+      scope: { isGroup: scope.isGroup, organizationIds: [] },
+      subsidiaries: [],
+    });
+  }
+
   const subsidiaries = await prisma.organization.findMany({
-    where: { status: 'ACTIVE' },
+    where: {
+      status: 'ACTIVE',
+      id: { in: scope.organizationIds },
+    },
     select: {
       id: true,
       legalName: true,
@@ -27,44 +57,71 @@ export async function GET(req: NextRequest) {
       brandColor: true,
       logoUrl: true,
       createdAt: true,
-      budgets: {
-        where: { status: 'ACTIVE' },
-        select: { totalAmount: true },
-        take: 1,
-      },
+      ...(actor.isExecutive
+        ? {
+            budgets: {
+              where: { status: 'ACTIVE' },
+              select: { totalAmount: true },
+              take: 1,
+            },
+            _count: {
+              select: {
+                employeeAssignments: true,
+                expenditureRequests: true,
+              },
+            },
+          }
+        : {}),
       settings: {
-        where: { key: { in: ['SUBSIDIARY_INDUSTRY', 'HEADQUARTERS_LOCATION', 'RC_NUMBER'] } },
-        select: { key: true, value: true },
-      },
-      _count: {
-        select: {
-          employeeAssignments: true,
-          expenditureRequests: true,
+        where: {
+          key: {
+            in: actor.isExecutive
+              ? ['SUBSIDIARY_INDUSTRY', 'HEADQUARTERS_LOCATION', 'RC_NUMBER']
+              : ['SUBSIDIARY_INDUSTRY', 'HEADQUARTERS_LOCATION'],
+          },
         },
+        select: { key: true, value: true },
       },
     },
     orderBy: { legalName: 'asc' },
+    take: limit,
+    skip: offset,
   });
 
   return NextResponse.json({
     ok: true,
     total: subsidiaries.length,
-    subsidiaries: subsidiaries.map((s) => ({
-      id: s.id,
-      name: s.legalName,
-      code: s.code,
-      type: s.type,
-      currency: s.defaultCurrency,
-      brandColor: s.brandColor || '#EA580C',
-      industry: s.settings.find((st) => st.key === 'SUBSIDIARY_INDUSTRY')?.value || 'Operating Subsidiary',
-      headquarters: s.settings.find((st) => st.key === 'HEADQUARTERS_LOCATION')?.value || 'Lagos, Nigeria',
-      rcNumber: s.settings.find((st) => st.key === 'RC_NUMBER')?.value || null,
-      logoUrl: s.logoUrl,
-      monthlyBudget: Number(s.budgets[0]?.totalAmount) || 0,
-      totalStaff: s._count.employeeAssignments,
-      totalRequests: s._count.expenditureRequests,
-      createdAt: s.createdAt,
-    })),
+    projection: actor.isExecutive ? 'EXECUTIVE_OPERATING_METRICS' : 'PUBLIC_DIRECTORY_METADATA',
+    scope: {
+      isGroup: scope.isGroup,
+      organizationIds: scope.organizationIds,
+    },
+    subsidiaries: subsidiaries.map((s: any) => {
+      const publicMetadata = {
+        id: s.id,
+        name: s.legalName,
+        code: s.code,
+        type: s.type,
+        currency: s.defaultCurrency,
+        brandColor: s.brandColor || '#EA580C',
+        industry: s.settings.find((st: any) => st.key === 'SUBSIDIARY_INDUSTRY')?.value || 'Operating Subsidiary',
+        headquarters: s.settings.find((st: any) => st.key === 'HEADQUARTERS_LOCATION')?.value || 'Lagos, Nigeria',
+        logoUrl: s.logoUrl,
+        createdAt: s.createdAt,
+      };
+
+      if (!actor.isExecutive) {
+        return publicMetadata;
+      }
+
+      return {
+        ...publicMetadata,
+        rcNumber: s.settings.find((st: any) => st.key === 'RC_NUMBER')?.value || null,
+        monthlyBudget: Number(s.budgets?.[0]?.totalAmount) || 0,
+        totalStaff: s._count?.employeeAssignments || 0,
+        totalRequests: s._count?.expenditureRequests || 0,
+      };
+    }),
   });
 }
 

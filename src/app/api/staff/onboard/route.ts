@@ -1,13 +1,12 @@
+import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import {
   getAuthenticatedEmployee,
   getHrAuthorizationScope,
   hasAnyRole,
-  hashPassword,
-  publicEmployee,
 } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { sendStaffLoginReadyEmail } from '@/lib/email';
+import { sendAdminInvitationEmail } from '@/lib/email';
 import { recordEmployeeAuditEvent } from '@/lib/employee-lifecycle';
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +15,7 @@ export const dynamic = 'force-dynamic';
 // Direct onboarding via /api/staff/onboard is strictly reserved for STAFF profiles.
 // Executive accounts (GMD, SUPER_ADMIN / SYSTEM_ADMIN) MUST use the Executive Email Invitation flow (/api/staff/invite -> /api/staff/onboard/complete).
 const VALID_ROLES = ['STAFF'] as const;
+const INVITATION_EXPIRY_DAYS = 7;
 
 export async function POST(request: Request) {
   try {
@@ -34,15 +34,23 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const legalName = typeof body.legalName === 'string' ? body.legalName.trim() : '';
     const workEmail = typeof body.workEmail === 'string' ? body.workEmail.trim().toLowerCase() : '';
-    const phone = typeof body.phone === 'string' ? body.phone.trim() : null;
     const requestedRole = typeof body.role === 'string' ? body.role.trim().toUpperCase() : 'STAFF';
-    const password = typeof body.password === 'string' ? body.password : '';
     const subsidiaryId = typeof body.subsidiaryId === 'string' && body.subsidiaryId ? body.subsidiaryId : null;
     const departmentId = typeof body.departmentId === 'string' && body.departmentId ? body.departmentId : null;
     const positionName = typeof body.positionName === 'string' && body.positionName.trim() ? body.positionName.trim() : 'Staff';
+
+    if (body.password !== undefined && body.password !== null && String(body.password).trim() !== '') {
+      return NextResponse.json(
+        {
+          error:
+            'Caller-supplied initial passwords are not accepted. Onboarding issues an expiring single-use invitation link so the recipient sets their own password securely.',
+        },
+        { status: 400 }
+      );
+    }
 
     if (!legalName || legalName.length < 2) {
       return NextResponse.json({ error: 'Legal full name is required.' }, { status: 400 });
@@ -73,10 +81,6 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!password || password.length < 10) {
-      return NextResponse.json({ error: 'Initial password must be at least 10 characters long.' }, { status: 400 });
-    }
-
     const existing = await prisma.employee.findUnique({
       where: { workEmail },
       select: { id: true, legalName: true },
@@ -86,87 +90,100 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `An account already exists for ${workEmail}.` }, { status: 409 });
     }
 
-    const employeeNumber = `BEMS-STA-${Date.now().toString().slice(-4)}`;
-    const passwordHash = await hashPassword(password);
+    const org = await prisma.organization.findUnique({
+      where: { id: subsidiaryId },
+      select: { id: true, legalName: true, status: true },
+    });
+    if (!org || org.status !== 'ACTIVE') {
+      return NextResponse.json({ error: 'Selected subsidiary was not found or is inactive.' }, { status: 404 });
+    }
 
-    const employee = await prisma.$transaction(async (tx) => {
-      const created = await tx.employee.create({
-        data: {
-          employeeNumber,
-          legalName,
-          workEmail,
-          phone,
-          role: 'STAFF',
-          jobTitle: positionName,
-          status: 'ACTIVE',
-          approvalStatus: 'APPROVED',
-          passwordHash,
-        },
+    let departmentName: string | undefined;
+    if (departmentId) {
+      const dept = await prisma.department.findUnique({
+        where: { id: departmentId },
+        select: { id: true, name: true, organizationId: true },
+      });
+      if (!dept || dept.organizationId !== subsidiaryId) {
+        return NextResponse.json(
+          { error: 'Selected department does not belong to the target subsidiary.' },
+          { status: 400 }
+        );
+      }
+      departmentName = dept.name;
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + INVITATION_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+
+    const invitation = await prisma.$transaction(async (tx) => {
+      await tx.adminInvitation.updateMany({
+        where: { workEmail, status: 'PENDING' },
+        data: { status: 'REVOKED' },
       });
 
-      await tx.employeeAssignment.create({
+      return tx.adminInvitation.create({
         data: {
-          employeeId: created.id,
+          workEmail,
+          role: 'STAFF',
           subsidiaryId,
           departmentId: departmentId || null,
           positionName,
-          isPrimary: true,
-          status: 'ACTIVE',
+          token,
+          invitedById: actor.id,
+          status: 'PENDING',
+          expiresAt,
         },
       });
-
-      await tx.systemNotification.create({
-        data: {
-          employeeId: created.id,
-          kind: 'ACCOUNT_ONBOARDED',
-          title: 'Account Provisioned',
-          body: `Your STAFF profile has been initialized by ${actor.legalName}.`,
-        },
-      });
-
-      return created;
     });
 
     await recordEmployeeAuditEvent({
       actor,
-      targetId: employee.id,
-      action: 'STAFF_ONBOARDED',
+      targetId: invitation.id,
+      action: 'STAFF_ONBOARDING_INVITE_ISSUED',
       subsidiaryId,
-      metadata: { workEmail, employeeNumber, positionName },
+      metadata: {
+        workEmail,
+        legalName,
+        positionName,
+        departmentId,
+        expiresAt: expiresAt.toISOString(),
+      },
     });
 
-    // Security rule: Never email reusable plaintext account passwords.
     try {
-      const org = await prisma.organization.findUnique({
-        where: { id: subsidiaryId },
-        select: { legalName: true },
-      });
-      const subName = org?.legalName || 'BEMS Group Holdings';
-
-      await sendStaffLoginReadyEmail({
-        to: employee.workEmail,
-        staffName: employee.legalName,
-        employeeNumber: employee.employeeNumber,
-        roleTitle: positionName,
-        subsidiaryName: subName,
+      await sendAdminInvitationEmail({
+        to: workEmail,
+        role: 'STAFF',
+        subsidiaryName: org.legalName,
+        departmentName,
+        positionName,
+        inviteToken: token,
+        expiresInDays: INVITATION_EXPIRY_DAYS,
       });
     } catch (emailErr) {
-      console.error('Failed to dispatch staff login ready email:', emailErr);
+      console.error('Failed to dispatch single-use staff onboarding invitation email:', emailErr);
     }
 
     return NextResponse.json(
       {
         success: true,
-        message: `Successfully onboarded ${employee.legalName} as STAFF. Activation notice dispatched to ${employee.workEmail}.`,
-        employee: {
-          ...publicEmployee(employee),
-          employeeNumber: employee.employeeNumber,
+        message: `Expiring single-use onboarding invitation dispatched to ${workEmail}. ${legalName} will set their own password via the secure onboarding link.`,
+        invitation: {
+          id: invitation.id,
+          workEmail: invitation.workEmail,
+          role: invitation.role,
+          subsidiaryId: invitation.subsidiaryId,
+          departmentId: invitation.departmentId,
+          positionName: invitation.positionName,
+          status: invitation.status,
+          expiresAt: invitation.expiresAt,
         },
       },
       { status: 201 }
     );
   } catch (error: any) {
     console.error('Role onboarding error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to onboard account.' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Failed to issue onboarding invitation.' }, { status: 500 });
   }
 }

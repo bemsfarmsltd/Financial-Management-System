@@ -9,7 +9,7 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_INVITE_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'] as const;
+const ALLOWED_INVITE_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD', 'STAFF'] as const;
 
 export async function POST(request: Request) {
   try {
