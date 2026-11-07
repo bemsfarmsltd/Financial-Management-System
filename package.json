@@ -42,9 +42,5 @@
     "deepmerge-ts": "8.0.2",
     "postcss-selector-parser": "7.1.6",
     "braces": "^3.0.3"
-  },
-  "devDependencies": {
-    "@types/nodemailer": "^8.0.2",
-    "@types/qrcode": "^1.5.6"
   }
 }
