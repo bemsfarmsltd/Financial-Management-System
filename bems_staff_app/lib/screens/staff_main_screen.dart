@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
@@ -36,6 +37,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   List<DisbursementItem> _disbursementsAwaiting = [];
   List<AccountabilityCaseItem> _cases = [];
   Map<String, dynamic>? _todayAttendance;
+  bool _isTodayOffDay = false;
+  bool _isAttendanceExempt = false;
+  Timer? _attendanceReminderTimer;
+  bool _isAttendanceModalOpen = false;
 
   List<AccountabilityCaseItem> get _activeAdvanceCases => _cases.where((c) {
     final s = c.status.toUpperCase();
@@ -121,6 +126,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
   @override
   void dispose() {
+    _attendanceReminderTimer?.cancel();
     _priceCardController.dispose();
     super.dispose();
   }
@@ -189,14 +195,14 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         employeeId: _currentUser.id,
         token: _currentUser.token,
       ),
-      StaffApiService.fetchTodayAttendance(
+      StaffApiService.fetchTodayAttendanceBundle(
         employeeId: _currentUser.id,
         token: _currentUser.token,
       ),
       StaffApiService.fetchMyProfile(_currentUser),
     ]);
     final data = results[0] as Map<String, dynamic>;
-    final attendance = results[1] as Map<String, dynamic>?;
+    final attendanceBundle = results[1] as Map<String, dynamic>;
     final refreshedUser = results[2] as StaffUser;
 
     Map<String, dynamic>? wallet;
@@ -210,12 +216,216 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         _requests = data['requests'] as List<FundRequestItem>;
         _disbursementsAwaiting = data['disbursementsAwaiting'] as List<DisbursementItem>;
         _cases = data['accountabilityCases'] as List<AccountabilityCaseItem>;
-        _todayAttendance = attendance;
+        _todayAttendance = attendanceBundle['record'] as Map<String, dynamic>?;
+        _isTodayOffDay = attendanceBundle['isOffDay'] == true;
+        _isAttendanceExempt = attendanceBundle['isExempt'] == true;
         _walletData = wallet;
         _isLoading = false;
       });
       _checkProfileUpdateGate();
+      _evaluateAttendancePrompt();
     }
+  }
+
+  void _evaluateAttendancePrompt() {
+    final isPunchedIn = _todayAttendance != null && _todayAttendance!['checkInTime'] != null;
+    if (isPunchedIn || _isTodayOffDay || _isAttendanceExempt) {
+      _attendanceReminderTimer?.cancel();
+      _attendanceReminderTimer = null;
+      return;
+    }
+
+    // Set up 3-minute recurring reminder timer
+    _attendanceReminderTimer?.cancel();
+    _attendanceReminderTimer = Timer.periodic(const Duration(minutes: 3), (_) {
+      if (mounted) {
+        _checkAndShowAttendanceModal();
+      }
+    });
+
+    // Auto-display modal upon initial load/login if not checked in today
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) {
+          _checkAndShowAttendanceModal();
+        }
+      });
+    });
+  }
+
+  void _checkAndShowAttendanceModal() {
+    final isPunchedIn = _todayAttendance != null && _todayAttendance!['checkInTime'] != null;
+    if (isPunchedIn || _isTodayOffDay || _isAttendanceExempt) return;
+    if (_isAttendanceModalOpen) return;
+    if (!mounted) return;
+
+    _showAttendanceModal();
+  }
+
+  void _showAttendanceModal() {
+    _isAttendanceModalOpen = true;
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogCtx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Colors.white,
+        elevation: 8,
+        surfaceTintColor: Colors.transparent,
+        child: Container(
+          width: 440,
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top Header with Clock Icon & Kicker
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7ED),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFED7AA)),
+                    ),
+                    child: const Icon(
+                      Icons.access_time_filled_rounded,
+                      color: Color(0xFFEA580C),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'DAILY ATTENDANCE & PRESENCE',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Not Checked In Today',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFF64748B)),
+                    onPressed: () => Navigator.pop(dialogCtx),
+                    tooltip: 'Dismiss',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'You have not recorded your attendance for today\'s shift. Clock in via office QR scan and GPS to verify your physical presence and safeguard your punctuality record.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: Color(0xFF475569),
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Button 1: Clock In (GPS + QR)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(dialogCtx);
+                    final res = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AttendanceScanScreen(
+                          currentUser: _currentUser,
+                          isCheckIn: true,
+                        ),
+                      ),
+                    );
+                    if (res == true) {
+                      await _loadData();
+                    }
+                  },
+                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+                  label: const Text(
+                    'CLOCK IN (GPS + QR)',
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.3),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEA580C),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // Button 2: View Monthly Attendance Calendar
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(dialogCtx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AttendanceMonthlyScreen(currentUser: _currentUser),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.calendar_month_rounded, size: 16, color: Color(0xFF0F172A)),
+                  label: const Text(
+                    'View Monthly Attendance Calendar',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF8FAFC),
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Hint: Remind me in 3 mins
+              Center(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text(
+                    'Remind me in 3 minutes',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF94A3B8)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ).then((_) {
+      _isAttendanceModalOpen = false;
+    });
   }
 
   Future<void> _handleConfirmPayment(DisbursementItem disb) async {
@@ -2681,103 +2891,111 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        titleSpacing: 14,
-        leadingWidth: 50,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 14),
-          child: Center(
-            child: Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  'assets/images/bems-mark.png',
-                  width: 22,
-                  height: 22,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.business_rounded, color: Color(0xFFEA580C), size: 20),
+        automaticallyImplyLeading: false,
+        toolbarHeight: 68,
+        titleSpacing: 16,
+        title: InkWell(
+          onTap: _openProfileScreen,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: _currentUser.avatarUrl.isNotEmpty && _currentUser.avatarUrl.startsWith('http')
+                      ? Image.network(
+                          _currentUser.avatarUrl,
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 40,
+                            height: 40,
+                            color: const Color(0xFFEA580C).withOpacity(0.1),
+                            child: const Icon(Icons.person, color: Color(0xFFEA580C), size: 22),
+                          ),
+                        )
+                      : Container(
+                          width: 40,
+                          height: 40,
+                          color: const Color(0xFFEA580C).withOpacity(0.1),
+                          child: const Icon(Icons.person, color: Color(0xFFEA580C), size: 22),
+                        ),
                 ),
-              ),
-            ),
-          ),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'BEMS Staff Portal',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF0F172A),
-                letterSpacing: -0.2,
-              ),
-            ),
-            Text(
-              _currentUser.subsidiary.isNotEmpty ? _currentUser.subsidiary : 'BEMS Group Operations',
-              style: const TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF64748B),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          // Profile Button at Top Banner
-          Padding(
-            padding: const EdgeInsets.only(right: 14),
-            child: InkWell(
-              onTap: _openProfileScreen,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFCBD5E1)),
-                ),
-                child: Row(
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircleAvatar(
-                      radius: 12,
-                      backgroundColor: const Color(0xFFEA580C).withOpacity(0.12),
-                      backgroundImage: _currentUser.avatarUrl.isNotEmpty && _currentUser.avatarUrl.startsWith('http')
-                          ? NetworkImage(_currentUser.avatarUrl)
-                          : null,
-                      child: _currentUser.avatarUrl.isEmpty || !_currentUser.avatarUrl.startsWith('http')
-                          ? const Icon(Icons.person_rounded, size: 14, color: Color(0xFFEA580C))
-                          : null,
+                    Row(
+                      children: [
+                        Text(
+                          _currentUser.fullName,
+                          style: const TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.verified_rounded, size: 14, color: Color(0xFFEA580C)),
+                      ],
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(height: 1),
                     Text(
-                      _currentUser.fullName.split(' ').first,
+                      '${_currentUser.employeeNumber} · ${_currentUser.subsidiary.isNotEmpty ? _currentUser.subsidiary : "BEMS Group"}',
                       style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F172A),
+                        fontSize: 11,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          // Modules Hub (Icon Only)
+          InkWell(
+            onTap: _openEnterpriseGallery,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEA580C).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.2)),
+              ),
+              child: const Icon(
+                Icons.grid_view_rounded,
+                size: 19,
+                color: Color(0xFFEA580C),
               ),
             ),
           ),
+          const SizedBox(width: 8),
+          // Notifications Bell
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.notifications_none_rounded, size: 20, color: Color(0xFF0F172A)),
+              onPressed: _showNotificationsDialog,
+            ),
+          ),
+          const SizedBox(width: 16),
         ],
       ),
       backgroundColor: const Color(0xFFF8FAFC),
@@ -2913,104 +3131,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
         children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: _currentUser.avatarUrl.isNotEmpty && _currentUser.avatarUrl.startsWith('http')
-                        ? Image.network(
-                            _currentUser.avatarUrl,
-                            width: 46,
-                            height: 46,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 46,
-                              height: 46,
-                              color: const Color(0xFFEA580C).withOpacity(0.1),
-                              child: const Icon(Icons.person, color: Color(0xFFEA580C)),
-                            ),
-                          )
-                        : Container(
-                            width: 46,
-                            height: 46,
-                            color: const Color(0xFFEA580C).withOpacity(0.1),
-                            child: const Icon(Icons.person, color: Color(0xFFEA580C)),
-                          ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            _currentUser.fullName,
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
-                          ),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.verified_rounded, size: 14, color: Color(0xFFEA580C)),
-                        ],
-                      ),
-                      Text(
-                        '${_currentUser.employeeNumber} · ${_currentUser.subsidiary}',
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  InkWell(
-                    onTap: _openEnterpriseGallery,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEA580C).withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.2)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.grid_view_rounded, size: 15, color: Color(0xFFEA580C)),
-                          SizedBox(width: 5),
-                          Text(
-                            'Modules Hub',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFFEA580C),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.notifications_none_rounded, size: 20, color: Color(0xFF0F172A)),
-                      onPressed: _showNotificationsDialog,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 18),
-
           if (_shouldShowAttendanceCard) ...[
             // Daily Attendance & Presence Punch Card (Smart Visibility: Hides when punched, reappears at 5PM for clock-out)
             Container(

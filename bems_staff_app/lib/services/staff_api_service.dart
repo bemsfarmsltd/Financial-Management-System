@@ -1017,8 +1017,8 @@ class StaffApiService {
     throw Exception(data['error']?.toString() ?? 'Attendance punch failed.');
   }
 
-  /// Fetch today's personal attendance punch record
-  static Future<Map<String, dynamic>?> fetchTodayAttendance({
+  /// Fetch today's attendance bundle: punch record, isOffDay, and isExempt
+  static Future<Map<String, dynamic>> fetchTodayAttendanceBundle({
     required String employeeId,
     String? token,
   }) async {
@@ -1033,19 +1033,47 @@ class StaffApiService {
       if (res.statusCode >= 200 && res.statusCode < 300) {
         final data = jsonDecode(res.body);
         final records = data['records'] as List<dynamic>? ?? [];
-        if (records.isNotEmpty) {
-          final todayPrefix = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-          final match = records.firstWhere(
-            (r) => r['workDate'] == todayPrefix,
-            orElse: () => null,
-          );
-          return match as Map<String, dynamic>?;
-        }
+        final todayPrefix = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+        final match = records.firstWhere(
+          (r) => r['workDate'] == todayPrefix,
+          orElse: () => null,
+        ) as Map<String, dynamic>?;
+
+        final days = data['days'] as List<dynamic>? ?? [];
+        final todayDay = days.firstWhere(
+          (d) => d['workDate'] == todayPrefix || d['date'] == todayPrefix,
+          orElse: () => null,
+        );
+
+        final bool isOffDay = todayDay != null && todayDay['isOffDay'] == true
+            ? true
+            : (now.weekday == DateTime.saturday || now.weekday == DateTime.sunday);
+
+        final bool isExempt = data['employee']?['workSchedule']?['isExempt'] == true;
+
+        return {
+          'record': match,
+          'isOffDay': isOffDay,
+          'isExempt': isExempt,
+        };
       }
-      return null;
-    } catch (_) {
-      return null;
-    }
+    } catch (_) {}
+
+    final now = DateTime.now();
+    return {
+      'record': null,
+      'isOffDay': now.weekday == DateTime.saturday || now.weekday == DateTime.sunday,
+      'isExempt': false,
+    };
+  }
+
+  /// Fetch today's personal attendance punch record
+  static Future<Map<String, dynamic>?> fetchTodayAttendance({
+    required String employeeId,
+    String? token,
+  }) async {
+    final bundle = await fetchTodayAttendanceBundle(employeeId: employeeId, token: token);
+    return bundle['record'] as Map<String, dynamic>?;
   }
 
   /// Fetch full monthly timesheet with calendar days and summary metrics
