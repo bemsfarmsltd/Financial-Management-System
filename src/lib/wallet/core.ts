@@ -57,9 +57,7 @@ export async function fundingState(tx: Tx, enforce = false) {
   const [pool] = await tx.$queryRaw<Pool[]>`SELECT * FROM "WalletFundingPool" WHERE "id" = 'MONNIFY_NGN'`;
   if (!pool) throw new WalletError('FUNDING_NOT_CONFIGURED', 'Monnify funding has not been configured.', 503);
   const totals = await fundingCommitments(tx);
-  // Free liquid backing is Monnify cash available minus fee reserve and staff/vendor claims already released.
-  // Planned operational budgets (envelopeMinor) are spending authorizations and can exceed the current cash float.
-  const freeMinor = pool.availableMinor - pool.feeReserveMinor - totals.liabilityMinor;
+  const freeMinor = pool.availableMinor - pool.feeReserveMinor - totals.envelopeMinor - totals.liabilityMinor;
   const age = Date.now() - pool.observedAt.getTime();
   const fresh = age >= -5000 && age <= 30000;
   const configured = pool.environment === process.env.MONNIFY_ENVIRONMENT && pool.sourceAccount === process.env.MONNIFY_SOURCE_ACCOUNT;
@@ -105,6 +103,8 @@ export async function createFundedEnvelopeTx(tx:Tx,actor:WalletActor,input:Envel
       const [parent]=await tx.$queryRaw<any[]>`SELECT e.*,o."type" AS "organizationType" FROM "WalletBudgetEnvelope" e JOIN "Organization" o ON o."id"=e."organizationId" WHERE e."id"=${input.parentId} AND e."status"='ACTIVE' FOR UPDATE OF e`;
       if(!parent||parent.remainingMinor<amount||(parent.organizationId!==input.organizationId&&parent.organizationType!=='GROUP'))throw new WalletError('BUDGET_SCOPE_MISMATCH','The parent budget cannot cover this subdivision.',409);
       await tx.$executeRaw`UPDATE "WalletBudgetEnvelope" SET "remainingMinor"="remainingMinor"-${amount},"version"="version"+1 WHERE "id"=${input.parentId}`;
+    } else if (amount > state.freeMinor) {
+      throw new WalletError('INSUFFICIENT_FUNDED_CAPACITY', 'Subsidiary budget cannot exceed the available Monnify balance.', 409);
     }
     const id = randomUUID();
     await tx.$executeRaw`INSERT INTO "WalletBudgetEnvelope" ("id","organizationId","label","allocatedMinor","remainingMinor","createdById","idempotencyKey","parentId") VALUES (${id},${input.organizationId},${label},${amount},${amount},${actor.id},${input.idempotencyKey},${input.parentId||null})`;

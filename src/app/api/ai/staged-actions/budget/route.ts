@@ -142,6 +142,23 @@ export async function POST(req: Request) {
       ? resolvedAllocations.reduce((s: number, l: any) => s + Number(l.amount || l.allocatedAmount || 0), 0)
       : total_amount;
 
+    if (mode !== 'archive' && resolvedTotal > 0) {
+      const [pool] = await prisma.$queryRaw<Array<{ availableMinor: bigint }>>`SELECT "availableMinor" FROM "WalletFundingPool" WHERE "id" = 'MONNIFY_NGN'`;
+      if (pool && pool.availableMinor > BigInt(0)) {
+        const maxAllowed = Number(pool.availableMinor) / 100;
+        if (resolvedTotal > maxAllowed) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error_code: 'BUDGET_EXCEEDS_MONNIFY_BALANCE',
+              message: `Subsidiary budget (₦${resolvedTotal.toLocaleString()}) cannot exceed the available Monnify balance (₦${maxAllowed.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const materialPayload = {
       mode,
       budget_id: existingBudget?.id || null,

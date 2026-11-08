@@ -614,7 +614,7 @@ export default function FundingView({
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.6px', color: effectiveBrandColor, textTransform: 'uppercase' }}>
-              Liquid Release Capacity
+              Unallocated Monnify Backing
             </span>
             <Coins size={13} color={effectiveBrandColor} />
           </div>
@@ -623,7 +623,7 @@ export default function FundingView({
               {data?.funding ? walletMoney(data.funding.freeMinor) : '—'}
             </strong>
             <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#64748b' }}>
-              Monnify cash float available for releases
+              Available to allocate to subsidiary budgets
             </p>
           </div>
         </div>
@@ -1361,7 +1361,7 @@ export default function FundingView({
             </div>
 
             <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>
-              Sets the authorized expenditure ceiling for the subsidiary. Planned operational budgets can exceed the current Monnify float; cash backing is verified at fund release time.
+              Locks central Monnify backing to a chosen subsidiary budget. Individual requests will draw from this allocation upon GMD sign-off. Allocations cannot exceed available Monnify balance.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>

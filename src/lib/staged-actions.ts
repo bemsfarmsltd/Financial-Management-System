@@ -1109,6 +1109,17 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
           throw new StagedValidationError('INVALID_BUDGET_AMOUNT', 'Budget total amount must be a positive number.');
         }
 
+        const [poolRec] = await tx.$queryRaw<Array<{ availableMinor: bigint }>>`SELECT "availableMinor" FROM "WalletFundingPool" WHERE "id" = 'MONNIFY_NGN'`;
+        if (poolRec && poolRec.availableMinor > BigInt(0)) {
+          const maxAllowedNaira = Number(poolRec.availableMinor) / 100;
+          if (updatedTotal > maxAllowedNaira) {
+            throw new StagedValidationError(
+              'BUDGET_EXCEEDS_MONNIFY_BALANCE',
+              `Subsidiary budget (₦${updatedTotal.toLocaleString()}) cannot exceed the available Monnify balance (₦${maxAllowedNaira.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`
+            );
+          }
+        }
+
         const minFloor = Math.max(Number(existing.committedAmount || 0), Number(existing.spentAmount || 0));
         if (updatedTotal < minFloor) {
           throw new StagedValidationError(
@@ -1202,6 +1213,17 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
         const parsedTotal = Number(total_amount || 0);
         if (!Number.isFinite(parsedTotal) || parsedTotal <= 0) {
           throw new StagedValidationError('INVALID_BUDGET_AMOUNT', 'Budget total amount must be greater than zero.');
+        }
+
+        const [poolRecCreate] = await tx.$queryRaw<Array<{ availableMinor: bigint }>>`SELECT "availableMinor" FROM "WalletFundingPool" WHERE "id" = 'MONNIFY_NGN'`;
+        if (poolRecCreate && poolRecCreate.availableMinor > BigInt(0)) {
+          const maxAllowedNaira = Number(poolRecCreate.availableMinor) / 100;
+          if (parsedTotal > maxAllowedNaira) {
+            throw new StagedValidationError(
+              'BUDGET_EXCEEDS_MONNIFY_BALANCE',
+              `Subsidiary budget (₦${parsedTotal.toLocaleString()}) cannot exceed the available Monnify balance (₦${maxAllowedNaira.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`
+            );
+          }
         }
 
         const existingOverlap = await tx.budget.findFirst({
