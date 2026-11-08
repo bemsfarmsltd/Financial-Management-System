@@ -11,3 +11,5 @@ Dashboard and AI subsidiary creation attach the canonical parent and reject a se
 Existing historical audit text, station identifiers and metadata keys remain compatible; they are not additional organizations. Physical operating-location metadata remains available.
 
 Validation: disposable-schema migration and alias resolution, all five subsidiaries, staff isolation, invalid-scope denial, protected identity changes, idempotent migration, web security/architecture checks, native analysis/tests and signed Android releases.
+
+The embedded Staff web release uses `/staff-app-v1.3.5/` so its index and assets are fetched together for that release. The unversioned compatibility copy is retained.
