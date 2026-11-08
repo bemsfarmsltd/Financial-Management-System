@@ -17,6 +17,7 @@ export async function GET(request: Request) {
         orderBy: { createdAt: 'asc' },
       }),
       prisma.budget.findMany({
+        where: { status: 'ACTIVE' },
         include: {
           organization: true,
           lines: true,

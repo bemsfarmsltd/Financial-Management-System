@@ -29,7 +29,7 @@ export function EditSubsidiaryModal({ subsidiary, onCancel, onComplete }: EditSu
   const [customLocation, setCustomLocation] = useState(isPresetLoc ? '' : initialHq);
   
   const [monthlyBudget, setMonthlyBudget] = useState(
-    subsidiary.budget !== undefined ? String(subsidiary.budget) : '50000000'
+    subsidiary.budget !== undefined ? String(subsidiary.budget) : '0'
   );
   
   // Branding & Workspace Theme States
@@ -766,7 +766,7 @@ export function EditSubsidiaryModal({ subsidiary, onCancel, onComplete }: EditSu
                 step="1000000"
                 value={monthlyBudget}
                 onChange={(e) => setMonthlyBudget(e.target.value)}
-                placeholder="50000000"
+                placeholder="0.00"
                 style={{
                   width: '100%',
                   padding: '11px 14px',

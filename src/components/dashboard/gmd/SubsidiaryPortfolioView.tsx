@@ -196,7 +196,7 @@ export function SubsidiaryPortfolioView({
   const [newSubLocation, setNewSubLocation] = useState('Victoria Island, Lagos');
   const [newSubLeadName, setNewSubLeadName] = useState('');
   const [newSubLeadEmail, setNewSubLeadEmail] = useState('');
-  const [newSubBudget, setNewSubBudget] = useState('20000000');
+  const [newSubBudget, setNewSubBudget] = useState('0');
   const [newSubColor, setNewSubColor] = useState('#ea580c');
   const [newSubDepts, setNewSubDepts] = useState<string[]>(['General Operations', 'Finance & Accounting']);
   const [creatingSub, setCreatingSub] = useState(false);
@@ -279,7 +279,7 @@ export function SubsidiaryPortfolioView({
         setNewSubRc('');
         setNewSubLeadName('');
         setNewSubLeadEmail('');
-        setNewSubBudget('20000000');
+        setNewSubBudget('0');
         loadData();
       } else {
         const err = await res.json();

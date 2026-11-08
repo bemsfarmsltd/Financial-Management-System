@@ -129,7 +129,7 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
   const [currency, setCurrency] = useState('NGN');
   const [location, setLocation] = useState('Lagos — Victoria Island / Ikoyi');
   const [customLocation, setCustomLocation] = useState('');
-  const [initialBudget, setInitialBudget] = useState('50000000');
+  const [initialBudget, setInitialBudget] = useState('0');
   const [selectedDepts, setSelectedDepts] = useState<string[]>(DEPARTMENTS_BY_SECTOR.TECHNOLOGY.slice(0, 4));
   const [customDeptInput, setCustomDeptInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -948,7 +948,7 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
                 step="1000000"
                 value={initialBudget}
                 onChange={(e) => setInitialBudget(e.target.value)}
-                placeholder="50000000"
+                placeholder="0.00"
                 style={{
                   width: '100%',
                   padding: '11px 14px',
