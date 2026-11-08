@@ -614,7 +614,7 @@ export default function FundingView({
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.6px', color: effectiveBrandColor, textTransform: 'uppercase' }}>
-              Unallocated Capacity
+              Liquid Release Capacity
             </span>
             <Coins size={13} color={effectiveBrandColor} />
           </div>
@@ -623,7 +623,7 @@ export default function FundingView({
               {data?.funding ? walletMoney(data.funding.freeMinor) : '—'}
             </strong>
             <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#64748b' }}>
-              Available to allocate to subsidiaries
+              Monnify cash float available for releases
             </p>
           </div>
         </div>
@@ -1361,7 +1361,7 @@ export default function FundingView({
             </div>
 
             <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>
-              Locks central Monnify backing to a chosen subsidiary budget. Individual requests will draw from this allocation upon GMD sign-off.
+              Sets the authorized expenditure ceiling for the subsidiary. Planned operational budgets can exceed the current Monnify float; cash backing is verified at fund release time.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
@@ -1411,7 +1411,7 @@ export default function FundingView({
                   onChange={(e) => setParentId(e.target.value)}
                   style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff' }}
                 >
-                  <option value="">Allocate from Central Unallocated Pool</option>
+                  <option value="">Top-Level Subsidiary Envelope (No Parent)</option>
                   {data?.envelopes
                     ?.filter((e: any) => e.status === 'ACTIVE')
                     ?.map((e: any) => (

@@ -35,7 +35,6 @@ export async function adjustFundedEnvelopeTx(tx:import('@prisma/client').Prisma.
     const state=await fundingState(tx,true);const operation=input.operation;
     const amount=operation==='CLOSE'?e.remainingMinor:minorUnits(input.amountMinor);
     if(operation==='INCREASE'){
-      if(amount>state.freeMinor)throw new WalletError('INSUFFICIENT_FUNDED_CAPACITY','There is insufficient unallocated Monnify backing.',409);
       await tx.$executeRaw`UPDATE "WalletBudgetEnvelope" SET "allocatedMinor"="allocatedMinor"+${amount},"remainingMinor"="remainingMinor"+${amount},"version"="version"+1 WHERE "id"=${id}`;
     }else if(['REDUCE','CLOSE','REALLOCATE'].includes(operation)){
       if(amount>e.remainingMinor)throw new WalletError('BUDGET_COMMITTED','Approved or subdivided funds cannot be removed.',409);

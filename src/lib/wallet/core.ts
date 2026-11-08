@@ -49,7 +49,7 @@ export async function walletTransaction<T>(work: (tx: Tx) => Promise<T>) {
 type Pool = { id: string; environment: string; sourceAccount: string; availableMinor: bigint; feeReserveMinor: bigint; observedAt: Date; observationId: string; paused: boolean; version: number };
 export async function fundingCommitments(tx: Tx) {
   const [totals] = await tx.$queryRaw<Array<{ envelopeMinor: bigint; liabilityMinor: bigint }>>`
-    SELECT (SELECT COALESCE(sum("remainingMinor"),0)::bigint FROM "WalletBudgetEnvelope") AS "envelopeMinor",
+    SELECT (SELECT COALESCE(sum("remainingMinor"),0)::bigint FROM "WalletBudgetEnvelope" WHERE "status" = 'ACTIVE') AS "envelopeMinor",
       (SELECT COALESCE(sum("availableMinor" + "heldMinor"),0)::bigint FROM "WalletCreditLot") + (SELECT COALESCE(sum("amountMinor"),0)::bigint FROM "WalletWithdrawal" WHERE "targetType"='VENDOR' AND "status" IN ('HELD','SUBMITTING','PENDING','UNKNOWN')) AS "liabilityMinor"`;
   return totals;
 }
@@ -57,7 +57,9 @@ export async function fundingState(tx: Tx, enforce = false) {
   const [pool] = await tx.$queryRaw<Pool[]>`SELECT * FROM "WalletFundingPool" WHERE "id" = 'MONNIFY_NGN'`;
   if (!pool) throw new WalletError('FUNDING_NOT_CONFIGURED', 'Monnify funding has not been configured.', 503);
   const totals = await fundingCommitments(tx);
-  const freeMinor = pool.availableMinor - pool.feeReserveMinor - totals.envelopeMinor - totals.liabilityMinor;
+  // Free liquid backing is Monnify cash available minus fee reserve and staff/vendor claims already released.
+  // Planned operational budgets (envelopeMinor) are spending authorizations and can exceed the current cash float.
+  const freeMinor = pool.availableMinor - pool.feeReserveMinor - totals.liabilityMinor;
   const age = Date.now() - pool.observedAt.getTime();
   const fresh = age >= -5000 && age <= 30000;
   const configured = pool.environment === process.env.MONNIFY_ENVIRONMENT && pool.sourceAccount === process.env.MONNIFY_SOURCE_ACCOUNT;
@@ -67,7 +69,7 @@ export async function fundingState(tx: Tx, enforce = false) {
     if (!fresh) throw new WalletError('BALANCE_STALE', 'Refresh the verified Monnify funding balance before committing funds.', 409);
     const [events]=await tx.$queryRaw<any[]>`SELECT count(*)::integer AS "count" FROM "WalletProviderInbox" WHERE "processedAt" IS NULL`;
     if(events.count)throw new WalletError('FUNDING_RECONCILIATION_REQUIRED','Provider events are awaiting authenticated transfer reconciliation.',409);
-    if (freeMinor < BigInt(0)) throw new WalletError('FUNDING_RECONCILIATION_REQUIRED', 'Existing commitments exceed verified funding. New releases are paused.', 409);
+    if (freeMinor < BigInt(0)) throw new WalletError('FUNDING_RECONCILIATION_REQUIRED', 'Credited staff funds exceed verified Monnify balance. Top up the Monnify funding account before new releases.', 409);
   }
   return { currency: 'NGN', environment:pool.environment,sourceLastFour:pool.sourceAccount.slice(-4), availableMinor: pool.availableMinor, feeReserveMinor: pool.feeReserveMinor, ...totals, freeMinor, observedAt: pool.observedAt, fresh, paused: pool.paused, configured, basis: 'CONSERVATIVE_PROVIDER_AVAILABLE_MINUS_ALL_UNSETTLED_COMMITMENTS' };
 }
@@ -103,7 +105,7 @@ export async function createFundedEnvelopeTx(tx:Tx,actor:WalletActor,input:Envel
       const [parent]=await tx.$queryRaw<any[]>`SELECT e.*,o."type" AS "organizationType" FROM "WalletBudgetEnvelope" e JOIN "Organization" o ON o."id"=e."organizationId" WHERE e."id"=${input.parentId} AND e."status"='ACTIVE' FOR UPDATE OF e`;
       if(!parent||parent.remainingMinor<amount||(parent.organizationId!==input.organizationId&&parent.organizationType!=='GROUP'))throw new WalletError('BUDGET_SCOPE_MISMATCH','The parent budget cannot cover this subdivision.',409);
       await tx.$executeRaw`UPDATE "WalletBudgetEnvelope" SET "remainingMinor"="remainingMinor"-${amount},"version"="version"+1 WHERE "id"=${input.parentId}`;
-    } else if (amount > state.freeMinor) throw new WalletError('INSUFFICIENT_FUNDED_CAPACITY', 'The combined budgets and approved staff funds would exceed available Monnify backing.', 409);
+    }
     const id = randomUUID();
     await tx.$executeRaw`INSERT INTO "WalletBudgetEnvelope" ("id","organizationId","label","allocatedMinor","remainingMinor","createdById","idempotencyKey","parentId") VALUES (${id},${input.organizationId},${label},${amount},${amount},${actor.id},${input.idempotencyKey},${input.parentId||null})`;
     await journal(tx, actor.id, 'BUDGET_ALLOCATED', id, input.parentId?'ENVELOPE:'+input.parentId:'UNALLOCATED:NGN', 'ENVELOPE:' + id, amount);
