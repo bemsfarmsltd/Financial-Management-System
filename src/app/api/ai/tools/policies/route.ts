@@ -1,3 +1,4 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -11,14 +12,15 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse || !actor) return errorResponse!;
   if (!actor.isExecutive) {
     return NextResponse.json({ ok: false, error: 'Executive access required.' }, { status: 403 });
   }
 
   const [policies, settings] = await Promise.all([
-    prisma.approvalPolicy.findMany({ orderBy: [{ priority: 'asc' }, { minAmountMinor: 'asc' }] }),
-    prisma.workspaceSetting.findMany({ take: 100 }),
+    db.approvalPolicy.findMany({ orderBy: [{ priority: 'asc' }, { minAmountMinor: 'asc' }] }),
+    db.workspaceSetting.findMany({ take: 100 }),
   ]);
 
   return NextResponse.json({
@@ -44,6 +46,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
     if (errorResponse || !actor) return errorResponse!;
     if (!actor.isExecutive) {
       return NextResponse.json({ ok: false, error: 'Executive access required.' }, { status: 403 });
@@ -53,6 +56,11 @@ export async function POST(req: NextRequest) {
     const subAction = String(
       body.action || body.sub_action || (body.key && body.value ? 'UPDATE_WORKSPACE_SETTINGS' : 'UPDATE_APPROVAL_POLICY')
     ).toUpperCase();
+
+    if (subAction === 'EXPORT_REPORT') {
+      const staged = await stageAction({ actorContext: actor, userId: actor.id, actionType: 'policy_update', summary: 'Export a private report snapshot', materialPayload: { sub_action: 'EXPORT_REPORT', report_type: body.report_type || body.reportType || 'audit', format: body.format || 'csv', organization_id: body.organization_id || body.organizationId || actor.scopedOrganizationId || undefined }, preview: { operation: 'Export report', expires_in_hours: 24, maximum_rows: 500 } });
+      return NextResponse.json({ ok: true, staged: true, ...staged });
+    }
 
     if (subAction === 'UPDATE_MOBILE_GATE' || subAction === 'MOBILE_GATE') {
       const appId = String(body.appId || 'GMD_APP').toUpperCase();
@@ -67,7 +75,8 @@ export async function POST(req: NextRequest) {
       ).trim();
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'policy_update',
         summary: `Update Mobile Gate Rules for ${appId} (Min: v${minimumAllowedVersion}, Latest: v${latestVersionAvailable})`,
         materialPayload: {
@@ -110,7 +119,8 @@ export async function POST(req: NextRequest) {
       }
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'policy_update',
         attachmentIds,
         summary: `Activate Verified Mobile APK Release v${version} for ${appId}`,
@@ -145,7 +155,7 @@ export async function POST(req: NextRequest) {
       if (!orgLookup) {
         return NextResponse.json({ ok: false, error: 'organizationId or businessId is required.' }, { status: 400 });
       }
-      const org = await prisma.organization.findFirst({
+      const org = await db.organization.findFirst({
         where: {
           OR: [{ id: orgLookup }, { code: { equals: orgLookup, mode: 'insensitive' } }, { legalName: { contains: orgLookup, mode: 'insensitive' } }],
         },
@@ -155,7 +165,8 @@ export async function POST(req: NextRequest) {
       }
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'policy_update',
         targetSubsidiaryId: org.id,
         summary:
@@ -202,8 +213,8 @@ export async function POST(req: NextRequest) {
         );
       }
       const org = isGroupScope
-        ? await prisma.organization.findFirst({ where: { OR: [{ type: 'GROUP' }, { code: 'BEMS-GROUP' }, { code: 'BEMS-HQ' }] } })
-        : await prisma.organization.findFirst({
+        ? await db.organization.findFirst({ where: { OR: [{ type: 'GROUP' }, { code: 'BEMS-GROUP' }, { code: 'BEMS-HQ' }] } })
+        : await db.organization.findFirst({
             where: {
               OR: [
                 { id: orgLookup },
@@ -221,7 +232,8 @@ export async function POST(req: NextRequest) {
       const value = body.value || {};
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'policy_update',
         targetSubsidiaryId: org.id,
         summary: `Update Workspace Governance Setting "${key}" for ${org.legalName}`,
@@ -255,7 +267,8 @@ export async function POST(req: NextRequest) {
     const priority = Number(body.priority || 1);
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'policy_update',
       targetSubsidiaryId: body.scopeSubsidiaryId || undefined,
       summary: `${body.id ? 'Update' : 'Create'} Approval Policy Band (${category || 'GENERAL_OPEX'}: ₦${minAmount.toLocaleString()} – ${maxAmount ? `₦${maxAmount.toLocaleString()}` : 'Unlimited'})`,

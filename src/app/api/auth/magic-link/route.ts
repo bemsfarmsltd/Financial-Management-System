@@ -1,3 +1,4 @@
+import { canAccessEmployeePortal } from '@/lib/portal-access';
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
     }
 
     const rateKey = `magic-link:${clientIp}:${email}`;
-    const rateCheck = checkRateLimit(rateKey, {
+    const rateCheck = await checkRateLimit(rateKey, {
       windowMs: 10 * 60 * 1000,
       maxAttempts: 4,
       blockDurationMs: 10 * 60 * 1000,
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
     });
 
     // Only issue a single-use hashed OTP for active, approved accounts; always return a generic response to prevent account enumeration
-    if (employee && employee.status === 'ACTIVE' && employee.approvalStatus === 'APPROVED') {
+    if (employee && canAccessEmployeePortal(employee)) {
       const code = crypto.randomInt(100000, 999999).toString();
       const codeHash = crypto.createHash('sha256').update(code).digest('hex');
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes

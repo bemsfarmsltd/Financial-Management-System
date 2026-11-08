@@ -21,12 +21,12 @@ export function ScenarioSimulatorCard({ data, onApplyRecommendation }: Props) {
     }).format(amount);
   };
 
-  // Simulation logic
-  const adjustedCommitments = Math.max(0, data.pendingCommitmentsNaira - (delayExpenditureDays > 14 ? data.pendingCommitmentsNaira * 0.4 : 0));
-  const effectiveMonthlyBurn = Math.max(1000000, data.monthlyBurnNaira + (additionalCapAllocatedNaira / 3));
-  const simulatedLiquid = data.initialLiquidNaira - (delayExpenditureDays > 0 ? adjustedCommitments * 0.5 : adjustedCommitments);
+  if (!Number.isFinite(data.monthlyBurnNaira) || data.monthlyBurnNaira <= 0) return <div>Runway cannot be estimated without a recorded monthly expense rate.</div>;
+  // Illustration: commitments are spread evenly across 30 days; added allocation spans three months.
+  const delayedCommitments = data.pendingCommitmentsNaira * Math.min(delayExpenditureDays, 30) / 30;
+  const effectiveMonthlyBurn = data.monthlyBurnNaira + additionalCapAllocatedNaira / 3;
+  const simulatedLiquid = Math.max(0, data.initialLiquidNaira - data.pendingCommitmentsNaira + delayedCommitments);
   const simulatedRunway = (simulatedLiquid / effectiveMonthlyBurn).toFixed(1);
-
   const runwayDiff = (Number(simulatedRunway) - data.initialRunwayMonths).toFixed(1);
 
   return (
@@ -124,11 +124,11 @@ export function ScenarioSimulatorCard({ data, onApplyRecommendation }: Props) {
       <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '10px', padding: '12px', marginBottom: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
           <Zap size={14} color="#059669" />
-          <strong style={{ color: '#047857', fontSize: '11.5px' }}>Recommended Strategy</strong>
+          <strong style={{ color: '#047857', fontSize: '11.5px' }}>Illustrative assumptions</strong>
         </div>
         <p style={{ margin: 0, color: '#065f46', fontSize: '11px', lineHeight: 1.45 }}>
-          Staggering logistics diesel batching by 14 days and maintaining current software licenses extends group runway to{' '}
-          <strong>{simulatedRunway} months</strong> without impacting operational deliveries.
+          This estimate spreads commitments evenly over 30 days and additional allocation over three months. It does not change records or guarantee operational outcomes.
+
         </p>
       </div>
 

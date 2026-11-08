@@ -7,6 +7,7 @@ import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
 import 'new_fund_request_screen.dart';
 import 'staff_login_screen.dart';
+import 'wallet/staff_wallet_screen.dart';
 import 'request_chat_screen.dart';
 import 'staff_admin_chat_screen.dart';
 import 'attendance_scan_screen.dart';
@@ -113,7 +114,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     if (value) {
       final hasHardware = await StaffBiometricService.isHardwareAvailable();
       if (!hasHardware) {
-        if (!mounted) return;
+        if (!mounted || !context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Biometric hardware is not available on this device.'),
@@ -189,7 +190,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       token: _currentUser.token,
       decision: 'RECEIVED',
     );
-    if (!mounted) return;
+    if (!mounted || !context.mounted) return;
     setState(() {
       _disbursementsAwaiting.removeWhere((d) => d.id == disb.id);
     });
@@ -247,7 +248,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   decision: 'NOT_RECEIVED',
                   note: noteController.text.trim(),
                 );
-                if (!mounted) return;
+                if (!mounted || !context.mounted) return;
                 setState(() => _disbursementsAwaiting.removeWhere((d) => d.id == disb.id));
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -315,8 +316,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (dialogCtx, setDialogState) {
-            return WillPopScope(
-              onWillPop: () async => false,
+            return PopScope(
+              canPop: false,
               child: Dialog(
                 backgroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -726,7 +727,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                         token: _currentUser.token,
                                       );
 
-                                      if (mounted) {
+                                      if (mounted && context.mounted && ctx.mounted) {
                                         Navigator.pop(ctx);
                                         ScaffoldMessenger.of(context).showSnackBar(
                                           const SnackBar(
@@ -1867,7 +1868,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                             employeeId: _currentUser.id,
                             contentType: contentType,
                           );
-                          if (!mounted) return;
+                          if (!mounted || !context.mounted) return;
                           messenger.showSnackBar(
                             SnackBar(
                               content: Text('✓ Proof of fund utilization ($safeFileName) uploaded for Audit clearance.'),
@@ -1876,7 +1877,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           );
                           _loadData();
                         } catch (e) {
-                          if (!mounted) return;
+                          if (!mounted || !context.mounted) return;
                           messenger.showSnackBar(
                             SnackBar(
                               content: Text('Evidence upload failed: $e'),
@@ -1989,7 +1990,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
                 Navigator.pop(ctx);
                 await StaffApiService.changePassword(employeeId: _currentUser.id, oldPassword: oldP, newPassword: newP);
-                if (!mounted) return;
+                if (!mounted || !context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('✓ Password successfully updated!'), backgroundColor: Color(0xFF059669)),
                 );
@@ -2039,7 +2040,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 await StaffApiService.updatePhoneNumber(employeeId: _currentUser.id, phone: newPhone);
                 final updated = _currentUser.copyWith(phone: newPhone);
                 await StaffStorageService.saveUser(updated);
-                if (!mounted) return;
+                if (!mounted || !context.mounted) return;
                 setState(() => _currentUser = updated);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('✓ Phone number updated!'), backgroundColor: Color(0xFF059669)),
@@ -2239,7 +2240,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       salaryAccountName: sAccName,
                     );
                     await StaffStorageService.saveUser(updated);
-                    if (!mounted) return;
+                    if (!mounted || !context.mounted) return;
                     setState(() => _currentUser = updated);
                     messenger.showSnackBar(
                       const SnackBar(content: Text('✓ Corporate banking accounts updated!'), backgroundColor: Color(0xFF059669)),
@@ -2529,13 +2530,13 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                                               decision: 'RECEIVED',
                                                               employeeId: _currentUser.id,
                                                             );
-                                                            if (!mounted) return;
+                                                            if (!mounted || !context.mounted) return;
                                                             ScaffoldMessenger.of(context).showSnackBar(
                                                               const SnackBar(content: Text('✓ Salary receipt confirmed!'), backgroundColor: Color(0xFF059669)),
                                                             );
                                                             setModalState(() {});
                                                           } catch (e) {
-                                                            if (!mounted) return;
+                                                            if (!mounted || !context.mounted) return;
                                                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                                                           }
                                                         },
@@ -2575,7 +2576,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                                             note: noteController.text.trim(),
                                                             employeeId: _currentUser.id,
                                                           );
-                                                          if (!mounted) return;
+                                                          if (!mounted || !context.mounted) return;
                                                           ScaffoldMessenger.of(context).showSnackBar(
                                                             const SnackBar(content: Text('Salary issue reported to Finance.')),
                                                           );
@@ -2629,7 +2630,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
   void _handleLogout() async {
     await StaffStorageService.clearUser();
-    if (!mounted) return;
+    if (!mounted || !context.mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const StaffLoginScreen()),
@@ -2641,6 +2642,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     final formatter = NumberFormat.currency(locale: 'en_NG', symbol: '₦', decimalDigits: 0);
 
     return Scaffold(
+      appBar: AppBar(title: const Text('Staff portal'), actions: [TextButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => StaffWalletScreen(user: _currentUser))), icon: const Icon(Icons.account_balance_wallet_outlined), label: const Text('My wallet'))]),
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: _isLoading

@@ -1,6 +1,7 @@
 export type AiRole = 'GMD' | 'SYSTEM_ADMIN';
 
 export type ActionCardType =
+  | 'wallet_release'
   | 'briefing'
   | 'approval_decision'
   | 'budget_proposal'

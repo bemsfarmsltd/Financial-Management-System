@@ -1,3 +1,4 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -11,9 +12,10 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(request);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse || !actor) return errorResponse!;
 
-  const tasks = await prisma.followupTask.findMany({
+  const tasks = await db.followupTask.findMany({
     where: actor.isExecutive ? undefined : { assigneeId: actor.id },
     include: {
       assignee: { select: { id: true, legalName: true, role: true } },
@@ -38,6 +40,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { actor, errorResponse } = await authenticateAiToolRequest(request);
+  const db = actor ? await getAiReadClient(actor) : prisma;
     if (errorResponse || !actor) return errorResponse!;
 
     const body = await request.json();
@@ -48,7 +51,7 @@ export async function POST(request: NextRequest) {
       if (!taskId) {
         return NextResponse.json({ ok: false, error: 'taskId is required to update a task.' }, { status: 400 });
       }
-      const existing = await prisma.followupTask.findUnique({
+      const existing = await db.followupTask.findUnique({
         where: { id: taskId },
         include: { assignee: { select: { legalName: true } } },
       });
@@ -57,7 +60,8 @@ export async function POST(request: NextRequest) {
       }
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'task_action',
         summary: `${subAction === 'REOPEN_TASK' ? 'Reopen' : 'Complete'} Follow-up Task: "${existing.description}"`,
         materialPayload: {
@@ -91,7 +95,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'description and assigneeId/assigneeName are required.' }, { status: 400 });
     }
 
-    const assignee = await prisma.employee.findFirst({
+    const assignee = await db.employee.findFirst({
       where: {
         OR: [
           { id: assigneeLookup },
@@ -109,7 +113,8 @@ export async function POST(request: NextRequest) {
     const dueAt = body.dueAt || new Date(Date.now() + 3 * 86400_000).toISOString();
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'task_action',
       summary: `Assign Follow-up Task to ${assignee.legalName}: "${description}"`,
       materialPayload: {

@@ -1,3 +1,4 @@
+import 'wallet_funding_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
@@ -125,6 +126,7 @@ class _PayrollSignOffScreenState extends State<PayrollSignOffScreen> {
             ),
           ),
           actions: [
+          IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const WalletFundingScreen())),tooltip:'Funded wallet payroll approval',icon:const Icon(Icons.account_balance_wallet_outlined)),
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w700)),

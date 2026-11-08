@@ -20,9 +20,10 @@ export interface ConsolidatedTreasury {
   accounts: TreasuryAccountDTO[];
   totalCash: number;
   totalCashFormatted: string;
-  safeRunwayMonths: number;
+  safeRunwayMonths: number | null;
+  currencyTotals: Record<string, number>;
   pendingPipeline: number;
-  monthlyBurn?: number;
+  monthlyBurn?: number | null;
 }
 
 export function formatNaira(amount: number): string {
@@ -39,12 +40,14 @@ export function formatNaira(amount: number): string {
 export async function getConsolidatedTreasury(subsidiaryId?: string): Promise<ConsolidatedTreasury> {
   let bankWhere: any = { status: 'ACTIVE' };
   let reqWhere: any = {
+    currency: 'NGN',
     approvalStatus: 'APPROVED',
     paymentStatus: { in: ['UNPAID', 'RECIPIENT_REPORTED_ISSUE'] },
   };
 
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
   let disbWhere: any = {
+    currency: 'NGN',
     paidAt: { gte: ninetyDaysAgo },
     status: { in: ['RECIPIENT_CONFIRMED', 'AWAITING_RECIPIENT_CONFIRMATION'] },
   };
@@ -86,34 +89,32 @@ export async function getConsolidatedTreasury(subsidiaryId?: string): Promise<Co
       accountType: a.accountType,
       currency: a.currency,
       balance: balNum,
-      balanceNaira: balNum,
+      balanceNaira: a.currency === 'NGN' ? balNum : 0,
       dailyLimit: limitNum,
       status: a.status,
-      scope: (a.organization?.code === 'BEMS-LOG' ? 'LOG' : a.organization?.code === 'BEMS-SOFT' ? 'SOFT' : 'HQ'),
+      scope: a.organization.code,
       subsidiaryName: a.organization?.legalName || 'BEMS Group Holdings',
       organizationId: a.organizationId,
     };
   });
 
-  const totalCash = accounts.reduce((acc, a) => acc + a.balance, 0);
+  const currencyTotals = accounts.reduce<Record<string, number>>((totals, account) => { totals[account.currency] = (totals[account.currency] || 0) + account.balance; return totals; }, {});
+  const totalCash = currencyTotals.NGN || 0;
   const pendingPipelineMinor = approvedRequests.reduce((acc, r) => acc + Number(r.amountMinor), 0);
   const pendingPipeline = pendingPipelineMinor / 100;
 
   const trailingDisbMinor = trailingDisbursements.reduce((acc, d) => acc + Number(d.amountMinor), 0);
   const trailingDisbNaira = trailingDisbMinor / 100;
 
-  // Dynamic monthly burn rate computed from trailing 90 days (3 months)
-  // If no trailing payouts yet, fallback to pending pipeline or ₦10M baseline floor
-  const dynamicMonthlyBurn = trailingDisbNaira > 0
-    ? Math.round(trailingDisbNaira / 3)
-    : (pendingPipeline > 0 ? pendingPipeline : 10000000);
-
-  const safeRunwayMonths = dynamicMonthlyBurn > 0 ? Number((totalCash / dynamicMonthlyBurn).toFixed(1)) : 0;
+  // A runway is unavailable when no recorded expense history supports a burn rate.
+  const dynamicMonthlyBurn = trailingDisbNaira > 0 ? trailingDisbNaira / 3 : null;
+  const safeRunwayMonths = dynamicMonthlyBurn ? Number((totalCash / dynamicMonthlyBurn).toFixed(1)) : null;
 
   return {
     accounts,
     totalCash,
-    totalCashFormatted: formatNaira(totalCash),
+    totalCashFormatted: formatNaira(totalCash) + ' (NGN accounts)',
+    currencyTotals,
     safeRunwayMonths,
     pendingPipeline,
     monthlyBurn: dynamicMonthlyBurn,

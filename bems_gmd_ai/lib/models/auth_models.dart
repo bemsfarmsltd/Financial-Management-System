@@ -19,8 +19,8 @@ class AuthUser {
     return AuthUser(
       id: json['id']?.toString() ?? '',
       email: json['workEmail']?.toString() ?? json['email']?.toString() ?? '',
-      fullName: json['fullName']?.toString() ?? json['name']?.toString() ?? 'Executive',
-      role: json['role']?.toString() ?? 'GMD',
+      fullName: json['fullName']?.toString() ?? json['legalName']?.toString() ?? json['name']?.toString() ?? 'Executive',
+      role: json['role']?.toString() ?? 'STAFF',
       organizationId: json['organizationId']?.toString(),
       token: json['token']?.toString(),
     );

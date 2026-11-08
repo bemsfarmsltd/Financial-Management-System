@@ -4,8 +4,8 @@
  */
 
 const MONNIFY_BASE_URL = process.env.MONNIFY_BASE_URL || 'https://api.monnify.com';
-const MONNIFY_API_KEY = process.env.MONNIFY_API_KEY || 'MK_PROD_F5C1ZT8534';
-const MONNIFY_SECRET_KEY = process.env.MONNIFY_SECRET_KEY || 'HCXD21T8FD0MLHJKQ9H7FE40F83Q4UJ7';
+const MONNIFY_API_KEY = process.env.MONNIFY_API_KEY || '';
+const MONNIFY_SECRET_KEY = process.env.MONNIFY_SECRET_KEY || '';
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 

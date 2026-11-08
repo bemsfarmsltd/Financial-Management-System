@@ -1,7 +1,11 @@
+import { walletProposal } from '@/lib/wallet/proposals';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
+import crypto from 'node:crypto';
 import { stageAction } from '@/lib/staged-actions';
 import { getConsolidatedTreasury } from '@/lib/financial-metrics';
 import { enforceMobileVersionGate } from '@/lib/mobile-gate';
@@ -36,6 +40,7 @@ export async function POST(req: NextRequest) {
     if (gateBlock) return gateBlock;
 
     const actor = await getAuthenticatedEmployee(req);
+    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
     if (!actor) {
       return NextResponse.json({ error: 'Unauthorized: Valid BEMS session required to use AI Assistant.' }, { status: 401 });
     }
@@ -73,6 +78,9 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (rawBusinessId && !['bems-group-hq', 'ALL', 'group_hq'].includes(rawBusinessId) && !targetOrg) return NextResponse.json({ error: 'The selected workspace was not found.' }, { status: 404 });
+    const authorizedScope = await resolveAuthorizedOrganizationScope(actor, targetOrg?.id || 'ALL');
+    if (!authorizedScope.organizationIds.length) return NextResponse.json({ error: 'You cannot access this workspace.' }, { status: 403 });
     const isGroupScope = !targetOrg || targetOrg.type === 'GROUP' || targetOrg.code === 'BEMS-GROUP';
     const scopedOrgId = !isGroupScope ? targetOrg?.id : null;
     const scopedOrgName = !isGroupScope ? targetOrg?.legalName : 'BEMS Group';
@@ -112,7 +120,8 @@ export async function POST(req: NextRequest) {
         const timeout = setTimeout(() => controller.abort(), 120000); // 120 seconds for deep reasoning
 
         const correlationId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        const sessionId = isGroupScope ? `conv_${actor.id}` : `conv_${actor.id}_${scopedOrgId}`;
+        const requestedConversation = String(body.conversation_id || body.session_id || '').trim();
+        const sessionId = requestedConversation.startsWith(`conv_${actor.id}_${scopedOrgId || 'group'}_`) ? requestedConversation : `conv_${actor.id}_${scopedOrgId || 'group'}_${requestedConversation.replace(/[^a-zA-Z0-9-]/g, '').slice(0, 80) || crypto.randomUUID()}`;
 
         // Issue signed, expiring scoped automation delegation token so n8n tools operate strictly within caller's role, entity scope, and operation mode
         const canonicalActorRole = normalizeCanonicalRole(actor.role) || 'STAFF';
@@ -184,6 +193,8 @@ export async function POST(req: NextRequest) {
           const pendingAction = await prisma.stagedAction.findFirst({
             where: {
               userId: actor.id,
+              conversationId: sessionId,
+              ...(scopedOrgId ? { targetSubsidiaryId: scopedOrgId } : {}),
               status: 'PENDING',
               expiresAt: { gt: new Date() },
             },
@@ -215,7 +226,8 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        const webhookSecret = process.env.BEMS_N8N_SHARED_SECRET || 'bems_n8n_sec_88491029384756102938475';
+        const webhookSecret = process.env.BEMS_N8N_SHARED_SECRET;
+        if (!webhookSecret || Buffer.byteLength(webhookSecret) < 32) throw new Error('Configure the n8n shared secret before enabling the AI integration.');
 
         let queryText = message;
         if (targetElement) {
@@ -236,7 +248,8 @@ export async function POST(req: NextRequest) {
             title: (actor as any).jobTitle || (effectiveRole === 'GMD' ? 'Group Managing Director' : effectiveRole === 'SYSTEM_ADMIN' ? 'System Admin' : 'Staff'),
             role: effectiveRole,
             permissions: isReadOnlyUser ? ['read_only_inquiry', 'data_analytics'] : ['all'],
-            can_execute_actions: !isReadOnlyUser,
+            can_execute_actions: false,
+            can_stage_actions: !isReadOnlyUser,
           },
           query: queryText,
           message: queryText,
@@ -248,6 +261,7 @@ export async function POST(req: NextRequest) {
             channel: 'web_chat',
             target_element: targetElement ? { ...targetElement, trust_level: 'UNTRUSTED_UI_TELEMETRY' } : null,
             conversation_history: conversationHistory,
+            wallet_contract: {endpoint:'/api/ai/tools/wallet',approval:'Only current GMD through secure human wallet_release card',sources:['REQUEST','PAYROLL_BATCH'],staff_withdrawal:'Owner-only secure portal; never collect a password or OTP in chat',stage_fields:['sourceType','sourceId','envelopesByOrganization'],response:'Return actionCard exactly as provided by the wallet tool'},
             formatting_guidance: `EXECUTIVE PRESENTATION DIRECTIVES:
 1. Fluid English Prose & Explanations: When explaining definitions, sections, or answering 'what does this represent', or when the user asks for 'detailed paragraph explanation', write in continuous, eloquent English paragraphs and complete sentences with bold highlights. Do NOT chop text into redundant bullet points or artificial boxes.
 2. Histograms & Visual Graphs: When the user asks 'in a graph', 'show histogram', 'chart', 'breakdown', or when comparing numbers across vendors, subsidiaries, or months, output a structured chart block:
@@ -310,7 +324,13 @@ title: "<Chart Title>"
               rawCandidate.stagedActionId ||
               null;
 
-            if (candidateStagedId && String(candidateStagedId).startsWith('sa_')) {
+            if (candidateStagedId && String(rawCandidate.type || '').toLowerCase()==='wallet_release') {
+              try {
+                const scope=await resolveAuthorizedOrganizationScope(actor as any,scopedOrgId||'ALL');
+                const proposal=await walletProposal(actor,String(candidateStagedId),{conversationId:sessionId,workspaceId:scopedOrgId||null,allowedOrganizationIds:scope.organizationIds});
+                if(proposal.status==='PENDING' && new Date(proposal.expiresAt)>new Date()) verifiedActionCard={type:'wallet_release',id:proposal.id,confirmationHash:proposal.confirmationHash,preview:proposal};
+              } catch { /* Unverified wallet proposals never become actionable cards. */ }
+            } else if (candidateStagedId && String(candidateStagedId).startsWith('sa_')) {
               const dbStaged = await prisma.stagedAction.findUnique({
                 where: { id: String(candidateStagedId) },
               });
@@ -318,6 +338,8 @@ title: "<Chart Title>"
               const isAuthorizedOwner =
                 dbStaged &&
                 (dbStaged.userId === actor.id || actorRoleUpper === 'GMD') &&
+                dbStaged.conversationId === sessionId &&
+                (!scopedOrgId || dbStaged.targetSubsidiaryId === scopedOrgId) &&
                 dbStaged.status === 'PENDING' &&
                 dbStaged.expiresAt > new Date();
 
@@ -346,6 +368,7 @@ title: "<Chart Title>"
                   type: 'STAGED_ACTION',
                   ...verifiedStagedAction,
                 };
+                try {if(dbStaged.actionType==='budget' && JSON.parse(dbStaged.payload||'{}').wallet_operation){verifiedActionCard={...verifiedActionCard,type:'wallet_budget',actionType:'wallet_budget'};}}catch{}
               } else {
                 console.warn(
                   `[AI Chat Integrity] Suppressed unverified or expired staged_action card (${candidateStagedId}).`
@@ -361,6 +384,7 @@ title: "<Chart Title>"
           }
 
           return NextResponse.json({
+            conversation_id: sessionId,
             message: isReadOnlyUser && n8nData.staged_action
               ? `${reply}\n\n*(Note: Staged actions suppressed — read-only informational access).*`
               : reply,
@@ -393,16 +417,18 @@ title: "<Chart Title>"
       }
     }
 
+    if (!isExecutive) return NextResponse.json({ error: 'The staff assistant is temporarily unavailable. Please retry.' }, { status: 503 });
+    const db = await getAiReadClient({ ...actor, canonicalRole: normalizeCanonicalRole(actor.role)!, isExecutive, authSource: 'HUMAN_SESSION', scopedOrganizationId: scopedOrgId, delegation: scopedOrgId ? { scopedOrganizationId: scopedOrgId } as any : null });
     // 1. Fetch live telemetry from DB via canonical financial calculator (with strict subsidiary scoping)
     let bankAccounts: Array<{ bankName: string; accountNumber: string; accountName: string; balance: number; currency?: string }> = [];
     let totalCash = 0;
 
     if (isGroupScope) {
-      const treasuryData = await getConsolidatedTreasury().catch(() => ({ accounts: [], totalCash: 0, totalCashFormatted: '₦0', safeRunwayMonths: 0, pendingPipeline: 0 }));
+      const treasuryData = await getConsolidatedTreasury();
       bankAccounts = treasuryData.accounts;
       totalCash = treasuryData.totalCash;
     } else {
-      const dbAccounts = await prisma.companyBankAccount.findMany({
+      const dbAccounts = await db.companyBankAccount.findMany({
         where: {
           organizationId: scopedOrgId!,
           status: 'ACTIVE',
@@ -414,7 +440,7 @@ title: "<Chart Title>"
           balance: true,
           currency: true,
         },
-      }).catch(() => []);
+      });
       bankAccounts = dbAccounts.map(b => ({
         bankName: b.bankName,
         accountNumber: b.accountNumber,
@@ -426,7 +452,7 @@ title: "<Chart Title>"
     }
 
     const [pendingRequests, totalActiveStaff, orgs, openCases] = await Promise.all([
-      prisma.expenditureRequest.findMany({
+      db.expenditureRequest.findMany({
         where: {
           ...(scopedOrgId ? { subsidiaryId: scopedOrgId } : {}),
           approvalStatus: { in: ['SUBMITTED', 'IN_REVIEW'] },
@@ -434,25 +460,25 @@ title: "<Chart Title>"
         take: 5,
         orderBy: { createdAt: 'desc' },
         include: { requester: true, vendor: true, subsidiary: true },
-      }).catch(() => []),
-      prisma.employee.count({
+      }),
+      db.employee.count({
         where: {
           status: 'ACTIVE',
           role: 'STAFF',
           ...(scopedOrgId ? { assignments: { some: { subsidiaryId: scopedOrgId } } } : {}),
         },
-      }).catch(() => 0),
+      }),
       isGroupScope
-        ? prisma.organization.findMany({ where: { status: 'ACTIVE' } }).catch(() => [])
-        : prisma.organization.findMany({ where: { id: scopedOrgId! } }).catch(() => []),
-      prisma.accountabilityCase.findMany({
+        ? db.organization.findMany({ where: { status: 'ACTIVE' } })
+        : db.organization.findMany({ where: { id: scopedOrgId! } }),
+      db.accountabilityCase.findMany({
         where: {
           status: { not: 'CLOSED' },
           ...(scopedOrgId ? { request: { subsidiaryId: scopedOrgId } } : {}),
         },
         take: 5,
         include: { owner: true, request: true },
-      }).catch(() => []),
+      }),
     ]);
 
     const pendingCount = pendingRequests.length;
@@ -535,7 +561,8 @@ title: "<Chart Title>"
         : `${wantsDisable ? 'Bypass Starlink Wi-Fi Lock (Allow Any Network)' : 'Enforce Strict Starlink Wi-Fi Lock'} Group-Wide`;
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'attendance_override',
         summary,
         materialPayload: payload,
@@ -560,7 +587,7 @@ title: "<Chart Title>"
         normalized.includes('update subsidiary ') ||
         normalized.includes('change subsidiary '))
     ) {
-      const allOrgs = await prisma.organization.findMany({ where: { status: 'ACTIVE' } });
+      const allOrgs = await db.organization.findMany({ where: { status: 'ACTIVE' } });
       const matchedOrg =
         allOrgs.find(
           (o) =>
@@ -616,6 +643,7 @@ title: "<Chart Title>"
         }
 
         const staged = await stageAction({
+          actorContext: actor,
           userId: actor.id,
           actionType: 'subsidiary_update',
           summary: `Update Subsidiary Information: ${matchedOrg.legalName} (${matchedOrg.code})`,
@@ -642,7 +670,7 @@ title: "<Chart Title>"
         normalized.startsWith('terminate ') ||
         normalized.startsWith('activate staff'))
     ) {
-      const allStaff = await prisma.employee.findMany({
+      const allStaff = await db.employee.findMany({
         include: {
           assignments: { where: { isPrimary: true }, include: { subsidiary: true, department: true } },
         },
@@ -717,6 +745,7 @@ title: "<Chart Title>"
             : `Update Staff Profile: ${matchedStaff.legalName} (${matchedStaff.employeeNumber})`;
 
         const staged = await stageAction({
+          actorContext: actor,
           userId: actor.id,
           actionType: 'staff_management',
           summary,
@@ -745,13 +774,14 @@ title: "<Chart Title>"
 
       if (parsedAmount > 0) {
         const subOrg =
-          (scopedOrgId ? await prisma.organization.findUnique({ where: { id: scopedOrgId } }) : null) ||
-          (await prisma.organization.findFirst({ where: { type: 'SUBSIDIARY' } })) ||
-          (await prisma.organization.findFirst());
+          (scopedOrgId ? await db.organization.findUnique({ where: { id: scopedOrgId } }) : null) ||
+          (await db.organization.findFirst({ where: { type: 'SUBSIDIARY' } })) ||
+          (await db.organization.findFirst());
 
         if (subOrg) {
           const staged = await stageAction({
-            userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
             actionType: 'request_creation',
             summary: `Create Fund Request: "${title}" (₦${parsedAmount.toLocaleString()}) under ${subOrg.legalName}`,
             materialPayload: {
@@ -838,6 +868,7 @@ title: "<Chart Title>"
         const payUrl = `https://bemserp.work/pay/${matched.requestNumber}`;
 
         const staged = await stageAction({
+          actorContext: actor,
           userId: actor.id,
           actionType: 'approval_decision',
           materialPayload: {
@@ -965,7 +996,7 @@ title: "<Chart Title>"
         reply = `🔒 **Read-Only Informational Access:** The AI Analyst role cannot authorize staff onboarding or credentials. Please log in as Group Managing Director or System Administrator to approve staff.`;
         actionCard = null;
       } else {
-        const pendingStaff = await prisma.employee.findFirst({
+        const pendingStaff = await db.employee.findFirst({
           where: { approvalStatus: 'PENDING_APPROVAL' },
           include: { assignments: { include: { subsidiary: true, department: true } } },
         });
@@ -975,7 +1006,8 @@ title: "<Chart Title>"
           const dept = pendingStaff.assignments?.[0]?.department;
 
           const staged = await stageAction({
-            userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
             actionType: 'staff_approval',
             materialPayload: {
               employee_id: pendingStaff.id,
@@ -1017,7 +1049,8 @@ title: "<Chart Title>"
 
         if (targetCase && actor) {
           const staged = await stageAction({
-            userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
             actionType: 'accountability_clearance',
             materialPayload: {
               case_id: targetCase.id,
@@ -1064,7 +1097,8 @@ title: "<Chart Title>"
             reply = `⚠️ **Emergency Cap Exceeded:** Request **${matchedReq.requestNumber}** (**₦${reqAmtNaira.toLocaleString()}**) exceeds the **₦1,000,000** emergency override cap. Please use the standard executive approval workflow instead.`;
           } else {
             const staged = await stageAction({
-              userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
               actionType: 'emergency_override',
               targetSubsidiaryId: matchedReq.subsidiaryId,
               materialPayload: {
@@ -1138,7 +1172,7 @@ title: "<Chart Title>"
       if (!isExecutive) {
         reply = `🔒 **Executive Confidentiality:** Group payroll, salary registers, and staff deduction details are strictly restricted to Executive Leadership.`;
       } else {
-        const latestPeriod = await prisma.payrollPeriod.findFirst({
+        const latestPeriod = await db.payrollPeriod.findFirst({
           orderBy: [{ year: 'desc' }, { month: 'desc' }],
           include: {
             batches: {
@@ -1180,7 +1214,7 @@ title: "<Chart Title>"
       normalized.includes('excuse')
     ) {
       const todayDateStr = new Date().toISOString().split('T')[0];
-      const todayRecords = await prisma.attendanceRecord.findMany({
+      const todayRecords = await db.attendanceRecord.findMany({
         where: {
           workDate: todayDateStr,
           ...(scopedOrgId ? { employee: { assignments: { some: { subsidiaryId: scopedOrgId } } } } : {}),
@@ -1191,9 +1225,8 @@ title: "<Chart Title>"
       const excused = todayRecords.filter((r) => r.status === 'EXCUSED' || r.isManualOverride).length;
 
       reply = `**${scopedOrgName} Live Attendance & Timekeeping Intelligence (${todayDateStr}):**\n\n` +
-        `• **Official System Launch:** Attendance tracking officially commenced on **November 3, 2026**.\n` +
         `• **Today's Presence:** **${todayRecords.length} staff checked in** (${onTime} on-time, ${late} late, ${excused} excused/override).\n` +
-        `• **Policy Threshold:** Resumption 08:00 AM + 15m Grace (08:15 AM cut-off). Deductions: -5% pro-rated daily wage for lateness, -100% for unexcused absence.\n\n` +
+        `• **Policy:** Check the recorded policy for the selected entity before applying attendance adjustments.\n\n` +
         `*GMD / Super Admin can excuse or override any lateness penalty directly from the Attendance Master desk or via AI Automation tools.*`;
 
       actionCard = {
@@ -1210,7 +1243,7 @@ title: "<Chart Title>"
       normalized.includes('spending cap') ||
       normalized.includes('fiscal plan')
     ) {
-      const budgets = await prisma.budget.findMany({
+      const budgets = await db.budget.findMany({
         where: {
           ...(scopedOrgId ? { organizationId: scopedOrgId } : {}),
           status: 'ACTIVE',
@@ -1247,7 +1280,7 @@ title: "<Chart Title>"
       normalized.includes('employees') ||
       normalized.includes('workforce')
     ) {
-      const staffList = await prisma.employee.findMany({
+      const staffList = await db.employee.findMany({
         where: {
           status: 'ACTIVE',
           role: 'STAFF',
@@ -1362,7 +1395,7 @@ title: "<Chart Title>"
       normalized.includes('vendor invoice') ||
       normalized.includes('matching')
     ) {
-      const matchRecords = await prisma.threeWayMatchRecord.findMany({
+      const matchRecords = await db.threeWayMatchRecord.findMany({
         where: {
           ...(scopedOrgId ? { request: { subsidiaryId: scopedOrgId } } : {}),
         },
@@ -1398,7 +1431,7 @@ title: "<Chart Title>"
       normalized.includes('credit note') ||
       normalized.includes('netting')
     ) {
-      const notes = await prisma.intercompanyNote.findMany({
+      const notes = await db.intercompanyNote.findMany({
         where: {
           status: 'ISSUED',
           ...(scopedOrgId ? { OR: [{ sourceEntityId: scopedOrgId }, { targetEntityId: scopedOrgId }] } : {}),

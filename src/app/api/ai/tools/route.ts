@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
       isExecutive: actor?.isExecutive,
     },
     availableTools: [
+      {name:'wallet',endpoint:'/api/ai/tools/wallet',methods:['GET','POST'],description:'GMD-only scoped wallet reads and exact staff-request or whole-payroll release staging. No AI approval or withdrawal. Return the wallet_release card for secure human confirmation.'},
       {
         name: 'budgets',
         endpoint: '/api/ai/tools/budgets',

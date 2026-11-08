@@ -1,3 +1,4 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -21,6 +22,7 @@ import { clampPagination } from '@/lib/platform/read-catalog';
  */
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
   if (!actor) {
     return NextResponse.json({ ok: false, error_code: 'UNAUTHORIZED', message: 'Unauthorized' }, { status: 401 });
@@ -68,7 +70,7 @@ export async function GET(req: NextRequest) {
         }),
   };
 
-  const notes = await prisma.intercompanyNote.findMany({
+  const notes = await db.intercompanyNote.findMany({
     where: notesWhere,
     include: {
       sourceEntity: { select: { id: true, legalName: true, code: true } },
@@ -119,6 +121,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
   if (!actor) {
     return NextResponse.json({ ok: false, error_code: 'UNAUTHORIZED', message: 'Unauthorized' }, { status: 401 });
@@ -172,12 +175,12 @@ export async function POST(req: NextRequest) {
 
     // Resolve organizations
     const [sourceOrg, targetOrg] = await Promise.all([
-      prisma.organization.findFirst({
+      db.organization.findFirst({
         where: {
           OR: [{ id: sourceQuery }, { code: sourceQuery.toUpperCase() }, { legalName: { contains: sourceQuery, mode: 'insensitive' } }],
         },
       }),
-      prisma.organization.findFirst({
+      db.organization.findFirst({
         where: {
           OR: [{ id: targetQuery }, { code: targetQuery.toUpperCase() }, { legalName: { contains: targetQuery, mode: 'insensitive' } }],
         },
@@ -198,7 +201,8 @@ export async function POST(req: NextRequest) {
     const formattedAmount = amount.toLocaleString('en-NG', { style: 'currency', currency: sourceOrg.defaultCurrency || 'NGN' });
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'intercompany_note',
       summary: `Generate paired Intercompany Debit & Credit Notes (${formattedAmount}) from ${sourceOrg.legalName} to ${targetOrg.legalName}`,
       materialPayload: {
@@ -246,7 +250,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const allMatchedNotes = await prisma.intercompanyNote.findMany({
+    const allMatchedNotes = await db.intercompanyNote.findMany({
       where: {
         OR: [{ id: { in: noteIds } }, { noteNumber: { in: noteIds } }],
       },
@@ -285,7 +289,8 @@ export async function POST(req: NextRequest) {
 
     // Staged Action Governance: AI never directly closes financial ledgers without explicit physical GMD confirmation
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'intercompany_note',
       targetSubsidiaryId: targetNotes[0].sourceEntityId,
       summary: `Netting & Settlement of ${targetNotes.length} intercompany note(s) totaling ${totalNaira}`,
@@ -349,7 +354,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const existingNote = await prisma.intercompanyNote.findFirst({
+    const existingNote = await db.intercompanyNote.findFirst({
       where: { OR: [{ id: noteLookup }, { noteNumber: noteLookup }] },
       include: {
         sourceEntity: { select: { id: true, legalName: true } },
@@ -374,7 +379,8 @@ export async function POST(req: NextRequest) {
     const newDescription = body.description ? String(body.description).trim() : existingNote.description;
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'intercompany_note',
       targetSubsidiaryId: existingNote.sourceEntityId,
       summary: `Amend intercompany note ${existingNote.noteNumber} to ₦${newAmountNaira.toLocaleString()}`,

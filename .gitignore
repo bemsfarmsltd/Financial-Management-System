@@ -54,3 +54,6 @@ prisma/dev.db-journal
 *.db-journal
 scratch/
 update_script.py
+
+# Private pre-deployment database archives; never publish.
+/.private-release-backups/

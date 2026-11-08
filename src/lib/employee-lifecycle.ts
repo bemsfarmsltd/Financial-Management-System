@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import crypto from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import {
@@ -44,7 +45,6 @@ export const SAFE_EMPLOYEE_SELECT = {
   nextOfKinRelationship: true,
   nextOfKinAddress: true,
   createdAt: true,
-  updatedAt: true,
 } as const;
 
 export type SafeEmployeeProjection = {
@@ -68,34 +68,27 @@ export class LifecycleAuthorizationError extends Error {
 }
 
 export async function recordEmployeeAuditEvent(params: {
-  actor: AuthenticatedEmployee;
-  targetId: string;
-  action: string;
-  subsidiaryId?: string | null;
-  metadata?: Record<string, unknown>;
-}) {
-  try {
-    await prisma.auditEvent.create({
-      data: {
-        actorId: params.actor.id,
-        actorName: params.actor.legalName,
-        actorRole: params.actor.role,
-        groupId: 'bems-group-hq',
-        subsidiaryId: params.subsidiaryId || null,
-        targetType: 'EMPLOYEE',
-        targetId: params.targetId,
-        action: params.action,
-        metadata: params.metadata ? JSON.stringify(params.metadata) : null,
-        correlationId: crypto.randomUUID(),
-      },
-    });
-  } catch (err) {
-    console.warn('AuditEvent write warning:', err);
-  }
+  actor: AuthenticatedEmployee; targetId: string; action: string;
+  subsidiaryId?: string | null; metadata?: Record<string, unknown>;
+}, client: Prisma.TransactionClient = prisma) {
+  const organization = params.subsidiaryId
+    ? await client.organization.findUnique({ where: { id: params.subsidiaryId }, select: { id: true, parentGroupId: true } })
+    : await client.organization.findFirst({ where: { type: 'GROUP' }, select: { id: true, parentGroupId: true } });
+  if (!organization) throw new Error('An actual organization is required for the employee audit.');
+  await client.auditEvent.create({ data: {
+    actorId: params.actor.id, actorName: params.actor.legalName, actorRole: params.actor.role,
+    groupId: organization.parentGroupId || organization.id, subsidiaryId: params.subsidiaryId || null,
+    targetType: 'EMPLOYEE', targetId: params.targetId, action: params.action,
+    metadata: params.metadata ? JSON.stringify(params.metadata) : null, correlationId: crypto.randomUUID(),
+  } });
 }
 
-export async function assertSingleActiveGmd(excludeEmployeeId?: string) {
-  const existingGmd = await prisma.employee.findFirst({
+async function inLifecycleTransaction<T>(client: Prisma.TransactionClient | undefined, work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  return client ? work(client) : prisma.$transaction(work, { isolationLevel: 'Serializable' });
+}
+
+export async function assertSingleActiveGmd(excludeEmployeeId?: string, client: Prisma.TransactionClient = prisma) {
+  const existingGmd = await client.employee.findFirst({
     where: {
       role: 'GMD',
       status: 'ACTIVE',
@@ -116,7 +109,8 @@ export async function assertSingleActiveGmd(excludeEmployeeId?: string) {
 export async function verifyTargetEmployeeAccess(
   actor: AuthenticatedEmployee,
   targetEmployeeId: string,
-  options?: { allowExecutiveTarget?: boolean }
+  options?: { allowExecutiveTarget?: boolean },
+  client: Prisma.TransactionClient = prisma
 ) {
   const isExecutive = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
   const hrScope = await getHrAuthorizationScope(actor);
@@ -125,7 +119,7 @@ export async function verifyTargetEmployeeAccess(
     throw new LifecycleAuthorizationError('Executive or authorized HR access is required.', 403);
   }
 
-  const target = await prisma.employee.findUnique({
+  const target = await client.employee.findUnique({
     where: { id: targetEmployeeId },
     include: {
       assignments: {
@@ -139,9 +133,13 @@ export async function verifyTargetEmployeeAccess(
     throw new LifecycleAuthorizationError('Target employee record not found.', 404);
   }
 
+  if(process.env.BEMS_WALLET_ENABLED==='true' && target.id===process.env.BEMS_FINANCIAL_GMD_ID && actor.id!==target.id) throw new LifecycleAuthorizationError('The designated GMD account requires its own authenticated owner. Use the controlled recovery procedure.',403);
   const isTargetExecutive = ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(
     (target.role || '').toUpperCase()
   );
+
+  if (['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(target.role) && !hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN'])) throw new LifecycleAuthorizationError('Only a Super Admin can modify a Super Admin account.', 403);
+  if (target.role === 'GMD' && !hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) throw new LifecycleAuthorizationError('Only the active GMD can modify the GMD account.', 403);
 
   // HR can NEVER mutate executive accounts
   if (!isExecutive) {
@@ -183,11 +181,11 @@ export async function approveEmployeeOnboarding(params: {
   departmentId?: string | null;
   positionName?: string | null;
   requireStaffRoleOnly?: boolean;
-}) {
+}, client?: Prisma.TransactionClient) {
   const { target, isExecutive, hrScope } = await verifyTargetEmployeeAccess(
     params.actor,
     params.targetEmployeeId,
-    { allowExecutiveTarget: !params.requireStaffRoleOnly }
+    { allowExecutiveTarget: !params.requireStaffRoleOnly }, client || prisma
   );
 
   if (target.approvalStatus !== 'PENDING_APPROVAL') {
@@ -199,7 +197,8 @@ export async function approveEmployeeOnboarding(params: {
 
   const requestedRole = (params.assignedRole || target.role || 'STAFF').toUpperCase();
   const allowedRoles = ['STAFF', 'GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'];
-  const finalRole = allowedRoles.includes(requestedRole) ? requestedRole : 'STAFF';
+  if (!allowedRoles.includes(requestedRole)) throw new LifecycleAuthorizationError('Unsupported onboarding role.', 400);
+  const finalRole = requestedRole;
 
   if (params.requireStaffRoleOnly && finalRole !== 'STAFF') {
     throw new LifecycleAuthorizationError(
@@ -224,7 +223,7 @@ export async function approveEmployeeOnboarding(params: {
   }
 
   if (finalRole === 'GMD') {
-    await assertSingleActiveGmd(target.id);
+    await assertSingleActiveGmd(target.id, client || prisma);
   }
 
   if (params.subsidiaryId && !isExecutive && !hrScope.isGlobal) {
@@ -236,11 +235,20 @@ export async function approveEmployeeOnboarding(params: {
     }
   }
 
+  const targetSubsidiaryId = params.subsidiaryId || target.assignments[0]?.subsidiaryId;
+  if (targetSubsidiaryId && !await (client || prisma).organization.findFirst({ where: { id: targetSubsidiaryId, status: 'ACTIVE' } })) throw new LifecycleAuthorizationError('Choose an active subsidiary.', 400);
+  if (params.departmentId) {
+    const department = await (client || prisma).department.findUnique({ where: { id: params.departmentId } });
+    if (!department || department.organizationId !== targetSubsidiaryId) throw new LifecycleAuthorizationError('The department must belong to the selected subsidiary.', 400);
+  }
+
   const officialEmpNum = target.employeeNumber.startsWith('PENDING-')
-    ? `BEMS-${finalRole.slice(0, 3)}-${Date.now().toString().slice(-4)}`
+    ? `BEMS-${finalRole.slice(0, 3)}-${crypto.randomUUID().slice(0, 12)}`
     : target.employeeNumber;
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await inLifecycleTransaction(client, async (tx) => {
+    const current = await tx.employee.findUnique({ where: { id: target.id } });
+    if (!current || current.status !== target.status || current.approvalStatus !== target.approvalStatus || current.role !== target.role) throw new LifecycleAuthorizationError('The employee changed. Refresh before retrying.', 409);
     const emp = await tx.employee.update({
       where: { id: target.id },
       data: {
@@ -262,7 +270,7 @@ export async function approveEmployeeOnboarding(params: {
         data: {
           status: 'ACTIVE',
           ...(params.subsidiaryId ? { subsidiaryId: params.subsidiaryId } : {}),
-          ...(params.departmentId ? { departmentId: params.departmentId } : {}),
+          ...(params.subsidiaryId && params.subsidiaryId !== existingAssignment.subsidiaryId ? { departmentId: params.departmentId || null } : params.departmentId ? { departmentId: params.departmentId } : {}),
           ...(params.positionName ? { positionName: params.positionName } : {}),
         },
       });
@@ -289,16 +297,18 @@ export async function approveEmployeeOnboarding(params: {
       },
     });
 
-    return emp;
-  });
-
   await recordEmployeeAuditEvent({
     actor: params.actor,
     targetId: target.id,
     action: 'ONBOARDING_APPROVED',
     subsidiaryId: params.subsidiaryId || target.assignments[0]?.subsidiaryId || null,
     metadata: { assignedRole: finalRole, employeeNumber: officialEmpNum },
+  }, tx);
+
+    return emp;
   });
+
+
 
   return updated;
 }
@@ -308,11 +318,11 @@ export async function rejectEmployeeOnboarding(params: {
   targetEmployeeId: string;
   rejectionReason?: string | null;
   requireStaffRoleOnly?: boolean;
-}) {
+}, client?: Prisma.TransactionClient) {
   const { target } = await verifyTargetEmployeeAccess(
     params.actor,
     params.targetEmployeeId,
-    { allowExecutiveTarget: !params.requireStaffRoleOnly }
+    { allowExecutiveTarget: !params.requireStaffRoleOnly }, client || prisma
   );
 
   if (target.approvalStatus !== 'PENDING_APPROVAL') {
@@ -322,7 +332,9 @@ export async function rejectEmployeeOnboarding(params: {
     );
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await inLifecycleTransaction(client, async (tx) => {
+    const current = await tx.employee.findUnique({ where: { id: target.id } });
+    if (!current || current.status !== target.status || current.approvalStatus !== target.approvalStatus || current.role !== target.role) throw new LifecycleAuthorizationError('The employee changed. Refresh before retrying.', 409);
     const emp = await tx.employee.update({
       where: { id: target.id },
       data: {
@@ -332,6 +344,7 @@ export async function rejectEmployeeOnboarding(params: {
       select: SAFE_EMPLOYEE_SELECT,
     });
 
+    await tx.employeeAssignment.updateMany({ where: { employeeId: target.id }, data: { status: 'INACTIVE' } });
     await tx.authSession.deleteMany({
       where: { employeeId: target.id },
     });
@@ -348,18 +361,20 @@ export async function rejectEmployeeOnboarding(params: {
       },
     });
 
-    return emp;
-  });
-
-  invalidateSessionCache();
-
   await recordEmployeeAuditEvent({
     actor: params.actor,
     targetId: target.id,
     action: 'ONBOARDING_REJECTED',
     subsidiaryId: target.assignments[0]?.subsidiaryId || null,
     metadata: { reason: params.rejectionReason || null },
+  }, tx);
+
+    return emp;
   });
+
+  invalidateSessionCache();
+
+
 
   return updated;
 }
@@ -370,7 +385,7 @@ export async function transitionEmployeeStatus(params: {
   nextStatus: 'ACTIVE' | 'SUSPENDED' | 'ON_LEAVE' | 'TERMINATED';
   reason?: string | null;
   requireStaffRoleOnly?: boolean;
-}) {
+}, client?: Prisma.TransactionClient) {
   const validStatuses = ['ACTIVE', 'SUSPENDED', 'ON_LEAVE', 'TERMINATED'];
   if (!validStatuses.includes(params.nextStatus)) {
     throw new LifecycleAuthorizationError(
@@ -389,7 +404,7 @@ export async function transitionEmployeeStatus(params: {
   const { target, isExecutive } = await verifyTargetEmployeeAccess(
     params.actor,
     params.targetEmployeeId,
-    { allowExecutiveTarget: !params.requireStaffRoleOnly }
+    { allowExecutiveTarget: !params.requireStaffRoleOnly }, client || prisma
   );
 
   // Only approved accounts can be transitioned to ACTIVE / ON_LEAVE / SUSPENDED via status update
@@ -412,32 +427,29 @@ export async function transitionEmployeeStatus(params: {
   }
 
   if (params.nextStatus === 'ACTIVE' && target.role === 'GMD') {
-    await assertSingleActiveGmd(target.id);
+    await assertSingleActiveGmd(target.id, client || prisma);
   }
 
   if (!isExecutive && params.nextStatus === 'SUSPENDED') {
     // Allow HR to set ACTIVE, ON_LEAVE, TERMINATED, or SUSPENDED on STAFF within scope
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await inLifecycleTransaction(client, async (tx) => {
+    const current = await tx.employee.findUnique({ where: { id: target.id } });
+    if (!current || current.status !== target.status || current.approvalStatus !== target.approvalStatus || current.role !== target.role) throw new LifecycleAuthorizationError('The employee changed. Refresh before retrying.', 409);
     const emp = await tx.employee.update({
       where: { id: target.id },
       data: { status: params.nextStatus },
       select: SAFE_EMPLOYEE_SELECT,
     });
 
+    if (params.nextStatus === 'TERMINATED') await tx.employeeAssignment.updateMany({ where: { employeeId: target.id }, data: { status: 'INACTIVE' } });
+    if (params.nextStatus === 'ACTIVE') await tx.employeeAssignment.updateMany({ where: { employeeId: target.id, isPrimary: true }, data: { status: 'ACTIVE' } });
     if (params.nextStatus === 'SUSPENDED' || params.nextStatus === 'TERMINATED') {
       await tx.authSession.deleteMany({
         where: { employeeId: target.id },
       });
     }
-
-    return emp;
-  });
-
-  if (params.nextStatus === 'SUSPENDED' || params.nextStatus === 'TERMINATED') {
-    invalidateSessionCache();
-  }
 
   await recordEmployeeAuditEvent({
     actor: params.actor,
@@ -449,7 +461,16 @@ export async function transitionEmployeeStatus(params: {
       nextStatus: params.nextStatus,
       reason: params.reason || null,
     },
+  }, tx);
+
+    return emp;
   });
+
+  if (params.nextStatus === 'SUSPENDED' || params.nextStatus === 'TERMINATED') {
+    invalidateSessionCache();
+  }
+
+
 
   return updated;
 }

@@ -1,3 +1,4 @@
+import { executeDashboardCommand } from '@/lib/staged-actions';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
@@ -54,48 +55,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await getAuthenticatedEmployee(request);
-    if (!user || !hasAnyRole(user, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
-      return NextResponse.json({ error: 'Unauthorized: Executive access required' }, { status: 401 });
-    }
-
+    const actor = await getAuthenticatedEmployee(request);
+    if (!actor) return NextResponse.json({ error: 'Sign in to manage rosters.' }, { status: 401 });
     const body = await request.json();
-    const { employeeId, weeklyOffDays, customShiftIn, customShiftOut, isExempt, notes } = body;
-
-    if (!employeeId) {
-      return NextResponse.json({ error: 'employeeId is required' }, { status: 400 });
-    }
-
-    if (weeklyOffDays === undefined) {
-      return NextResponse.json({ error: 'weeklyOffDays is required (e.g. "0,6" or "1,2")' }, { status: 400 });
-    }
-
-    const schedule = await prisma.staffWorkSchedule.upsert({
-      where: { employeeId },
-      update: {
-        weeklyOffDays: String(weeklyOffDays),
-        customShiftIn: customShiftIn || '08:00',
-        customShiftOut: customShiftOut || '17:00',
-        isExempt: Boolean(isExempt),
-        notes: notes || null,
-      },
-      create: {
-        employeeId,
-        weeklyOffDays: String(weeklyOffDays),
-        customShiftIn: customShiftIn || '08:00',
-        customShiftOut: customShiftOut || '17:00',
-        isExempt: Boolean(isExempt),
-        notes: notes || null,
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Staff work schedule and weekly off-days updated successfully.',
-      schedule,
-    });
-  } catch (error: any) {
-    console.error('Error updating staff roster:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
-  }
+    const schedule = await executeDashboardCommand(actor, 'attendance_override', { ...body, action_type: 'UPDATE_ROSTER' });
+    return NextResponse.json({ success: true, schedule });
+  } catch (error: any) { return NextResponse.json({ error: error.message }, { status: 400 }); }
 }

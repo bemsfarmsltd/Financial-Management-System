@@ -114,9 +114,9 @@ export async function GET(request: Request) {
       netMinor: Number(item.netMinor),
       netFormatted: formatNaira(item.netMinor),
       disbursementId: disbursement?.id || null,
-      paymentStatus: disbursement?.status || (item.batch.status === 'APPROVED' ? 'APPROVED_FOR_PAYMENT' : 'PREPARED'),
+      paymentStatus: disbursement?.status || (item.status==='WALLET_CREDITED'?'WALLET_CREDITED':item.batch.status === 'APPROVED' ? 'APPROVED_FOR_PAYMENT' : 'PREPARED'),
       paidAt: disbursement?.paidAt || null,
-      bankName: disbursement?.bankName || employee.salaryBankName || employee.bankName || 'GTBank',
+      bankName: disbursement?.bankName || employee.salaryBankName || employee.bankName || 'Not set',
       reference: disbursement?.externalReference || null,
       receipt: disbursement?.receipt ? { fileName: disbursement.receipt.fileName, url: disbursement.receipt.fileUrl } : null,
       confirmation: disbursement?.recipientConfirmation ? {

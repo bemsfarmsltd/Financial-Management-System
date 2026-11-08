@@ -1,3 +1,4 @@
+import { canAccessEmployeePortal } from '@/lib/portal-access';
 import crypto from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import {
@@ -6,7 +7,7 @@ import {
   HrAuthorizationScope,
 } from '@/lib/auth';
 import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
-import { AiAccessScopeKey } from '@/lib/ai-access-control';
+import { AI_ACCESS_SCOPES, AiAccessScopeKey } from '@/lib/ai-access-control';
 
 export type CanonicalRole = 'SUPER_ADMIN' | 'GMD' | 'STAFF';
 
@@ -53,12 +54,11 @@ export interface PlatformActorContext {
 const DELEGATION_TTL_MS = 10 * 60 * 1000; // 10 minutes max per conversation turn
 
 function getDelegationSigningSecret(): string {
-  return (
-    process.env.BEMS_AI_SERVICE_TOKEN ||
-    process.env.BEMS_N8N_SHARED_SECRET ||
-    process.env.DATABASE_URL ||
-    'bems-platform-delegation-signing-key-2026'
-  );
+  const secret = process.env.BEMS_DELEGATION_SIGNING_SECRET;
+  if (!secret || Buffer.byteLength(secret, 'utf8') < 32) {
+    throw new Error('BEMS_DELEGATION_SIGNING_SECRET must contain at least 32 bytes.');
+  }
+  return secret;
 }
 
 /**
@@ -75,6 +75,7 @@ export function createScopedAutomationToken(input: {
   operationMode?: DelegationOperationMode;
   ttlMs?: number;
 }): string {
+  if(input.requesterRole!=='GMD')throw new Error('Only GMD can delegate AI access.');
   const now = Date.now();
   const isExecutiveRole = input.requesterRole === 'GMD' || input.requesterRole === 'SUPER_ADMIN';
   const effectiveOperationMode: DelegationOperationMode =
@@ -93,7 +94,7 @@ export function createScopedAutomationToken(input: {
     allowedScopes: input.allowedScopes || 'ALL',
     operationMode: effectiveOperationMode,
     issuedAtMs: now,
-    expiresAtMs: now + (input.ttlMs ?? DELEGATION_TTL_MS),
+    expiresAtMs: now + Math.min(Math.max(input.ttlMs ?? DELEGATION_TTL_MS, 1), DELEGATION_TTL_MS),
   };
 
   const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
@@ -123,8 +124,12 @@ export function verifyScopedAutomationToken(token: string | null | undefined): {
   }
 
   const [, encodedPayload, providedSig] = parts;
+  let signingSecret: string;
+  try { signingSecret = getDelegationSigningSecret(); } catch {
+    return { valid: false, reason: 'Automation delegation is not configured.' };
+  }
   const expectedSig = crypto
-    .createHmac('sha256', getDelegationSigningSecret())
+    .createHmac('sha256', signingSecret)
     .update(encodedPayload)
     .digest('base64url');
 
@@ -144,11 +149,19 @@ export function verifyScopedAutomationToken(token: string | null | undefined): {
     }
 
     const role = normalizeCanonicalRole(parsed.requesterRole);
-    if (!role) {
-      return { valid: false, reason: 'Invalid role inside delegation token.' };
+    if (role!=='GMD') {
+      return { valid: false, reason: 'AI delegation is exclusively for GMD.' };
     }
 
-    if (Date.now() > parsed.expiresAtMs) {
+    if (!Number.isFinite(parsed.issuedAtMs) || !Number.isFinite(parsed.expiresAtMs) ||
+        parsed.issuedAtMs > Date.now() + 5000 || parsed.expiresAtMs <= parsed.issuedAtMs ||
+        parsed.expiresAtMs - parsed.issuedAtMs > DELEGATION_TTL_MS ||
+        !['READ_ONLY', 'READ_AND_STAGE'].includes(parsed.operationMode) ||
+        (parsed.allowedScopes !== 'ALL' && (!Array.isArray(parsed.allowedScopes) ||
+          parsed.allowedScopes.some(scope => !AI_ACCESS_SCOPES.some(item => item.key === scope))))) {
+      return { valid: false, reason: 'Invalid delegation limits.' };
+    }
+    if (Date.now() >= parsed.expiresAtMs) {
       return { valid: false, reason: 'Delegation token has expired.' };
     }
 
@@ -190,7 +203,7 @@ export async function resolvePlatformActorContext(
     where: { id: employeeId },
   });
 
-  if (!emp || emp.status !== 'ACTIVE' || emp.approvalStatus !== 'APPROVED') {
+  if (!emp || !canAccessEmployeePortal(emp)) {
     return null;
   }
 

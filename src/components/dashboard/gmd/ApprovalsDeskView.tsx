@@ -1,5 +1,6 @@
 'use client';
 
+import WalletFlowNotice from '@/components/wallet/WalletFlowNotice';
 import React, { useState, useEffect, useMemo } from 'react';
 import { RequestChatModal } from '@/components/requests/RequestChatModal';
 import { ExecutiveRequisitionModal } from '@/components/requests/ExecutiveRequisitionModal';
@@ -492,6 +493,7 @@ export function ApprovalsDeskView({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0, paddingBottom: '24px' }}>
+      <WalletFlowNotice />
       {/* Toast Notice */}
       {notice && (
         <div

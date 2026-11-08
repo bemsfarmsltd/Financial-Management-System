@@ -15,6 +15,7 @@ export async function POST(
       return NextResponse.json({ ok: false, error_code: 'SERVICE_CREDENTIALS_FORBIDDEN', message: 'Human session required.' }, { status: 403 });
     }
     const actor = await getAuthenticatedEmployee(req, { disallowServiceToken: true });
+    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
     if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Not permitted.' }, { status: 403 });

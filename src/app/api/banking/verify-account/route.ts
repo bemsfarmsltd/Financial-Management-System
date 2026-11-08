@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   try {
     const clientIp = getClientIp(req);
-    const rateLimit = checkRateLimit(`nuban-lookup:${clientIp}`, {
+    const rateLimit = await checkRateLimit(`nuban-lookup:${clientIp}`, {
       maxAttempts: 15,
       windowMs: 60 * 1000,
     });

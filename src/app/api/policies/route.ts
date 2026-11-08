@@ -1,3 +1,4 @@
+import { executeDashboardCommand } from '@/lib/staged-actions';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
@@ -39,14 +40,10 @@ export async function GET(request: Request) {
         bandName = 'Tier 3: GMD Mandatory Escalation';
         slaHours = 12;
         reviewTier = 'Executive Sign-Off';
-      } else if (p.requiredRole === 'COO') {
-        bandName = 'Tier 2: Executive COO / Finance';
-        slaHours = 6;
-        reviewTier = 'Verified Endorsement';
       } else {
-        bandName = 'Tier 1: Department Autonomous';
-        slaHours = 4;
-        reviewTier = 'Operational';
+        bandName = 'Super Admin Review';
+        slaHours = null as any;
+        reviewTier = 'Executive Sign-Off';
       }
 
       let rangeLabel = '';
@@ -70,15 +67,10 @@ export async function GET(request: Request) {
         maxAmount: maxNgn,
         rangeLabel,
         requiredRole: p.requiredRole,
-        approverTitle:
-          p.requiredRole === 'GMD'
-            ? 'Group Managing Director (GMD)'
-            : p.requiredRole === 'COO'
-            ? 'Chief Operating Officer / Finance Lead'
-            : 'Head of Department (HOD)',
-        minSignatures: p.requiredRole === 'GMD' ? 3 : p.requiredRole === 'COO' ? 2 : 1,
-        slaHours,
-        slaWindow: slaHours === 0 ? 'Instant' : `${slaHours} Hours`,
+        approverTitle: p.requiredRole === 'GMD' ? 'Group Managing Director (GMD)' : ['SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(p.requiredRole) ? 'Super Admin' : 'Invalid legacy policy — update required',
+        minSignatures: null,
+        slaHours: null,
+        slaWindow: 'Not configured',
         reviewTier,
         scope: org ? org.legalName : 'Global Group Policy (All Subsidiaries)',
         scopeCode: org ? org.code : 'GLOBAL',
@@ -98,9 +90,9 @@ export async function GET(request: Request) {
         totalRules: enrichedPolicies.length,
         globalRulesCount: enrichedPolicies.filter((p) => p.scopeCode === 'GLOBAL').length,
         subsidiaryOverridesCount: enrichedPolicies.filter((p) => p.scopeCode !== 'GLOBAL').length,
-        tier1LimitFormatted: '₦500,000',
-        tier2LimitFormatted: '₦2,000,000',
-        emergencyCapFormatted: '₦1,000,000',
+        tier1LimitFormatted: 'See policy bands',
+        tier2LimitFormatted: 'See policy bands',
+        emergencyCapFormatted: 'See emergency policy',
       },
       organizations,
       policies: filtered,
@@ -114,45 +106,19 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const actor = await getAuthenticatedEmployee(request);
-    if (!actor) return NextResponse.json({ error: 'Sign in to manage approval policies.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Only an Executive or Super Admin can change approval policies.' }, { status: 403 });
+    if (!actor) return NextResponse.json({ error: 'Sign in to manage policies.' }, { status: 401 });
     const body = await request.json();
-    const { id, scopeSubsidiaryId, category, minAmount, maxAmount, requiredRole, priority, active } = body;
-
-    const minAmountMinor = BigInt(Math.round((Number(minAmount) || 0) * 100));
-    const maxAmountMinor = maxAmount !== null && maxAmount !== undefined ? BigInt(Math.round(Number(maxAmount) * 100)) : null;
-
-    let saved;
-    if (id) {
-      saved = await prisma.approvalPolicy.update({
-        where: { id },
-        data: {
-          scopeSubsidiaryId: scopeSubsidiaryId || null,
-          category: category || null,
-          minAmountMinor,
-          maxAmountMinor,
-          requiredRole: requiredRole || 'HEAD_OF_ADMIN',
-          priority: Number(priority) || 1,
-          active: active !== undefined ? active : true,
-        },
-      });
-    } else {
-      saved = await prisma.approvalPolicy.create({
-        data: {
-          scopeSubsidiaryId: scopeSubsidiaryId || null,
-          category: category || null,
-          minAmountMinor,
-          maxAmountMinor,
-          requiredRole: requiredRole || 'HEAD_OF_ADMIN',
-          priority: Number(priority) || 1,
-          active: true,
-        },
-      });
-    }
-
-    return NextResponse.json({ success: true, policyId: saved.id });
-  } catch (error: any) {
-    console.error('Error saving policy:', error);
-    return NextResponse.json({ error: error.message || 'Failed to save policy' }, { status: 500 });
-  }
+    const saved = await executeDashboardCommand(actor, 'policy_update', { ...body, sub_action: 'UPDATE_APPROVAL_POLICY' });
+    return NextResponse.json({ success: true, policyId: saved.id, policy: saved });
+  } catch (error: any) { return NextResponse.json({ error: error.message }, { status: 400 }); }
+}
+export async function DELETE(request: Request) {
+  try {
+    const actor = await getAuthenticatedEmployee(request);
+    if (!actor) return NextResponse.json({ error: 'Sign in to manage policies.' }, { status: 401 });
+    const body = await request.json().catch(() => ({}));
+    const id = new URL(request.url).searchParams.get('id') || body.id;
+    const policy = await executeDashboardCommand(actor, 'policy_update', { sub_action: 'DELETE_POLICY', id });
+    return NextResponse.json({ success: true, policy });
+  } catch (error: any) { return NextResponse.json({ error: error.message }, { status: 400 }); }
 }

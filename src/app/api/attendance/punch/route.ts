@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     });
 
     if (!employee || employee.status !== 'ACTIVE') {
-      return NextResponse.json({ error: 'Account is inactive or has been suspended. Please contact HR.' }, { status: 403 });
+      return NextResponse.json({ error: employee?.status === 'ON_LEAVE' ? 'Attendance cannot be recorded while you are on approved leave. Contact HR if your leave dates changed.' : 'Account is inactive or has been suspended. Please contact HR.' }, { status: 403 });
     }
 
     if (employee.role !== 'STAFF') {

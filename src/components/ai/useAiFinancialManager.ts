@@ -13,12 +13,14 @@ interface UseAiOptions {
 }
 
 export function useAiFinancialManager({ userRole, userName, businessName, businessId, currentPage }: UseAiOptions) {
-  const isGroupScope = !businessId || businessId === 'bems-group-hq' || businessId === 'ALL' || businessName?.toLowerCase().includes('bems group');
+  const isGroupScope = !businessId || businessId === 'bems-group-hq' || businessId === 'ALL';
   const scopeKey = isGroupScope ? 'group_hq' : (businessId || 'group_hq');
 
   // Scoped executive keys ensure each workspace has clean, isolated conversation memory
-  const storageKey = `bems_executive_chat_history_v3_${scopeKey}`;
-  const sessionsKey = `bems_executive_chat_sessions_v3_${scopeKey}`;
+  const [accountId, setAccountId] = useState<string>('');
+  useEffect(() => { if(userRole!=='GMD'){setAccountId('');return;} fetch('/api/auth/session', { cache: 'no-store' }).then(r => r.json()).then(data => { if (data.user?.id) setAccountId(data.user.id); }).catch(() => {}); }, [userRole]);
+  const storageKey = `bems_executive_chat_history_v4_${accountId}_${scopeKey}`;
+  const sessionsKey = `bems_executive_chat_sessions_v4_${accountId}_${scopeKey}`;
 
   const defaultWelcomeText = isGroupScope
     ? `Good afternoon, ${userName ? userName.split(' ')[0] : 'Executive'}. I am your BEMS AI Group Financial Manager. I monitor real-time expenditure, approvals, cash runway, and compliance across BEMS Group Conglomerate HQ.\n\nHow can I assist your financial oversight today?`
@@ -37,13 +39,14 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('active');
+  const [hydratedStorageKey, setHydratedStorageKey] = useState('');
 
   // Load archived sessions
   const refreshSessions = useCallback(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !accountId) return;
     try {
       const local = JSON.parse(localStorage.getItem(sessionsKey) || '[]');
-      fetch('/api/ai/memory?mode=sessions')
+      fetch(`/api/ai/memory?mode=sessions&scope=${encodeURIComponent(scopeKey)}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (data && Array.isArray(data.sessions)) {
@@ -62,73 +65,41 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
     } catch {
       setSessions([]);
     }
-  }, [sessionsKey]);
+  }, [sessionsKey, accountId, scopeKey]);
 
   useEffect(() => {
     refreshSessions();
   }, [refreshSessions]);
 
-  // Hydrate conversation on mount from localStorage or /api/ai/memory
+  // Account and workspace changes hydrate atomically before persistence resumes.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !accountId) return;
+    let cancelled = false;
+    const id = localStorage.getItem(storageKey + '_active') || `conv_${accountId}_${crypto.randomUUID()}`;
+    setActiveSessionId(id);
+    const welcome: AiMessage[] = [{ id: 'msg-welcome', sender: 'assistant', timestamp: 'Just now', content: defaultWelcomeText }];
     try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setMessages(parsed);
-          return;
-        }
+      const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+      setMessages(Array.isArray(saved) && saved.length ? saved : welcome);
+      setHydratedStorageKey(storageKey);
+      if (!saved) {
+        fetch(`/api/ai/memory?limit=40&session_id=${encodeURIComponent(id)}&scope=${encodeURIComponent(scopeKey)}`)
+          .then(r => r.ok ? r.json() : null).then(data => {
+            if (cancelled || !Array.isArray(data?.messages) || !data.messages.length) return;
+            setMessages(data.messages.map((m: any) => ({ id: `restored-${m.id}`, sender: m.role === 'assistant' ? 'assistant' : 'user', timestamp: 'Earlier', content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) })));
+          }).catch(() => {});
       }
+    } catch { setMessages(welcome); setHydratedStorageKey(storageKey); }
+    return () => { cancelled = true; };
+  }, [storageKey, accountId]);
 
-      // Reset to scoped default welcome message when switching workspaces
-      setMessages([
-        {
-          id: `msg-welcome-${scopeKey}`,
-          sender: 'assistant',
-          timestamp: 'Just now',
-          content: defaultWelcomeText,
-        },
-      ]);
-
-      // If no local history, query backend memory for session
-      fetch(`/api/ai/memory?limit=40&scope=${encodeURIComponent(scopeKey)}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => {
-          if (data && Array.isArray(data.messages) && data.messages.length > 0) {
-            const restored: AiMessage[] = data.messages.map((m: any, idx: number) => ({
-              id: `restored-${m.id || idx}`,
-              sender: m.role === 'assistant' ? 'assistant' : 'user',
-              timestamp: m.created_at
-                ? new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-                : 'Earlier',
-              content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-            }));
-            if (restored.length > 0) {
-              setMessages(restored);
-              try {
-                localStorage.setItem(storageKey, JSON.stringify(restored));
-              } catch {}
-            }
-          }
-        })
-        .catch(() => {});
-    } catch (e) {
-      console.warn('Could not load chat history:', e);
-    }
-  }, [storageKey]);
-
-  // Persist conversation whenever messages change
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !accountId || hydratedStorageKey !== storageKey) return;
     try {
-      if (messages.length > 1 || (messages.length === 1 && messages[0].id !== 'msg-welcome')) {
-        localStorage.setItem(storageKey, JSON.stringify(messages));
-      }
-    } catch (e) {
-      console.warn('Could not persist chat history:', e);
-    }
-  }, [messages, storageKey]);
+      localStorage.setItem(storageKey, JSON.stringify(messages));
+      if (activeSessionId !== 'active') localStorage.setItem(storageKey + '_active', activeSessionId);
+    } catch {}
+  }, [messages, storageKey, accountId, hydratedStorageKey, activeSessionId]);
 
   // Start fresh chat session
   const startNewChat = useCallback(() => {
@@ -138,7 +109,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
           const existingSessions = JSON.parse(localStorage.getItem(sessionsKey) || '[]');
           const archiveTitle = messages.find((m) => m.sender === 'user')?.content?.slice(0, 45) || 'Executive Financial Oversight';
           existingSessions.unshift({
-            id: `session-${Date.now()}`,
+            id: activeSessionId,
             title: archiveTitle,
             updatedAt: new Date().toISOString(),
             turnsCount: messages.length,
@@ -153,7 +124,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
       console.warn('Error archiving session:', e);
     }
 
-    setActiveSessionId(`session-${Date.now()}`);
+    setActiveSessionId(`conv_${accountId}_${crypto.randomUUID()}`);
     setMessages([
       {
         id: `msg-welcome-${Date.now()}`,
@@ -162,7 +133,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
         content: `Good afternoon, ${userName ? userName.split(' ')[0] : 'Executive'}. I am your BEMS AI Group Financial Manager. I monitor real-time expenditure, approvals, cash runway, and compliance across ${businessName}.\n\nHow can I assist your financial oversight today?`,
       },
     ]);
-  }, [messages, sessionsKey, storageKey, userName, businessName]);
+  }, [messages, sessionsKey, storageKey, userName, businessName, accountId, activeSessionId]);
 
   // Load a past session from history
   const loadSession = useCallback(
@@ -221,6 +192,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
   // Send a user prompt and generate an intelligent response with interactive action cards
   const sendMessage = useCallback(
     async (text: string, elementContext?: ElementContextPayload) => {
+      if(userRole!=='GMD')return;
       const displayContent = elementContext
         ? `[Re: ${elementContext.label}${elementContext.value ? ` · ${elementContext.value}` : ''}] ${text}`
         : text;
@@ -243,6 +215,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
           },
           body: JSON.stringify({
             message: text,
+            conversation_id: activeSessionId.startsWith(`conv_${accountId}_`) ? activeSessionId : `conv_${accountId}_${crypto.randomUUID()}`,
             context: {
               active_business_id: businessId,
               business_name: businessName,
@@ -254,6 +227,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
 
         if (res.ok) {
           const data = await res.json();
+          if (data.conversation_id) setActiveSessionId(data.conversation_id);
           const rawAction = data.actionCard || data.staged_action;
           let actionCard: any = undefined;
 
@@ -264,7 +238,9 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
             const preview = rawAction.preview || rawAction.data || rawAction;
             const summary = rawAction.summary || (typeof preview === 'object' ? preview.summary || preview.title : '') || 'Executive Action Required';
 
-            if (rawType === 'budget' || rawType === 'budget_proposal') {
+            if (rawType === 'wallet_release') {
+              actionCard = {type:'wallet_release',data:{id:stagedId},summary:'GMD wallet release'};
+            } else if (rawType === 'budget' || rawType === 'budget_proposal') {
               const totalAmountNum = typeof preview.total_amount === 'string'
                 ? Number(preview.total_amount.replace(/[^0-9.]/g, ''))
                 : Number(preview.total_amount || preview.amount || 0);
@@ -283,9 +259,9 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
                 data: {
                   organizationId: preview.organization_id || businessId,
                   organizationName: preview.organization || businessName,
-                  periodName: preview.period || 'November 2026',
+                  periodName: preview.period || '',
                   fiscalYear: new Date().getFullYear(),
-                  fiscalPeriod: preview.period || '2026-11',
+                  fiscalPeriod: preview.period || '',
                   totalAmount: totalAmountNum,
                   currency: preview.currency || 'NGN',
                   lines,
@@ -376,91 +352,17 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
           return;
         }
       } catch (err) {
-        console.warn('Live AI chat API call failed, using graceful fallback:', err);
+        console.warn('Live AI chat request failed:', err);
       }
 
-      const normalized = text.toLowerCase();
-
-      // Local fallback in case network call fails
-      setTimeout(() => {
-        // 0. Element-Specific Contextual Analysis (Point & Ask)
-        if (elementContext) {
-          const label = elementContext.label;
-          const val = elementContext.value || '0';
-          const sec = elementContext.section || 'Overview';
-          let contextualReply = '';
-
-          if (label.toLowerCase().includes('payments recorded')) {
-            contextualReply = `**Payments Recorded (${val}):**\n\nThis metric tracks the cumulative count of disbursement vouchers executed from company bank reserves for **${businessName}**.\n\n• **Current Status:** The value is currently **${val}** because no disbursement transactions have been authorized and disbursed to vendor accounts in this cycle.\n• **Operational Action:** Once a requisition is approved by the GMD, navigate to **Approvals & payments** to execute the payment voucher and update this live telemetry figure.`;
-          } else if (label.toLowerCase().includes('closed & accounted')) {
-            contextualReply = `**Closed & Accounted (${val}):**\n\nThis counter reflects staff cash advances that have been verified, receipt-matched, and formally reconciled within the mandatory 72-hour SLA window.\n\n• **Current Status:** Currently at **${val}**. Disbursed advances remain in 'Awaiting Proof' until physical receipts and delivery notes are uploaded by staff and cleared by the GMD.`;
-          } else if (label.toLowerCase().includes('review required') || label.toLowerCase().includes('awaiting authorization')) {
-            contextualReply = `**Executive Review Required (${val}):**\n\nThere ${val === '1' ? 'is currently **1 requisition**' : `are currently **${val} requisitions**`} awaiting executive GMD review and sign-off for **${businessName}**.\n\n• **Action Required:** Open the **Approvals & payments** desk or ask me to *"Review pending approvals"* to inspect line items, vendor quotes, and execute authorization.`;
-          } else if (label.toLowerCase().includes('group requests') || label.toLowerCase().includes('requests')) {
-            contextualReply = `**Total Requests (${val}):**\n\nThis metric records the entire requisition pipeline submitted under **${businessName}**.\n\n• **Telemetry:** A total of **${val} requests** have been created in the system, spanning operational procurement, recurring commitments, and staff advances.`;
-          } else if (label.toLowerCase().includes('velocity') || label.toLowerCase().includes('spending')) {
-            contextualReply = `**Group Spending Velocity (${val}):**\n\nThis chart visualizes the 7-day cash outflow pacing across Monday through Sunday.\n\n• **Current Analysis:** A baseline of **${val}** indicates zero cash disbursements processed on this specific weekday, confirming that operational liquidity remains preserved within treasury reserves.`;
-          } else if (label.toLowerCase().includes('clearance rate') || label.toLowerCase().includes('accountability')) {
-            contextualReply = `**Accountability Clearance Rate (${val}):**\n\nThis compliance index measures on-time receipt retirement for cash advances across BEMS Group.\n\n• **Audit Score:** Standing at **${val}**, reflecting that zero staff advances are in default or overdue beyond the 72-hour retiral threshold.`;
-          } else if (label.toLowerCase().includes('sla clock') || label.toLowerCase().includes('clock') || label.toLowerCase().includes('01:00:00')) {
-            contextualReply = `**GMD Review SLA Clock (${val}):**\n\nThis is the executive 1-Hour SLA countdown timer for pending requisitions.\n\n• **Policy:** When a fund request enters the GMD queue, this clock counts down from 01:00:00 to guarantee swift operational turnaround without administrative bottlenecks.`;
-          } else if (label.toLowerCase().includes('starlink') || label.toLowerCase().includes('wi-fi') || label.toLowerCase().includes('attendance')) {
-            contextualReply = `**Starlink Wi-Fi Attendance Policy:**\n\nStaff check-ins require verified connection to the company Starlink Wi-Fi network combined with GPS geofence validation.\n\n• **Arrival Window:** 07:00 AM – 08:00 AM (Grace period until 08:15 AM).\n• **Power Outage Fallback:** In the event of grid/Starlink failure, an executive administrator can toggle Power Outage Mode to permit local kiosk verification.`;
-          } else {
-            contextualReply = `**Selected Element Analysis — ${label} (${val}):**\n\n• **Section:** ${sec}\n• **Workspace:** ${businessName}\n• **Grounded Analysis:** You clicked on **"${label}"** with a recorded value of **"${val}"**. In accordance with BEMS Group financial controls, all metrics on this page reflect live database records with zero unverified caching.`;
-          }
-
-          const aiReply: AiMessage = {
-            id: `ai-${Date.now()}`,
-            sender: 'assistant',
-            timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-            content: contextualReply,
-          };
-          setMessages((prev) => [...prev, aiReply]);
-          setIsTyping(false);
-          return;
-        }
-
-        // 1. Executive Briefing Command
-        if (normalized.includes('brief') || normalized.includes('morning') || normalized.includes('attention') || normalized.includes('what do you have')) {
-          const briefingData: BriefingCardData = {
-            asOf: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-            totalPendingApprovals: 0,
-            totalPendingMinor: 0,
-            unrecordedPayments: 0,
-            unrecordedMinor: 0,
-            overdueCasesCount: 0,
-            cashRunwayMonths: 'Healthy',
-            urgentItems: [],
-          };
-
-          const aiReply: AiMessage = {
-            id: `ai-${Date.now()}`,
-            sender: 'assistant',
-            timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-            content: `Here is your executive financial briefing across ${businessName}. All approval queues and accountability cases are currently up-to-date with **0 pending items**.`,
-            actionCard: {
-              type: 'briefing',
-              data: briefingData,
-            },
-          };
-          setMessages((prev) => [...prev, aiReply]);
-          setIsTyping(false);
-          return;
-        }
-
-        // Default General Conversational Response
-        const defaultReply: AiMessage = {
-          id: `ai-${Date.now()}`,
-          sender: 'assistant',
-          timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-          content: `I am your BEMS AI Group Financial Manager. I monitor real-time expenditure, approvals, cash runway, and compliance across ${businessName}.\n\nHow can I assist your financial oversight today?`,
-        };
-        setMessages((prev) => [...prev, defaultReply]);
-        setIsTyping(false);
-      }, 500);
+      setMessages(prev => [...prev, {
+        id: `error-${Date.now()}`, sender: 'assistant',
+        timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+        content: 'The assistant could not reach the server. Please retry. Live records and pending actions have not been verified.',
+      }]);
+      setIsTyping(false);
     },
-    [businessName, businessId]
+    [businessName, businessId, isGroupScope, activeSessionId, accountId, userRole]
   );
 
   // Execute confirmation for an action card (strictly bound to backend confirmation endpoint)

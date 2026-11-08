@@ -23,6 +23,7 @@ export default async function VendorsPage() {
       category: true,
       rating: true,
       createdAt: true,
+      updatedAt: true,
       ...(isExecutive
         ? {
             taxId: true,
@@ -52,7 +53,7 @@ export default async function VendorsPage() {
     accountName: isExecutive ? v.accountName || null : null,
     notes: isExecutive ? v.notes || null : null,
     createdAt: v.createdAt.toISOString(),
-    updatedAt: v.updatedAt.toISOString(),
+    updatedAt: v.updatedAt ? v.updatedAt.toISOString() : v.createdAt.toISOString(),
   }));
 
   const initialRole = actor.role === 'GMD' ? 'GMD' : isExecutive ? 'SystemAdmin' : 'Staff';

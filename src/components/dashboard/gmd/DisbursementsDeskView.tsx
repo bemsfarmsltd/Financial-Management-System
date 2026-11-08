@@ -1,5 +1,6 @@
 'use client';
 
+import WalletFlowNotice from '@/components/wallet/WalletFlowNotice';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Wallet,
@@ -275,6 +276,9 @@ export function DisbursementsDeskView({
       const formData = new FormData();
       formData.set('requestId', selectedRequest.id);
       formData.set('payerOrgId', selectedRequest.subsidiary.id);
+      const selectedPayer = availableBanks.find(bank => `${bank.bankName} (${bank.accountNumber})` === payerBank);
+      if (!selectedPayer || !receiptFile) throw new Error('Select a paying account and upload the actual bank receipt.');
+      formData.set('payerAccountId', selectedPayer.id);
       formData.set('beneficiaryName', beneficiaryName || selectedRequest.requester?.legalName || 'Beneficiary');
       formData.set('beneficiaryBank', beneficiaryBank || selectedRequest.requester?.bankName || 'Corporate Bank');
       formData.set('beneficiaryAccount', beneficiaryAccount || selectedRequest.requester?.accountNumber || '0000000000');
@@ -350,6 +354,7 @@ export function DisbursementsDeskView({
 
   return (
     <div style={{ width: '100%', minHeight: '100%', color: '#0f172a' }}>
+      <WalletFlowNotice />
       {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
         <div>

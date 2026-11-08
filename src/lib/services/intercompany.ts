@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 
@@ -15,11 +16,11 @@ export async function generatePayrollIntercompanyNotes(params: {
   payingEntityId: string;
   periodId: string;
   actor: { id: string; legalName: string; role: string };
-}): Promise<IntercompanyNoteResult> {
+}, client: Prisma.TransactionClient | typeof prisma = prisma): Promise<IntercompanyNoteResult> {
   const { payrollItemId, payingEntityId, periodId, actor } = params;
 
   // Retrieve payroll item and its cost allocations
-  const item = await prisma.payrollItem.findUnique({
+  const item = await client.payrollItem.findUnique({
     where: { id: payrollItemId },
     include: {
       employee: true,
@@ -36,7 +37,7 @@ export async function generatePayrollIntercompanyNotes(params: {
     return { generatedCount: 0, notes: [] };
   }
 
-  const payingOrg = await prisma.organization.findUnique({
+  const payingOrg = await client.organization.findUnique({
     where: { id: payingEntityId },
   });
 
@@ -55,7 +56,7 @@ export async function generatePayrollIntercompanyNotes(params: {
 
       const description = `Automated Payroll Cost Recharge: ${item.employee.legalName} (${alloc.percentage}% allocation for ${periodLabel})`;
 
-      const note = await prisma.$transaction(async (tx) => {
+      const writeNote = async (tx: Prisma.TransactionClient) => {
         const created = await tx.intercompanyNote.create({
           data: {
             periodId,
@@ -91,7 +92,8 @@ export async function generatePayrollIntercompanyNotes(params: {
         });
 
         return created;
-      });
+      };
+      const note = '$transaction' in client ? await client.$transaction(writeNote) : await writeNote(client);
 
       generatedNotes.push(note);
     }
@@ -211,6 +213,9 @@ export async function generateOperationalIntercompanyNotes(params: {
 
   if (!sourceOrg) throw new Error(`Source entity ${sourceEntityId} not found.`);
   if (!targetOrg) throw new Error(`Target entity ${targetEntityId} not found.`);
+  if (sourceOrg.status !== 'ACTIVE' || targetOrg.status !== 'ACTIVE') throw new Error('Intercompany entities must be active.');
+  if (sourceOrg.defaultCurrency !== targetOrg.defaultCurrency || currency !== sourceOrg.defaultCurrency) throw new Error('Cross-currency intercompany notes require an explicit conversion workflow.');
+  if (description.trim().length < 5 || description.length > 1000) throw new Error('Provide a clear intercompany purpose.');
 
   const now = new Date();
   const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;

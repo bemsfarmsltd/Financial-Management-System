@@ -1,3 +1,4 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -20,6 +21,7 @@ const ALLOWED_APPROVAL_STATUS_FILTERS = new Set([
 
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
   if (!actor || !actor.isExecutive) {
     return NextResponse.json(
@@ -77,7 +79,7 @@ export async function GET(req: NextRequest) {
     whereClause.OR = [{ id: requestIdFilter }, { requestNumber: requestIdFilter }];
   }
 
-  const requests = await prisma.expenditureRequest.findMany({
+  const requests = await db.expenditureRequest.findMany({
     where: whereClause,
     include: {
       requester: {
@@ -174,6 +176,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
 
   if (!actor?.isExecutive) {
@@ -198,11 +201,11 @@ export async function POST(req: NextRequest) {
     }
 
     const [targetReq, targetAssignee] = await Promise.all([
-      prisma.expenditureRequest.findFirst({
+      db.expenditureRequest.findFirst({
         where: { OR: [{ id: reqIdLookup }, { requestNumber: reqIdLookup }] },
         include: { subsidiary: true },
       }),
-      prisma.employee.findFirst({
+      db.employee.findFirst({
         where: {
           status: 'ACTIVE',
           approvalStatus: 'APPROVED',
@@ -224,7 +227,8 @@ export async function POST(req: NextRequest) {
     }
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'payment_recorder',
       targetSubsidiaryId: targetReq.subsidiaryId,
       targetEmployeeId: targetAssignee.id,
@@ -296,7 +300,7 @@ export async function POST(req: NextRequest) {
       : 'DECLINE';
 
   if (rawBatchList.length > 1) {
-    const batchReqs = await prisma.expenditureRequest.findMany({
+    const batchReqs = await db.expenditureRequest.findMany({
       where: {
         OR: [{ id: { in: rawBatchList } }, { requestNumber: { in: rawBatchList } }],
       },
@@ -330,7 +334,8 @@ export async function POST(req: NextRequest) {
     const totalNaira = Number(totalMinor) / 100;
 
     const stagedBatch = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'approval_decision',
       targetSubsidiaryId: batchReqs[0].subsidiaryId,
       summary: `Batch ${canonicalDecision} ${batchReqs.length} Fund Requests (${batchReqs.map((r) => r.requestNumber).join(', ')}) — Total ₦${totalNaira.toLocaleString()}`,
@@ -363,7 +368,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Find expenditure request
-  const expReq = await prisma.expenditureRequest.findFirst({
+  const expReq = await db.expenditureRequest.findFirst({
     where: {
       OR: [{ id: identifier }, { requestNumber: identifier }],
     },
@@ -454,7 +459,8 @@ export async function POST(req: NextRequest) {
   // for the GMD to click "Authorize & Execute Action".
   // -------------------------------------------------------------
   const staged = await stageAction({
-    userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
     actionType: 'approval_decision',
     targetSubsidiaryId: expReq.subsidiaryId,
     materialPayload: {

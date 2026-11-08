@@ -1,3 +1,4 @@
+import { getAuthenticatedStation } from '@/lib/attendance/station-auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getLagosTime, serializeAttendanceRecord } from '@/lib/attendance/token';
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const clientIp = getClientIp(request);
-    const rateLimit = checkRateLimit(`kiosk-punch:${clientIp}`, {
+    const rateLimit = await checkRateLimit(`kiosk-punch:${clientIp}`, {
       maxAttempts: 12,
       windowMs: 60 * 1000,
     });
@@ -19,6 +20,9 @@ export async function POST(request: Request) {
         { status: 429 }
       );
     }
+
+    const station = await getAuthenticatedStation(request);
+    if (!station) return NextResponse.json({ error: 'An authorized attendance station is required.' }, { status: 403 });
 
     const body = await request.json().catch(() => ({}));
     const staffIdentifier = typeof body.staffIdentifier === 'string' ? body.staffIdentifier.trim() : '';
@@ -35,6 +39,9 @@ export async function POST(request: Request) {
     const candidates = await prisma.employee.findMany({
       where: {
         status: 'ACTIVE',
+        approvalStatus: 'APPROVED',
+        role: 'STAFF',
+        assignments: { some: { subsidiaryId: station.organizationId, status: 'ACTIVE' } },
         kioskPin,
       },
       select: {
@@ -70,10 +77,7 @@ export async function POST(request: Request) {
     const { workDate, currentTimeStr, hours, minutes } = getLagosTime(now);
     const minutesSinceMidnight = hours * 60 + minutes;
 
-    const [station, policy] = await Promise.all([
-      prisma.attendanceStation.findFirst({ where: { status: 'ACTIVE' } }),
-      prisma.attendancePolicy.findFirst(),
-    ]);
+    const policy = await prisma.attendancePolicy.findUnique({ where: { organizationId: station.organizationId } });
 
     const existing = await prisma.attendanceRecord.findUnique({
       where: {

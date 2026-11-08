@@ -1,3 +1,4 @@
+import { executeDashboardCommand } from '@/lib/staged-actions';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { randomBytes } from 'node:crypto';
@@ -123,25 +124,14 @@ export async function POST(
       return NextResponse.json({ error: `Business "${businessId}" not found.` }, { status: 404 });
     }
 
-    const token = randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    const invitation = await prisma.adminInvitation.create({
-      data: {
-        workEmail: email,
-        role: canonicalRole,
-        subsidiaryId: org.id,
-        positionName: canonicalRole === 'GMD' ? 'The Group Managing Director' : 'Super Admin',
-        token,
-        invitedById: actor.id,
-        status: 'PENDING',
-        expiresAt,
-      },
+    const invitation = await executeDashboardCommand(actor, 'admin_onboarding', {
+      sub_action: 'CREATE_INVITE', workEmail: email, role: canonicalRole, subsidiaryId: org.id,
     });
 
     return NextResponse.json({
       ok: true,
       invitationId: invitation.id,
+      deliveryStatus: 'QUEUED',
       message: `Executive invitation issued for ${email} as ${canonicalRole} in ${org.legalName}.`,
     });
   } catch (error: any) {

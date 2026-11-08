@@ -23,9 +23,9 @@ export async function POST(
     const isOwner = actor.id === employeeId;
     const isExecutive = hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
 
-    if (!isOwner && !isExecutive) {
+    if (!isOwner) {
       // Allow scoped HR only for STAFF targets in their subsidiary
-      await verifyTargetEmployeeAccess(actor, employeeId, { allowExecutiveTarget: false });
+      await verifyTargetEmployeeAccess(actor, employeeId, { allowExecutiveTarget: isExecutive });
     }
 
     const body = await request.json();
@@ -38,19 +38,21 @@ export async function POST(
     const salaryAccountNumber = typeof body.salaryAccountNumber === 'string' ? body.salaryAccountNumber.trim() : accountNumber;
     const salaryAccountName = typeof body.salaryAccountName === 'string' ? body.salaryAccountName.trim() : accountName;
 
-    if (!bankName || !accountNumber || accountNumber.length < 10) {
+    if (!bankName || !accountNumber || !/^\d{10}$/.test(accountNumber) || !salaryBankName || !salaryAccountNumber || !/^\d{10}$/.test(salaryAccountNumber)) {
       return NextResponse.json({ error: 'Valid Advance Bank Name and 10-digit Account Number are required.' }, { status: 400 });
     }
 
-    const employee = await prisma.employee.findUnique({
+    const updated = await prisma.$transaction(async (tx) => {
+      if (!isOwner) await verifyTargetEmployeeAccess(actor, employeeId, { allowExecutiveTarget: isExecutive }, tx);
+    const employee = await tx.employee.findUnique({
       where: { id: employeeId },
     });
 
     if (!employee) {
-      return NextResponse.json({ error: 'Staff record not found.' }, { status: 404 });
+      throw new LifecycleAuthorizationError('Staff record not found.', 404);
     }
 
-    const updated = await prisma.employee.update({
+    const updated = await tx.employee.update({
       where: { id: employeeId },
       data: {
         bankName,
@@ -67,7 +69,10 @@ export async function POST(
       targetId: employeeId,
       action: 'BANKING_UPDATED',
       metadata: { bankName, accountNumberMasked: `***${accountNumber.slice(-4)}` },
-    });
+    }, tx);
+
+      return updated;
+    }, { isolationLevel: 'Serializable' });
 
     return NextResponse.json({
       success: true,

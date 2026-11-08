@@ -6,6 +6,7 @@ import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 export async function GET(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req);
+    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
     if (!actor) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
     }
@@ -71,13 +72,7 @@ export async function GET(req: Request) {
         if (notificationIntent.length === 0 && notificationsSent.length === 0) {
           notificationDeliveryStatus = 'NOT_APPLICABLE';
         } else {
-          const verifiedNotifCount = await prisma.systemNotification.count({
-            where: {
-              employeeId: { in: notificationIntent.length > 0 ? notificationIntent : notificationsSent },
-              createdAt: { gte: new Date((action.executedAt || action.createdAt).getTime() - 5000) },
-            },
-          });
-          notificationDeliveryStatus = verifiedNotifCount > 0 ? 'DELIVERED' : 'PENDING';
+          notificationDeliveryStatus = record.notification_delivery_status === 'DELIVERED' ? 'DELIVERED' : 'PENDING';
         }
 
         return NextResponse.json({

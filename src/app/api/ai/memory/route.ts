@@ -47,6 +47,7 @@ function sanitizeAllowedMetadata(raw: unknown): Record<string, string> {
 export async function GET(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
+    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
     if (!actor) {
       return NextResponse.json({ ok: false, error_code: "NOT_PERMITTED", message: "Authentication required." }, { status: 401 });
     }
@@ -64,11 +65,11 @@ export async function GET(req: NextRequest) {
 
     // Mode: return all distinct sessions owned by this actor
     if (mode === "sessions") {
-      const sessionPrefix = `conv_${actor.id}%`;
+      const sessionPrefix = scope ? `conv_${actor.id}_${["group_hq", "bems-group-hq", "ALL"].includes(scope) ? "group" : scope}_` : `conv_${actor.id}_`;
       const sessionRows = await prisma.$queryRaw<Array<{ session_id: string; total_turns: bigint; latest_at: Date }>>`
         SELECT session_id, COUNT(*) as total_turns, MAX(created_at) as latest_at
         FROM n8n_chat_histories
-        WHERE session_id LIKE ${sessionPrefix} OR session_id = ${`conv_${actor.id}`}
+        WHERE LEFT(session_id, LENGTH(${sessionPrefix})) = ${sessionPrefix} OR (${!scope || ["group_hq", "bems-group-hq", "ALL"].includes(scope)} AND session_id = ${`conv_${actor.id}`})
         GROUP BY session_id
         ORDER BY MAX(created_at) DESC
         LIMIT 25
@@ -186,6 +187,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
+    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
     if (!actor) {
       return NextResponse.json({ ok: false, error_code: "NOT_PERMITTED", message: "Authentication required." }, { status: 401 });
     }
@@ -217,16 +219,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const hasAutomationHeader = Boolean(
-      req.headers.get("x-bems-delegation-token") ||
-      req.headers.get("x-service-secret") ||
-      req.headers.get("x-bems-webhook-secret")
-    );
-    const isAutomationPrincipal =
-      (actor as any).principalType === "automation_delegated" || hasAutomationHeader;
-    const boundRole: "user" | "assistant" = isAutomationPrincipal
-      ? (requestedRole === "user" ? "user" : "assistant")
-      : "user";
+    const boundRole = 'user' as const;
+    const isAutomationPrincipal = false;
 
     const safeMeta = sanitizeAllowedMetadata(body.metadata);
 

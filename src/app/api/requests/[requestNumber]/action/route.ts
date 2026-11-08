@@ -1,3 +1,4 @@
+import { executeDashboardCommand } from '@/lib/staged-actions';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -221,107 +222,8 @@ export async function POST(
     }
 
     if (action === 'APPROVE' || action === 'REQUEST_CLARIFICATION' || action === 'REJECT') {
-      if ((action === 'REQUEST_CLARIFICATION' || action === 'REJECT') && (typeof text !== 'string' || !text.trim())) {
-        return NextResponse.json({ error: 'Add a reason before submitting this decision.' }, { status: 400 });
-      }
-      const approvalStatus = action === 'APPROVE'
-        ? (req.approvalSteps.some((step) => step.stageIndex > pendingStep.stageIndex && step.status === 'PENDING') ? 'IN_REVIEW' : 'APPROVED')
-        : action === 'REJECT' ? 'REJECTED' : 'CLARIFICATION_REQUESTED';
-      await prisma.$transaction(async (tx) => {
-        await tx.expenditureRequest.update({ where: { id: req.id }, data: { approvalStatus } });
-        await tx.approvalStep.update({
-          where: { id: pendingStep.id },
-          data: {
-            status: action === 'APPROVE' ? 'APPROVED' : action === 'REJECT' ? 'REJECTED' : 'PENDING',
-            approverId: actor.id,
-            approverName: actor.legalName,
-            decidedAt: new Date(),
-            decisionReason: decisionReason || text || 'Approved by authorized reviewer.',
-          },
-        });
-        if (approvalStatus === 'APPROVED') {
-          const activeBudget = await tx.budget.findFirst({
-            where: { organizationId: req.subsidiaryId, status: 'ACTIVE' },
-            include: { lines: true },
-            orderBy: { createdAt: 'desc' },
-          });
-          if (activeBudget) {
-            const amtNaira = Number(req.amountMinor) / 100;
-            await tx.budget.update({
-              where: { id: activeBudget.id },
-              data: { committedAmount: { increment: amtNaira } },
-            });
-            const matchedLine = activeBudget.lines.find(
-              (l) => l.category.toLowerCase() === (req.category || '').toLowerCase()
-            );
-            if (matchedLine) {
-              await tx.budgetLine.update({
-                where: { id: matchedLine.id },
-                data: { committedAmount: { increment: amtNaira } },
-              });
-            }
-          }
-        }
-        if (req.channel) {
-          await tx.channelMessage.create({
-            data: {
-              channelId: req.channel.id,
-              authorId: actor.id,
-              authorName: actor.legalName,
-              authorRole: actor.role,
-              messageType: action === 'REQUEST_CLARIFICATION' ? 'CLARIFICATION' : 'AUDIT_EVENT',
-              body: action === 'APPROVE'
-                ? `Request approved by ${actor.legalName}.${approvalStatus === 'IN_REVIEW' ? ' Routed to the next approval stage.' : ' Ready for Finance disbursement recording.'} ${decisionReason || ''}`.trim()
-                : action === 'REJECT'
-                  ? `Request declined by ${actor.legalName}: ${text}`
-                  : `Clarification requested by ${actor.legalName}: ${text}`,
-            },
-          });
-        }
-        await tx.auditEvent.create({
-          data: {
-            actorId: actor.id,
-            actorName: actor.legalName,
-            actorRole: actor.role,
-            groupId: req.groupId,
-            subsidiaryId: req.subsidiaryId,
-            targetType: 'REQUEST',
-            targetId: req.id,
-            action: action === 'APPROVE' ? 'APPROVED' : action === 'REJECT' ? 'REJECTED' : 'CLARIFICATION_REQUESTED',
-            correlationId: `CORR-${Date.now()}`,
-            metadata: JSON.stringify({ requestNumber, decisionReason: decisionReason || text || null }),
-          },
-        });
-      });
-
-      // Dispatch decision email to the staff requester
-      if (req.requester?.workEmail) {
-        sendApprovalDecisionEmail({
-          to: req.requester.workEmail,
-          recipientName: req.requester.legalName,
-          decision: action === 'APPROVE' ? 'APPROVED' : action === 'REJECT' ? 'REJECTED' : 'CLARIFICATION_REQUESTED',
-          decidedBy: actor.legalName,
-          decidedByRole: actor.role,
-          requestNumber: req.requestNumber,
-          title: req.title,
-          amountMinor: Number(req.amountMinor),
-          reason: decisionReason || text || null,
-        }).catch((err) => console.error('Failed to send decision email to requester:', err));
-      }
-
-      const requesterDisbursementAccount = action === 'APPROVE' ? {
-        bankName: req.requester?.bankName || req.requester?.salaryBankName || null,
-        accountNumber: req.requester?.accountNumber || req.requester?.salaryAccountNumber || null,
-        accountName: req.requester?.accountName || req.requester?.salaryAccountName || req.requester?.legalName || '',
-        requesterName: req.requester?.legalName || 'Requester',
-        amountNaira: Number(req.amountMinor) / 100,
-        amountMinor: req.amountMinor.toString(),
-        currency: req.currency || 'NGN',
-        title: req.title,
-        requestNumber: req.requestNumber,
-      } : null;
-
-      return NextResponse.json({ success: true, approvalStatus, requesterDisbursementAccount });
+      const result = await executeDashboardCommand(actor, 'approval_decision', { request_id: req.id, decision: action, reason: decisionReason || text || '' });
+      return NextResponse.json({ success: true, approvalStatus: result.approvalStatus });
     }
     return NextResponse.json({ error: 'Invalid action.' }, { status: 400 });
   } catch (error) {

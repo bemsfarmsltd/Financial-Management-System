@@ -22,7 +22,8 @@ export type AiAccessScopeKey =
   | 'bank_accounts'
   | 'tasks'
   | 'messages'
-  | 'policies';
+  | 'policies'
+  | 'wallet';
 
 export interface AiScopeDefinition {
   key: AiAccessScopeKey;
@@ -40,6 +41,7 @@ export interface AiScopeDefinition {
 }
 
 export const AI_ACCESS_SCOPES: AiScopeDefinition[] = [
+ {key:'wallet',category:'Financial & Approvals',label:'Staff wallets',description:'Scoped wallet reads and release staging only. Human GMD approval and staff withdrawal authentication cannot be delegated.',endpoint:'/api/ai/tools/wallet',readLabel:'Read scoped approved wallet funds',writeLabel:'Stage exact wallet release proposals'},
   {
     key: 'master',
     category: 'Master Control',

@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     }
 
     const rateKey = `reset-pwd:${clientIp}:${email}`;
-    const rateCheck = checkRateLimit(rateKey, {
+    const rateCheck = await checkRateLimit(rateKey, {
       windowMs: 15 * 60 * 1000,
       maxAttempts: 5,
       blockDurationMs: 15 * 60 * 1000,

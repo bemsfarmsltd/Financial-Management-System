@@ -1,3 +1,4 @@
+import { canAccessEmployeePortal } from '@/lib/portal-access';
 import { NextResponse } from 'next/server';
 import { createEmployeeSession, publicEmployee, verifyPassword } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -12,8 +13,8 @@ export async function POST(request: Request) {
 
     // Brute-force & credential stuffing defense (Max 5 attempts per 5 mins with 15 min lockout)
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'direct';
-    const rateLimitKey = `login:${email}:${clientIp}`;
-    const rateLimit = checkRateLimit(rateLimitKey, {
+    const rateLimitKey = `login:${email}`;
+    const rateLimit = await checkRateLimit(rateLimitKey, {
       windowMs: 5 * 60 * 1000,
       maxAttempts: 5,
       blockDurationMs: 15 * 60 * 1000,
@@ -43,15 +44,16 @@ export async function POST(request: Request) {
     }
 
     // Reset rate limit key on successful authentication
-    resetRateLimit(rateLimitKey);
+    await resetRateLimit(rateLimitKey);
 
     if (employee.approvalStatus === 'PENDING_APPROVAL') {
       return NextResponse.json({ error: 'Your account is waiting for System Admin approval.', pendingApproval: true }, { status: 403 });
     }
-    if (employee.approvalStatus !== 'APPROVED' || employee.status !== 'ACTIVE') {
+    if (!canAccessEmployeePortal(employee)) {
       return NextResponse.json({ error: 'This account is not active. Contact your System Admin.' }, { status: 403 });
     }
 
+    if (!['STAFF', 'GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(employee.role)) return NextResponse.json({ error: 'This account has an unsupported role. Contact a Super Admin.' }, { status: 403 });
     const session = await createEmployeeSession(employee.id);
     const primaryAssignment = employee.assignments?.[0];
 

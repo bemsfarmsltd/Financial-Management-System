@@ -6,6 +6,7 @@ import { stageAction } from '@/lib/staged-actions';
 export async function POST(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req, { allowServiceToken: true });
+    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
     if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Only GMD or Super Admin can stage vendor approvals.' }, { status: 403 });
@@ -77,7 +78,8 @@ export async function POST(req: Request) {
       }
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'vendor_approval',
         materialPayload: {
           mode: 'APPROVE_EXISTING_VENDOR',
@@ -167,7 +169,8 @@ export async function POST(req: Request) {
     const cleanCategory = String(category || 'GENERAL').toUpperCase().trim();
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'vendor_approval',
       materialPayload: {
         mode: 'REGISTER_NEW_VENDOR',

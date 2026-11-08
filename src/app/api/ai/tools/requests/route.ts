@@ -1,3 +1,5 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -12,9 +14,11 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(request);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse || !actor) return errorResponse!;
 
   const { searchParams } = new URL(request.url);
+  const authorizedScope = await resolveAuthorizedOrganizationScope(actor as any, searchParams.get('subsidiary_id') || searchParams.get('subsidiary') || searchParams.get('organization_id') || 'ALL');
   const mode = (searchParams.get('mode') || '').toLowerCase();
   const status = searchParams.get('status') || undefined;
   const isRecurring =
@@ -25,7 +29,7 @@ export async function GET(request: NextRequest) {
       : undefined;
   const subsidiary = searchParams.get('subsidiary') || searchParams.get('organization_id') || undefined;
 
-  const where: any = {};
+  const where: any = { subsidiaryId: { in: authorizedScope.organizationIds } };
   if (!actor.isExecutive) {
     where.requestedById = actor.id;
   }
@@ -41,7 +45,7 @@ export async function GET(request: NextRequest) {
     };
   }
 
-  const requests = await prisma.expenditureRequest.findMany({
+  const requests = await db.expenditureRequest.findMany({
     where,
     include: {
       subsidiary: { select: { id: true, code: true, legalName: true } },
@@ -133,6 +137,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { actor, errorResponse } = await authenticateAiToolRequest(request);
+  const db = actor ? await getAiReadClient(actor) : prisma;
     if (errorResponse || !actor) return errorResponse!;
 
     const body = await request.json();
@@ -158,7 +163,7 @@ export async function POST(request: NextRequest) {
       if (!reqLookup) {
         return NextResponse.json({ ok: false, error: 'requestId or requestNumber is required.' }, { status: 400 });
       }
-      const reqItem = await prisma.expenditureRequest.findFirst({
+      const reqItem = await db.expenditureRequest.findFirst({
         where: { OR: [{ id: reqLookup }, { requestNumber: reqLookup }] },
       });
       if (!reqItem) {
@@ -182,6 +187,7 @@ export async function POST(request: NextRequest) {
             : `Stop Recurring Schedule for ${reqItem.requestNumber} (${reqItem.title})`;
 
         const staged = await stageAction({
+          actorContext: actor,
           userId: actor.id,
           actionType: 'request_creation',
           targetSubsidiaryId: reqItem.subsidiaryId || undefined,
@@ -222,7 +228,8 @@ export async function POST(request: NextRequest) {
           : `Request Clarification on ${reqItem.requestNumber}: "${message.slice(0, 50)}"`;
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'request_creation',
         targetSubsidiaryId: reqItem.subsidiaryId || undefined,
         summary,
@@ -282,7 +289,7 @@ export async function POST(request: NextRequest) {
           { status: 403 }
         );
       }
-      const foundEmp = await prisma.employee.findFirst({
+      const foundEmp = await db.employee.findFirst({
         where: {
           status: 'ACTIVE',
           approvalStatus: 'APPROVED',
@@ -314,7 +321,7 @@ export async function POST(request: NextRequest) {
         primarySubsidiaryId: foundEmp.assignments[0]?.subsidiaryId || null,
       };
     } else {
-      const ownAssignment = await prisma.employeeAssignment.findFirst({
+      const ownAssignment = await db.employeeAssignment.findFirst({
         where: { employeeId: actor.id, status: 'ACTIVE' },
         orderBy: [{ isPrimary: 'desc' }, { startsOn: 'desc' }],
       });
@@ -331,7 +338,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const org = await prisma.organization.findFirst({
+    const org = await db.organization.findFirst({
       where: {
         status: 'ACTIVE',
         OR: [
@@ -349,7 +356,8 @@ export async function POST(request: NextRequest) {
     const isStagedOnBehalf = targetRequester.id !== actor.id;
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'request_creation',
       targetSubsidiaryId: org.id,
       targetEmployeeId: targetRequester.id,

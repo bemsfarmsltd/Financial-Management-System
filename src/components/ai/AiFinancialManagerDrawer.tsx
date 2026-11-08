@@ -25,6 +25,7 @@ import { BudgetProposalCard } from './cards/BudgetProposalCard';
 import { SalaryAdjustmentCard } from './cards/SalaryAdjustmentCard';
 import { DisbursementRecordCard } from './cards/DisbursementRecordCard';
 import { ScenarioSimulatorCard } from './cards/ScenarioSimulatorCard';
+import WalletReleaseCard from '@/components/wallet/WalletReleaseCard';
 import { UniversalStagedActionCard } from './cards/UniversalStagedActionCard';
 import { AiMessage } from './types';
 import { KineticAiOrb } from './KineticAiOrb';
@@ -392,6 +393,7 @@ export function AiFinancialManagerDrawer({
                 {/* Render Interactive Action Card if Present */}
                 {msg.actionCard && (
                   <div style={{ width: '100%', maxWidth: isExpanded ? '85%' : '95%' }}>
+                    {msg.actionCard.type === 'wallet_release' && <WalletReleaseCard id={msg.actionCard.data.id} />}
                     {msg.actionCard.type === 'briefing' && (
                       <BriefingActionCard
                         data={msg.actionCard.data}
@@ -481,7 +483,7 @@ export function AiFinancialManagerDrawer({
                     {(msg.actionCard.staged_action_id ||
                       msg.actionCard.type === 'staged_action' ||
                       msg.actionCard.cardType === 'STAGED_ACTION' ||
-                      (!['briefing', 'approval_decision', 'budget_proposal', 'salary_adjustment', 'disbursement_record', 'scenario_simulator'].includes(msg.actionCard.type) &&
+                      (!['wallet_release', 'briefing', 'approval_decision', 'budget_proposal', 'salary_adjustment', 'disbursement_record', 'scenario_simulator'].includes(msg.actionCard.type) &&
                         (!msg.actionCard.data?.lines && msg.actionCard.data?.proposedSalary === undefined))) && (
                       <UniversalStagedActionCard
                         stagedActionId={msg.actionCard.staged_action_id || ''}

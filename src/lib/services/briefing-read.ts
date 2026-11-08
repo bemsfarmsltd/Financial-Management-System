@@ -230,6 +230,7 @@ export async function loadAuthorizedExecutiveBriefing(
   const serializedDisbursements = disbursements.map((d) => ({
     id: d.id,
     amountNaira: Number(d.amountMinor) / 100,
+    currency: d.currency,
     externalReference: d.externalReference,
     bankName: d.bankName,
     paidAt: d.paidAt.toISOString(),

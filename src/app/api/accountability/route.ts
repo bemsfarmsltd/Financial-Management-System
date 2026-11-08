@@ -1,3 +1,4 @@
+import { accountabilityDeadline } from '@/lib/services/accountability-deadline';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, getHrAuthorizationScope, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
   const actor = await getAuthenticatedEmployee(request);
   if (!actor) return NextResponse.json({ error: 'Sign in to initialize accountability cases.' }, { status: 401 });
   const hrScope = await getHrAuthorizationScope(actor);
-  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']) && !hrScope.authorized) {
+  if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']) && !(hrScope.authorized && hrScope.isGlobal)) {
     return NextResponse.json({ error: 'Executive or delegated HR access is required.' }, { status: 403 });
   }
   const legacyRequests = await prisma.expenditureRequest.findMany({ where: { disbursements: { some: {} }, accountabilityCase: { is: null } }, include: { disbursements: { orderBy: { paidAt: 'asc' }, take: 1 } } });
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
   for (const request of legacyRequests) {
     const firstPayment = request.disbursements[0];
     if (!firstPayment) continue;
-    const dueAt = new Date(firstPayment.paidAt.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const dueAt = await accountabilityDeadline(request.subsidiaryId, request.requestType === 'EMERGENCY', firstPayment.paidAt);
     try {
       await prisma.$transaction(async tx => {
         const accCase = await tx.accountabilityCase.create({ data: { requestId: request.id, ownerUserId: request.requestedById, requiredDeliverables: request.deliverable, dueAt, status: request.accountabilityStatus === 'EVIDENCE_SUBMITTED' ? 'EVIDENCE_SUBMITTED' : 'OPEN' } });

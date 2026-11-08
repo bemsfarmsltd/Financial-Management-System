@@ -1,3 +1,5 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -12,20 +14,22 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(request);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse || !actor) return errorResponse!;
   if (!actor.isExecutive) {
     return NextResponse.json({ ok: false, error: 'Executive access required.' }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
+  const authorizedScope = await resolveAuthorizedOrganizationScope(actor as any, searchParams.get('subsidiary_id') || searchParams.get('subsidiary') || searchParams.get('organization_id') || 'ALL');
   const query = (searchParams.get('query') || searchParams.get('search') || '').trim();
   const subsidiaryId = searchParams.get('subsidiary_id') || searchParams.get('subsidiaryId') || undefined;
   const status = searchParams.get('status') || undefined;
 
-  const where: any = {};
+  const where: any = { assignments: { some: { subsidiaryId: { in: authorizedScope.organizationIds }, status: 'ACTIVE' } } };
   if (status) where.status = status.toUpperCase();
   if (subsidiaryId) {
-    where.assignments = { some: { subsidiaryId, isPrimary: true } };
+    where.assignments = { some: { subsidiaryId: { in: authorizedScope.organizationIds.filter(id => id === subsidiaryId) }, status: 'ACTIVE' } };
   }
   if (query) {
     where.OR = [
@@ -36,11 +40,11 @@ export async function GET(request: NextRequest) {
     ];
   }
 
-  const staff = await prisma.employee.findMany({
+  const staff = await db.employee.findMany({
     where,
     include: {
       assignments: {
-        where: { isPrimary: true },
+        where: { subsidiaryId: { in: authorizedScope.organizationIds }, status: 'ACTIVE' },
         include: { subsidiary: { select: { id: true, code: true, legalName: true } }, department: { select: { id: true, name: true } } },
       },
     },
@@ -85,6 +89,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { actor, errorResponse } = await authenticateAiToolRequest(request);
+  const db = actor ? await getAiReadClient(actor) : prisma;
     if (errorResponse || !actor) return errorResponse!;
     if (!actor.isExecutive) {
       return NextResponse.json({ ok: false, error: 'Executive access required.' }, { status: 403 });
@@ -109,7 +114,7 @@ export async function POST(request: NextRequest) {
       }
       const subsidiaryQuery = String(body.subsidiaryId || body.subsidiary_id || body.subsidiary || '').trim();
       const org = subsidiaryQuery
-        ? await prisma.organization.findFirst({
+        ? await db.organization.findFirst({
             where: {
               OR: [
                 { id: subsidiaryQuery },
@@ -118,7 +123,7 @@ export async function POST(request: NextRequest) {
               ],
             },
           })
-        : await prisma.organization.findFirst({ orderBy: { type: 'asc' } });
+        : await db.organization.findFirst({ orderBy: { type: 'asc' } });
 
       if (!org) {
         return NextResponse.json({ error: 'Target subsidiary organization not found.' }, { status: 404 });
@@ -128,7 +133,8 @@ export async function POST(request: NextRequest) {
       const proposedSalary = Number(body.proposedSalary ?? body.proposed_salary ?? 0);
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'staff_management',
         targetSubsidiaryId: org.id,
         summary: `Register Offline Staff: ${legalName} (${jobTitle} at ${org.legalName})`,
@@ -175,7 +181,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const emp = await prisma.employee.findFirst({
+    const emp = await db.employee.findFirst({
       where: {
         OR: [
           { id: employeeLookup },
@@ -199,7 +205,7 @@ export async function POST(request: NextRequest) {
     let targetSubsidiaryId = body.subsidiaryId || body.subsidiary_id;
     let targetSubsidiaryLabel: string | undefined;
     if (!targetSubsidiaryId && body.subsidiary) {
-      const subOrg = await prisma.organization.findFirst({
+      const subOrg = await db.organization.findFirst({
         where: {
           OR: [
             { id: String(body.subsidiary) },
@@ -252,7 +258,8 @@ export async function POST(request: NextRequest) {
     if (subAction === 'APPROVE_ONBOARDING' || subAction === 'REJECT_ONBOARDING') {
       const isReject = subAction === 'REJECT_ONBOARDING';
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'staff_approval',
         targetEmployeeId: emp.id,
         targetSubsidiaryId: emp.assignments[0]?.subsidiaryId,
@@ -279,7 +286,8 @@ export async function POST(request: NextRequest) {
 
     if (subAction === 'SEND_PASSWORD_RESET_INVITE' || subAction === 'RESET_PASSWORD_INVITE') {
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'staff_management',
         targetEmployeeId: emp.id,
         targetSubsidiaryId: emp.assignments[0]?.subsidiaryId,
@@ -317,7 +325,8 @@ export async function POST(request: NextRequest) {
       const reason = String(body.reason || 'Executive role reassignment via BEMI').trim();
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'role_change',
         targetEmployeeId: emp.id,
         targetSubsidiaryId: emp.assignments[0]?.subsidiaryId,
@@ -357,7 +366,8 @@ export async function POST(request: NextRequest) {
         : `Update Staff Profile: ${emp.legalName} (${emp.employeeNumber})`;
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'staff_management',
       targetEmployeeId: emp.id,
       targetSubsidiaryId: targetSubsidiaryId || emp.assignments[0]?.subsidiaryId,

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
-import { checkRateLimit } from '@/lib/rate-limiter';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 import { prisma } from '@/lib/prisma';
 import { computeBufferSha256 } from '@/lib/platform/staged-attachments';
 
@@ -47,8 +47,8 @@ export async function POST(request: Request) {
     const actor = await getAuthenticatedEmployee(request);
 
     // Rate limit uploads by IP to prevent flooding or DoS
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'direct';
-    const rateLimit = checkRateLimit(`upload:${clientIp}`, {
+    const clientIp = actor?.id || getClientIp(request);
+    const rateLimit = await checkRateLimit(`upload:${clientIp}`, {
       windowMs: 60 * 1000,
       maxAttempts: 25,
       blockDurationMs: 5 * 60 * 1000,
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       const isKnownExtension = validExtensions.includes(ext);
       const isMimeMatch = file.type.startsWith('image/') || file.type === 'application/pdf';
 
-      if (!isMimeMatch && !isKnownExtension) {
+      if (!isMimeMatch || !isKnownExtension || !['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
         return NextResponse.json({ error: 'Only image files (JPG, PNG, WebP) and PDF documents are permitted.' }, { status: 400 });
       }
 
@@ -100,16 +100,8 @@ export async function POST(request: Request) {
       const mimeType = isPdf ? 'application/pdf' : cleanExt === 'png' ? 'image/png' : cleanExt === 'webp' ? 'image/webp' : 'image/jpeg';
 
       // 1. Permanently persist to Supabase PostgreSQL database with retries
-      await persistStoredFileWithRetry(filename, mimeType, bytes, 3);
+      if (!await persistStoredFileWithRetry(filename, mimeType, bytes, 3)) throw new Error('File persistence failed.');
 
-      // 2. Also write to local disk cache if writable
-      try {
-        const uploadDir = join(process.cwd(), 'public', 'uploads', subDir);
-        await mkdir(uploadDir, { recursive: true });
-        await writeFile(join(uploadDir, filename), bytes);
-      } catch (fsErr) {
-        console.warn('[Upload] Local disk write skipped or failed:', fsErr);
-      }
 
       const url = `/uploads/${subDir}/${filename}`;
       const checksum = computeBufferSha256(bytes);
@@ -128,32 +120,14 @@ export async function POST(request: Request) {
         }
       }
 
-      // 4. Create an verifiable Attachment record when uploaded by an authenticated user (for staged action evidence / receipts)
-      let attachmentId: string | undefined;
-      const shouldStageAttachment =
-        actor &&
-        (isPdf ||
-          formData.get('createAttachment') === 'true' ||
-          formData.get('stageAttachment') === 'true' ||
-          Boolean(formData.get('ownerType')));
-      if (shouldStageAttachment && actor) {
-        try {
-          const att = await prisma.attachment.create({
-            data: {
-              ownerType: formData.get('ownerType')?.toString()?.trim() || 'STAGED_EVIDENCE',
-              ownerId: formData.get('ownerId')?.toString()?.trim() || actor.id,
-              fileName: file.name || filename,
-              contentType: mimeType,
-              fileUrl: url,
-              checksum,
-              uploadedById: actor.id,
-            },
-          });
-          attachmentId = att.id;
-        } catch (attErr) {
-          console.warn('[Upload] Optional Attachment record creation skipped:', attErr);
-        }
-      }
+      const attachment = await prisma.attachment.create({
+        data: {
+          ownerType: actor ? 'STAGED_EVIDENCE' : 'PUBLIC_AVATAR',
+          ownerId: actor?.id || null, fileName: file.name || filename, contentType: mimeType,
+          fileUrl: url, fileData: new Uint8Array(bytes), checksum, uploadedById: actor?.id || 'registration',
+        },
+      });
+      const attachmentId = attachment.id;
 
       return NextResponse.json({
         success: true,
@@ -198,23 +172,19 @@ export async function POST(request: Request) {
 
       const rawPreserve = typeof body.preserveFilename === 'string' ? body.preserveFilename.trim() : '';
       const isValidPreserve = /^file-\d+-[a-f0-9]+\.(jpg|jpeg|png|webp)$/i.test(rawPreserve);
-      const filename = isValidPreserve ? rawPreserve : `avatar-${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
+      const filename = `avatar-${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
       const mimeType = filename.endsWith('.png') ? 'image/png' : filename.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
 
       // 1. Permanently persist to Supabase PostgreSQL database with retries
-      await persistStoredFileWithRetry(filename, mimeType, buffer, 3);
+      if (!await persistStoredFileWithRetry(filename, mimeType, buffer, 3)) throw new Error('File persistence failed.');
 
-      // 2. Also write to local disk cache if writable
-      try {
-        const uploadDir = join(process.cwd(), 'public', 'uploads', 'avatars');
-        await mkdir(uploadDir, { recursive: true });
-        await writeFile(join(uploadDir, filename), buffer);
-      } catch (fsErr) {
-        console.warn('[Upload] Local disk write skipped or failed:', fsErr);
-      }
 
       const url = `/uploads/avatars/${filename}`;
       const checksum = computeBufferSha256(buffer);
+      const attachment = await prisma.attachment.create({ data: {
+        ownerType: actor ? 'PROFILE' : 'PUBLIC_AVATAR', ownerId: actor?.id || null,
+        fileName: filename, contentType: mimeType, fileUrl: url, fileData: new Uint8Array(buffer), checksum, uploadedById: actor?.id || 'registration',
+      } });
 
       const bodyEmployeeId = typeof body.employeeId === 'string' ? body.employeeId.trim() : request.headers.get('x-employee-id')?.trim();
       if (bodyEmployeeId) {
@@ -229,7 +199,7 @@ export async function POST(request: Request) {
         }
       }
 
-      return NextResponse.json({ success: true, url, filename, checksum, mimeType, sizeBytes: buffer.length });
+      return NextResponse.json({ success: true, url, filename, checksum, mimeType, attachmentId: attachment.id, sizeBytes: buffer.length });
     }
 
     return NextResponse.json({ error: 'Unsupported media type.' }, { status: 415 });

@@ -8,6 +8,7 @@ const EMERGENCY_CAP_NAIRA = 1_000_000;
 export async function POST(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req, { allowServiceToken: true });
+    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
     if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Only the Group Managing Director or Super Admin can stage an emergency override.' }, { status: 403 });
@@ -89,7 +90,8 @@ export async function POST(req: Request) {
 
       const amountFormatted = `₦${amountNum.toLocaleString()}`;
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'emergency_override',
         targetSubsidiaryId: org.id,
         materialPayload: {
@@ -181,7 +183,8 @@ export async function POST(req: Request) {
     const amountFormatted = `₦${reqAmountNaira.toLocaleString()}`;
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'emergency_override',
       targetSubsidiaryId: reqItem.subsidiaryId,
       materialPayload: {

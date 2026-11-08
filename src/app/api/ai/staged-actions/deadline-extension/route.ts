@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
     : new Date(Math.max(Date.now(), new Date(targetCase.dueAt).getTime()) + extensionHours * 3600_000);
 
   const staged = await stageAction({
-    userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
     actionType: 'deadline_extension',
     targetSubsidiaryId: targetCase.request.subsidiaryId,
     summary: `Extend Accountability Retiral Deadline for ${targetCase.request.requestNumber} (${targetCase.owner.legalName}) to ${newDueAt.toISOString().split('T')[0]}`,

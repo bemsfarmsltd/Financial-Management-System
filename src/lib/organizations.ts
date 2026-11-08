@@ -97,10 +97,17 @@ export async function resolveAuthorizedOrganizationScope(
     return new OrganizationScopeResult(false, []);
   }
 
-  const isExecutive = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
-  if (isExecutive) {
-    return requestedScope;
+  const scopedOrgId =
+    (actor as any)?.scopedOrganizationId ||
+    (actor as typeof actor & { delegation?: { scopedOrganizationId?: string | null } })?.delegation?.scopedOrganizationId;
+  let permittedScope = requestedScope;
+  if (scopedOrgId) {
+    const delegatedScope = await resolveOrganizationScope(scopedOrgId);
+    const delegatedIds = new Set(delegatedScope.organizationIds);
+    permittedScope = new OrganizationScopeResult(false, requestedScope.organizationIds.filter(id => delegatedIds.has(id)));
   }
+  const isExecutive = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
+  if (isExecutive) return permittedScope;
 
   // Non-executive staff: intersect with active assignments
   try {
@@ -115,7 +122,7 @@ export async function resolveAuthorizedOrganizationScope(
     });
 
     const allowedSet = new Set(activeAssignments.map((a) => a.subsidiaryId));
-    const intersected = requestedScope.organizationIds.filter((id) => allowedSet.has(id));
+    const intersected = permittedScope.organizationIds.filter((id) => allowedSet.has(id));
     return new OrganizationScopeResult(false, intersected);
   } catch (error) {
     console.error('Error computing authorized organization scope:', error);

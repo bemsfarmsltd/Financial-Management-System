@@ -10,7 +10,21 @@ jobs:
   build-and-test:
     name: Build & Validate Fullstack App
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bems_test
+          POSTGRES_PASSWORD: test_only
+          POSTGRES_DB: bems_corrections_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bems_test -d bems_corrections_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      DATABASE_URL: postgresql://bems_test:test_only@127.0.0.1:5432/bems_corrections_test
+      DIRECT_URL: postgresql://bems_test:test_only@127.0.0.1:5432/bems_corrections_test
       HOSTINGER_DEPLOY_WEBHOOK: ${{ secrets.HOSTINGER_DEPLOY_WEBHOOK }}
 
     steps:
@@ -33,7 +47,19 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Verify Platform Architecture & Parity Regressions
-        run: npx tsx scripts/verify-platform-architecture.ts
+        run: npm run verify:platform
+
+      - name: Verify security behavior
+        run: npm run test:security
+
+      - name: Apply migrations to isolated CI database
+        run: npx prisma migrate deploy
+
+      - name: Verify financial transactions, scoped reads, and delivery retries
+        run: npm run test:database
+
+      - name: Verify wallet funding, sole-GMD approval and ledger invariants
+        run: npm run test:wallet
 
       - name: Build Next.js Production Bundle
         env:

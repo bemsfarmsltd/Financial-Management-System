@@ -57,6 +57,7 @@ import {
 } from '../src/lib/staged-actions';
 
 async function main() {
+  process.env.BEMS_DELEGATION_SIGNING_SECRET = 'verification-only-signing-key-with-32-bytes';
   console.log('=== BEMS Platform Architecture Verification Suite (Audit Item 05) ===\n');
 
   // 1. Actor & Scope: Strict 3-role normalization
@@ -89,20 +90,7 @@ async function main() {
   assert.deepEqual(verified.delegation.allowedScopes, ['budgets', 'approvals']);
   assert.equal(verified.delegation.operationMode, 'READ_AND_STAGE');
 
-  const staffToken = createScopedAutomationToken({
-    requesterId: 'emp_test_staff',
-    requesterRole: 'STAFF',
-    conversationId: 'conv_emp_test_staff',
-    scopedOrganizationId: 'org_bbh',
-    operationMode: 'READ_AND_STAGE', // Non-executive must still be forced to READ_ONLY
-  });
-  const verifiedStaff = verifyScopedAutomationToken(staffToken);
-  assert.equal(verifiedStaff.valid, true);
-  assert.equal(
-    verifiedStaff.delegation?.operationMode,
-    'READ_ONLY',
-    'Non-executive delegation token must always enforce READ_ONLY operationMode'
-  );
+  for(const requesterRole of ['STAFF','SUPER_ADMIN'] as const)assert.throws(()=>createScopedAutomationToken({requesterId:'non-gmd',requesterRole,conversationId:'denied'}),/Only GMD/,'Non-GMD accounts cannot obtain AI delegations');
 
   const tampered = token.slice(0, -4) + 'ffff';
   assert.equal(verifyScopedAutomationToken(tampered).valid, false, 'Tampered delegation token must be rejected');
@@ -213,7 +201,7 @@ async function main() {
       `Missing required route in PARITY_INVENTORY: ${r}`
     );
   }
-  console.log(`  ✓ All ${PARITY_INVENTORY.length} parity inventory entries & Audit Item 06/07 workflows verified with 0 gaps.`);
+  console.log(`  ✓ All ${PARITY_INVENTORY.length} parity inventory declarations verified; business execution is checked separately.`);
 
   // 7. Audit Item 07: Canonical Domain States, Exact Kobo Money Serialization & Safe DTO Projections
   console.log('[7/7] Verifying Audit Item 07 Domain States, Exact Money Math & Safe DTO Projections...');
@@ -351,10 +339,10 @@ async function main() {
   assert.ok(whatsappWebhookSource.includes('timingSafeEqual') && !whatsappWebhookSource.includes('bems_group_webhook_secret'), 'WhatsApp webhook must verify HMAC signature and remove hardcoded fallback secret');
 
   const disbursementsRouteSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/disbursements/route.ts'), 'utf8');
-  assert.ok(disbursementsRouteSource.includes('escapeXml') && disbursementsRouteSource.includes('BigInt(amountMinor) <= BigInt(0)'), 'Disbursements POST must escape SVG XML and reject non-positive amounts');
+  assert.ok(disbursementsRouteSource.includes('recordTransfer'), 'Dashboard payments must use the shared recording service');
 
   const payrollPrepareSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/payroll/prepare/route.ts'), 'utf8');
-  assert.ok(payrollPrepareSource.includes('prisma.$transaction'), 'Payroll regeneration must run inside prisma.$transaction');
+  assert.ok(payrollPrepareSource.includes('executeDashboardCommand') && fs.readFileSync(path.join(repoRoot, 'src/lib/staged-actions.ts'), 'utf8').includes("isolationLevel: 'Serializable'"), 'Payroll regeneration must use the shared serializable command transaction');
 
   console.log('  ✓ All Audit Item 09 & Part II Security/Financial Integrity Controls (S01–S08) verified.');
 
@@ -417,7 +405,10 @@ async function main() {
 
   const stationQrSource = fs.readFileSync(path.join(repoRoot, 'src/app/api/attendance/station/qr/route.ts'), 'utf8');
   assert.ok(
-    stationQrSource.includes('checkRateLimit') && stationQrSource.includes("where: { code: stationCode, status: 'ACTIVE' }"),
+    stationQrSource.includes('checkRateLimit') && stationQrSource.includes('await getAuthenticatedStation(request)') &&
+      fs.readFileSync(path.join(repoRoot, 'src/lib/attendance/station-auth.ts'), 'utf8').includes("status: 'ACTIVE'") &&
+      fs.readFileSync(path.join(repoRoot, 'src/lib/attendance/station-auth.ts'), 'utf8').includes('timingSafeEqual') &&
+      fs.readFileSync(path.join(repoRoot, 'src/lib/attendance/station-auth.ts'), 'utf8').includes('!code || !secret'),
     'Station QR route must enforce rate limiting and active station status on explicit stationCode'
   );
 
@@ -491,7 +482,7 @@ async function main() {
 
   console.log(`  ✓ All ${PART_III_API_ROUTE_INVENTORY.length} Part III API routes and method contracts verified.`);
 
-  console.log('\nAll 10 Platform Architecture Pillars & Audit Item 07/08/09 + Part II/III Checks PASSED.');
+  console.log('\nArchitecture contract checks passed. This does not replace transaction, role, UI, provider, and device testing.');
 }
 
 main().catch((err) => {

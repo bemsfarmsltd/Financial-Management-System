@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import React from 'react';
 import { DisbursementsDeskView } from './DisbursementsDeskView';
 import { TreasuryAccountsView } from './TreasuryAccountsView';
@@ -31,6 +32,7 @@ export function TreasuryFinanceHubView({
 }: TreasuryFinanceHubViewProps) {
   return (
     <div style={{ width: '100%' }}>
+      <Link href="/wallet/funding" className="mb-4 block rounded-lg bg-orange-700 px-4 py-3 font-bold text-white">Wallet funding and GMD releases</Link>
       {initialTab === 'disbursements' && (
         <DisbursementsDeskView
           businessName={businessName}

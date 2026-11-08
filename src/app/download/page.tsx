@@ -211,7 +211,7 @@ export default async function PublicDownloadPage() {
 
           <div>
             <a
-              href="/downloads/BEMS-GMD-Executive-v1.3.3.apk"
+              href="/download/gmd-app.apk"
               download="BEMS-GMD-Executive-Cockpit-v1.3.3.apk"
               style={{
                 display: 'flex',
@@ -309,7 +309,7 @@ export default async function PublicDownloadPage() {
 
           <div>
             <a
-              href="/downloads/BEMS-Staff-Portal-v1.3.3.apk"
+              href="/download/staff-app.apk"
               download="BEMS-Staff-Portal-v1.3.3.apk"
               style={{
                 display: 'flex',

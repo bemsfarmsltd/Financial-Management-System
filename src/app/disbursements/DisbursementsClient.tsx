@@ -1,5 +1,6 @@
 "use client";
 
+import WalletFlowNotice from '@/components/wallet/WalletFlowNotice';
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -133,6 +134,7 @@ export function DisbursementsClient({
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
+      <WalletFlowNotice />
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div>

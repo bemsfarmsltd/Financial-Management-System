@@ -1,146 +1,31 @@
 import { NextResponse } from 'next/server';
-import { createHash, randomUUID } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
-import { generatePayrollIntercompanyNotes } from '@/lib/services/intercompany';
-
-export const dynamic = 'force-dynamic';
+import { recordTransfer } from '@/lib/services/payment';
 
 export async function POST(request: Request) {
+  const actor = await getAuthenticatedEmployee(request, { disallowServiceToken: true });
+  if (!actor) return NextResponse.json({ error: 'Sign in to record payroll.' }, { status: 401 });
+  if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) return NextResponse.json({ error: 'Executive access required.' }, { status: 403 });
   try {
-    const actor = await getAuthenticatedEmployee(request);
-    if (!actor) return NextResponse.json({ error: 'Sign in to record payroll payment.' }, { status: 401 });
-    const body = await request.formData();
-    const batchId = String(body.get('batchId') || '');
-    const payrollItemId = String(body.get('payrollItemId') || '');
-    const externalReference = String(body.get('externalReference') || '').trim();
-    const bankName = String(body.get('bankName') || '').trim();
-    const beneficiaryBank = String(body.get('beneficiaryBank') || '').trim();
-    const beneficiaryAccount = String(body.get('beneficiaryAccount') || '').trim();
-    const receiptFile = body.get('receipt');
-    if (!batchId || !payrollItemId || !externalReference || !bankName || !beneficiaryBank || !beneficiaryAccount || !(receiptFile instanceof File)) {
-      return NextResponse.json({ error: 'Enter the transfer and beneficiary details and attach the actual bank receipt.' }, { status: 400 });
-    }
-    if (!['application/pdf', 'image/png', 'image/jpeg'].includes(receiptFile.type) || receiptFile.size < 1 || receiptFile.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: 'Attach a PDF, PNG, or JPG receipt up to 10 MB.' }, { status: 400 });
-    }
-    const batch = await prisma.payrollBatch.findUnique({ where: { id: batchId }, include: { period: true } });
-    if (!batch || batch.status !== 'APPROVED') return NextResponse.json({ error: 'Only an approved payroll batch can be paid.' }, { status: 409 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']) && batch.disbursementAssigneeId !== actor.id) {
-      return NextResponse.json({ error: 'This payroll payment recording is assigned to another executive.' }, { status: 403 });
-    }
-    let payingEntityId = batch.paymentEntityId;
-    if (!payingEntityId) {
-      const defaultOrg = await prisma.organization.findFirst({ orderBy: { type: 'asc' }, select: { id: true } });
-      payingEntityId = defaultOrg?.id || null;
-      if (payingEntityId) {
-        await prisma.payrollBatch.update({ where: { id: batch.id }, data: { paymentEntityId: payingEntityId } });
-      }
-    }
-    if (!payingEntityId) return NextResponse.json({ error: 'Set the payroll paying entity before recording a transfer.' }, { status: 409 });
-    const item = await prisma.payrollItem.findFirst({ where: { id: payrollItemId, batchId }, include: { employee: true, disbursement: true } });
-    if (!item) return NextResponse.json({ error: 'Payroll staff record not found.' }, { status: 404 });
-    if (item.disbursement) return NextResponse.json({ error: 'A payment is already recorded for this staff member.' }, { status: 409 });
-    if (!/^\d+$/.test(String(item.netMinor)) || Number(item.netMinor) <= 0) return NextResponse.json({ error: 'This staff record has no payable net amount.' }, { status: 409 });
-    const existingRef = await prisma.disbursement.findFirst({ where: { externalReference } });
-    if (existingRef) return NextResponse.json({ error: 'That bank transfer reference has already been used.' }, { status: 409 });
-    const bytes = Buffer.from(await receiptFile.arrayBuffer());
-    const sha256 = createHash('sha256').update(bytes).digest('hex');
-    if (await prisma.paymentReceipt.findFirst({ where: { sha256 } })) return NextResponse.json({ error: 'This receipt file has already been attached.' }, { status: 409 });
-    const receiptId = randomUUID();
-    const created = await prisma.$transaction(async tx => {
-      const payment = await tx.disbursement.create({ data: {
-        payrollItemId: item.id,
-        beneficiaryEmployeeId: item.employeeId,
-        payerOrgId: payingEntityId!,
-        beneficiaryName: item.employee.legalName,
-        beneficiaryBank,
-        beneficiaryAccount,
-        amountMinor: item.netMinor,
-        currency: item.currency,
-        externalReference,
-        bankName,
-        recordedById: actor.id,
-        status: 'AWAITING_RECIPIENT_CONFIRMATION',
-        idempotencyKey: `PAY-${item.id}-${Date.now()}`
-      } });
-      await tx.paymentReceipt.create({ data: {
-        id: receiptId,
-        disbursementId: payment.id,
-        fileName: receiptFile.name.replace(/[\\/]/g, '_').slice(0, 180),
-        fileUrl: `/api/receipts/${receiptId}`,
-        sha256,
-        mimeType: receiptFile.type,
-        fileData: bytes,
-        uploadedById: actor.id
-      } });
-      await tx.systemNotification.create({ data: {
-        employeeId: item.employeeId,
-        kind: 'PAYROLL_PAYMENT_CONFIRMATION_REQUIRED',
-        title: 'Confirm payroll payment received',
-        body: `A payroll transfer for ${batch.period.year}-${String(batch.period.month).padStart(2, '0')} was recorded. Review the receipt and confirm whether the salary reached your account.`,
-        linkUrl: '/payroll'
-      } });
-      // FIN-001: Deduct company bank account balance with floor validation
-      const amountNaira = Number(item.netMinor) / 100;
-      const bankAccount = await tx.companyBankAccount.findFirst({
-        where: {
-          organizationId: payingEntityId!,
-          status: 'ACTIVE',
-          bankName: { contains: bankName, mode: 'insensitive' },
-        },
-      }) || await tx.companyBankAccount.findFirst({
-        where: {
-          organizationId: payingEntityId!,
-          status: 'ACTIVE',
-        },
+    const form = await request.formData();
+    const receipt = form.get('receipt');
+    if (!(receipt instanceof File)) return NextResponse.json({ error: 'Attach the actual bank receipt.' }, { status: 400 });
+    const bytes = Buffer.from(await receipt.arrayBuffer());
+    const itemId = String(form.get('payrollItemId') || '');
+    const reference = String(form.get('externalReference') || '').trim();
+    const payment = await prisma.$transaction(async tx => {
+      const item = await tx.payrollItem.findUnique({ where: { id: itemId } });
+      if (!item || item.batchId !== String(form.get('batchId') || '')) throw new Error('Payroll item not found in this batch.');
+      return recordTransfer(tx, {
+        actor, payrollItemId: itemId, payerAccountId: String(form.get('payerAccountId') || '') || undefined,
+        bankName: String(form.get('bankName') || ''), amountMinor: item.netMinor, reference,
+        beneficiaryBank: String(form.get('beneficiaryBank') || ''), beneficiaryAccount: String(form.get('beneficiaryAccount') || ''),
+        receipt: { name: receipt.name, type: receipt.type, bytes }, idempotencyKey: 'PAYROLL-' + itemId + '-' + reference,
       });
-
-      if (bankAccount) {
-        const currentBal = Number(bankAccount.balance);
-        const newBal = Math.max(0, currentBal - amountNaira);
-        await tx.companyBankAccount.update({
-          where: { id: bankAccount.id },
-          data: { balance: newBal },
-        });
-      }
-
-      await tx.auditEvent.create({ data: {
-        actorId: actor.id,
-        actorName: actor.legalName,
-        actorRole: actor.role,
-        groupId: payingEntityId!,
-        targetType: 'DISBURSEMENT',
-        targetId: payment.id,
-        action: 'CREATED',
-        correlationId: `CORR-PAYROLL-DISB-${payment.id}`,
-        metadata: JSON.stringify({ batchId, payrollItemId, externalReference, bankName, amountMinor: item.netMinor.toString(), receiptHash: sha256 })
-      } });
-      return payment;
     });
-
-    // Automatically trigger intercompany debit/credit note generation for cross-entity cost allocations
-    let intercompanyNotesCreated = 0;
-    try {
-      const icResult = await generatePayrollIntercompanyNotes({
-        payrollItemId: item.id,
-        payingEntityId: payingEntityId!,
-        periodId: batch.periodId,
-        actor: { id: actor.id, legalName: actor.legalName, role: actor.role },
-      });
-      intercompanyNotesCreated = icResult.generatedCount;
-    } catch (icErr) {
-      console.error('Automated intercompany generation error:', icErr);
-    }
-
-    return NextResponse.json({
-      success: true,
-      paymentId: created.id,
-      intercompanyNotesCreated,
-      message: `Payment recorded. ${item.employee.legalName} has been asked to confirm receipt.${intercompanyNotesCreated > 0 ? ` Automatically generated ${intercompanyNotesCreated} intercompany recharge note(s).` : ''}`
-    });
+    return NextResponse.json({ success: true, paymentId: payment.id, message: 'Payment recorded with intercompany allocations. The recipient must confirm receipt.' });
   } catch (error) {
-    console.error('Payroll payment record error:', error);
-    return NextResponse.json({ error: 'Could not record this payroll payment.' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Payroll payment failed.' }, { status: 409 });
   }
 }

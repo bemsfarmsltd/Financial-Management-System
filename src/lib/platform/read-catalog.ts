@@ -33,6 +33,12 @@ export interface ReadCatalogEnvelope<T> {
 }
 
 const SENSITIVE_AUTH_KEYS = new Set([
+  'password',
+  'token',
+  'inviteToken',
+  'invitationToken',
+  'apiKey',
+  'secretKey',
   'passwordHash',
   'password_hash',
   'securityPinHash',
@@ -103,7 +109,7 @@ export function redactUntrustedAndSensitiveFields<T>(input: T): T {
 
   const visit = (val: any): any => {
     if (val === null || val === undefined) return val;
-    if (typeof val === 'bigint') return Number(val);
+    if (typeof val === 'bigint') return val.toString();
     if (val instanceof Date) return val.toISOString();
     if (typeof val !== 'object') return val;
     if (Buffer.isBuffer(val) || val instanceof Uint8Array) {
@@ -216,3 +222,8 @@ export function projectSafeEmployeeDto<T extends Record<string, any> | null | un
 }
 
 
+
+/** Safe for authorized dashboard responses: preserves business fields while removing credentials. */
+export function stripAuthenticationSecrets<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value, (key, item) => SENSITIVE_AUTH_KEYS.has(key) ? undefined : typeof item === 'bigint' ? item.toString() : item));
+}

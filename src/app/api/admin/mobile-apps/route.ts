@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       create: {
         appId,
         appName: appId === 'GMD_APP' ? 'BEMS GMD AI' : 'BEMS Staff App',
-        packageName: appId === 'GMD_APP' ? 'com.bemsgroup.gmd_ai' : 'com.bemsgroup.staff',
+        packageName: appId === 'GMD_APP' ? 'com.bemsgroup.bems_gmd_ai' : 'com.bemsfarms.bems_staff_app',
         minimumAllowedVersion: minimumAllowedVersion || '1.0.0',
         latestVersionAvailable: latestVersionAvailable || '1.0.0',
         forceUpdate: typeof forceUpdate === 'boolean' ? forceUpdate : true,

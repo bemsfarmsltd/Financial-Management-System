@@ -77,12 +77,11 @@ export async function authenticateAiToolRequest(
 
   const delegationHeader =
     req.headers.get('x-bems-delegation-token') ||
-    req.headers.get('x-delegation-token') ||
-    url.searchParams.get('delegation_token');
+    req.headers.get('x-delegation-token');
   const apiKey = req.headers.get('x-api-key');
   const authHeader = req.headers.get('authorization');
   const bearerToken = authHeader?.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : null;
-  const candidateSecret = apiKey || bearerToken || url.searchParams.get('auth_token');
+  const candidateSecret = apiKey || bearerToken;
 
   // 1. Check Scoped Automation Delegation Token (bems_del_v1.*) first
   const candidateDelegation =
@@ -106,6 +105,7 @@ export async function authenticateAiToolRequest(
     }
 
     const del = verified.delegation;
+    if(del.requesterRole!=='GMD')return {actor:null,errorResponse:NextResponse.json({error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403})};
     if (mode === 'write' && del.operationMode === 'READ_ONLY') {
       return {
         actor: null,
@@ -141,12 +141,12 @@ export async function authenticateAiToolRequest(
     const employee = await prisma.employee.findFirst({
       where: {
         id: del.requesterId,
-        status: 'ACTIVE',
+        OR: [{ status: 'ACTIVE' }, { status: 'ON_LEAVE', role: 'STAFF' }],
         approvalStatus: 'APPROVED',
       },
     });
     const canonicalRole = employee ? normalizeCanonicalRole(employee.role) : null;
-    if (!employee || !canonicalRole) {
+    if (!employee || canonicalRole!=='GMD' || canonicalRole !== del.requesterRole) {
       return {
         actor: null,
         errorResponse: NextResponse.json(
@@ -178,80 +178,10 @@ export async function authenticateAiToolRequest(
     };
   }
 
-  // 2. Check Shared Service Token (requires active employee resolution; write operations require explicit x-user-id / x-employee-id)
-  const serviceSecrets = [
-    process.env.BEMS_AI_SERVICE_TOKEN,
-    process.env.BEMS_N8N_SHARED_SECRET,
-  ].filter((s): s is string => Boolean(s && s.length >= 16));
-
-  if (candidateSecret && candidateSecret.length >= 16 && serviceSecrets.length > 0) {
-    const keyBuf = Buffer.from(candidateSecret);
-    const matchedSecret = serviceSecrets.some((sec) => {
-      const secBuf = Buffer.from(sec);
-      return keyBuf.length === secBuf.length && timingSafeEqual(keyBuf, secBuf);
-    });
-
-    if (matchedSecret) {
-      const targetUserId = (
-        req.headers.get('x-user-id') ||
-        req.headers.get('x-employee-id') ||
-        req.headers.get('x-actor-id') ||
-        url.searchParams.get('user_id') ||
-        url.searchParams.get('employee_id') ||
-        ''
-      ).trim();
-      if (!targetUserId) {
-        return {
-          actor: null,
-          errorResponse: NextResponse.json(
-            {
-              ok: false,
-              error_code: 'SERVICE_TOKEN_MISSING_DELEGATION',
-              message:
-                'Service token requests must supply a signed delegation token (bems_del_v1.*) or an explicit x-user-id / x-employee-id header.',
-            },
-            { status: 401 }
-          ),
-        };
-      }
-      const conversationId = (req.headers.get('x-conversation-id') || req.headers.get('x-session-id') || '').trim() || null;
-      const employee = await prisma.employee.findFirst({
-        where: { id: targetUserId, status: 'ACTIVE', approvalStatus: 'APPROVED' },
-      });
-
-      const canonicalRole = employee ? normalizeCanonicalRole(employee.role) : null;
-      if (employee && canonicalRole) {
-        const isExec = hasAnyRole(employee, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
-        if (mode === 'write' && !isExec) {
-          return {
-            actor: null,
-            errorResponse: NextResponse.json(
-              {
-                ok: false,
-                error_code: 'DELEGATION_READ_ONLY',
-                message: 'Non-executive callers cannot stage or execute AI tool write operations.',
-              },
-              { status: 403 }
-            ),
-          };
-        }
-        return {
-          actor: {
-            id: employee.id,
-            legalName: employee.legalName,
-            role: employee.role,
-            canonicalRole,
-            workEmail: employee.workEmail,
-            phone: employee.phone,
-            isExecutive: isExec,
-            authSource: 'SERVICE_TOKEN',
-            conversationId: conversationId || `conv_${employee.id}`,
-            scopedOrganizationId: req.headers.get('x-subsidiary-id') || null,
-            delegation: null,
-          },
-          errorResponse: null,
-        };
-      }
+  if (candidateSecret && (apiKey || !bearerToken || !candidateSecret.startsWith('bems_del_v1.'))) {
+    // Bearer user sessions are verified below. An API key cannot select a human.
+    if (apiKey || url.searchParams.has('auth_token')) {
+      return { actor: null, errorResponse: NextResponse.json({ error: 'A signed automation delegation is required.', error_code: 'SERVICE_TOKEN_MISSING_DELEGATION' }, { status: 401 }) };
     }
   }
 
@@ -271,6 +201,7 @@ export async function authenticateAiToolRequest(
     };
   }
 
+  if(standardUser.role!=='GMD')return {actor:null,errorResponse:NextResponse.json({error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403})};
   const canonicalRole = normalizeCanonicalRole(standardUser.role) || 'STAFF';
   const isExecutive = hasAnyRole(standardUser, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
 

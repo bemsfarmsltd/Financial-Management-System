@@ -8,10 +8,18 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "verify:platform": "tsx scripts/verify-platform-architecture.ts",
+    "verify:platform": "node scripts/run-typescript.cjs scripts/verify-platform-architecture.ts",
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:security": "node scripts/run-typescript.cjs scripts/regression-security.ts",
+    "outbox:process": "node scripts/run-typescript.cjs scripts/process-outbox.ts",
+    "test:database": "node scripts/run-typescript.cjs scripts/regression-database.ts && node scripts/run-typescript.cjs scripts/regression-scoped-reads.ts && node scripts/run-typescript.cjs scripts/regression-outbox.ts",
+    "corrections:preflight": "node scripts/run-typescript.cjs scripts/preflight-corrections.ts",
+    "test:wallet": "node scripts/run-wallet-regressions.cjs",
+    "wallet:process": "node scripts/run-typescript.cjs scripts/process-wallet-transfers.ts",
+    "wallet:preflight": "node scripts/run-typescript.cjs scripts/wallet-preflight.ts",
+    "wallet:reconcile": "node scripts/run-typescript.cjs scripts/reconcile-wallet.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",

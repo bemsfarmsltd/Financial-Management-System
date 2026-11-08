@@ -1,7 +1,7 @@
 /**
  * Part III · Complete API Route Inventory Registry
  *
- * Canonical source-of-truth inventory for all 154 BEMS ERP API routes across:
+ * Canonical source-of-truth inventory for all registered BEMS ERP API routes across:
  * - accountability
  * - admin
  * - ai (chat, memory, staged-actions, tools, verify)
@@ -92,7 +92,8 @@ export type ApiRouteGroup =
   | 'treasury'
   | 'upload'
   | 'vendors'
-  | 'webhooks';
+  | 'webhooks'
+  | 'wallet';
 
 export interface ApiRouteInventoryEntry {
   group: ApiRouteGroup;
@@ -1018,7 +1019,7 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     group: 'reports',
     apiPath: '/api/reports/export',
     relativeFilePath: 'src/app/api/reports/export/route.ts',
-    declaredMethods: ['POST'],
+    declaredMethods: ['GET', 'POST'],
     classification: 'READ',
   },
 
@@ -1254,4 +1255,31 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     declaredMethods: ['GET', 'POST'],
     classification: 'WEBHOOK',
   },
+
+  // Wallet execution: all monetary actions use the funded-release boundary.
+  { group: 'wallet', apiPath: '/api/wallet/me', relativeFilePath: 'src/app/api/wallet/me/route.ts', declaredMethods: ['GET'], classification: 'READ' },
+  { group: 'wallet', apiPath: '/api/wallet/funding', relativeFilePath: 'src/app/api/wallet/funding/route.ts', declaredMethods: ['GET'], classification: 'READ' },
+  { group: 'wallet', apiPath: '/api/wallet/funding/refresh', relativeFilePath: 'src/app/api/wallet/funding/refresh/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
+  { group: 'wallet', apiPath: '/api/wallet/envelopes', relativeFilePath: 'src/app/api/wallet/envelopes/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
+  { group: 'wallet', apiPath: '/api/wallet/releases', relativeFilePath: 'src/app/api/wallet/releases/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
+  { group: 'wallet', apiPath: '/api/wallet/releases/[id]/approve', relativeFilePath: 'src/app/api/wallet/releases/[id]/approve/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
+  { group: 'wallet', apiPath: '/api/wallet/withdrawals', relativeFilePath: 'src/app/api/wallet/withdrawals/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
+
+  { group: 'meta', apiPath: '/api/meta/features', relativeFilePath: 'src/app/api/meta/features/route.ts', declaredMethods: ['GET'], classification: 'READ' },
+  { group: 'ai', apiPath: '/api/ai/tools/wallet', relativeFilePath: 'src/app/api/ai/tools/wallet/route.ts', declaredMethods: ['GET', 'POST'], classification: 'AI_TOOL' },
+  { group: 'wallet', apiPath: '/api/wallet/pool-control', relativeFilePath: 'src/app/api/wallet/pool-control/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
+  { group: 'wallet', apiPath: '/api/wallet/releases/[id]', relativeFilePath: 'src/app/api/wallet/releases/[id]/route.ts', declaredMethods: ['GET'], classification: 'READ' },
+  { group: 'wallet', apiPath: '/api/wallet/bank', relativeFilePath: 'src/app/api/wallet/bank/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
+  { group: 'wallet', apiPath: '/api/wallet/challenges', relativeFilePath: 'src/app/api/wallet/challenges/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
+  { group: 'wallet', apiPath: '/api/wallet/withdrawals/[id]/cancel', relativeFilePath: 'src/app/api/wallet/withdrawals/[id]/cancel/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
+  { group: 'wallet', apiPath: '/api/wallet/banks', relativeFilePath: 'src/app/api/wallet/banks/route.ts', declaredMethods: ['GET'], classification: 'READ' },
+  { group: 'wallet', apiPath: '/api/wallet/envelopes/[id]', relativeFilePath: 'src/app/api/wallet/envelopes/[id]/route.ts', declaredMethods: ['PATCH'], classification: 'MUTATION' },
+  { group: 'webhooks', apiPath: '/api/webhooks/monnify', relativeFilePath: 'src/app/api/webhooks/monnify/route.ts', declaredMethods: ['POST'], classification: 'WEBHOOK' },
+  { group: 'webhooks', apiPath: '/api/webhooks/monnify/validate-transfer', relativeFilePath: 'src/app/api/webhooks/monnify/validate-transfer/route.ts', declaredMethods: ['POST'], classification: 'WEBHOOK' },
+
+  { group: 'wallet', apiPath: '/api/wallet/issues/[id]/ack', relativeFilePath: 'src/app/api/wallet/issues/[id]/ack/route.ts', declaredMethods: ["POST"], classification: 'MUTATION' },
+  { group: 'wallet', apiPath: '/api/wallet/project-returns', relativeFilePath: 'src/app/api/wallet/project-returns/route.ts', declaredMethods: ["POST"], classification: 'MUTATION' },
+  { group: 'wallet', apiPath: '/api/wallet/reconcile', relativeFilePath: 'src/app/api/wallet/reconcile/route.ts', declaredMethods: ["POST"], classification: 'MUTATION' },
+  { group: 'wallet', apiPath: '/api/wallet/vendors/[id]/verify-bank', relativeFilePath: 'src/app/api/wallet/vendors/[id]/verify-bank/route.ts', declaredMethods: ["POST"], classification: 'MUTATION' },
+  { group: 'wallet', apiPath: '/api/wallet/withdrawal-plan', relativeFilePath: 'src/app/api/wallet/withdrawal-plan/route.ts', declaredMethods: ["POST"], classification: 'MUTATION' },
 ];

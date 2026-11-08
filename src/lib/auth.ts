@@ -1,8 +1,8 @@
+import { canAccessEmployeePortal } from '@/lib/portal-access';
 import { createHash, randomBytes, scrypt as nodeScrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { cookies, headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
-import { verifyScopedAutomationToken } from '@/lib/platform/actor-scope';
 
 const scrypt = promisify(nodeScrypt);
 const COOKIE_NAME = 'bems_session';
@@ -54,44 +54,9 @@ export async function createEmployeeSession(employeeId: string) {
   return { token, expiresAt };
 }
 
-// In-memory session cache to eliminate redundant DB lookups on concurrent requests
-type CachedSession = {
-  employee: AuthenticatedEmployee;
-  expiresAt: number;
-};
-const sessionMemoryCache = new Map<string, CachedSession>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes (reduces DB lookups by 90% across concurrent endpoints)
-
-function getCachedSession(tokenHash: string): AuthenticatedEmployee | null {
-  const cached = sessionMemoryCache.get(tokenHash);
-  if (!cached) return null;
-  if (Date.now() > cached.expiresAt) {
-    sessionMemoryCache.delete(tokenHash);
-    return null;
-  }
-  return cached.employee;
-}
-
-function setCachedSession(tokenHash: string, employee: AuthenticatedEmployee) {
-  if (sessionMemoryCache.size > 500) {
-    const now = Date.now();
-    for (const [key, val] of sessionMemoryCache.entries()) {
-      if (now > val.expiresAt) sessionMemoryCache.delete(key);
-    }
-  }
-  sessionMemoryCache.set(tokenHash, {
-    employee,
-    expiresAt: Date.now() + CACHE_TTL_MS,
-  });
-}
-
-export function invalidateSessionCache(token?: string) {
-  if (token) {
-    sessionMemoryCache.delete(hashToken(token));
-  } else {
-    sessionMemoryCache.clear();
-  }
-}
+// Sessions are checked against the database on every authenticated request so
+// suspension, expiry and password resets take effect across all workers.
+export function invalidateSessionCache(_token?: string) {}
 
 export async function getAuthenticatedEmployee(
   req?: Request,
@@ -130,102 +95,21 @@ export async function getAuthenticatedEmployee(
     }
   }
 
-  // Service token is only permitted for read-only GET/HEAD requests or when explicitly enabled for staging routes
-  const canUseServiceToken =
-    !options?.disallowServiceToken &&
-    (options?.allowServiceToken === true || method === 'GET' || method === 'HEAD');
-
   const bearerToken =
     authHeader && authHeader.toLowerCase().startsWith('bearer ')
       ? authHeader.substring(7).trim()
       : null;
   const candidateToken = bearerToken || (apiKeyHeader ? apiKeyHeader.trim() : null);
 
-  // A0. Check Scoped Automation Delegation Token (bems_del_v1.*) when service/delegation tokens are permitted
-  const candidateDelegation =
-    delegationHeader ||
-    (candidateToken?.startsWith('bems_del_v1.') ? candidateToken : null);
-  if (canUseServiceToken && candidateDelegation) {
-    const verified = verifyScopedAutomationToken(candidateDelegation);
-    if (verified.valid && verified.delegation) {
-      const isWriteMethod = method !== 'GET' && method !== 'HEAD';
-      if (isWriteMethod && verified.delegation.operationMode === 'READ_ONLY') {
-        return null;
-      }
-      const employee = await prisma.employee.findFirst({
-        where: {
-          id: verified.delegation.requesterId,
-          status: 'ACTIVE',
-          approvalStatus: 'APPROVED',
-        },
-      });
-      if (employee) {
-        return {
-          id: employee.id,
-          employeeNumber: employee.employeeNumber,
-          legalName: employee.legalName,
-          workEmail: employee.workEmail,
-          phone: employee.phone,
-          role: employee.role,
-          avatarUrl: employee.avatarUrl,
-        };
-      }
-    }
-  }
+  // Automation delegates must use the scoped AI tool boundary.
+  if (delegationHeader || candidateToken?.startsWith('bems_del_v1.')) return null;
 
   if (candidateToken) {
     const token = candidateToken;
 
-    // A. Check service API key ONLY when service tokens are permitted and an explicit targetUserId is provided
-    const serviceSecrets = [
-      process.env.BEMS_AI_SERVICE_TOKEN,
-      process.env.BEMS_N8N_SHARED_SECRET,
-    ].filter((s): s is string => Boolean(s && s.length >= 16));
-
-    if (canUseServiceToken && token.length >= 16 && serviceSecrets.length > 0) {
-      const tokenBuf = Buffer.from(token);
-      const matchedSecret = serviceSecrets.some((sec) => {
-        const secretBuf = Buffer.from(sec);
-        return tokenBuf.length === secretBuf.length && timingSafeEqual(tokenBuf, secretBuf);
-      });
-      if (matchedSecret) {
-        let targetUserId: string | null = null;
-        if (req) {
-          targetUserId = req.headers.get('x-user-id') || req.headers.get('x-employee-id') || req.headers.get('x-actor-id');
-        } else {
-          try {
-            const hs = await headers();
-            targetUserId = hs.get('x-user-id') || hs.get('x-employee-id') || hs.get('x-actor-id');
-          } catch {}
-        }
-
-        const trimmedTargetId = (targetUserId || '').trim();
-        if (!trimmedTargetId) {
-          return null;
-        }
-
-        const employee = await prisma.employee.findFirst({
-          where: { id: trimmedTargetId, status: 'ACTIVE', approvalStatus: 'APPROVED' },
-        });
-
-        if (employee) {
-          return {
-            id: employee.id,
-            employeeNumber: employee.employeeNumber,
-            legalName: employee.legalName,
-            workEmail: employee.workEmail,
-            phone: employee.phone,
-            role: employee.role,
-            avatarUrl: employee.avatarUrl,
-          };
-        }
-      }
-    }
-
+    // Shared automation keys never grant a dashboard identity.
     // B. Check user session token (Option A)
     const tHash = hashToken(token);
-    const cached = getCachedSession(tHash);
-    if (cached) return cached;
 
     const session = await prisma.authSession.findUnique({
       where: { tokenHash: tHash },
@@ -233,7 +117,7 @@ export async function getAuthenticatedEmployee(
     });
     if (session && session.expiresAt > new Date()) {
       const employee = session.employee;
-      if (employee.status === 'ACTIVE' && employee.approvalStatus === 'APPROVED') {
+      if (canAccessEmployeePortal(employee)) {
         const authEmp: AuthenticatedEmployee = {
           id: employee.id,
           employeeNumber: employee.employeeNumber,
@@ -243,7 +127,6 @@ export async function getAuthenticatedEmployee(
           role: employee.role,
           avatarUrl: employee.avatarUrl,
         };
-        setCachedSession(tHash, authEmp);
         return authEmp;
       }
     }
@@ -262,8 +145,6 @@ export async function getAuthenticatedEmployee(
   if (cookieToken) {
     try {
       const tHash = hashToken(cookieToken);
-      const cached = getCachedSession(tHash);
-      if (cached) return cached;
 
       let session = null;
       try {
@@ -285,7 +166,7 @@ export async function getAuthenticatedEmployee(
       }
       if (session && session.expiresAt > new Date()) {
         const employee = session.employee;
-        if (employee.status === 'ACTIVE' && employee.approvalStatus === 'APPROVED') {
+        if (canAccessEmployeePortal(employee)) {
           const authEmp: AuthenticatedEmployee = {
             id: employee.id,
             employeeNumber: employee.employeeNumber,
@@ -295,8 +176,7 @@ export async function getAuthenticatedEmployee(
             role: employee.role,
             avatarUrl: employee.avatarUrl,
           };
-          setCachedSession(tHash, authEmp);
-          return authEmp;
+            return authEmp;
         }
       }
     } catch (err) {

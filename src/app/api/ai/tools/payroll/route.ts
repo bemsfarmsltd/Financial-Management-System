@@ -1,3 +1,4 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -17,6 +18,7 @@ function formatNaira(minor: bigint | number): string {
 
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
 
   if (!actor?.isExecutive) {
@@ -37,7 +39,7 @@ export async function GET(req: NextRequest) {
     const employeeId = url.searchParams.get('employeeId') || url.searchParams.get('employee_id');
 
     const item = itemId
-      ? await prisma.payrollItem.findUnique({
+      ? await db.payrollItem.findUnique({
           where: { id: itemId },
           include: {
             employee: true,
@@ -47,7 +49,7 @@ export async function GET(req: NextRequest) {
           },
         })
       : employeeId
-      ? await prisma.payrollItem.findFirst({
+      ? await db.payrollItem.findFirst({
           where: {
             employeeId,
             batch: { period: { year, month } },
@@ -110,11 +112,11 @@ export async function GET(req: NextRequest) {
 
   // 0B. GET_INTERCOMPANY: Return payroll intercompany recharge notes for the period
   if (action === 'GET_INTERCOMPANY' || action === 'INTERCOMPANY_EFFECTS') {
-    const period = await prisma.payrollPeriod.findFirst({ where: { year, month } });
+    const period = await db.payrollPeriod.findFirst({ where: { year, month } });
     if (!period) {
       return NextResponse.json({ ok: true, year, month, notesCount: 0, notes: [] });
     }
-    const notes = await prisma.intercompanyNote.findMany({
+    const notes = await db.intercompanyNote.findMany({
       where: { periodId: period.id },
       include: {
         sourceEntity: { select: { id: true, legalName: true, code: true } },
@@ -144,7 +146,7 @@ export async function GET(req: NextRequest) {
 
   // 1. GET_ITEMS: Return line items for a specific month/year
   if (action === 'GET_ITEMS') {
-    const period = await prisma.payrollPeriod.findFirst({
+    const period = await db.payrollPeriod.findFirst({
       where: { year, month },
       include: {
         batches: {
@@ -240,7 +242,7 @@ export async function GET(req: NextRequest) {
   }
 
   // 2. Default LIST: Return historical and open periods
-  const periods = await prisma.payrollPeriod.findMany({
+  const periods = await db.payrollPeriod.findMany({
     orderBy: [{ year: 'desc' }, { month: 'desc' }],
     include: {
       batches: {
@@ -282,6 +284,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
 
   if (!actor?.isExecutive) {
@@ -309,11 +312,13 @@ export async function POST(req: NextRequest) {
   if (action === 'PREPARE') {
     const periodLabel = `${new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(year, month - 1, 1))} ${year}`;
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'payroll_action',
       summary: `Prepare / calculate monthly payroll batch for ${periodLabel}`,
       materialPayload: {
         sub_action: 'PREPARE',
+        organization_id: body.organization_id || body.organizationId || actor.scopedOrganizationId || undefined,
         year,
         month,
       },
@@ -342,7 +347,7 @@ export async function POST(req: NextRequest) {
   // ACTION 2: STAGE SIGN OFF PAYROLL BATCH (GMD / Super Admin Approval)
   // -------------------------------------------------------------
   if (action === 'SIGN_OFF' || action === 'APPROVE') {
-    const period = await prisma.payrollPeriod.findFirst({
+    const period = await db.payrollPeriod.findFirst({
       where: { year, month },
       include: {
         batches: {
@@ -364,7 +369,8 @@ export async function POST(req: NextRequest) {
     const disbursementAssigneeId = (body.disbursementAssigneeId || body.assigneeId || '').trim() || null;
     const periodLabel = `${new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(year, month - 1, 1))} ${year}`;
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'payroll_action',
       targetSubsidiaryId: paymentEntityId || undefined,
       summary: `Sign off & lock payroll batch v${batch.version} for ${periodLabel} (Net: ${formatNaira(batch.totalNetMinor)})`,
@@ -418,7 +424,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (itemId) {
-      const item = await prisma.payrollItem.findUnique({
+      const item = await db.payrollItem.findUnique({
         where: { id: itemId },
         include: { employee: true, batch: true },
       });
@@ -427,7 +433,8 @@ export async function POST(req: NextRequest) {
       }
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'payroll_action',
         summary: `Record salary payout for ${item.employee.legalName} (${formatNaira(item.netMinor)})`,
         materialPayload: {
@@ -459,13 +466,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const batch = await prisma.payrollBatch.findUnique({ where: { id: batchId } });
+    const batch = await db.payrollBatch.findUnique({ where: { id: batchId } });
     if (!batch) {
       return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: 'Payroll batch not found.' }, { status: 404 });
     }
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'payroll_action',
       summary: `Record batch salary payout for batch v${batch.version} (${formatNaira(batch.totalNetMinor)})`,
       materialPayload: {
@@ -546,7 +554,8 @@ export async function POST(req: NextRequest) {
         : '₦0';
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'salary_change',
       summary: `Adjust monthly salary for ${ctx.employee.legalName} (${ctx.employee.employeeNumber}) from ₦${ctx.currentGrossNaira.toLocaleString()} to ₦${amount.toLocaleString()}`,
       targetEmployeeId: ctx.employee.id,
@@ -597,7 +606,7 @@ export async function POST(req: NextRequest) {
     if (!itemId) {
       return NextResponse.json({ ok: false, error_code: 'MISSING_ITEM_ID', message: 'itemId is required.' }, { status: 400 });
     }
-    const item = await prisma.payrollItem.findUnique({
+    const item = await db.payrollItem.findUnique({
       where: { id: itemId },
       include: { employee: true },
     });
@@ -607,7 +616,8 @@ export async function POST(req: NextRequest) {
 
     const mode = body.mode === 'PERMANENT' ? 'PERMANENT' : 'BATCH_ONLY';
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'payroll_action',
       summary: `Remove ${item.employee.legalName} from payroll batch (${mode})`,
       materialPayload: {
@@ -644,7 +654,8 @@ export async function POST(req: NextRequest) {
     const decision = String(body.decision || 'RECEIVED').toUpperCase();
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'payroll_action',
       summary: `Record Recipient Payment Confirmation (${decision}) for Disbursement ${disbursementId.slice(0, 8)}`,
       materialPayload: {

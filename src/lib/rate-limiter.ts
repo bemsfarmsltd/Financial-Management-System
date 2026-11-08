@@ -1,100 +1,47 @@
-/**
- * In-memory sliding window rate limiter for security-sensitive endpoints
- * (Login, password reset, bootstrap, attendance punch)
- */
+import { createHash } from 'node:crypto';
+import { prisma } from '@/lib/prisma';
 
-type RateLimitRecord = {
-  timestamps: number[];
-  blockedUntil?: number;
-};
+export type RateLimitOptions = { windowMs: number; maxAttempts: number; blockDurationMs?: number };
+export type RateLimitResult = { allowed: boolean; remainingAttempts: number; retryAfterSeconds?: number };
+function identifierHash(identifier: string) { return createHash('sha256').update(identifier).digest('hex'); }
 
-const store = new Map<string, RateLimitRecord>();
-
-// Clean up expired keys periodically to prevent memory bloat
-const CLEANUP_INTERVAL_MS = 60 * 1000;
-let lastCleanup = Date.now();
-
-function cleanupExpired(windowMs: number) {
-  const now = Date.now();
-  if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
-  lastCleanup = now;
-
-  for (const [key, record] of store.entries()) {
-    record.timestamps = record.timestamps.filter((t) => now - t < windowMs);
-    if (record.timestamps.length === 0 && (!record.blockedUntil || record.blockedUntil < now)) {
-      store.delete(key);
-    }
+/** A single database counter is shared by every worker. Database failure denies attempts. */
+export async function checkRateLimit(identifier: string, options: RateLimitOptions): Promise<RateLimitResult> {
+  const key = identifierHash(identifier);
+  const windowMs = Math.max(1000, options.windowMs);
+  const blockMs = Math.max(1000, options.blockDurationMs ?? windowMs);
+  const max = Math.max(1, options.maxAttempts);
+  try {
+    const rows = await prisma.$queryRaw<Array<{ attempts: number; blockedUntil: Date | null }>>`
+      INSERT INTO "SecurityRateLimit" ("key", "attempts", "windowStartedAt", "blockedUntil", "expiresAt")
+      VALUES (${key}, 1, CURRENT_TIMESTAMP, NULL, CURRENT_TIMESTAMP + (${windowMs + blockMs} * interval '1 millisecond'))
+      ON CONFLICT ("key") DO UPDATE SET
+        "attempts" = CASE WHEN "SecurityRateLimit"."blockedUntil" > CURRENT_TIMESTAMP THEN "SecurityRateLimit"."attempts"
+          WHEN "SecurityRateLimit"."windowStartedAt" + (${windowMs} * interval '1 millisecond') <= CURRENT_TIMESTAMP THEN 1
+          ELSE "SecurityRateLimit"."attempts" + 1 END,
+        "windowStartedAt" = CASE WHEN "SecurityRateLimit"."blockedUntil" > CURRENT_TIMESTAMP THEN "SecurityRateLimit"."windowStartedAt"
+          WHEN "SecurityRateLimit"."windowStartedAt" + (${windowMs} * interval '1 millisecond') <= CURRENT_TIMESTAMP THEN CURRENT_TIMESTAMP
+          ELSE "SecurityRateLimit"."windowStartedAt" END,
+        "blockedUntil" = CASE WHEN "SecurityRateLimit"."blockedUntil" > CURRENT_TIMESTAMP THEN "SecurityRateLimit"."blockedUntil"
+          WHEN "SecurityRateLimit"."windowStartedAt" + (${windowMs} * interval '1 millisecond') <= CURRENT_TIMESTAMP THEN NULL
+          WHEN "SecurityRateLimit"."attempts" >= ${max} THEN CURRENT_TIMESTAMP + (${blockMs} * interval '1 millisecond') ELSE NULL END,
+        "expiresAt" = CURRENT_TIMESTAMP + (${windowMs + blockMs} * interval '1 millisecond')
+      RETURNING "attempts", "blockedUntil"
+    `;
+    const row = rows[0];
+    if (!row) return { allowed: false, remainingAttempts: 0, retryAfterSeconds: 60 };
+    const blocked = row.blockedUntil && new Date(row.blockedUntil).getTime() > Date.now();
+    return { allowed: !blocked && row.attempts <= max, remainingAttempts: Math.max(0, max - row.attempts), ...(blocked ? { retryAfterSeconds: Math.max(1, Math.ceil((new Date(row.blockedUntil!).getTime() - Date.now()) / 1000)) } : {}) };
+  } catch (error) {
+    console.error('Shared rate-limit storage is unavailable.');
+    return { allowed: false, remainingAttempts: 0, retryAfterSeconds: 60 };
   }
 }
-
-export type RateLimitOptions = {
-  windowMs: number; // e.g. 60_000 (1 min)
-  maxAttempts: number; // e.g. 5 attempts
-  blockDurationMs?: number; // e.g. 300_000 (5 min lockout on exceeding)
-};
-
-export type RateLimitResult = {
-  allowed: boolean;
-  remainingAttempts: number;
-  retryAfterSeconds?: number;
-};
-
-export function checkRateLimit(
-  identifier: string,
-  options: RateLimitOptions
-): RateLimitResult {
-  const { windowMs, maxAttempts, blockDurationMs = windowMs } = options;
-  const now = Date.now();
-
-  cleanupExpired(windowMs);
-
-  let record = store.get(identifier);
-  if (!record) {
-    record = { timestamps: [] };
-    store.set(identifier, record);
-  }
-
-  // Check if currently blocked
-  if (record.blockedUntil && record.blockedUntil > now) {
-    const retryAfterSeconds = Math.ceil((record.blockedUntil - now) / 1000);
-    return {
-      allowed: false,
-      remainingAttempts: 0,
-      retryAfterSeconds,
-    };
-  }
-
-  // Filter out timestamps outside the sliding window
-  record.timestamps = record.timestamps.filter((t) => now - t < windowMs);
-
-  if (record.timestamps.length >= maxAttempts) {
-    record.blockedUntil = now + blockDurationMs;
-    const retryAfterSeconds = Math.ceil(blockDurationMs / 1000);
-    return {
-      allowed: false,
-      remainingAttempts: 0,
-      retryAfterSeconds,
-    };
-  }
-
-  // Record this attempt
-  record.timestamps.push(now);
-  const remainingAttempts = Math.max(0, maxAttempts - record.timestamps.length);
-
-  return {
-    allowed: true,
-    remainingAttempts,
-  };
+export async function resetRateLimit(identifier: string): Promise<void> {
+  await prisma.$executeRaw`DELETE FROM "SecurityRateLimit" WHERE "key" = ${identifierHash(identifier)}`;
 }
-
-export function resetRateLimit(identifier: string): void {
-  store.delete(identifier);
-}
-
 export function getClientIp(req: Request): string {
-  const forwarded = req.headers.get('x-forwarded-for');
-  if (forwarded) {
-    return forwarded.split(',')[0].trim();
-  }
-  return req.headers.get('x-real-ip') || 'unknown-ip';
+  // Enable only behind a proxy that overwrites the chosen header.
+  const header = process.env.BEMS_TRUSTED_CLIENT_IP_HEADER;
+  return header ? (req.headers.get(header)?.split(',')[0].trim().slice(0, 80) || 'unknown-ip') : 'direct';
 }

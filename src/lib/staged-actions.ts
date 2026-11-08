@@ -1,4 +1,21 @@
+import {walletRequestFunding} from '@/lib/wallet/accountability';
+import {createFundedEnvelopeTx} from '@/lib/wallet/core';
+import {adjustFundedEnvelopeTx} from '@/lib/wallet/operations';
+import { walletEnabled, WalletError } from '@/lib/wallet/core';
+import { payrollSnapshotHash } from './services/payroll-snapshot';
+import { accountabilityDeadline } from './services/accountability-deadline';
+import { applyGovernanceTemplate } from './services/governance-template';
+import { createReportSnapshot } from './services/report-export';
+import { queueDelivery, processDeliveryOutbox } from './services/delivery-outbox';
+import { normalizeAiAccessMatrix } from '@/lib/ai-access-control';
+import type { Prisma } from '@prisma/client';
+import { activateMobileArtifact } from './services/mobile-release';
+import { captureCommandTargets, assertCommandTargetsUnchanged } from './platform/command-targets';
+import { redactUntrustedAndSensitiveFields, stripAuthenticationSecrets } from './platform/read-catalog';
+import { recordTransfer } from './services/payment';
 import crypto from 'node:crypto';
+import type { AuthenticatedAiActor } from './ai-tools-auth';
+import { normalizeCanonicalRole } from './platform/actor-scope';
 import { prisma } from './prisma';
 import { sendAdminInvitationEmail, sendChatMessageEmail } from './email';
 import {
@@ -12,8 +29,8 @@ import {
   resolveScopeFromStagePayload,
 } from './ai-access-control';
 import { resolveAuthorizedOrganizationScope } from './organizations';
-import { assertSingleActiveGmd } from './employee-lifecycle';
-import { invalidateSessionCache } from './auth';
+import { assertSingleActiveGmd, verifyTargetEmployeeAccess, approveEmployeeOnboarding, rejectEmployeeOnboarding, transitionEmployeeStatus } from './employee-lifecycle';
+import { invalidateSessionCache, getHrAuthorizationScope } from './auth';
 import {
   applyCanonicalCompensationChange,
   CompensationChangeType,
@@ -144,7 +161,8 @@ export type StagedActionType =
   | 'leave_action'
   | 'task_action'
   | 'staff_message'
-  | 'policy_update';
+  | 'policy_update'
+  | 'notification_read';
 
 export const SUPPORTED_STAGED_ACTION_TYPES: ReadonlySet<StagedActionType> = new Set<StagedActionType>([
   'budget',
@@ -174,6 +192,7 @@ export const SUPPORTED_STAGED_ACTION_TYPES: ReadonlySet<StagedActionType> = new 
   'task_action',
   'staff_message',
   'policy_update',
+  'notification_read',
 ]);
 
 export function validateStageActionProposal(
@@ -252,6 +271,7 @@ export function validateStageActionProposal(
 }
 
 export interface StageActionInput {
+  actorContext?: Partial<AuthenticatedAiActor>;
   userId?: string;
   actorId?: string;
   actionType: StagedActionType;
@@ -279,6 +299,15 @@ export async function stageAction(input: StageActionInput) {
 
   validateStageActionProposal(input.actionType, input.materialPayload, input.summary);
   const descriptor = getCommandDescriptor(input.actionType);
+  const principal = input.actorContext;
+  const requiredCommandScope = resolveScopeFromStagePayload(input.actionType, input.materialPayload);
+  if (principal?.delegation) {
+    const delegation = principal.delegation;
+    if (delegation.requesterId !== resolvedUserId || delegation.operationMode !== 'READ_AND_STAGE' ||
+        (delegation.allowedScopes !== 'ALL' && !delegation.allowedScopes.includes(requiredCommandScope))) {
+      throw new StagedPermissionError('Delegation cannot stage this operation.');
+    }
+  }
 
   const resolvedSubsidiaryId =
     input.targetSubsidiaryId ||
@@ -286,6 +315,7 @@ export async function stageAction(input: StageActionInput) {
     input.materialPayload.organization_id ||
     input.materialPayload.organizationId ||
     input.materialPayload.subsidiary_id ||
+    principal?.delegation?.scopedOrganizationId ||
     undefined;
 
   // Enforce Admin AI Write Access Control Matrix for the specific capability scope
@@ -294,10 +324,25 @@ export async function stageAction(input: StageActionInput) {
 
   const creator = await prisma.employee.findUnique({
     where: { id: resolvedUserId },
-    select: { id: true, role: true, status: true, legalName: true },
+    select: { id: true, role: true, status: true, approvalStatus: true, legalName: true },
   });
-  if (!creator || creator.status !== 'ACTIVE') {
+  if (!creator || creator.status !== 'ACTIVE' || creator.approvalStatus !== 'APPROVED') {
     throw new Error('Active authenticated employee required to stage actions.');
+  }
+
+  const callerRole = normalizeCanonicalRole(creator.role);
+  if (!callerRole || !descriptor || !descriptor.allowedCallerRoles.includes(callerRole)) {
+    throw new StagedPermissionError('Your role cannot propose this operation.');
+  }
+  if (principal?.delegation?.scopedOrganizationId) {
+    const delegatedEntity = await prisma.organization.findUnique({ where: { id: principal.delegation.scopedOrganizationId }, select: { type: true } });
+    const policySubAction = String(input.materialPayload.sub_action || input.materialPayload.action || '').toUpperCase();
+    const globalOperation = ['role_change', 'subsidiary_creation', 'admin_onboarding'].includes(input.actionType) || (input.actionType === 'policy_update' && ['UPDATE_MOBILE_GATE', 'MOBILE_GATE', 'ACTIVATE_MOBILE_APK', 'UPLOAD_APK'].includes(policySubAction));
+    if (delegatedEntity?.type !== 'GROUP' && (input.materialPayload.scope === 'GROUP' || input.materialPayload.is_group_scope === true || globalOperation)) throw new StagedPermissionError('This operation requires the authorized group workspace.');
+    const scope = await resolveAuthorizedOrganizationScope({ ...creator, delegation: principal.delegation } as any, resolvedSubsidiaryId || principal.delegation.scopedOrganizationId);
+    if (scope.organizationIds.length === 0 || (resolvedSubsidiaryId && !scope.organizationIds.includes(resolvedSubsidiaryId))) {
+      throw new StagedPermissionError('Target is outside the delegated workspace.');
+    }
   }
 
   const rawAttachmentIds =
@@ -338,13 +383,14 @@ export async function stageAction(input: StageActionInput) {
     input.eligibleApproverRoles ||
     (descriptor?.allowedApproverRoles ? descriptor.allowedApproverRoles.join(',') : 'GMD,SUPER_ADMIN');
   const resolvedConversationId =
-    input.conversationId ||
+    principal?.conversationId || input.conversationId ||
     (typeof input.materialPayload.conversation_id === 'string' ? input.materialPayload.conversation_id : null) ||
     `conv_${creator.id}`;
 
   // Persist targetSubsidiaryId & targetEmployeeId in canonical materialPayload if provided
   const canonicalPayload: Record<string, any> = {
     ...input.materialPayload,
+    ...(principal?.delegation ? { _delegated_organization_id: principal.delegation.scopedOrganizationId, _delegated_scope: requiredCommandScope } : {}),
     ...(resolvedSubsidiaryId && !input.materialPayload.subsidiaryId && !input.materialPayload.organization_id
       ? { subsidiaryId: resolvedSubsidiaryId }
       : {}),
@@ -355,9 +401,14 @@ export async function stageAction(input: StageActionInput) {
     ...(verifiedAttachments.length > 0 ? { attachment_ids: verifiedAttachments.map((a) => a.id) } : {}),
   };
 
+  if (input.blockingErrors?.length) throw new StagedValidationError('PROPOSAL_BLOCKED', input.blockingErrors.join('; '));
+  if (input.actionType === 'staff_management' && canonicalPayload.sub_action === 'DELETE_OR_DEACTIVATE') input.warnings = [...(input.warnings || []), 'This operation ends account access and retains business and employment history. It does not erase the employee record.'];
+  canonicalPayload._target_snapshots = await captureCommandTargets(prisma, canonicalPayload, input.actionType);
   const basePreview = input.preview || input.clientPreview || {};
   const resolvedPreview: Record<string, any> = {
     ...basePreview,
+    execution: redactUntrustedAndSensitiveFields(Object.fromEntries(Object.entries(canonicalPayload).filter(([key]) => !key.startsWith('_')))),
+    resolved_targets: canonicalPayload._target_snapshots.map((target: any) => ({ model: target.model, id: target.id, before: target.preview })),
     command_version: descriptor?.commandVersion || 1,
     target_entity_type: resolvedTargetEntityType,
     target_entity_id: resolvedTargetEntityId,
@@ -489,6 +540,11 @@ export async function executeStagedAction(params: {
       errorCode: 'UNSUPPORTED_ACTION_TYPE',
       message: `Unsupported action type: ${action.actionType}`,
     };
+  }
+
+  const currentDescriptor = getCommandDescriptor(action.actionType as StagedActionType);
+  if (!currentDescriptor || currentDescriptor.commandVersion !== action.commandVersion || (action.blockingErrors && JSON.parse(action.blockingErrors).length)) {
+    return { ok: false, errorCode: 'STALE_TARGET', message: 'This proposal requires a fresh preview before approval.' };
   }
 
   // 1b. Strict 3-Role Executive Authority Check (GMD or Super Admin required to execute staged actions)
@@ -669,7 +725,8 @@ export async function executeStagedAction(params: {
       });
       if (
         !liveActor ||
-        liveActor.status !== 'ACTIVE' ||
+        liveActor.status !== 'ACTIVE' || liveActor.approvalStatus !== 'APPROVED' ||
+        normalizeCanonicalRole(liveActor.role) !== canonicalActorRole ||
         !['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(liveActor.role.toUpperCase())
       ) {
         throw new StagedStateConflictError(
@@ -705,9 +762,249 @@ export async function executeStagedAction(params: {
         throw new StagedStateConflictError('STAGED_ACTION_EXPIRED', 'This staged action has expired.');
       }
 
-      if (action.actionType === 'budget') {
+      try { await assertCommandTargetsUnchanged(tx, materialPayload._target_snapshots || []); } catch (error) { throw new StaleTargetError(error instanceof Error ? error.message : 'Proposal target changed.'); }
+
+      const committed = await executeBusinessCommand(tx, { action, actor, materialPayload, actionId, effectiveIdempotencyKey, auditEventId, source: 'AI_STAGED' });
+      resultRecord = committed.resultRecord; recordType = committed.recordType; recordId = committed.recordId;
+      url = committed.url; resolvedSubsidiaryId = committed.resolvedSubsidiaryId;
+      notificationIntentIds.push(...committed.notificationIntentIds);
+      notificationsDeliveredIds.push(...committed.notificationsDeliveredIds);
+      const deliveryStatus = committed.deliveryStatus;
+
+    // Persist committed execution result onto the claimed StagedAction
+    const sideEffectState =
+      deliveryStatus === 'DELIVERED'
+        ? 'DELIVERED'
+        : deliveryStatus === 'QUEUED'
+        ? 'PENDING_RETRY'
+        : 'NOT_APPLICABLE';
+
+    await tx.stagedAction.update({
+      where: { id: actionId },
+      data: {
+        status: 'EXECUTED',
+        executedAt: txNow,
+        idempotencyKey: effectiveIdempotencyKey,
+        auditEventId,
+        sideEffectStatus: sideEffectState,
+        sideEffectLogJson: JSON.stringify({
+          notification_intent: notificationIntentIds,
+          notifications_sent: notificationsDeliveredIds,
+          delivery_status: deliveryStatus,
+          updated_at: txNow.toISOString(),
+        }),
+        resultJson: JSON.stringify({
+          record_type: recordType,
+          record_id: recordId,
+          url,
+          record: resultRecord,
+          subsidiary_id: resolvedSubsidiaryId,
+          notification_intent: notificationIntentIds,
+          notifications_sent: notificationsDeliveredIds,
+          notification_delivery_status: deliveryStatus,
+          side_effect_status: sideEffectState,
+          audit_event_id: auditEventId,
+        }),
+      },
+    });
+    }, { timeout: 20000, isolationLevel: 'Serializable' });
+  } catch (err: any) {
+    if (err instanceof StaleTargetError) {
+      // Mark the stale proposal as EXPIRED so a fresh preview must be requested
+      await prisma.stagedAction.updateMany({
+        where: { id: actionId, status: 'PENDING' },
+        data: { status: 'EXPIRED' },
+      }).catch(() => {});
+      return {
+        ok: false,
+        errorCode: 'TARGET_CHANGED',
+        status: 'EXPIRED',
+        message: err.message,
+      };
+    }
+    if (err instanceof StagedStateConflictError) {
+      return {
+        ok: false,
+        errorCode: err.errorCode,
+        status:
+          err.errorCode === 'ALREADY_EXECUTED'
+            ? 'EXECUTED'
+            : err.errorCode === 'CANCELLED'
+            ? 'CANCELLED'
+            : 'EXPIRED',
+        message: err.message,
+      };
+    }
+    if (err instanceof StagedValidationError || err instanceof StagedPermissionError) {
+      return {
+        ok: false,
+        errorCode: err.errorCode,
+        message: err.message,
+      };
+    }
+    return {
+      ok: false,
+      errorCode: 'EXECUTION_FAILED',
+      message: err?.message || 'Failed to execute staged action.',
+    };
+  }
+
+  const queuedEffects = await prisma.$queryRaw<Array<{ count: bigint }>>`SELECT count(*) AS count FROM "DeliveryOutbox" WHERE "commandId" = ${actionId} AND "status" <> 'SENT'`;
+  const finalDeliveryStatus: 'DELIVERED' | 'QUEUED' | 'NOT_APPLICABLE' =
+    Number(queuedEffects[0]?.count || 0) > 0 ? 'QUEUED' : notificationsDeliveredIds.length > 0
+      ? 'DELIVERED'
+      : notificationIntentIds.length > 0
+      ? 'QUEUED'
+      : 'NOT_APPLICABLE';
+
+  return {
+    ok: true,
+    status: 'EXECUTED',
+    record_type: recordType,
+    record_id: recordId,
+    url,
+    record: resultRecord,
+    notification_intent: notificationIntentIds,
+    notifications_sent: notificationsDeliveredIds,
+    notification_delivery_status: finalDeliveryStatus,
+    audit_event_id: auditEventId,
+  };
+}
+
+/**
+ * Retries failed or queued notification/integration side-effects for an already EXECUTED
+ * staged action without repeating the underlying business database mutation (Audit Item 05 Pillar 5).
+ */
+export async function retryStagedActionSideEffects(params: {
+  actionId: string;
+  actor: { id: string; legalName: string; role: string };
+}) {
+  const { actionId, actor } = params;
+  const canonicalRole = normalizeThreeRole(actor.role);
+  if (!canonicalRole || (canonicalRole !== 'GMD' && canonicalRole !== 'SUPER_ADMIN')) {
+    return {
+      ok: false,
+      errorCode: 'NOT_PERMITTED',
+      message: 'Executive authority is required to retry staged action side-effects.',
+    };
+  }
+
+  const action = await prisma.stagedAction.findUnique({ where: { id: actionId } });
+  if (!action) {
+    return {
+      ok: false,
+      errorCode: 'NOT_FOUND',
+      message: `Staged action ${actionId} not found.`,
+    };
+  }
+
+  if (action.status !== 'EXECUTED') {
+    return {
+      ok: false,
+      errorCode: 'INVALID_STATE',
+      message: `Only EXECUTED staged actions can retry side-effects (current status: ${action.status}).`,
+    };
+  }
+
+  let parsedResult: Record<string, any> = {};
+  try {
+    parsedResult = action.resultJson ? JSON.parse(action.resultJson) : {};
+  } catch {}
+
+  const intentIds: string[] = Array.isArray(parsedResult.notification_intent) ? parsedResult.notification_intent : [];
+  const alreadySentIds = new Set<string>(
+    Array.isArray(parsedResult.notifications_sent) ? parsedResult.notifications_sent : []
+  );
+
+  const newlySentIds: string[] = [];
+  for (const recipientId of intentIds) {
+    if (!alreadySentIds.has(recipientId)) {
+      await prisma.systemNotification.create({
+        data: {
+          employeeId: recipientId,
+          kind: 'STAGED_ACTION_FOLLOWUP',
+          title: `Action Executed: ${action.summary}`,
+          body: `Executive action "${action.summary}" was completed by ${actor.legalName}.`,
+          linkUrl: parsedResult.url || '/dashboard',
+        },
+      });
+      alreadySentIds.add(recipientId);
+      newlySentIds.push(recipientId);
+    }
+  }
+
+  const updatedSent = Array.from(alreadySentIds);
+  await processDeliveryOutbox(actionId);
+  const pending = await prisma.$queryRaw<Array<{ count: bigint }>>`SELECT count(*) AS count FROM "DeliveryOutbox" WHERE "commandId" = ${actionId} AND "status" <> 'SENT'`;
+  const newDeliveryStatus = Number(pending[0]?.count || 0) > 0 ? 'QUEUED' : updatedSent.length === intentIds.length && updatedSent.length > 0 ? 'DELIVERED' : intentIds.length > 0 ? 'QUEUED' : 'NOT_APPLICABLE';
+  const newSideEffectStatus = newDeliveryStatus === 'DELIVERED' ? 'DELIVERED' : newDeliveryStatus === 'QUEUED' ? 'PENDING_RETRY' : 'NOT_APPLICABLE';
+
+  const updatedResult = {
+    ...parsedResult,
+    notifications_sent: updatedSent,
+    notification_delivery_status: newDeliveryStatus,
+    side_effect_status: newSideEffectStatus,
+  };
+
+  await prisma.stagedAction.update({
+    where: { id: actionId },
+    data: {
+      sideEffectStatus: newSideEffectStatus,
+      sideEffectLogJson: JSON.stringify({
+        notification_intent: intentIds,
+        notifications_sent: updatedSent,
+        retried_by: actor.id,
+        retried_at: new Date().toISOString(),
+        newly_dispatched: newlySentIds,
+      }),
+      resultJson: JSON.stringify(updatedResult),
+    },
+  });
+
+  return {
+    ok: true,
+    staged_action_id: actionId,
+    side_effect_status: newSideEffectStatus,
+    notification_delivery_status: newDeliveryStatus,
+    newly_dispatched: newlySentIds,
+    notifications_sent: updatedSent,
+  };
+}
+
+
+export async function executeBusinessCommand(tx: Prisma.TransactionClient, input: {
+  action: { actionType: string; summary: string; userId: string };
+  actor: { id: string; legalName: string; role: string; employeeNumber?: string };
+  materialPayload: Record<string, any>;
+  actionId: string;
+  effectiveIdempotencyKey: string;
+  auditEventId: string;
+  source: 'AI_STAGED' | 'DASHBOARD';
+}) {
+  const { action, actor, materialPayload, actionId, effectiveIdempotencyKey, auditEventId, source } = input;
+  let resultRecord: any = null;
+  let recordType: string = action.actionType;
+  let recordId = '';
+  let url = '';
+  let resolvedSubsidiaryId: string | null = materialPayload.subsidiaryId || materialPayload.organization_id || materialPayload.organizationId || null;
+  const notificationIntentIds: string[] = [];
+  const notificationsDeliveredIds: string[] = [];
+      if (action.actionType === 'notification_read') {
+        const updated = await tx.systemNotification.updateMany({ where: { employeeId: action.userId, readAt: null, ...(Array.isArray(materialPayload.notificationIds) && materialPayload.notificationIds.length ? { id: { in: materialPayload.notificationIds } } : {}) }, data: { readAt: new Date() } });
+        recordType = 'notification'; recordId = action.userId; url = '/finance'; resultRecord = { markedReadCount: updated.count };
+      } else if (action.actionType === 'budget') {
+      if(walletEnabled()) {
+        if(materialPayload.wallet_operation==='ALLOCATE')resultRecord=await createFundedEnvelopeTx(tx,actor,{organizationId:materialPayload.organization_id,label:materialPayload.label,amountMinor:materialPayload.amountMinor,parentId:materialPayload.parentId,idempotencyKey:effectiveIdempotencyKey});
+        else if(materialPayload.wallet_operation==='ADJUST')resultRecord=await adjustFundedEnvelopeTx(tx,actor,materialPayload.budget_id,{operation:materialPayload.operation,amountMinor:materialPayload.amountMinor,targetEnvelopeId:materialPayload.targetEnvelopeId,expectedVersion:materialPayload.expectedVersion});
+        else throw new WalletError('FUNDED_BUDGET_REQUIRED','Use funded wallet envelopes while wallet mode is active.',409);
+        recordType='wallet_budget';recordId=resultRecord.id;url='/wallet/funding';resolvedSubsidiaryId=materialPayload.organization_id;
+      } else {
+
       const { budget_id, organization_id, period, total_amount, allocations, mode } = materialPayload;
       const budgetMode = (mode || materialPayload.action || 'create').toLowerCase();
+      if (materialPayload.warning_threshold !== undefined && (!Number.isFinite(Number(materialPayload.warning_threshold)) || Number(materialPayload.warning_threshold) < 0 || Number(materialPayload.warning_threshold) > 100)) throw new Error('Warning threshold must be between 0 and 100.');
+      if (allocations !== undefined && !Array.isArray(allocations)) throw new Error('Allocations must be an array.');
+      if ((allocations || []).some((line: any) => !Number.isFinite(Number(line.amount ?? line.allocatedAmount ?? 0)) || Number(line.amount ?? line.allocatedAmount ?? 0) < 0)) throw new Error('Each budget allocation must be a finite nonnegative amount.');
 
       let targetOrgId = organization_id || materialPayload.subsidiaryId;
       if (!targetOrgId && budget_id) {
@@ -735,7 +1032,7 @@ export async function executeStagedAction(params: {
 
       if (budgetMode === 'delete' || budgetMode === 'archive' || budgetMode === 'remove') {
         const toDelete = budget_id
-          ? await tx.budget.findUnique({ where: { id: budget_id }, include: { lines: true } })
+          ? await tx.budget.findUnique({ where: { id: budget_id }, include: { lines: true, organization: true } })
           : exactPeriod
           ? await tx.budget.findFirst({
               where: {
@@ -743,7 +1040,7 @@ export async function executeStagedAction(params: {
                 periodName: { equals: exactPeriod, mode: 'insensitive' },
                 status: 'ACTIVE',
               },
-              include: { lines: true },
+              include: { lines: true, organization: true },
             })
           : null;
 
@@ -771,11 +1068,11 @@ export async function executeStagedAction(params: {
         budget = await tx.budget.update({
           where: { id: toDelete.id },
           data: { status: 'CLOSED' },
-          include: { lines: true },
+          include: { lines: true, organization: true },
         });
       } else if (budgetMode === 'reallocate' || budgetMode === 'update') {
         const existing = budget_id
-          ? await tx.budget.findUnique({ where: { id: budget_id }, include: { lines: true } })
+          ? await tx.budget.findUnique({ where: { id: budget_id }, include: { lines: true, organization: true } })
           : exactPeriod
           ? await tx.budget.findFirst({
               where: {
@@ -783,7 +1080,7 @@ export async function executeStagedAction(params: {
                 periodName: { equals: exactPeriod, mode: 'insensitive' },
                 status: 'ACTIVE',
               },
-              include: { lines: true },
+              include: { lines: true, organization: true },
             })
           : null;
 
@@ -807,7 +1104,7 @@ export async function executeStagedAction(params: {
         }
 
         const updatedTotal = total_amount !== undefined && total_amount !== null ? Number(total_amount) : existing.totalAmount;
-        if (isNaN(updatedTotal) || updatedTotal <= 0) {
+        if (!Number.isFinite(updatedTotal) || updatedTotal <= 0) {
           throw new StagedValidationError('INVALID_BUDGET_AMOUNT', 'Budget total amount must be a positive number.');
         }
 
@@ -824,6 +1121,8 @@ export async function executeStagedAction(params: {
           data: {
             totalAmount: updatedTotal,
             status: 'ACTIVE',
+            ...(exactPeriod ? { periodName: exactPeriod } : {}),
+            ...(materialPayload.warning_threshold !== undefined ? { warningThreshold: Number(materialPayload.warning_threshold) } : {}),
           },
         });
 
@@ -842,8 +1141,7 @@ export async function executeStagedAction(params: {
                 !matchedLineIds.has(el.id) &&
                 (incoming.id === el.id ||
                   (el.category.toLowerCase() === cat.toLowerCase() &&
-                    el.departmentName.toLowerCase() === dept.toLowerCase()) ||
-                  el.category.toLowerCase() === cat.toLowerCase())
+                    el.departmentName.toLowerCase() === dept.toLowerCase()))
             );
 
             if (match) {
@@ -894,14 +1192,14 @@ export async function executeStagedAction(params: {
 
         budget = await tx.budget.findUnique({
           where: { id: existing.id },
-          include: { lines: true },
+          include: { lines: true, organization: true },
         });
       } else if (budgetMode === 'create') {
         if (!exactPeriod) {
           throw new StagedValidationError('BUDGET_PERIOD_REQUIRED', 'Fiscal period is required to create a budget.');
         }
         const parsedTotal = Number(total_amount || 0);
-        if (isNaN(parsedTotal) || parsedTotal <= 0) {
+        if (!Number.isFinite(parsedTotal) || parsedTotal <= 0) {
           throw new StagedValidationError('INVALID_BUDGET_AMOUNT', 'Budget total amount must be greater than zero.');
         }
 
@@ -923,7 +1221,8 @@ export async function executeStagedAction(params: {
           data: {
             organizationId: targetOrgId,
             fiscalYear: Number(materialPayload.fiscal_year) || new Date().getFullYear(),
-            fiscalPeriod: exactPeriod,
+            fiscalPeriod: materialPayload.fiscal_period || 'QUARTERLY',
+            warningThreshold: Number(materialPayload.warning_threshold ?? 80),
             periodName: exactPeriod,
             totalAmount: parsedTotal,
             createdById: actor.id,
@@ -940,7 +1239,7 @@ export async function executeStagedAction(params: {
               })),
             },
           },
-          include: { lines: true },
+          include: { lines: true, organization: true },
         });
       } else {
         throw new StagedValidationError('UNSUPPORTED_BUDGET_MODE', `Unsupported budget mode "${budgetMode}".`);
@@ -953,7 +1252,9 @@ export async function executeStagedAction(params: {
       resultRecord = JSON.parse(
         JSON.stringify(budget, (_, v) => (typeof v === 'bigint' ? Number(v) : v))
       );
+      }
     } else if (action.actionType === 'approval_decision') {
+      if (walletEnabled() && String(materialPayload.decision).toUpperCase() === 'APPROVE') throw new WalletError('WALLET_RELEASE_REQUIRED', 'Use the exact GMD wallet release preview to approve and fund this payment.', 409);
       const { request_id, request_ids, expected_versions, decision, reason } = materialPayload;
       const targetIds: string[] =
         Array.isArray(request_ids) && request_ids.length > 0
@@ -961,6 +1262,7 @@ export async function executeStagedAction(params: {
           : [String(request_id)];
 
       const normDecision = String(decision || '').toUpperCase().trim();
+      if (!['APPROVE', 'APPROVED', 'DECLINE', 'REJECT', 'REJECTED', 'CLARIFY', 'CLARIFICATION', 'REQUEST_CLARIFICATION', 'CLARIFICATION_REQUESTED', 'REQUIRES_CLARIFICATION'].includes(normDecision)) throw new Error('Choose approve, reject, or request clarification.');
       const newStatus =
         normDecision === 'APPROVE' || normDecision === 'APPROVED'
           ? 'APPROVED'
@@ -969,7 +1271,8 @@ export async function executeStagedAction(params: {
           : 'CLARIFICATION_REQUESTED';
 
       const updatedResults: any[] = [];
-      for (const targetReqId of targetIds) {
+      for (const targetReqId of [...targetIds].sort()) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'approval:' + targetReqId}, 0))`;
         const req = await tx.expenditureRequest.findFirst({
           where: { OR: [{ id: targetReqId }, { requestNumber: targetReqId }] },
           include: {
@@ -1006,6 +1309,16 @@ export async function executeStagedAction(params: {
           );
         }
 
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'approval:' + req.id}, 0))`;
+        const settings = await tx.workspaceSetting.findUnique({ where: { organizationId_key: { organizationId: req.subsidiaryId, key: 'approval.controls' } } });
+        const policy = settings ? JSON.parse(settings.value) : {};
+        if (newStatus !== 'APPROVED' && policy.requireDecisionReason !== false && !String(reason || '').trim()) throw new Error('A decision reason is required.');
+        const assigneeId = materialPayload.disbursementAssigneeId;
+        if (newStatus === 'APPROVED' && policy.requireAssignedDisbursementOwner && !assigneeId) throw new Error('Assign an executive to record the payment.');
+        if (assigneeId) {
+          const assignee = await tx.employee.findUnique({ where: { id: assigneeId } });
+          if (!assignee || assignee.status !== 'ACTIVE' || assignee.approvalStatus !== 'APPROVED' || !['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(assignee.role)) throw new Error('Choose an active approved executive payment owner.');
+        }
         const now = new Date();
         const pendingStep = req.approvalSteps.find((s) => s.status === 'PENDING');
         const decisionNote = reason || `Executive decision via AI: ${newStatus}`;
@@ -1052,6 +1365,8 @@ export async function executeStagedAction(params: {
           where: { id: req.id },
           data: {
             approvalStatus: newStatus,
+            requestVersion: { increment: 1 },
+            ...(assigneeId ? { disbursementAssigneeId: assigneeId } : {}),
             updatedAt: now,
           },
           include: { requester: true },
@@ -1124,6 +1439,7 @@ export async function executeStagedAction(params: {
       url = updatedResults.length === 1 ? `/requests/${updatedResults[0].requestNumber}` : `/approvals`;
       resultRecord = updatedResults.length === 1 ? updatedResults[0] : { count: updatedResults.length, requests: updatedResults };
     } else if (action.actionType === 'payment_record') {
+      if(walletEnabled())throw new WalletError('LEGACY_PAYMENT_DISABLED','Wallet mode preserves historical payments and uses canonical wallet release and transfer records.',409);
       const paymentSubAction = String(materialPayload.sub_action || 'RECORD_PAYMENT').toUpperCase();
       if (paymentSubAction === 'RESOLVE_PAYMENT_ISSUE') {
         const disbId = materialPayload.disbursement_id;
@@ -1180,227 +1496,19 @@ export async function executeStagedAction(params: {
         url = `/disbursements`;
         resultRecord = JSON.parse(JSON.stringify(updatedDisb, (_, v) => (typeof v === 'bigint' ? Number(v) : v)));
       } else {
-      const {
-        request_id,
-        amount,
-        currency,
-        payer_account_id,
-        beneficiary_name,
-        beneficiary_bank,
-        beneficiary_account,
-        transfer_reference,
-        payment_date,
-      } = materialPayload;
-
-      const req = await tx.expenditureRequest.findFirst({
-        where: { OR: [{ id: request_id }, { requestNumber: request_id }] },
-        include: { vendor: true, requester: true, channel: true },
+      const attachmentIds: string[] = materialPayload.attachment_ids || [];
+      if (attachmentIds.length !== 1) throw new Error('Attach exactly one actual bank receipt for this transfer.');
+      const evidence = await tx.attachment.findUnique({ where: { id: attachmentIds[0] } });
+      if (!evidence?.fileData) throw new Error('Bank receipt bytes are unavailable.');
+      const disbursement = await recordTransfer(tx, {
+        actor, requestId: materialPayload.request_id, payerAccountId: materialPayload.payer_account_id,
+        amountMinor: BigInt(Math.round(Number(materialPayload.amount) * 100)), reference: String(materialPayload.transfer_reference || ''),
+        beneficiaryName: materialPayload.beneficiary_name, beneficiaryBank: materialPayload.beneficiary_bank, beneficiaryAccount: materialPayload.beneficiary_account,
+        receipt: { name: evidence.fileName, type: evidence.contentType, bytes: Buffer.from(evidence.fileData) }, idempotencyKey: effectiveIdempotencyKey,
       });
-      if (!req) throw new Error(`Request ${request_id} not found.`);
-      resolvedSubsidiaryId = req.subsidiaryId;
-
-      if (req.approvalStatus !== 'APPROVED') {
-        throw new StaleTargetError(`Request ${req.requestNumber} is ${req.approvalStatus}; only APPROVED requests can be disbursed.`);
-      }
-      if (
-        req.paymentStatus === 'PAID' ||
-        req.paymentStatus === 'RECIPIENT_CONFIRMED' ||
-        req.paymentStatus === 'AWAITING_RECIPIENT_CONFIRMATION'
-      ) {
-        throw new StaleTargetError(`Request ${req.requestNumber} already has a recorded payment (${req.paymentStatus}).`);
-      }
-
-      const numAmount = Number(amount);
-      if (!Number.isFinite(numAmount) || numAmount <= 0) {
-        throw new StagedValidationError('INVALID_PAYMENT_AMOUNT', 'Payment amount must be a positive number.');
-      }
-      const amountMinor = BigInt(Math.round(numAmount * 100));
-      if (amountMinor > req.amountMinor) {
-        throw new StagedValidationError(
-          'EXCEEDS_APPROVED_AMOUNT',
-          `Payment amount (₦${numAmount.toLocaleString()}) exceeds approved request amount.`
-        );
-      }
-
-      const extRef = String(transfer_reference || '').trim();
-      if (!extRef) {
-        throw new StagedValidationError('MISSING_TRANSFER_REFERENCE', 'An external bank transfer reference is required.');
-      }
-      const existingRef = await tx.disbursement.findFirst({ where: { externalReference: extRef } });
-      if (existingRef) {
-        throw new StaleTargetError(`Bank transfer reference "${extRef}" has already been recorded.`);
-      }
-
-      // Validate corporate payer account
-      let payerBank = null;
-      if (payer_account_id && String(payer_account_id) !== 'DEFAULT_CORP') {
-        payerBank = await tx.companyBankAccount.findFirst({
-          where: {
-            status: 'ACTIVE',
-            OR: [{ id: String(payer_account_id) }, { accountNumber: String(payer_account_id) }],
-          },
-        });
-      }
-      if (!payerBank) {
-        const subAccounts = await tx.companyBankAccount.findMany({
-          where: { organizationId: req.subsidiaryId, status: 'ACTIVE' },
-        });
-        if (subAccounts.length === 1) payerBank = subAccounts[0];
-      }
-      if (!payerBank) {
-        throw new StagedValidationError(
-          'PAYER_ACCOUNT_NOT_FOUND',
-          'A valid active corporate treasury bank account (payer_account_id) is required to record payment.'
-        );
-      }
-
-      const invalidValues = new Set(['0000000000', 'n/a', 'na', 'payee', 'designated beneficiary', 'commercial bank']);
-      const isInvalidVal = (v: unknown) => !v || invalidValues.has(String(v).trim().toLowerCase());
-
-      const finalBeneficiaryName = !isInvalidVal(beneficiary_name)
-        ? String(beneficiary_name).trim()
-        : req.vendor?.accountName || req.vendor?.name || req.requester?.accountName || req.requester?.legalName || '';
-      const finalBeneficiaryBank = !isInvalidVal(beneficiary_bank)
-        ? String(beneficiary_bank).trim()
-        : req.vendor?.bankName || req.requester?.bankName || req.requester?.salaryBankName || '';
-      const finalBeneficiaryAccount = (
-        !isInvalidVal(beneficiary_account)
-          ? String(beneficiary_account)
-          : req.vendor?.accountNumber || req.requester?.accountNumber || req.requester?.salaryAccountNumber || ''
-      ).replace(/\D/g, '');
-
-      if (
-        isInvalidVal(finalBeneficiaryName) ||
-        isInvalidVal(finalBeneficiaryBank) ||
-        finalBeneficiaryAccount.length !== 10 ||
-        finalBeneficiaryAccount === '0000000000'
-      ) {
-        throw new StagedValidationError(
-          'INVALID_BENEFICIARY_BANK',
-          `Verified 10-digit NUBAN beneficiary account details are required to record payment for ${req.requestNumber}.`
-        );
-      }
-
-      const disbursement = await tx.disbursement.create({
-        data: {
-          requestId: req.id,
-          payerOrgId: payerBank.organizationId,
-          amountMinor,
-          currency: currency || req.currency || 'NGN',
-          externalReference: extRef,
-          bankName: payerBank.bankName,
-          beneficiaryName: finalBeneficiaryName,
-          beneficiaryBank: finalBeneficiaryBank,
-          beneficiaryAccount: finalBeneficiaryAccount,
-          recordedById: actor.id,
-          status: 'AWAITING_RECIPIENT_CONFIRMATION',
-          idempotencyKey: effectiveIdempotencyKey,
-          paidAt: payment_date ? new Date(payment_date) : new Date(),
-        },
-      });
-
-      // Create canonical PaymentReceipt voucher matching /api/disbursements
-      const receiptId = crypto.randomUUID();
-      const formattedNaira = numAmount.toLocaleString('en-NG', { minimumFractionDigits: 2 });
-      const voucherSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380" viewBox="0 0 600 380" style="background:#0f172a;font-family:sans-serif;color:#fff;">
-  <rect width="600" height="380" fill="#0f172a" rx="16"/>
-  <rect x="20" y="20" width="560" height="340" fill="#1e293b" rx="12" stroke="#334155" stroke-width="2"/>
-  <text x="40" y="54" font-size="16" font-weight="bold" fill="#ffffff">BEMS ERP · DISBURSEMENT VOUCHER</text>
-  <text x="40" y="120" font-size="11" fill="#94a3b8">BANK REFERENCE</text>
-  <text x="40" y="140" font-size="15" font-weight="bold" fill="#38bdf8">${extRef}</text>
-  <text x="320" y="120" font-size="11" fill="#94a3b8">AMOUNT TRANSFERRED</text>
-  <text x="320" y="142" font-size="18" font-weight="bold" fill="#34d399">NGN ${formattedNaira}</text>
-  <text x="40" y="180" font-size="11" fill="#94a3b8">BENEFICIARY</text>
-  <text x="40" y="200" font-size="13" font-weight="bold" fill="#ffffff">${finalBeneficiaryName}</text>
-  <text x="40" y="218" font-size="12" fill="#cbd5e1">${finalBeneficiaryBank} • ${finalBeneficiaryAccount}</text>
-  <text x="320" y="180" font-size="11" fill="#94a3b8">PAYER SOURCE</text>
-  <text x="320" y="200" font-size="13" font-weight="bold" fill="#ffffff">${payerBank.bankName} (${payerBank.accountNumber})</text>
-</svg>`.trim();
-      const fileBytes = Buffer.from(voucherSvg, 'utf-8');
-      const receiptHash = crypto.createHash('sha256').update(fileBytes).digest('hex');
-
-      await tx.paymentReceipt.create({
-        data: {
-          id: receiptId,
-          disbursementId: disbursement.id,
-          fileName: `voucher-${extRef}.svg`,
-          fileUrl: `/api/receipts/${receiptId}`,
-          sha256: receiptHash,
-          mimeType: 'image/svg+xml',
-          fileData: new Uint8Array(fileBytes),
-          uploadedById: actor.id,
-        },
-      });
-
-      // Deduct corporate bank account balance
-      const nextBalance = Math.max(0, Number(payerBank.balance) - numAmount);
-      await tx.companyBankAccount.update({
-        where: { id: payerBank.id },
-        data: { balance: nextBalance },
-      });
-
-      // Keep paymentStatus consistent with disbursement awaiting recipient confirmation
-      await tx.expenditureRequest.update({
-        where: { id: req.id },
-        data: { paymentStatus: 'AWAITING_RECIPIENT_CONFIRMATION' },
-      });
-
-      // Ensure post-payment AccountabilityCase exists
-      const existingCase = await tx.accountabilityCase.findUnique({ where: { requestId: req.id } });
-      if (!existingCase) {
-        const dueAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-        const createdCase = await tx.accountabilityCase.create({
-          data: {
-            requestId: req.id,
-            ownerUserId: req.requestedById,
-            requiredDeliverables: req.deliverable,
-            dueAt,
-            status: 'OPEN',
-          },
-        });
-        await tx.followupTask.create({
-          data: {
-            accountabilityCaseId: createdCase.id,
-            assigneeId: req.requestedById,
-            description: `Submit post-payment deliverables for ${req.requestNumber}`,
-            dueAt,
-          },
-        });
-      }
-
-      if (req.channel) {
-        await tx.channelMessage.create({
-          data: {
-            channelId: req.channel.id,
-            authorId: actor.id,
-            authorName: actor.legalName,
-            authorRole: actor.role,
-            messageType: 'AUDIT_EVENT',
-            body: `Payment recorded by ${actor.legalName} (reference ${extRef}). The requester has been asked to confirm receipt.`,
-          },
-        });
-      }
-
-      if (req.requestedById) {
-        notificationIntentIds.push(req.requestedById);
-        await tx.systemNotification.create({
-          data: {
-            employeeId: req.requestedById,
-            kind: 'PAYMENT_CONFIRMATION_REQUIRED',
-            title: `Confirm receipt of funds (${req.requestNumber})`,
-            body: `A payment of ${currency || req.currency || 'NGN'} ${numAmount.toLocaleString()} was recorded for "${req.title}". Review the receipt and confirm whether you received it.`,
-            linkUrl: `/requests/${req.requestNumber}`,
-          },
-        });
-        notificationsDeliveredIds.push(req.requestedById);
-      }
-
-      recordType = 'disbursement';
-      recordId = disbursement.id;
-      url = `/disbursements`;
-      resultRecord = JSON.parse(
-        JSON.stringify(disbursement, (_, v) => (typeof v === 'bigint' ? Number(v) : v))
-      );
+      resolvedSubsidiaryId = disbursement.payerOrgId;
+      recordType = 'disbursement'; recordId = disbursement.id; url = '/disbursements';
+      resultRecord = JSON.parse(JSON.stringify(disbursement, (_, value) => typeof value === 'bigint' ? value.toString() : value));
       }
     } else if (action.actionType === 'payment_recorder') {
       const { request_id, assignee_user_id, note } = materialPayload;
@@ -1517,72 +1625,18 @@ export async function executeStagedAction(params: {
         affected_open_periods: compResult.affectedOpenPeriods,
       };
     } else if (action.actionType === 'staff_approval') {
-      const { employee_id } = materialPayload;
-      const decision = String(materialPayload.decision || 'APPROVE').toUpperCase();
-      const isReject = decision === 'REJECT' || decision === 'REJECTED' || decision === 'REJECT_ONBOARDING';
-
-      if (!['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(actor.role)) {
-        throw new StagedValidationError('NOT_PERMITTED', 'Only GMD or Super Admin can approve or reject staff onboarding.');
-      }
-
-      const emp = await tx.employee.findUnique({
-        where: { id: employee_id },
-        include: { assignments: { where: { isPrimary: true }, take: 1 } },
-      });
-      if (!emp) throw new Error(`Staff member ${employee_id} not found.`);
-      resolvedSubsidiaryId = emp.assignments[0]?.subsidiaryId || resolvedSubsidiaryId;
-
-      if (emp.role !== 'STAFF') {
-        throw new StagedValidationError(
-          'INVALID_TARGET_ROLE',
-          `Cannot use staff self-service approval for executive role (${emp.role}).`
-        );
-      }
-
-      if (emp.approvalStatus !== 'PENDING_APPROVAL') {
-        throw new StaleTargetError(
-          `Staff member ${emp.legalName} is no longer pending approval (current approvalStatus: ${emp.approvalStatus}, status: ${emp.status}).`
-        );
-      }
-
-      const updated = await tx.employee.update({
-        where: { id: employee_id },
-        data: {
-          approvalStatus: isReject ? 'REJECTED' : 'APPROVED',
-          status: isReject ? 'TERMINATED' : 'ACTIVE',
-        },
-      });
-
-      await tx.employeeAssignment.updateMany({
-        where: { employeeId: employee_id, isPrimary: true },
-        data: { status: isReject ? 'INACTIVE' : 'ACTIVE' },
-      });
-
-      notificationIntentIds.push(employee_id);
-      await tx.systemNotification.create({
-        data: {
-          employeeId: employee_id,
-          kind: isReject ? 'ACCOUNT_REJECTED' : 'ACCOUNT_APPROVED',
-          title: isReject ? 'Account Onboarding Declined' : 'Account Approved',
-          body: isReject
-            ? `Your BEMS onboarding registration was declined by ${actor.legalName}.`
-            : `Your BEMS account has been approved by ${actor.legalName}.`,
-          linkUrl: '/',
-        },
-      });
-      notificationsDeliveredIds.push(employee_id);
-
-      recordType = 'employee';
-      recordId = updated.employeeNumber;
-      url = `/staff`;
-      resultRecord = {
-        employee_id: updated.id,
-        employee_number: updated.employeeNumber,
-        name: updated.legalName,
-        status: updated.status,
-        approval_status: updated.approvalStatus,
-      };
+      const employeeId = materialPayload.employee_id || materialPayload.employeeId;
+      const reject = ['REJECT', 'REJECTED', 'REJECT_ONBOARDING'].includes(String(materialPayload.decision || 'APPROVE').toUpperCase());
+      const updated = reject
+        ? await rejectEmployeeOnboarding({ actor: actor as any, targetEmployeeId: employeeId, rejectionReason: materialPayload.reason, requireStaffRoleOnly: true }, tx)
+        : await approveEmployeeOnboarding({ actor: actor as any, targetEmployeeId: employeeId, assignedRole: 'STAFF', subsidiaryId: materialPayload.subsidiaryId || materialPayload.subsidiary_id, departmentId: materialPayload.departmentId || materialPayload.department_id, positionName: materialPayload.positionName, requireStaffRoleOnly: true }, tx);
+      const assignment = await tx.employeeAssignment.findFirst({ where: { employeeId, isPrimary: true } });
+      resolvedSubsidiaryId = assignment?.subsidiaryId || resolvedSubsidiaryId;
+      recordType = 'employee'; recordId = updated.employeeNumber; url = '/staff';
+      resultRecord = { employee_id: updated.id, employee_number: updated.employeeNumber, name: updated.legalName, status: updated.status, approval_status: updated.approvalStatus };
+      notificationIntentIds.push(employeeId); notificationsDeliveredIds.push(employeeId);
     } else if (action.actionType === 'role_change') {
+      if(walletEnabled() && actor.id!==process.env.BEMS_FINANCIAL_GMD_ID && [materialPayload.employeeId, materialPayload.employee_id, materialPayload.target_employee_id].includes(process.env.BEMS_FINANCIAL_GMD_ID)) throw new Error('The designated GMD account cannot be changed by another administrator.');
       const { employee_id, new_role, reason } = materialPayload;
 
       if (!['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(actor.role)) {
@@ -1609,6 +1663,7 @@ export async function executeStagedAction(params: {
         );
       }
 
+      if ((normalizeCanonicalRole(new_role) === 'SUPER_ADMIN' || normalizeCanonicalRole(emp.role) === 'SUPER_ADMIN') && normalizeCanonicalRole(actor.role) !== 'SUPER_ADMIN') throw new StagedPermissionError('Only a Super Admin may change Super Admin privileges.');
       const canonicalRole = await assertValidRoleAndGmdUniqueness(tx, new_role, emp.id);
 
       const updated = await tx.employee.update({
@@ -1647,14 +1702,14 @@ export async function executeStagedAction(params: {
 
       if (subAction === 'INITIALIZE_LEGACY_CASES' || subAction === 'INITIALIZE_CASES') {
         const legacyRequests = await tx.expenditureRequest.findMany({
-          where: { disbursements: { some: {} }, accountabilityCase: { is: null } },
+          where: { disbursements: { some: {} }, accountabilityCase: { is: null }, ...(materialPayload._delegated_organization_id ? { subsidiaryId: materialPayload._delegated_organization_id } : {}) },
           include: { disbursements: { orderBy: { paidAt: 'asc' }, take: 1 } },
         });
         let createdCount = 0;
         for (const reqItem of legacyRequests) {
           const firstPayment = reqItem.disbursements[0];
           if (!firstPayment) continue;
-          const dueAt = new Date(firstPayment.paidAt.getTime() + 14 * 24 * 60 * 60 * 1000);
+          const dueAt = await accountabilityDeadline(reqItem.subsidiaryId, reqItem.requestType === 'EMERGENCY', firstPayment.paidAt, tx);
           const accCase = await tx.accountabilityCase.create({
             data: {
               requestId: reqItem.id,
@@ -1696,6 +1751,10 @@ export async function executeStagedAction(params: {
         if (subAction === 'SUBMIT_EVIDENCE' || subAction === 'UPLOAD_EVIDENCE') {
           const attIds: string[] = Array.isArray(materialPayload.attachment_ids) ? materialPayload.attachment_ids : [];
           const notes = String(materialPayload.notes || clearance_notes || 'Post-payment evidence submitted via BEMI');
+          const files = await tx.attachment.findMany({ where: { id: { in: attIds } } });
+          if (!files.length || files.length !== attIds.length || files.some(file => !file.fileData?.length || (file.requestId && file.requestId !== accCase.requestId) || !['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.contentType))) throw new Error('Upload actual supporting evidence for this request.');
+          const funding=await walletRequestFunding(tx,accCase.requestId);
+          if(funding?funding.settledMinor<=BigInt(0):!await tx.disbursement.count({where:{requestId:accCase.requestId}}))throw new Error('A confirmed bank withdrawal or historical payment is required before expense evidence.');
           if (attIds.length > 0) {
             await tx.attachment.updateMany({
               where: { id: { in: attIds } },
@@ -1708,7 +1767,7 @@ export async function executeStagedAction(params: {
           });
           await tx.expenditureRequest.update({
             where: { id: accCase.requestId },
-            data: { accountabilityStatus: 'EVIDENCE_SUBMITTED', paymentStatus: 'RECIPIENT_CONFIRMED' },
+            data: { accountabilityStatus: 'EVIDENCE_SUBMITTED' },
           });
           recordType = 'accountability_case';
           recordId = accCase.request?.requestNumber || accCase.id;
@@ -1736,14 +1795,21 @@ export async function executeStagedAction(params: {
             status: updated.status,
           };
         } else {
+          if (!['CLEAR_CASE', 'CLOSE', 'VERIFY', 'CLEAR'].includes(subAction)) throw new Error('Unsupported accountability operation.');
+          const funding=await walletRequestFunding(tx,accCase.requestId);
+          if(funding&&(funding.availableMinor>BigInt(0)||funding.heldMinor>BigInt(0)))throw new Error('Withdraw or return all unused approved funds before final accountability closure.');
+          if(!funding&&!await tx.disbursement.count({where:{requestId:accCase.requestId}}))throw new Error('An actual payment record is required before closing this case.');
+          const files = await tx.attachment.findMany({ where: { ownerType: 'ACCOUNTABILITY', ownerId: accCase.id, requestId: accCase.requestId }, select: { fileData: true } });
+          if (!(funding&&funding.returnedMinor===funding.creditedMinor) && !files.some(file => file.fileData?.length)) throw new Error('Supporting evidence bytes are required before closing this case.');
           const updated = await tx.accountabilityCase.update({
             where: { id: accCase.id },
             data: {
-              status: 'CLOSED',
+              status: 'CLOSED', verifierUserId: actor.id, verifiedAt: new Date(),
               closureNotes: clearance_notes || 'Receipts inspected and cleared by GMD via Executive AI',
             },
           });
 
+          await tx.expenditureRequest.update({ where: { id: accCase.requestId }, data: { accountabilityStatus: 'CLOSED' } });
           if (accCase.ownerUserId) {
             notificationIntentIds.push(accCase.ownerUserId);
             await tx.systemNotification.create({
@@ -1831,6 +1897,7 @@ export async function executeStagedAction(params: {
         mode,
         expected_balance,
       } = materialPayload;
+      if (daily_limit !== undefined && (!Number.isFinite(Number(daily_limit)) || Number(daily_limit) < 0)) throw new Error('Daily limit must be finite and nonnegative.');
       const rawMode = String(mode || materialPayload.action || 'register').toLowerCase().trim();
       const accountMode =
         rawMode === 'delete' || rawMode === 'archive'
@@ -1924,7 +1991,7 @@ export async function executeStagedAction(params: {
           if (!existing) {
             throw new StaleTargetError(`Target account ${cleanAccountNumber} was not found for balance correction.`);
           }
-          if (balance === undefined || balance === null || isNaN(Number(balance)) || Number(balance) < 0) {
+          if (balance === undefined || balance === null || !Number.isFinite(Number(balance)) || Number(balance) < 0) {
             throw new StagedValidationError('INVALID_BALANCE', 'A valid non-negative balance is required.');
           }
           dbAccount = await tx.companyBankAccount.update({
@@ -1946,7 +2013,7 @@ export async function executeStagedAction(params: {
             throw new StagedValidationError('TREASURY_FIELDS_REQUIRED', 'bank_name and account_name are required to register an account.');
           }
           const initialBal =
-            balance !== undefined && balance !== null && !isNaN(Number(balance))
+            balance !== undefined && balance !== null && !!Number.isFinite(Number(balance))
               ? Number(balance)
               : existing
               ? Number(existing.balance)
@@ -1994,12 +2061,14 @@ export async function executeStagedAction(params: {
           balance: Number(dbAccount.balance),
           organizationId: dbAccount.organizationId,
           currency: dbAccount.currency,
+          accountType: dbAccount.accountType, dailyLimit: Number(dbAccount.dailyLimit),
           status: dbAccount.status,
         };
       }
     } else if (action.actionType === 'intercompany_note') {
       const mode = (
         materialPayload.mode ||
+        materialPayload.sub_action ||
         materialPayload.action ||
         (materialPayload.targetNoteIds || materialPayload.noteIds ? 'SETTLE' : 'CREATE_NOTE')
       ).toUpperCase();
@@ -2007,11 +2076,11 @@ export async function executeStagedAction(params: {
       if (
         mode === 'SETTLE' ||
         mode === 'STAGE_SETTLEMENT' ||
-        mode === 'RECONCILE_SETTLEMENT' ||
+        mode === 'RECONCILE_SETTLEMENT' || mode === 'RECONCILE_NOTE' ||
         mode === 'RECONCILE' ||
         Array.isArray(materialPayload.targetNoteIds)
       ) {
-        const noteIds: string[] = materialPayload.targetNoteIds || materialPayload.noteIds || [];
+        const noteIds: string[] = materialPayload.targetNoteIds || materialPayload.noteIds || (materialPayload.noteId ? [materialPayload.noteId] : []);
         let settled;
         try {
           settled = await reconcileIntercompanyNotes({
@@ -2046,7 +2115,7 @@ export async function executeStagedAction(params: {
           : Math.round(amountNaira * 100);
         const description = materialPayload.description || 'Intercompany recharge note via Executive AI';
 
-        if (!sourceId || !targetId || amountMinor <= 0) {
+        if (!sourceId || !targetId || !Number.isSafeInteger(amountMinor) || amountMinor <= 0) {
           throw new StagedValidationError(
             'INVALID_INTERCOMPANY_NOTE',
             'sourceEntityId, targetEntityId, and a positive amount are required to issue paired intercompany notes.'
@@ -2057,7 +2126,7 @@ export async function executeStagedAction(params: {
           sourceEntityId: sourceId,
           targetEntityId: targetId,
           amountMinor,
-          currency: materialPayload.currency || 'NGN',
+          currency: materialPayload.currency || (await tx.organization.findUnique({ where: { id: sourceId } }))?.defaultCurrency || 'NGN',
           description,
           actor: { id: actor.id, legalName: actor.legalName, role: actor.role },
           tx,
@@ -2140,14 +2209,15 @@ export async function executeStagedAction(params: {
           actorId: actor.id,
           actorName: actor.legalName,
           actorRole: actor.role,
-        });
+        }, tx);
         recordType = 'three_way_match';
         recordId = requestId;
         url = `/vendors`;
         resultRecord = matchResult;
       } else if (mode === 'RESOLVE_MATCH_EXCEPTION' || mode === 'OVERRIDE_MATCH_EXCEPTION') {
         const requestId = materialPayload.request_id || materialPayload.requestId;
-        const reason = String(materialPayload.reason || 'Executive 3-Way Match Exception Override').trim();
+        const reason = String(materialPayload.reason || '').trim();
+        if (reason.length < 10) throw new Error('Explain the matching exception before requesting an override.');
         const reqItem = await tx.expenditureRequest.findFirst({
           where: { OR: [{ id: String(requestId) }, { requestNumber: String(requestId) }] },
           include: { invoices: { take: 1, orderBy: { createdAt: 'desc' } }, goodsReceipts: { take: 1, orderBy: { receivedAt: 'desc' } } },
@@ -2176,7 +2246,7 @@ export async function executeStagedAction(params: {
             },
           });
         } else {
-          resolvedMatch = { requestId: reqItem.id, status: 'MATCH_CONFIRMED', overrideReason: reason };
+          throw new Error('An actual invoice is required before a matching exception can be resolved.');
         }
 
         if (reqItem.invoices[0]) {
@@ -2337,6 +2407,7 @@ export async function executeStagedAction(params: {
         resultRecord = vendor;
       }
     } else if (action.actionType === 'emergency_override') {
+      if(walletEnabled()) throw new WalletError('WALLET_RELEASE_REQUIRED','Prepare the emergency request and use the funded GMD wallet release flow.',409);
       const mode = String(
         materialPayload.mode ||
           (materialPayload.request_id || materialPayload.request_number
@@ -2373,7 +2444,7 @@ export async function executeStagedAction(params: {
         resolvedSubsidiaryId = org.id;
 
         const amountMinor = BigInt(Math.round(amountNaira * 100));
-        const reqNumber = `EMG-2026-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+        const reqNumber = `EMG-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 12).toUpperCase()}`;
 
         const createdReq = await tx.expenditureRequest.create({
           data: {
@@ -2558,10 +2629,11 @@ export async function executeStagedAction(params: {
         subAction === 'TOGGLE_POWER_OUTAGE'
       ) {
         const targetOrgId = materialPayload.organizationId || materialPayload.subsidiaryId || resolvedSubsidiaryId || null;
-        const isGroupScope = materialPayload.scope === 'GROUP' || !targetOrgId;
+        const isGroupScope = materialPayload.scope === 'GROUP';
+        if (!isGroupScope && !targetOrgId) throw new Error('Choose an attendance entity or explicit GROUP scope.');
         const targetOrgs = isGroupScope
-          ? await tx.organization.findMany()
-          : await tx.organization.findMany({ where: { id: String(targetOrgId) } });
+          ? await tx.organization.findMany({ where: { status: 'ACTIVE', ...(Array.isArray(materialPayload._policy_target_ids) ? { id: { in: materialPayload._policy_target_ids } } : {}) } })
+          : await tx.organization.findMany({ where: { id: String(targetOrgId), status: 'ACTIVE' } });
         if (targetOrgs.length === 0) {
           throw new StagedValidationError('ORGANIZATION_NOT_FOUND', 'Target organization for attendance policy was not found.');
         }
@@ -2570,9 +2642,14 @@ export async function executeStagedAction(params: {
           (targetOrgId
             ? await tx.attendancePolicy.findUnique({ where: { organizationId: String(targetOrgId) } })
             : null) ||
-          (await tx.attendancePolicy.findFirst({ where: { organization: { type: 'GROUP' } } })) ||
-          (await tx.attendancePolicy.findFirst());
+          (isGroupScope ? await tx.attendancePolicy.findFirst({ where: { organization: { type: 'GROUP' } } }) : null);
 
+        for (const key of ['latenessDeductionPercent', 'absenceDeductionPercent']) {
+          if (materialPayload[key] !== undefined && (!Number.isFinite(Number(materialPayload[key])) || Number(materialPayload[key]) < 0 || Number(materialPayload[key]) > 100)) throw new Error('Attendance deductions must be between 0 and 100 percent.');
+        }
+        if (materialPayload.radiusMeters !== undefined && (!Number.isFinite(Number(materialPayload.radiusMeters)) || Number(materialPayload.radiusMeters) < 10 || Number(materialPayload.radiusMeters) > 10000)) throw new Error('Station radius must be between 10 and 10000 metres.');
+        if (materialPayload.gracePeriodMinutes !== undefined && (!Number.isInteger(Number(materialPayload.gracePeriodMinutes)) || Number(materialPayload.gracePeriodMinutes) < 0 || Number(materialPayload.gracePeriodMinutes) > 180)) throw new Error('Grace period must be between 0 and 180 minutes.');
+        for (const key of ['earliestCheckInTime', 'resumptionTime', 'closingTime']) if (materialPayload[key] !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(materialPayload[key]))) throw new Error('Attendance times must use HH:MM.');
         const updateData: any = { updatedAt: new Date() };
         if (materialPayload.latenessDeductionPercent !== undefined) updateData.latenessDeductionPercent = Number(materialPayload.latenessDeductionPercent);
         if (materialPayload.absenceDeductionPercent !== undefined) updateData.absenceDeductionPercent = Number(materialPayload.absenceDeductionPercent);
@@ -2609,13 +2686,13 @@ export async function executeStagedAction(params: {
 
         if (materialPayload.radiusMeters !== undefined && Number(materialPayload.radiusMeters) > 0) {
           await tx.attendanceStation.updateMany({
-            where: isGroupScope ? {} : { organizationId: String(targetOrgId) },
+            where: { organizationId: { in: targetOrgs.map(org => org.id) }, ...(Array.isArray(materialPayload._policy_station_ids) ? { id: { in: materialPayload._policy_station_ids } } : {}) },
             data: { radiusMeters: Number(materialPayload.radiusMeters) },
           });
         }
 
         if (isGroupScope) {
-          await tx.attendancePolicy.updateMany({ data: updateData });
+          await tx.attendancePolicy.updateMany({ where: { organizationId: { in: targetOrgs.map(org => org.id) } }, data: updateData });
         }
         for (const org of targetOrgs) {
           await tx.attendancePolicy.upsert({
@@ -2634,13 +2711,18 @@ export async function executeStagedAction(params: {
         recordType = 'attendance_policy';
         recordId = isGroupScope ? 'GROUP_ATTENDANCE_POLICY' : String(targetOrgId);
         url = `/attendance`;
-        resultRecord = updateData;
+        const displayEntity = targetOrgId || targetOrgs.find(org => org.type === 'GROUP')?.id || targetOrgs[0].id;
+        resultRecord = await tx.attendancePolicy.findUnique({ where: { organizationId: displayEntity } });
+        resolvedSubsidiaryId = displayEntity;
       } else if (subAction === 'UPDATE_ROSTER') {
         const employeeId = materialPayload.employeeId || materialPayload.employee_id;
         if (!employeeId) throw new Error('employeeId is required to update staff work schedule roster.');
+        if (!await tx.employee.findFirst({ where: { id: employeeId, status: 'ACTIVE', approvalStatus: 'APPROVED', role: 'STAFF' } })) throw new Error('Choose an active approved staff member.');
         const weeklyOffDays = String(materialPayload.weeklyOffDays ?? '0,6');
         const customShiftIn = String(materialPayload.customShiftIn || '08:00');
         const customShiftOut = String(materialPayload.customShiftOut || '17:00');
+        if (!/^([0-6](,[0-6])*)?$/.test(weeklyOffDays) || new Set(weeklyOffDays.split(',')).size !== weeklyOffDays.split(',').length) throw new Error('Weekly off days must be distinct numbers from 0 to 6.');
+        if (![customShiftIn, customShiftOut].every(time => /^([01]\d|2[0-3]):[0-5]\d$/.test(time))) throw new Error('Shift times must use HH:MM.');
         const isExempt = Boolean(materialPayload.isExempt ?? false);
         const notes = materialPayload.notes ? String(materialPayload.notes) : null;
 
@@ -2668,16 +2750,22 @@ export async function executeStagedAction(params: {
           throw new Error('Valid latitude and longitude coordinates are required.');
         }
 
-        let station = await tx.attendanceStation.findFirst({ where: { status: 'ACTIVE' } });
-        const org = await tx.organization.findFirst();
-        if (!org) throw new Error('No organization found.');
+        const organizationId = materialPayload.organizationId || materialPayload.subsidiaryId || resolvedSubsidiaryId;
+        if (!organizationId) throw new Error('Choose the exact station organization before calibration.');
+        const org = await tx.organization.findFirst({ where: { id: String(organizationId), status: 'ACTIVE' } });
+        if (!org) throw new Error('An active station organization is required.');
+        const stations = await tx.attendanceStation.findMany({ where: { organizationId: org.id, ...(materialPayload.stationId ? { id: String(materialPayload.stationId) } : { status: 'ACTIVE' }) }, take: 2 });
+        if (stations.length > 1) throw new Error('Choose one exact station ID before calibration.');
+        let station = stations[0];
+        resolvedSubsidiaryId = org.id;
+        if (!Number.isFinite(latNum) || latNum < -90 || latNum > 90 || !Number.isFinite(lngNum) || lngNum < -180 || lngNum > 180 || !Number.isInteger(radiusNum) || radiusNum < 10 || radiusNum > 10000) throw new Error('Supply valid coordinates and a radius between 10 and 10000 metres.');
 
         if (!station) {
           station = await tx.attendanceStation.create({
             data: {
               organizationId: org.id,
               name: materialPayload.name?.trim() || 'BEMS Group Corporate Headquarters',
-              code: 'BEMS-HQ-MAIN',
+              code: `STN-${org.code}-${crypto.randomUUID().slice(0, 8)}`,
               latitude: latNum,
               longitude: lngNum,
               radiusMeters: radiusNum > 0 ? radiusNum : 100,
@@ -2794,8 +2882,7 @@ export async function executeStagedAction(params: {
           (empSubsidiaryId
             ? await tx.attendancePolicy.findUnique({ where: { organizationId: empSubsidiaryId } })
             : null) ||
-          (await tx.attendancePolicy.findFirst({ where: { organization: { type: 'GROUP' } } })) ||
-          (await tx.attendancePolicy.findFirst());
+          null;
 
         let deductionPercent: number;
         if (deduction_percent !== undefined && deduction_percent !== null) {
@@ -2812,6 +2899,9 @@ export async function executeStagedAction(params: {
           deductionPercent = 0.0;
         }
 
+        if (!Number.isFinite(deductionPercent) || deductionPercent < 0 || deductionPercent > 100) throw new Error('Deduction percentage must be between 0 and 100.');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate) || !Number.isFinite(Date.parse(targetDate))) throw new Error('Use a valid ISO work date.');
+        if (deduction_minor !== undefined && (!Number.isSafeInteger(Number(deduction_minor)) || Number(deduction_minor) < 0)) throw new Error('Deduction must be a nonnegative exact minor amount.');
         const monthlyGrossMinor = Number(emp.employmentAgreements[0]?.compensations[0]?.grossMinor ?? 0);
         const dailyWageMinor = monthlyGrossMinor > 0 ? Math.round(monthlyGrossMinor / 22) : 0;
         const computedDeductionMinor =
@@ -2899,7 +2989,9 @@ export async function executeStagedAction(params: {
           include: { subsidiary: { select: { id: true, legalName: true } } },
         });
         if (!invitation) throw new Error('Invitation not found.');
-        if (invitation.status === 'COMPLETED') throw new Error('Invitation is already completed.');
+        if (['COMPLETED', 'ACCEPTED', 'REVOKED'].includes(invitation.status)) throw new Error('This invitation cannot be resent.');
+        if (normalizeCanonicalRole(invitation.role) === 'STAFF' || !normalizeCanonicalRole(invitation.role)) throw new Error('Only executive invitations are supported.');
+        if (normalizeCanonicalRole(invitation.role) === 'SUPER_ADMIN' && normalizeCanonicalRole(actor.role) !== 'SUPER_ADMIN') throw new StagedPermissionError('Only a Super Admin can resend this invitation.');
 
         const newToken = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -2909,7 +3001,7 @@ export async function executeStagedAction(params: {
         });
 
         try {
-          await sendAdminInvitationEmail({
+          await queueDelivery(tx, actionId, 'ADMIN_INVITATION', {
             to: invitation.workEmail,
             role: invitation.role,
             subsidiaryName: invitation.subsidiary.legalName,
@@ -2918,7 +3010,7 @@ export async function executeStagedAction(params: {
             expiresInDays: 7,
           });
         } catch (e) {
-          console.warn('Resend invite email warning:', e);
+          throw e;
         }
 
         recordType = 'admin_invitation';
@@ -2927,6 +3019,9 @@ export async function executeStagedAction(params: {
         resultRecord = updated;
       } else if (subAction === 'REVOKE_INVITE') {
         const inviteId = materialPayload.invitationId || materialPayload.id;
+        const existing = await tx.adminInvitation.findUnique({ where: { id: inviteId } });
+        if (!existing || ['COMPLETED', 'ACCEPTED'].includes(existing.status)) throw new Error('Only incomplete invitations can be revoked.');
+        if (normalizeCanonicalRole(existing.role) === 'SUPER_ADMIN' && normalizeCanonicalRole(actor.role) !== 'SUPER_ADMIN') throw new StagedPermissionError('Only a Super Admin can revoke this invitation.');
         const updated = await tx.adminInvitation.update({
           where: { id: inviteId },
           data: { status: 'REVOKED' },
@@ -2937,7 +3032,9 @@ export async function executeStagedAction(params: {
         resultRecord = updated;
       } else {
         const { workEmail, role, subsidiaryId, departmentId, positionName, legalName } = materialPayload;
-        const canonicalRole = role === 'GMD' ? 'GMD' : 'SUPER_ADMIN';
+        const canonicalRole = normalizeCanonicalRole(role);
+        if (!canonicalRole || canonicalRole === 'STAFF') throw new StagedPermissionError('Only executive invitations are permitted.');
+        if (canonicalRole === 'SUPER_ADMIN' && normalizeCanonicalRole(actor.role) !== 'SUPER_ADMIN') throw new StagedPermissionError('Only a Super Admin can invite another Super Admin.');
 
         if (canonicalRole === 'GMD') {
           const existingGmd = await tx.employee.findFirst({
@@ -2948,6 +3045,7 @@ export async function executeStagedAction(params: {
           }
         }
 
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(workEmail || ''))) throw new Error('A valid work email is required.');
         const existingEmp = await tx.employee.findUnique({ where: { workEmail } });
         if (existingEmp) {
           throw new Error(`An active account already exists for ${workEmail} (${existingEmp.legalName}).`);
@@ -2984,7 +3082,7 @@ export async function executeStagedAction(params: {
         });
 
         try {
-          await sendAdminInvitationEmail({
+          await queueDelivery(tx, actionId, 'ADMIN_INVITATION', {
             to: workEmail,
             role: canonicalRole,
             subsidiaryName: subsidiary.legalName,
@@ -2993,7 +3091,7 @@ export async function executeStagedAction(params: {
             expiresInDays: 7,
           });
         } catch (e) {
-          console.warn('Executive invite email dispatch warning:', e);
+          throw e;
         }
 
         recordType = 'admin_invitation';
@@ -3036,7 +3134,7 @@ export async function executeStagedAction(params: {
           requireGeofence: true,
           requireQrScan: true,
           requireStarlinkIp: true,
-          starlinkIpAddresses: '2605:59c1:1a3a:a210:*, 98.97.76.109, 98.97.76.*, 98.97.*',
+          starlinkIpAddresses: '',
           starlinkPowerOutageMode: false,
         },
       });
@@ -3151,15 +3249,24 @@ export async function executeStagedAction(params: {
       const year = Number(materialPayload.year) || new Date().getFullYear();
       const month = Number(materialPayload.month) || new Date().getMonth() + 1;
 
+      if (!Number.isInteger(year) || year < 2020 || !Number.isInteger(month) || month < 1 || month > 12) throw new Error('A valid payroll year and month are required.');
       if (subAction === 'PREPARE') {
+        const payrollOrgId = materialPayload.organization_id || materialPayload.subsidiaryId || null;
+        if (materialPayload._delegated_organization_id && !payrollOrgId) throw new Error('Choose an explicit payroll entity.');
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'payroll:' + year + '-' + month + ':' + (payrollOrgId || 'group')}, 0))`;
+
         const allSubsidiaries = await tx.organization.findMany({ where: { status: 'ACTIVE' } });
         const hqOrg = allSubsidiaries.find((o) => o.type === 'GROUP' || o.code === 'BEMS-GROUP') || allSubsidiaries[0];
-        const defaultSubId = hqOrg?.id || 'bems-group-hq';
+        const selectedOrg = payrollOrgId ? allSubsidiaries.find(org => org.id === payrollOrgId) : hqOrg;
+        if (!selectedOrg) throw new Error('Choose an active payroll organization.');
+        const defaultSubId = selectedOrg.id;
+        resolvedSubsidiaryId = defaultSubId;
 
         let period = await tx.payrollPeriod.findFirst({
           where: { year, month },
           include: {
             batches: {
+              where: { paymentEntityId: defaultSubId },
               orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
               include: { items: { include: { disbursement: true } } },
             },
@@ -3178,6 +3285,7 @@ export async function executeStagedAction(params: {
             },
             include: {
               batches: {
+                where: { paymentEntityId: defaultSubId },
                 orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
                 include: { items: { include: { disbursement: true } } },
               },
@@ -3186,14 +3294,15 @@ export async function executeStagedAction(params: {
         }
 
         const activeStaff = await tx.employee.findMany({
-          where: { status: 'ACTIVE', role: 'STAFF' },
+          where: { status: 'ACTIVE', approvalStatus: 'APPROVED', role: 'STAFF', ...(payrollOrgId ? { assignments: { some: { subsidiaryId: payrollOrgId, status: 'ACTIVE' } } } : {}) },
           include: {
             assignments: { where: { status: 'ACTIVE' }, orderBy: { isPrimary: 'desc' } },
             employmentAgreements: {
-              where: { status: 'ACTIVE' },
+              where: { status: 'ACTIVE', ...(payrollOrgId ? { employerEntityId: payrollOrgId } : {}) },
               orderBy: { startDate: 'desc' },
               include: {
                 compensations: {
+                  where: { effectiveFrom: { lte: new Date(Date.UTC(year, month, 0, 23, 59, 59)) }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date(Date.UTC(year, month - 1, 1)) } }] },
                   orderBy: [{ version: 'desc' }, { effectiveFrom: 'desc' }],
                   include: { costAllocations: true },
                 },
@@ -3215,6 +3324,7 @@ export async function executeStagedAction(params: {
         let batch = period.batches[0];
         let isRegeneration = false;
         if (batch) {
+          if(walletEnabled() && (batch.status==='WALLET_CREDITED'||batch.items.some(item=>item.status==='WALLET_CREDITED'))) throw new Error('Released payroll is immutable. Create an explicitly reviewed supplemental batch for additional pay.');
           if (batch.items.some((item) => Boolean(item.disbursement))) {
             throw new Error('Cannot regenerate payroll batch because salary disbursements have already been recorded.');
           }
@@ -3228,6 +3338,7 @@ export async function executeStagedAction(params: {
           batch = await tx.payrollBatch.create({
             data: {
               periodId: period.id,
+              paymentEntityId: defaultSubId,
               version: 1,
               status: 'SUBMITTED',
               totalGrossMinor: BigInt(0),
@@ -3262,14 +3373,18 @@ export async function executeStagedAction(params: {
           totalGross += grossMinor;
           totalNet += grossMinor;
 
-          const allocations = comp.costAllocations || [];
+          const allocations = (comp.costAllocations || []).filter(allocation => !allocation.effectiveTo || allocation.effectiveTo >= period.startsOn);
+          if (allocations.length && (allocations.some(allocation => !Number.isFinite(allocation.percentage) || allocation.percentage < 0) || Math.abs(allocations.reduce((sum, allocation) => sum + allocation.percentage, 0) - 100) > 0.001)) throw new Error('Payroll cost allocations must total 100 percent.');
           if (allocations.length > 0) {
+            let allocated = BigInt(0);
             for (const alloc of allocations) {
+              const allocationMinor = alloc === allocations[allocations.length - 1] ? grossMinor - allocated : grossMinor * BigInt(Math.round(alloc.percentage * 10000)) / BigInt(1000000);
+              allocated += allocationMinor;
               await tx.payrollItemAllocation.create({
                 data: {
                   itemId: item.id,
                   subsidiaryId: alloc.subsidiaryId,
-                  allocableCostMinor: BigInt(Math.round(grossNum * (alloc.percentage / 100))),
+                  allocableCostMinor: allocationMinor,
                   percentage: alloc.percentage,
                 },
               });
@@ -3314,20 +3429,24 @@ export async function executeStagedAction(params: {
           totalNet: Number(totalNet) / 100,
         };
       } else if (subAction === 'SIGN_OFF' || subAction === 'APPROVE') {
-        const period = await tx.payrollPeriod.findFirst({
-          where: { year, month },
-          include: { batches: { orderBy: [{ version: 'desc' }, { createdAt: 'desc' }], take: 1 } },
-        });
-        if (!period || !period.batches.length) {
-          throw new Error(`No prepared payroll batch found for ${month}/${year}.`);
-        }
-        const batch = period.batches[0];
-        const paymentEntityId = materialPayload.paymentEntityId || batch.paymentEntityId || null;
-        const disbursementAssigneeId = materialPayload.disbursementAssigneeId || batch.disbursementAssigneeId || null;
+        if (walletEnabled()) throw new WalletError('WALLET_PAYROLL_NOT_READY', 'Wallet payroll release is not activated yet. No clearing-account payment or wallet credit was created.', 409);
+        const batchId = String(materialPayload.batchId || '');
+        if (!batchId) throw new Error('Choose an exact payroll batch.');
+        const batch = await tx.payrollBatch.findUnique({ where: { id: batchId }, include: { period: true, items: { include: { allocations: true } } } });
+        if (!batch || batch.status !== 'SUBMITTED' || !batch.items.length) throw new StaleTargetError('Only a submitted nonempty payroll batch can be signed off.');
+        const period = batch.period;
+        const paymentEntityId = materialPayload.paymentEntityId || batch.paymentEntityId;
+        if (!paymentEntityId || !await tx.organization.findFirst({ where: { id: paymentEntityId, status: 'ACTIVE' } })) throw new Error('Select an active payroll paying entity.');
+        const disbursementAssigneeId = materialPayload.disbursementAssigneeId || batch.disbursementAssigneeId;
+        if (!disbursementAssigneeId || !await tx.employee.findFirst({ where: { id: disbursementAssigneeId, status: 'ACTIVE', approvalStatus: 'APPROVED', role: { in: ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'] } } })) throw new Error('Assign an active executive to record payroll transfers.');
+        if (batch.items.some(item => item.netMinor < BigInt(0) || item.grossMinor < item.netMinor) || batch.items.reduce((sum, item) => sum + item.netMinor, BigInt(0)) !== batch.totalNetMinor || batch.items.reduce((sum, item) => sum + item.grossMinor, BigInt(0)) !== batch.totalGrossMinor) throw new Error('Payroll totals require reconciliation before approval.');
+        if (batch.items.some(item => item.allocations.reduce((sum, allocation) => sum + allocation.allocableCostMinor, BigInt(0)) !== item.grossMinor)) throw new Error('Payroll allocations must reconcile exactly to gross amounts.');
+        const snapshotHash = payrollSnapshotHash(batch.items);
+        resolvedSubsidiaryId = paymentEntityId;
         const updated = await tx.payrollBatch.update({
           where: { id: batch.id },
           data: {
-            status: 'APPROVED',
+            status: 'APPROVED', snapshotHash,
             approvedAt: new Date(),
             ...(paymentEntityId ? { paymentEntityId } : {}),
             ...(disbursementAssigneeId ? { disbursementAssigneeId } : {}),
@@ -3364,133 +3483,21 @@ export async function executeStagedAction(params: {
         };
       } else if (subAction === 'RECORD_PAYOUT' || subAction === 'DISBURSE') {
         const itemId = materialPayload.itemId || materialPayload.payrollItemId;
-        const batchId = materialPayload.batchId;
-        const externalReference = materialPayload.externalReference || `PAY-AI-${Date.now()}`;
-        const bankName = materialPayload.bankName || 'Corporate Treasury Bank';
-
-        const targetItems = itemId
-          ? await tx.payrollItem.findMany({
-              where: { id: itemId },
-              include: { employee: true, allocations: true, disbursement: true, batch: { include: { period: true } } },
-            })
-          : await tx.payrollItem.findMany({
-              where: { batchId },
-              include: { employee: true, allocations: true, disbursement: true, batch: { include: { period: true } } },
-            });
-
-        if (!targetItems.length) {
-          throw new Error('No matching payroll items found to disburse.');
-        }
-
-        const defaultOrg = await tx.organization.findFirst({ orderBy: { type: 'asc' }, select: { id: true } });
-        const disbursedIds: string[] = [];
-        const generatedIntercompanyNoteNumbers: string[] = [];
-
-        for (const item of targetItems) {
-          if (item.disbursement) continue;
-          if (item.batch.status !== 'APPROVED') {
-            throw new Error('Only an APPROVED payroll batch can be disbursed.');
-          }
-          const payingEntityId = item.batch.paymentEntityId || defaultOrg?.id;
-          if (!payingEntityId) throw new Error('No paying organization configured for payroll batch.');
-
-          const beneficiaryBank = item.employee.salaryBankName || item.employee.bankName || 'Bank on Record';
-          const beneficiaryAccount = item.employee.salaryAccountNumber || item.employee.accountNumber || '0000000000';
-
-          const payment = await tx.disbursement.create({
-            data: {
-              payrollItemId: item.id,
-              beneficiaryEmployeeId: item.employeeId,
-              payerOrgId: payingEntityId,
-              beneficiaryName: item.employee.legalName,
-              beneficiaryBank,
-              beneficiaryAccount,
-              amountMinor: item.netMinor,
-              currency: item.currency,
-              externalReference: targetItems.length > 1 ? `${externalReference}-${item.employee.employeeNumber}` : externalReference,
-              bankName,
-              recordedById: actor.id,
-              status: 'AWAITING_RECIPIENT_CONFIRMATION',
-              idempotencyKey: `PAY-${item.id}-${Date.now()}`,
-            },
-          });
-
-          await tx.payrollItem.update({
-            where: { id: item.id },
-            data: { status: 'PAID' },
-          });
-
-          // Automatically generate intercompany recharge notes for cross-subsidiary payroll allocations
-          for (const alloc of item.allocations || []) {
-            if (alloc.subsidiaryId !== payingEntityId) {
-              const periodLabel = `${item.batch.period.year}-${String(item.batch.period.month).padStart(2, '0')}`;
-              const noteNumber = `DN-${item.batch.period.year}${String(item.batch.period.month).padStart(2, '0')}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-              await tx.intercompanyNote.create({
-                data: {
-                  periodId: item.batch.periodId,
-                  sourceEntityId: payingEntityId,
-                  targetEntityId: alloc.subsidiaryId,
-                  noteType: 'DEBIT_NOTE',
-                  noteNumber,
-                  totalAmountMinor: alloc.allocableCostMinor,
-                  currency: item.currency,
-                  description: `Automated Payroll Cost Recharge: ${item.employee.legalName} (${alloc.percentage}% allocation for ${periodLabel})`,
-                  status: 'ISSUED',
-                },
-              });
-              generatedIntercompanyNoteNumbers.push(noteNumber);
-            }
-          }
-
-          await tx.systemNotification.create({
-            data: {
-              employeeId: item.employeeId,
-              kind: 'PAYROLL_PAYMENT_CONFIRMATION_REQUIRED',
-              title: 'Confirm payroll payment received',
-              body: `A payroll transfer for ${item.batch.period.year}-${String(item.batch.period.month).padStart(2, '0')} was recorded. Please confirm whether the salary reached your account.`,
-              linkUrl: '/payroll',
-            },
-          });
-
-          const amountNaira = Number(item.netMinor) / 100;
-          const bankAccount =
-            (await tx.companyBankAccount.findFirst({
-              where: { organizationId: payingEntityId, status: 'ACTIVE', bankName: { contains: bankName, mode: 'insensitive' } },
-            })) ||
-            (await tx.companyBankAccount.findFirst({
-              where: { organizationId: payingEntityId, status: 'ACTIVE' },
-            }));
-
-          if (bankAccount) {
-            const newBal = Math.max(0, Number(bankAccount.balance) - amountNaira);
-            await tx.companyBankAccount.update({
-              where: { id: bankAccount.id },
-              data: { balance: newBal },
-            });
-          }
-
-          disbursedIds.push(payment.id);
-          notificationIntentIds.push(item.employeeId);
-          notificationsDeliveredIds.push(item.employeeId);
-          resolvedSubsidiaryId = payingEntityId || resolvedSubsidiaryId;
-        }
-
-        if (batchId) {
-          await tx.payrollBatch.update({
-            where: { id: batchId },
-            data: { status: 'PAID' },
-          });
-        }
-
-        recordType = 'payroll_disbursement';
-        recordId = disbursedIds[0] || batchId || itemId;
-        url = `/payroll`;
-        resultRecord = {
-          disbursedCount: disbursedIds.length,
-          disbursementIds: disbursedIds,
-          generatedIntercompanyNotes: generatedIntercompanyNoteNumbers,
-        };
+        if (!itemId) throw new Error('Select one payroll item and its actual transfer receipt.');
+        const ids: string[] = materialPayload.attachment_ids || [];
+        if (ids.length !== 1) throw new Error('Attach one actual bank receipt.');
+        const evidence = await tx.attachment.findUnique({ where: { id: ids[0] } });
+        const item = await tx.payrollItem.findUnique({ where: { id: itemId } });
+        if (!item || !evidence?.fileData) throw new Error('Payroll item or receipt file is unavailable.');
+        const payment = await recordTransfer(tx, {
+          actor, payrollItemId: item.id, payerAccountId: materialPayload.payer_account_id || materialPayload.payerAccountId,
+          bankName: materialPayload.bankName, amountMinor: item.netMinor, reference: String(materialPayload.externalReference || ''),
+          receipt: { name: evidence.fileName, type: evidence.contentType, bytes: Buffer.from(evidence.fileData) }, idempotencyKey: effectiveIdempotencyKey,
+        });
+        recordType = 'disbursement'; recordId = payment.id; url = '/payroll'; resolvedSubsidiaryId = payment.payerOrgId;
+        resultRecord = { paymentId: payment.id, amountMinor: payment.amountMinor.toString() };
       } else if (subAction === 'REMOVE_ITEM') {
+        if(walletEnabled()){const item=await tx.payrollItem.findUnique({where:{id:String(materialPayload.itemId||materialPayload.item_id||materialPayload.payrollItemId||'')}});if(item?.status==='WALLET_CREDITED')throw new Error('A wallet-funded payroll item cannot be removed.');}
         const itemId = materialPayload.itemId || materialPayload.payrollItemId;
         const mode = materialPayload.mode === 'PERMANENT' ? 'PERMANENT' : 'BATCH_ONLY';
         const reason = String(materialPayload.reason || 'Removed from payroll run via BEMI');
@@ -3506,6 +3513,66 @@ export async function executeStagedAction(params: {
         if (item.disbursement) {
           await tx.disbursement.delete({ where: { id: item.disbursement.id } });
         }
+        const employeeId = item.employeeId;
+        const now = new Date();
+      // 4. If mode is PERMANENT, stop recurring salary (set grossMinor to 0)
+      if (mode === 'PERMANENT') {
+        const agreement = await tx.employmentAgreement.findFirst({
+          where: { employeeId, status: 'ACTIVE' },
+          orderBy: { startDate: 'desc' }
+        });
+
+        if (agreement) {
+          const activeSalary = await tx.compensationAgreement.findFirst({
+            where: {
+              employmentAgreementId: agreement.id,
+              effectiveFrom: { lte: now },
+              OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }]
+            },
+            orderBy: [{ effectiveFrom: 'desc' }, { version: 'desc' }]
+          });
+
+          if (activeSalary) {
+            await tx.compensationAgreement.update({
+              where: { id: activeSalary.id },
+              data: { effectiveTo: new Date(now.getTime() - 1) }
+            });
+          }
+
+          const prior = await tx.compensationAgreement.findMany({
+            where: { employmentAgreementId: agreement.id },
+            select: { version: true }
+          });
+          const nextVersion = Math.max(0, ...prior.map(c => c.version)) + 1;
+
+          await tx.compensationAgreement.create({
+            data: {
+              employmentAgreementId: agreement.id,
+              grossMinor: BigInt(0),
+              currency: activeSalary?.currency || 'NGN',
+              recurrence: activeSalary?.recurrence || 'MONTHLY',
+              effectiveFrom: now,
+              version: nextVersion,
+              approvedBy: actor.id,
+              changeType: 'REMOVED_FROM_PAYROLL',
+              changeReason: reason,
+            }
+          });
+        }
+
+        // Cancel any pending proposals
+        await tx.salaryChangeProposal.updateMany({
+          where: { employeeId, status: 'PENDING_APPROVAL' },
+          data: {
+            status: 'CANCELLED',
+            decisionNote: `Staff removed from salary payroll by ${actor.legalName}. Reason: ${reason}`,
+            decidedById: actor.id,
+            decidedByName: actor.legalName,
+            decidedAt: now,
+          }
+        });
+      }
+
         await tx.payrollItemAllocation.deleteMany({ where: { itemId } });
         await tx.payrollItem.delete({ where: { id: itemId } });
 
@@ -3521,7 +3588,7 @@ export async function executeStagedAction(params: {
         }
         await tx.payrollBatch.update({
           where: { id: item.batchId },
-          data: { totalGrossMinor: newGross, totalNetMinor: newNet },
+          data: { totalGrossMinor: newGross, totalNetMinor: newNet, status: 'SUBMITTED', approvedAt: null, snapshotHash: null, version: { increment: 1 } },
         });
 
         recordType = 'payroll_item_removed';
@@ -3683,7 +3750,9 @@ export async function executeStagedAction(params: {
       url = `/subsidiary`;
       resultRecord = updatedOrg;
     } else if (action.actionType === 'staff_management') {
+      if(walletEnabled() && actor.id!==process.env.BEMS_FINANCIAL_GMD_ID && [materialPayload.employeeId, materialPayload.employee_id, materialPayload.target_employee_id].includes(process.env.BEMS_FINANCIAL_GMD_ID)) throw new Error('The designated GMD account cannot be changed by another administrator.');
       const subAction = String(materialPayload.sub_action || materialPayload.action_type || 'EDIT_PROFILE').toUpperCase();
+      if (!['REGISTER_OFFLINE', 'EDIT_PROFILE', 'TOGGLE_ATTENDANCE_EXEMPT', 'CHANGE_STATUS', 'REQUEST_UPDATE', 'SEND_PASSWORD_RESET_INVITE', 'RESET_PASSWORD_INVITE', 'DELETE_OR_DEACTIVATE'].includes(subAction)) throw new Error('Unsupported staff operation.');
 
       if (subAction === 'REGISTER_OFFLINE') {
         const legalName = String(materialPayload.legalName || '').trim();
@@ -3813,6 +3882,8 @@ export async function executeStagedAction(params: {
 
         resolvedSubsidiaryId = targetEmployee.assignments[0]?.subsidiaryId || resolvedSubsidiaryId;
 
+        if (normalizeCanonicalRole(targetEmployee.role) === 'SUPER_ADMIN' && normalizeCanonicalRole(actor.role) !== 'SUPER_ADMIN') throw new StagedPermissionError('Only a Super Admin can modify a Super Admin account.');
+
         if (targetEmployee.role === 'GMD' && actor.role !== 'GMD') {
           throw new StagedValidationError(
             'GMD_IMMUTABLE',
@@ -3829,6 +3900,7 @@ export async function executeStagedAction(params: {
             where: { id: employeeId },
             data: { isAttendanceExempt: isExempt },
           });
+          await tx.staffWorkSchedule.upsert({ where: { employeeId }, update: { isExempt }, create: { employeeId, weeklyOffDays: '0,6', isExempt } });
           notificationIntentIds.push(employeeId);
           await tx.systemNotification.create({
             data: {
@@ -3849,48 +3921,10 @@ export async function executeStagedAction(params: {
             isAttendanceExempt: updated.isAttendanceExempt,
           };
         } else if (subAction === 'CHANGE_STATUS') {
-          const nextStatus = String(materialPayload.status || 'ACTIVE').toUpperCase();
-          if (!['ACTIVE', 'SUSPENDED', 'TERMINATED'].includes(nextStatus)) {
-            throw new Error(`Invalid staff status: ${nextStatus}`);
-          }
-          const updated = await tx.employee.update({
-            where: { id: employeeId },
-            data: { status: nextStatus },
-          });
-          if (nextStatus === 'TERMINATED' || nextStatus === 'SUSPENDED') {
-            await tx.authSession.deleteMany({ where: { employeeId } });
-            invalidateSessionCache(employeeId);
-          }
-          if (nextStatus === 'TERMINATED') {
-            await tx.employeeAssignment.updateMany({
-              where: { employeeId },
-              data: { status: 'INACTIVE' },
-            });
-          } else if (nextStatus === 'ACTIVE') {
-            await tx.employeeAssignment.updateMany({
-              where: { employeeId, isPrimary: true },
-              data: { status: 'ACTIVE' },
-            });
-          }
-          notificationIntentIds.push(employeeId);
-          await tx.systemNotification.create({
-            data: {
-              employeeId,
-              kind: 'ACCOUNT_STATUS',
-              title: `Account Status: ${nextStatus}`,
-              body: `Your account status was updated to ${nextStatus} by ${actor.legalName}.`,
-              linkUrl: '/',
-            },
-          });
-          notificationsDeliveredIds.push(employeeId);
-          recordType = 'employee';
-          recordId = updated.id;
-          url = `/hr`;
-          resultRecord = {
-            id: updated.id,
-            legalName: updated.legalName,
-            status: updated.status,
-          };
+          const nextStatus = String(materialPayload.status || '').toUpperCase();
+          if (!['ACTIVE', 'ON_LEAVE', 'SUSPENDED', 'TERMINATED'].includes(nextStatus)) throw new Error('Choose a supported employee status.');
+          const updated = await transitionEmployeeStatus({ actor: actor as any, targetEmployeeId: employeeId, nextStatus: nextStatus as 'ACTIVE' | 'ON_LEAVE' | 'SUSPENDED' | 'TERMINATED', reason: materialPayload.reason }, tx);
+          recordType = 'employee'; recordId = updated.id; url = '/hr'; resultRecord = updated;
         } else if (subAction === 'REQUEST_UPDATE') {
           const requestedFields = Array.isArray(materialPayload.requestedFields)
             ? materialPayload.requestedFields
@@ -3931,18 +3965,8 @@ export async function executeStagedAction(params: {
           url = `/hr`;
           resultRecord = updateRequest;
         } else if (subAction === 'SEND_PASSWORD_RESET_INVITE' || subAction === 'RESET_PASSWORD_INVITE') {
-          const otpCode = String(Math.floor(100000 + Math.random() * 900000));
-          const codeHash = crypto.createHash('sha256').update(otpCode).digest('hex');
-          const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
-
-          await tx.emailVerificationToken.create({
-            data: {
-              email: targetEmployee.workEmail.toLowerCase(),
-              codeHash,
-              expiresAt,
-            },
-          });
-
+          const resetUrl = '/finance?reset=1';
+          await queueDelivery(tx, actionId, 'CHAT_MESSAGE', { to: targetEmployee.workEmail, recipientName: targetEmployee.legalName, senderName: actor.legalName, senderRole: actor.role, messageText: 'An executive requested that you reset your password. Open the secure sign-in screen, choose Forgot password, and request a verification code sent directly to your email. Never share that code with another person.', contextTitle: 'Account security', actionUrl: new URL(resetUrl, process.env.NEXT_PUBLIC_APP_URL || 'https://bemserp.work').toString() });
           await tx.systemNotification.create({
             data: {
               employeeId,
@@ -3961,89 +3985,14 @@ export async function executeStagedAction(params: {
           resultRecord = {
             employeeId: targetEmployee.id,
             workEmail: targetEmployee.workEmail,
-            expiresAt: expiresAt.toISOString(),
-            resetUrl: '/login?reset=1',
+            verificationRequired: true,
+            secretIssued: false,
+            resetUrl,
           };
         } else if (subAction === 'DELETE_OR_DEACTIVATE') {
-          if (targetEmployee.id === actor.id) {
-            throw new Error('You cannot delete your own active session account.');
-          }
-          const hasAuditHistory =
-            targetEmployee.expenditureRequests.length > 0 ||
-            targetEmployee.disbursementAssignments.length > 0 ||
-            targetEmployee.approvalSteps.length > 0 ||
-            targetEmployee.disbursementsRecorded.length > 0;
-
-          if (hasAuditHistory) {
-            const deactivated = await tx.employee.update({
-              where: { id: employeeId },
-              data: {
-                status: 'TERMINATED',
-                approvalStatus: 'REJECTED',
-                passwordHash: null,
-                workEmail: `deleted_${Date.now()}_${targetEmployee.workEmail}`,
-              },
-            });
-            await tx.authSession.deleteMany({ where: { employeeId } });
-            invalidateSessionCache(employeeId);
-            await tx.employeeAssignment.deleteMany({ where: { employeeId } });
-            await tx.staffWorkSchedule.deleteMany({ where: { employeeId } });
-            await tx.systemNotification.deleteMany({ where: { employeeId } });
-            recordType = 'employee';
-            recordId = deactivated.id;
-            url = `/hr`;
-            resultRecord = {
-              id: deactivated.id,
-              legalName: targetEmployee.legalName,
-              mode: 'DEACTIVATED_ARCHIVED',
-              status: 'TERMINATED',
-            };
-          } else {
-            await tx.authSession.deleteMany({ where: { employeeId } });
-            invalidateSessionCache(employeeId);
-            await tx.systemNotification.deleteMany({ where: { employeeId } });
-            await tx.employeeAssignment.deleteMany({ where: { employeeId } });
-            await tx.staffWorkSchedule.deleteMany({ where: { employeeId } });
-            await tx.attendanceRecord.deleteMany({ where: { employeeId } });
-            await tx.leaveRequest.deleteMany({ where: { employeeId } });
-            await tx.salaryChangeProposal.deleteMany({ where: { employeeId } });
-            await tx.staffAdminMessage.deleteMany({ where: { employeeId } });
-            await tx.recipientPaymentConfirmation.deleteMany({ where: { employeeId } });
-            await tx.followupTask.deleteMany({ where: { assigneeId: employeeId } });
-            const agreements = await tx.employmentAgreement.findMany({
-              where: { employeeId },
-              select: { id: true },
-            });
-            if (agreements.length > 0) {
-              const agIds = agreements.map((a) => a.id);
-              const comps = await tx.compensationAgreement.findMany({
-                where: { employmentAgreementId: { in: agIds } },
-                select: { id: true },
-              });
-              if (comps.length > 0) {
-                await tx.costAllocation.deleteMany({
-                  where: { compensationAgreementId: { in: comps.map((c) => c.id) } },
-                });
-                await tx.compensationAgreement.deleteMany({
-                  where: { id: { in: comps.map((c) => c.id) } },
-                });
-              }
-              await tx.employmentAgreement.deleteMany({ where: { id: { in: agIds } } });
-            }
-            await tx.adminInvitation.deleteMany({
-              where: { workEmail: targetEmployee.workEmail.toLowerCase() },
-            });
-            await tx.employee.delete({ where: { id: employeeId } });
-
-            recordType = 'employee';
-            recordId = employeeId;
-            url = `/hr`;
-            resultRecord = {
-              id: employeeId,
-              legalName: targetEmployee.legalName,
-              mode: 'PERMANENTLY_DELETED',
-            };
-          }
+          const updated = await transitionEmployeeStatus({ actor: actor as any, targetEmployeeId: employeeId, nextStatus: 'TERMINATED', reason: materialPayload.reason || 'Account deactivated; business records retained.' }, tx);
+          recordType = 'employee'; recordId = employeeId; url = '/hr';
+          resultRecord = { id: employeeId, legalName: updated.legalName, status: updated.status, mode: 'DEACTIVATED_WITH_HISTORY', message: 'Account access ended. Business and employment history was retained.' };
         } else {
           // EDIT_PROFILE
           const updateData: any = {};
@@ -4053,6 +4002,7 @@ export async function executeStagedAction(params: {
           if (typeof materialPayload.workEmail === 'string' && materialPayload.workEmail.trim()) {
             const cleanEmail = materialPayload.workEmail.trim().toLowerCase();
             if (cleanEmail !== targetEmployee.workEmail) {
+              if(walletEnabled())throw new Error('Wallet-owner recovery email changes require a verified owner recovery process; administrative email reassignment is disabled.');
               const dup = await tx.employee.findUnique({ where: { workEmail: cleanEmail } });
               if (dup && dup.id !== employeeId) {
                 throw new Error(`Another account already uses ${cleanEmail}.`);
@@ -4427,9 +4377,13 @@ export async function executeStagedAction(params: {
         const employeeId = materialPayload.employeeId || actor.id;
         const startDate = String(materialPayload.startDate || '').trim();
         const endDate = String(materialPayload.endDate || '').trim();
-        if (!startDate || !endDate) {
+        await verifyTargetEmployeeAccess(actor as any, employeeId, { allowExecutiveTarget: false });
+        const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+        if (!validDate(startDate) || !validDate(endDate) || startDate > endDate || !String(materialPayload.reason || '').trim()) {
           throw new Error('Valid startDate and endDate strings are required for leave requests.');
         }
+        const overlap = await tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: endDate }, endDate: { gte: startDate } } });
+        if (overlap) throw new Error('An overlapping leave request already exists.');
         const leave = await tx.leaveRequest.create({
           data: {
             employeeId,
@@ -4448,6 +4402,11 @@ export async function executeStagedAction(params: {
       } else {
         const leaveId = materialPayload.leaveId || materialPayload.id;
         if (!leaveId) throw new Error('leaveId is required to approve or reject a leave request.');
+        const existing = await tx.leaveRequest.findUnique({ where: { id: leaveId } });
+        if (!existing || existing.status !== 'PENDING') throw new StaleTargetError('Only pending leave requests can be reviewed.');
+        await verifyTargetEmployeeAccess(actor as any, existing.employeeId, { allowExecutiveTarget: false });
+        if (existing.employeeId === actor.id) throw new StagedPermissionError('A different authorized reviewer must decide your leave request.');
+        if (!['APPROVE_LEAVE', 'REJECT_LEAVE'].includes(subAction)) throw new Error('Unsupported leave operation.');
         const decision = subAction.includes('REJECT') || materialPayload.decision === 'REJECTED' ? 'REJECTED' : 'APPROVED';
         const updated = await tx.leaveRequest.update({
           where: { id: leaveId },
@@ -4462,7 +4421,8 @@ export async function executeStagedAction(params: {
             reviewedAt: new Date(),
           },
         });
-        if (decision === 'APPROVED') {
+        const today = new Date().toISOString().slice(0, 10);
+        if (decision === 'APPROVED' && updated.startDate <= today && updated.endDate >= today) {
           await tx.employee.update({
             where: { id: updated.employeeId },
             data: { status: 'ON_LEAVE' },
@@ -4490,13 +4450,18 @@ export async function executeStagedAction(params: {
       if (subAction === 'COMPLETE_TASK' || subAction === 'REOPEN_TASK') {
         const taskId = materialPayload.taskId || materialPayload.id;
         if (!taskId) throw new Error('taskId is required to update a follow-up task.');
+        const current = await tx.followupTask.findUnique({ where: { id: taskId }, include: { accountabilityCase: { include: { request: true } }, channel: { include: { request: true } } } });
+        if (!current) throw new Error('Task not found.');
+        if (normalizeCanonicalRole(actor.role) === 'STAFF' && current.assigneeId !== actor.id) throw new StagedPermissionError('Only the assignee can update this task.');
+        const linkedRequest = current.accountabilityCase?.request || current.channel?.request;
+        resolvedSubsidiaryId = linkedRequest?.subsidiaryId || null;
         const nextStatus = subAction === 'REOPEN_TASK' ? 'PENDING' : 'COMPLETED';
         const updated = await tx.followupTask.update({
           where: { id: taskId },
           data: {
             status: nextStatus,
             completedAt: nextStatus === 'COMPLETED' ? new Date() : null,
-            responseNotes: materialPayload.responseNotes || null,
+            responseNotes: typeof materialPayload.responseNotes === 'string' ? materialPayload.responseNotes.trim().slice(0, 1000) : null,
           },
         });
         recordType = 'followup_task';
@@ -4506,10 +4471,14 @@ export async function executeStagedAction(params: {
       } else {
         const description = String(materialPayload.description || '').trim();
         const assigneeId = materialPayload.assigneeId;
-        if (!description || !assigneeId) {
+        if (normalizeCanonicalRole(actor.role) === 'STAFF') throw new StagedPermissionError('Executive authority is required to assign tasks.');
+        if (description.length < 3 || description.length > 1000 || !assigneeId) {
           throw new Error('description and assigneeId are required to create a follow-up task.');
         }
         const dueAt = materialPayload.dueAt ? new Date(materialPayload.dueAt) : new Date(Date.now() + 3 * 86400_000);
+        if (!Number.isFinite(dueAt.getTime()) || dueAt.getTime() < Date.now() - 60000) throw new Error('Choose a valid future task deadline.');
+        const assignee = await tx.employee.findFirst({ where: { id: String(assigneeId), status: 'ACTIVE', approvalStatus: 'APPROVED' } });
+        if (!assignee) throw new Error('Choose an active approved employee.');
         let accountabilityCaseId = materialPayload.accountabilityCaseId || null;
         let channelId = materialPayload.channelId || null;
 
@@ -4523,10 +4492,12 @@ export async function executeStagedAction(params: {
           if (reqItem?.subsidiaryId) resolvedSubsidiaryId = reqItem.subsidiaryId;
         }
 
-        if (!accountabilityCaseId && !channelId) {
-          const fallbackChannel = await tx.requestChannel.findFirst();
-          if (fallbackChannel) channelId = fallbackChannel.id;
-        }
+        if (!accountabilityCaseId && !channelId) throw new Error('Link the task to an actual request or accountability case.');
+        const linkedCase = accountabilityCaseId ? await tx.accountabilityCase.findUnique({ where: { id: String(accountabilityCaseId) }, include: { request: { include: { channel: true } } } }) : null;
+        const linkedChannel = channelId ? await tx.requestChannel.findUnique({ where: { id: String(channelId) }, include: { request: true } }) : null;
+        if ((accountabilityCaseId && !linkedCase) || (channelId && !linkedChannel)) throw new Error('Linked task target not found.');
+        if (linkedCase && linkedChannel && linkedCase.requestId !== linkedChannel.requestId) throw new Error('Task targets belong to different requests.');
+        resolvedSubsidiaryId = linkedCase?.request.subsidiaryId || linkedChannel?.request.subsidiaryId || null;
 
         const created = await tx.followupTask.create({
           data: {
@@ -4538,7 +4509,12 @@ export async function executeStagedAction(params: {
           },
         });
 
-        await tx.systemNotification.create({
+        let sendAlert = true;
+        if (resolvedSubsidiaryId) {
+          const preference = await tx.workspaceSetting.findUnique({ where: { organizationId_key: { organizationId: resolvedSubsidiaryId, key: 'notifications.preferences' } } });
+          if (preference) sendAlert = JSON.parse(preference.value).taskAssignmentAlerts !== false;
+        }
+        if (sendAlert) await tx.systemNotification.create({
           data: {
             employeeId: assigneeId,
             kind: 'FOLLOWUP_TASK_ASSIGNED',
@@ -4548,8 +4524,9 @@ export async function executeStagedAction(params: {
           },
         });
 
-        notificationIntentIds.push(assigneeId);
-        notificationsDeliveredIds.push(assigneeId);
+        if (sendAlert) { notificationIntentIds.push(assigneeId); notificationsDeliveredIds.push(assigneeId); }
+        const channel = linkedChannel || linkedCase?.request.channel;
+        if (channel) await tx.channelMessage.create({ data: { channelId: channel.id, authorId: actor.id, authorName: actor.legalName, authorRole: actor.role, messageType: 'AUDIT_EVENT', body: `Task assigned to ${assignee.legalName}: ${description}` } });
         recordType = 'followup_task';
         recordId = created.id;
         url = `/tasks`;
@@ -4579,7 +4556,7 @@ export async function executeStagedAction(params: {
 
       let attachmentUrl: string | null = null;
       let attachmentName: string | null = null;
-      const attIds: string[] = Array.isArray(materialPayload.attachmentIds) ? materialPayload.attachmentIds : [];
+      const attIds: string[] = materialPayload.attachment_ids || (Array.isArray(materialPayload.attachmentIds) ? materialPayload.attachmentIds : []);
       if (attIds.length > 0) {
         const firstAtt = await tx.attachment.findUnique({ where: { id: String(attIds[0]) } });
         if (firstAtt) {
@@ -4615,7 +4592,7 @@ export async function executeStagedAction(params: {
       });
 
       if (employee.workEmail && !employee.workEmail.endsWith('@bems.internal')) {
-        sendChatMessageEmail({
+        await queueDelivery(tx, actionId, 'CHAT_MESSAGE', {
           to: employee.workEmail,
           recipientName: employee.legalName,
           senderName: actor.legalName,
@@ -4624,7 +4601,7 @@ export async function executeStagedAction(params: {
           attachmentName: null,
           contextTitle: `BEMS ${channelLabel}`,
           actionUrl: `https://bemserp.work/helpdesk?channel=${targetChannel}`,
-        }).catch(() => {});
+        });
       }
 
       notificationIntentIds.push(targetEmployeeId);
@@ -4636,7 +4613,15 @@ export async function executeStagedAction(params: {
     } else if (action.actionType === 'policy_update') {
       const subAction = String(materialPayload.sub_action || materialPayload.action || 'UPDATE_APPROVAL_POLICY').toUpperCase();
 
-      if (subAction === 'UPDATE_MOBILE_GATE' || subAction === 'MOBILE_GATE') {
+      if (subAction === 'EXPORT_REPORT') {
+        resultRecord = await createReportSnapshot(tx, actor, materialPayload);
+        recordType = 'report_export'; recordId = resultRecord.report_id; url = resultRecord.download_url;
+      } else if (subAction === 'DELETE_POLICY') {
+        if (!materialPayload.id) throw new Error('Select an exact policy.');
+        const policy = await tx.approvalPolicy.update({ where: { id: String(materialPayload.id) }, data: { active: false } });
+        recordType = 'approval_policy'; recordId = policy.id; resolvedSubsidiaryId = policy.scopeSubsidiaryId; url = '/policies';
+        resultRecord = { ...policy, minAmountMinor: policy.minAmountMinor.toString(), maxAmountMinor: policy.maxAmountMinor?.toString() ?? null };
+      } else if (subAction === 'UPDATE_MOBILE_GATE' || subAction === 'MOBILE_GATE') {
         const appId = String(materialPayload.appId || 'GMD_APP').toUpperCase();
         const minimumAllowedVersion = String(materialPayload.minimumAllowedVersion || '1.0.0');
         const latestVersionAvailable = String(materialPayload.latestVersionAvailable || minimumAllowedVersion);
@@ -4660,7 +4645,7 @@ export async function executeStagedAction(params: {
           create: {
             appId,
             appName: appId === 'GMD_APP' ? 'BEMS GMD AI' : 'BEMS Staff App',
-            packageName: appId === 'GMD_APP' ? 'com.bemsgroup.gmd_ai' : 'com.bemsgroup.staff',
+            packageName: appId === 'GMD_APP' ? 'com.bemsgroup.bems_gmd_ai' : 'com.bemsfarms.bems_staff_app',
             minimumAllowedVersion,
             latestVersionAvailable,
             forceUpdate,
@@ -4674,74 +4659,18 @@ export async function executeStagedAction(params: {
         url = `/settings`;
         resultRecord = gate;
       } else if (subAction === 'ACTIVATE_MOBILE_APK' || subAction === 'UPLOAD_APK') {
-        const appId = String(materialPayload.appId || 'GMD_APP').toUpperCase();
-        const version = String(materialPayload.version || '1.0.0');
-        const fileName = String(materialPayload.fileName || `${appId.toLowerCase()}-v${version}.apk`);
-        const fileSize = String(materialPayload.fileSize || '58.0 MB');
-        const downloadUrl = String(
-          materialPayload.downloadUrl || (appId === 'GMD_APP' ? '/download/gmd-app.apk' : '/download/staff-app.apk')
-        );
-
-        await tx.mobileAppRelease.updateMany({
-          where: { appId, status: 'ACTIVE' },
-          data: { status: 'ARCHIVE' },
-        });
-
-        await tx.mobileAppGate.upsert({
-          where: { appId },
-          update: { latestVersionAvailable: version, directDownloadUrl: downloadUrl, updatedById: actor.id },
-          create: {
-            appId,
-            appName: appId === 'GMD_APP' ? 'BEMS GMD AI' : 'BEMS Staff App',
-            packageName: appId === 'GMD_APP' ? 'com.bemsgroup.gmd_ai' : 'com.bemsgroup.staff',
-            minimumAllowedVersion: version,
-            latestVersionAvailable: version,
-            forceUpdate: true,
-            directDownloadUrl: downloadUrl,
-            updatedById: actor.id,
-          },
-        });
-
-        const release = await tx.mobileAppRelease.create({
-          data: {
-            appId,
-            version,
-            fileName,
-            fileSize,
-            downloadUrl,
-            status: 'ACTIVE',
-            notes: materialPayload.notes || `Activated via BEMI by ${actor.legalName}`,
-            uploadedBy: actor.legalName,
-          },
-        });
-        recordType = 'mobile_app_release';
-        recordId = release.id;
-        url = `/settings`;
-        resultRecord = release;
+        const artifactId = String(materialPayload.artifact_id || materialPayload.attachment_ids?.[0] || '');
+        const release = await activateMobileArtifact(tx, artifactId, actor);
+        recordType = 'mobile_app_release'; recordId = release.id; url = '/settings'; resultRecord = release;
       } else if (subAction === 'CONFIGURE_CHANNEL' || subAction === 'IMPORT_TEMPLATE') {
         const organizationId = String(materialPayload.organizationId || '');
         if (!organizationId) throw new Error('organizationId is required.');
         resolvedSubsidiaryId = organizationId;
 
         if (subAction === 'IMPORT_TEMPLATE') {
-          const templateId = String(materialPayload.templateId || 'STANDARD_CORPORATE').toUpperCase();
-          const saved = await tx.workspaceSetting.upsert({
-            where: { organizationId_key: { organizationId, key: 'governance.template' } },
-            create: {
-              organizationId,
-              key: 'governance.template',
-              value: JSON.stringify({ templateId, importedAt: new Date().toISOString(), importedById: actor.id }),
-              updatedById: actor.id,
-            },
-            update: {
-              value: JSON.stringify({ templateId, importedAt: new Date().toISOString(), importedById: actor.id }),
-              updatedById: actor.id,
-            },
-          });
-          recordType = 'workspace_setting';
-          recordId = saved.id;
-          url = `/settings`;
-          resultRecord = { organizationId, templateId, settingId: saved.id };
+          const templateId = String(materialPayload.templateId || 'STANDARD_CORPORATE');
+          resultRecord = await applyGovernanceTemplate(tx, organizationId, templateId, actor.id);
+          recordType = 'workspace_setting'; recordId = resultRecord.settingId; url = '/settings';
         } else {
           const existing = await tx.workspaceSetting.findUnique({
             where: { organizationId_key: { organizationId, key: 'notification.channels' } },
@@ -4753,7 +4682,9 @@ export async function executeStagedAction(params: {
               if (Array.isArray(parsed)) channels = parsed;
             } catch {}
           }
-          const chan = materialPayload.channel || { name: 'WhatsApp Bot Bridge', status: 'Live' };
+          const chan = materialPayload.channel;
+          if (!chan || !String(chan.name || '').trim()) throw new Error('A channel name and configuration are required.');
+          chan.status = chan.status === 'Disabled' ? 'Disabled' : 'Configured';
           const idx = channels.findIndex((c) => String(c.name || '').toLowerCase() === String(chan.name || '').toLowerCase());
           if (idx >= 0) channels[idx] = { ...channels[idx], ...chan };
           else channels.push(chan);
@@ -4776,7 +4707,12 @@ export async function executeStagedAction(params: {
           throw new Error('organizationId, key, and value are required to update workspace settings.');
         }
         resolvedSubsidiaryId = organizationId;
-        const json = typeof value === 'string' ? value : JSON.stringify(value);
+        if (!['approval.controls', 'notifications.preferences', 'data.retention', 'ai.access'].includes(key)) throw new Error('Unsupported settings section.');
+        const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
+        if (!parsedValue || typeof parsedValue !== 'object' || Array.isArray(parsedValue)) throw new Error('Settings must be an object.');
+        const normalizedValue = key === 'ai.access' ? normalizeAiAccessMatrix(parsedValue) : parsedValue;
+        const json = JSON.stringify(normalizedValue);
+        if (json.length > 16000) throw new Error('Settings are too large.');
         const saved = await tx.workspaceSetting.upsert({
           where: { organizationId_key: { organizationId, key } },
           create: { organizationId, key, value: json, updatedById: actor.id },
@@ -4787,6 +4723,12 @@ export async function executeStagedAction(params: {
         url = `/settings`;
         resultRecord = saved;
       } else {
+        if (!['UPDATE_APPROVAL_POLICY', 'UPSERT_POLICY'].includes(subAction)) throw new Error('Unsupported policy operation.');
+        const policyRole = normalizeCanonicalRole(materialPayload.requiredRole || 'GMD');
+        if (!policyRole || policyRole === 'STAFF') throw new Error('Approval policies require GMD or Super Admin authority.');
+        const min = Number(materialPayload.minAmount ?? 0);
+        const max = materialPayload.maxAmount == null ? null : Number(materialPayload.maxAmount);
+        if (!Number.isFinite(min) || min < 0 || (max !== null && (!Number.isFinite(max) || max < min))) throw new Error('Approval limits must be finite, nonnegative, and ordered.');
         const minAmountMinor = BigInt(Math.round((Number(materialPayload.minAmount) || 0) * 100));
         const maxAmountMinor =
           materialPayload.maxAmount !== null && materialPayload.maxAmount !== undefined
@@ -4798,7 +4740,7 @@ export async function executeStagedAction(params: {
           category: materialPayload.category || null,
           minAmountMinor,
           maxAmountMinor,
-          requiredRole: materialPayload.requiredRole || 'GMD',
+          requiredRole: policyRole,
           priority: Number(materialPayload.priority) || 1,
           active: materialPayload.active !== undefined ? Boolean(materialPayload.active) : true,
         };
@@ -4820,14 +4762,20 @@ export async function executeStagedAction(params: {
       throw new Error(`Unsupported action type: ${action.actionType}`);
     }
 
+    if ((action.actionType === 'grn_creation' || action.actionType === 'vendor_invoice_creation') && resultRecord?.requestId) {
+      resultRecord.threeWayMatch = await executeThreeWayMatch({ requestId: resultRecord.requestId, actorId: actor.id, actorName: actor.legalName, actorRole: actor.role }, tx);
+    }
+    resultRecord = stripAuthenticationSecrets(resultRecord);
+
     // Resolve actual Group & Subsidiary scope for AuditEvent
     const groupOrg = await tx.organization.findFirst({
       where: { OR: [{ type: 'GROUP' }, { code: 'BEMS-GROUP' }, { code: 'BEMS-HQ' }] },
       select: { id: true },
     });
     const resolvedGroupId = groupOrg?.id || resolvedSubsidiaryId || 'BEMS-GROUP';
+    const queued = await tx.$queryRaw<Array<{ count: bigint }>>`SELECT count(*) AS count FROM "DeliveryOutbox" WHERE "commandId" = ${actionId} AND "status" <> 'SENT'`;
     const deliveryStatus: 'DELIVERED' | 'QUEUED' | 'NOT_APPLICABLE' =
-      notificationsDeliveredIds.length > 0
+      Number(queued[0]?.count || 0) > 0 ? 'QUEUED' : notificationsDeliveredIds.length > 0
         ? 'DELIVERED'
         : notificationIntentIds.length > 0
         ? 'QUEUED'
@@ -4844,7 +4792,7 @@ export async function executeStagedAction(params: {
         subsidiaryId: resolvedSubsidiaryId,
         targetType: recordType.toUpperCase(),
         targetId: recordId,
-        action: `AI_STAGED_${action.actionType.toUpperCase()}_EXECUTED`,
+        action: `${source}_${action.actionType.toUpperCase()}_EXECUTED`,
         correlationId: effectiveIdempotencyKey,
         metadata: JSON.stringify({
           stagedActionId: actionId,
@@ -4858,218 +4806,30 @@ export async function executeStagedAction(params: {
       },
     });
 
-    // Persist committed execution result onto the claimed StagedAction
-    const sideEffectState =
-      deliveryStatus === 'DELIVERED'
-        ? 'DELIVERED'
-        : deliveryStatus === 'QUEUED'
-        ? 'PENDING_RETRY'
-        : 'NOT_APPLICABLE';
-
-    await tx.stagedAction.update({
-      where: { id: actionId },
-      data: {
-        status: 'EXECUTED',
-        executedAt: txNow,
-        idempotencyKey: effectiveIdempotencyKey,
-        auditEventId,
-        sideEffectStatus: sideEffectState,
-        sideEffectLogJson: JSON.stringify({
-          notification_intent: notificationIntentIds,
-          notifications_sent: notificationsDeliveredIds,
-          delivery_status: deliveryStatus,
-          updated_at: txNow.toISOString(),
-        }),
-        resultJson: JSON.stringify({
-          record_type: recordType,
-          record_id: recordId,
-          url,
-          record: resultRecord,
-          subsidiary_id: resolvedSubsidiaryId,
-          notification_intent: notificationIntentIds,
-          notifications_sent: notificationsDeliveredIds,
-          notification_delivery_status: deliveryStatus,
-          side_effect_status: sideEffectState,
-          audit_event_id: auditEventId,
-        }),
-      },
-    });
-    });
-  } catch (err: any) {
-    if (err instanceof StaleTargetError) {
-      // Mark the stale proposal as EXPIRED so a fresh preview must be requested
-      await prisma.stagedAction.updateMany({
-        where: { id: actionId, status: 'PENDING' },
-        data: { status: 'EXPIRED' },
-      }).catch(() => {});
-      return {
-        ok: false,
-        errorCode: 'TARGET_CHANGED',
-        status: 'EXPIRED',
-        message: err.message,
-      };
-    }
-    if (err instanceof StagedStateConflictError) {
-      return {
-        ok: false,
-        errorCode: err.errorCode,
-        status:
-          err.errorCode === 'ALREADY_EXECUTED'
-            ? 'EXECUTED'
-            : err.errorCode === 'CANCELLED'
-            ? 'CANCELLED'
-            : 'EXPIRED',
-        message: err.message,
-      };
-    }
-    if (err instanceof StagedValidationError || err instanceof StagedPermissionError) {
-      return {
-        ok: false,
-        errorCode: err.errorCode,
-        message: err.message,
-      };
-    }
-    return {
-      ok: false,
-      errorCode: 'EXECUTION_FAILED',
-      message: err?.message || 'Failed to execute staged action.',
-    };
-  }
-
-  if (
-    (action.actionType === 'grn_creation' || action.actionType === 'vendor_invoice_creation') &&
-    resultRecord?.requestId
-  ) {
-    try {
-      const matchReport = await executeThreeWayMatch({
-        requestId: resultRecord.requestId,
-        ...(action.actionType === 'grn_creation' ? { grnId: resultRecord.id } : { invoiceId: resultRecord.id }),
-        actorId: actor.id,
-        actorName: actor.legalName,
-        actorRole: actor.role,
-      });
-      resultRecord.threeWayMatch = matchReport;
-    } catch {
-      // Non-fatal if counter-documents aren't uploaded yet
-    }
-  }
-
-  const finalDeliveryStatus: 'DELIVERED' | 'QUEUED' | 'NOT_APPLICABLE' =
-    notificationsDeliveredIds.length > 0
-      ? 'DELIVERED'
-      : notificationIntentIds.length > 0
-      ? 'QUEUED'
-      : 'NOT_APPLICABLE';
-
-  return {
-    ok: true,
-    status: 'EXECUTED',
-    record_type: recordType,
-    record_id: recordId,
-    url,
-    record: resultRecord,
-    notification_intent: notificationIntentIds,
-    notifications_sent: notificationsDeliveredIds,
-    notification_delivery_status: finalDeliveryStatus,
-    audit_event_id: auditEventId,
-  };
+  return { resultRecord, recordType, recordId, url, resolvedSubsidiaryId, notificationIntentIds, notificationsDeliveredIds, deliveryStatus };
 }
 
-/**
- * Retries failed or queued notification/integration side-effects for an already EXECUTED
- * staged action without repeating the underlying business database mutation (Audit Item 05 Pillar 5).
- */
-export async function retryStagedActionSideEffects(params: {
-  actionId: string;
-  actor: { id: string; legalName: string; role: string };
-}) {
-  const { actionId, actor } = params;
-  const canonicalRole = normalizeThreeRole(actor.role);
-  if (!canonicalRole || (canonicalRole !== 'GMD' && canonicalRole !== 'SUPER_ADMIN')) {
-    return {
-      ok: false,
-      errorCode: 'NOT_PERMITTED',
-      message: 'Executive authority is required to retry staged action side-effects.',
-    };
-  }
-
-  const action = await prisma.stagedAction.findUnique({ where: { id: actionId } });
-  if (!action) {
-    return {
-      ok: false,
-      errorCode: 'NOT_FOUND',
-      message: `Staged action ${actionId} not found.`,
-    };
-  }
-
-  if (action.status !== 'EXECUTED') {
-    return {
-      ok: false,
-      errorCode: 'INVALID_STATE',
-      message: `Only EXECUTED staged actions can retry side-effects (current status: ${action.status}).`,
-    };
-  }
-
-  let parsedResult: Record<string, any> = {};
-  try {
-    parsedResult = action.resultJson ? JSON.parse(action.resultJson) : {};
-  } catch {}
-
-  const intentIds: string[] = Array.isArray(parsedResult.notification_intent) ? parsedResult.notification_intent : [];
-  const alreadySentIds = new Set<string>(
-    Array.isArray(parsedResult.notifications_sent) ? parsedResult.notifications_sent : []
-  );
-
-  const newlySentIds: string[] = [];
-  for (const recipientId of intentIds) {
-    if (!alreadySentIds.has(recipientId)) {
-      await prisma.systemNotification.create({
-        data: {
-          employeeId: recipientId,
-          kind: 'STAGED_ACTION_FOLLOWUP',
-          title: `Action Executed: ${action.summary}`,
-          body: `Executive action "${action.summary}" was completed by ${actor.legalName}.`,
-          linkUrl: parsedResult.url || '/dashboard',
-        },
-      }).catch(() => {});
-      alreadySentIds.add(recipientId);
-      newlySentIds.push(recipientId);
-    }
-  }
-
-  const updatedSent = Array.from(alreadySentIds);
-  const newDeliveryStatus = updatedSent.length > 0 ? 'DELIVERED' : intentIds.length > 0 ? 'QUEUED' : 'NOT_APPLICABLE';
-  const newSideEffectStatus = newDeliveryStatus === 'DELIVERED' ? 'DELIVERED' : 'NOT_APPLICABLE';
-
-  const updatedResult = {
-    ...parsedResult,
-    notifications_sent: updatedSent,
-    notification_delivery_status: newDeliveryStatus,
-    side_effect_status: newSideEffectStatus,
-  };
-
-  await prisma.stagedAction.update({
-    where: { id: actionId },
-    data: {
-      sideEffectStatus: newSideEffectStatus,
-      sideEffectLogJson: JSON.stringify({
-        notification_intent: intentIds,
-        notifications_sent: updatedSent,
-        retried_by: actor.id,
-        retried_at: new Date().toISOString(),
-        newly_dispatched: newlySentIds,
-      }),
-      resultJson: JSON.stringify(updatedResult),
-    },
-  });
-
-  return {
-    ok: true,
-    staged_action_id: actionId,
-    side_effect_status: newSideEffectStatus,
-    notification_delivery_status: newDeliveryStatus,
-    newly_dispatched: newlySentIds,
-    notifications_sent: updatedSent,
-  };
+export async function executeDashboardCommand(
+  actor: { id: string; legalName: string; role: string; employeeNumber?: string },
+  actionType: StagedActionType,
+  materialPayload: Record<string, any>
+) {
+  validateStageActionProposal(actionType, materialPayload, 'Dashboard command');
+  const descriptor = getCommandDescriptor(actionType);
+  const role = normalizeCanonicalRole(actor.role);
+  if (!descriptor) throw new StagedPermissionError('Unknown business command.');
+  const hrScope = role === 'STAFF' && (actionType === 'leave_action' || (actionType === 'attendance_override' && ['CALIBRATE_STATION', 'UPDATE_POLICY', 'TOGGLE_STARLINK_LOCK', 'TOGGLE_GEOFENCE_LOCK', 'TOGGLE_POWER_OUTAGE'].includes(String(materialPayload.action_type))) || (actionType === 'payroll_action' && String(materialPayload.sub_action).toUpperCase() === 'PREPARE')) ? await getHrAuthorizationScope(actor as any) : null;
+  const hrAuthorized = hrScope?.authorized && (actionType === 'leave_action' || hrScope.isGlobal || ((materialPayload.organization_id || materialPayload.organizationId) && hrScope.subsidiaryIds.includes(materialPayload.organization_id || materialPayload.organizationId)));
+  const selfTaskUpdate = role === 'STAFF' && actionType === 'task_action' && ['COMPLETE_TASK', 'REOPEN_TASK'].includes(String(materialPayload.sub_action));
+  if (!role || (!descriptor?.allowedCallerRoles.includes(role) && !hrAuthorized && !selfTaskUpdate)) throw new StagedPermissionError('This dashboard operation is not permitted for the selected workspace.');
+  return prisma.$transaction(async tx => {
+    const liveActor = await tx.employee.findUnique({ where: { id: actor.id } });
+    if (!liveActor || liveActor.status !== 'ACTIVE' || liveActor.approvalStatus !== 'APPROVED' || normalizeCanonicalRole(liveActor.role) !== role) throw new StagedPermissionError('Your account is no longer authorized.');
+    const id = crypto.randomUUID();
+    const result = await executeBusinessCommand(tx, {
+      action: { actionType, userId: actor.id, summary: descriptor.title }, actor, materialPayload,
+      actionId: id, effectiveIdempotencyKey: 'dashboard_' + id, auditEventId: 'aud_' + id, source: 'DASHBOARD',
+    });
+    return result.resultRecord;
+  }, { timeout: 20000, isolationLevel: 'Serializable' });
 }
-

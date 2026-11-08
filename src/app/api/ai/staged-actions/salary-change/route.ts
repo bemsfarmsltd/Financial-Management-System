@@ -6,6 +6,7 @@ import { inspectEmployeeCompensationContext } from '@/lib/services/compensation'
 export async function POST(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req, { allowServiceToken: true });
+    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
     if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Only authorized executives can stage compensation changes.' }, { status: 403 });
@@ -146,7 +147,8 @@ export async function POST(req: Request) {
     };
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'salary_change',
       targetEmployeeId: ctx.employee.id,
       targetSubsidiaryId: ctx.subsidiaryId,

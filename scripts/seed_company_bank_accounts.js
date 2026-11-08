@@ -1,3 +1,10 @@
+// Destructive maintenance requires a deliberate target and a completed backup.
+const maintenanceUrl = process.env.DATABASE_URL || '';
+if (!process.argv.includes('--execute') || process.env.BEMS_MAINTENANCE_DATABASE !== maintenanceUrl || !process.env.BEMS_MAINTENANCE_BACKUP) {
+  console.error('Dry run. To execute, provide --execute, the exact BEMS_MAINTENANCE_DATABASE target, and BEMS_MAINTENANCE_BACKUP identifying the verified backup.');
+  process.exit(0);
+}
+if (process.env.NODE_ENV === 'production') throw new Error('Run destructive maintenance only against an isolated non-production database.');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 

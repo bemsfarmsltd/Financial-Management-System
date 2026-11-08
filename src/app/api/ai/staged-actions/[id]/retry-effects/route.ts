@@ -28,6 +28,7 @@ export async function POST(
     }
 
     const actor = await getAuthenticatedEmployee(req, { disallowServiceToken: true });
+    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
     if (!actor) {
       return NextResponse.json(
         { ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' },

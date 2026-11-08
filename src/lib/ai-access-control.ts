@@ -18,29 +18,21 @@ export type { AiAccessMatrix, AiAccessScopeKey, AiScopeDefinition };
 
 /**
  * Loads the active `ai.access` matrix from `WorkspaceSetting`.
- * Checks the specified organization first, or falls back to the most recently updated `'ai.access'` row across organizations.
+ * Group controls set the maximum permissions; an entity can narrow them independently.
  */
 export async function getAiAccessMatrix(organizationId?: string): Promise<AiAccessMatrix> {
   try {
-    if (organizationId) {
-      const specific = await prisma.workspaceSetting.findUnique({
-        where: { organizationId_key: { organizationId, key: 'ai.access' } },
-      });
-      if (specific) {
-        return normalizeAiAccessMatrix(JSON.parse(specific.value));
-      }
-    }
-    const latest = await prisma.workspaceSetting.findFirst({
-      where: { key: 'ai.access' },
-      orderBy: { updatedAt: 'desc' },
-    });
-    if (latest) {
-      return normalizeAiAccessMatrix(JSON.parse(latest.value));
-    }
+    const group = await prisma.organization.findFirst({ where: { type: 'GROUP', status: 'ACTIVE' }, select: { id: true } });
+    const groupSetting = group ? await prisma.workspaceSetting.findUnique({ where: { organizationId_key: { organizationId: group.id, key: 'ai.access' } } }) : null;
+    const base = groupSetting ? normalizeAiAccessMatrix(JSON.parse(groupSetting.value)) : buildDefaultAiAccessMatrix();
+    if (!organizationId || organizationId === group?.id) return base;
+    const specific = await prisma.workspaceSetting.findUnique({ where: { organizationId_key: { organizationId, key: 'ai.access' } } });
+    if (!specific) return base;
+    const local = normalizeAiAccessMatrix(JSON.parse(specific.value));
+    return Object.fromEntries(Object.keys(base).map(key => [key, base[key as keyof AiAccessMatrix] !== false && local[key as keyof AiAccessMatrix] !== false])) as AiAccessMatrix;
   } catch {
-    // Fallback to all-enabled defaults if DB read or JSON parse fails
+    return { ...buildDefaultAiAccessMatrix(), 'master.read': false, 'master.write': false };
   }
-  return buildDefaultAiAccessMatrix();
 }
 
 /**
@@ -66,6 +58,7 @@ export function resolveScopeFromPathname(pathname: string): AiAccessScopeKey | n
   if (clean === '/api/ai/context' || clean === '/api/ai/tools' || clean === '/api/ai/chat') {
     return 'context';
   }
+  if (clean.startsWith('/api/ai/tools/wallet')) return 'wallet';
   if (clean.startsWith('/api/ai/tools/approvals')) return 'approvals';
   if (clean.startsWith('/api/ai/tools/requests')) return 'requests';
   if (clean.startsWith('/api/ai/tools/accountability')) return 'accountability';

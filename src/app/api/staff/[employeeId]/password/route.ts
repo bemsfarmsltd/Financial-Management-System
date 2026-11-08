@@ -22,6 +22,7 @@ export async function POST(
     }
 
     const { employeeId } = await params;
+    if(process.env.BEMS_WALLET_ENABLED==='true' && actor.id!==employeeId) return NextResponse.json({error:'Wallet-owner passwords cannot be reset by another administrator. Use owner-verified recovery.'},{status:403});
     const isOwner = actor.id === employeeId;
     const isExecutive = hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
 

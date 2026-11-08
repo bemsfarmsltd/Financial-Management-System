@@ -78,7 +78,7 @@ export async function verifyStagedAttachments(params: {
 
     const mimeLower = (row.contentType || '').toLowerCase();
     const isApkFile = row.fileName.toLowerCase().endsWith('.apk');
-    if (!ALLOWED_STAGED_MIME_TYPES.has(mimeLower) && !isApkFile) {
+    if (!ALLOWED_STAGED_MIME_TYPES.has(mimeLower)) {
       return {
         valid: false,
         attachments: [],
@@ -86,11 +86,13 @@ export async function verifyStagedAttachments(params: {
       };
     }
 
-    const checksum =
-      row.checksum ||
-      (row.fileData
-        ? computeBufferSha256(Buffer.from(row.fileData))
-        : `sha256:${crypto.createHash('sha256').update(`${row.id}:${row.fileUrl}`).digest('hex')}`);
+    if (!row.fileData || row.fileData.length === 0) {
+      return { valid: false, attachments: [], errorMessage: 'Evidence file bytes are unavailable. Upload the file again.' };
+    }
+    const checksum = computeBufferSha256(Buffer.from(row.fileData));
+    if (row.checksum && row.checksum.replace(/^sha256:/, '') !== checksum.replace(/^sha256:/, '')) {
+      return { valid: false, attachments: [], errorMessage: 'Evidence checksum does not match the stored file.' };
+    }
 
     verified.push({
       id: row.id,

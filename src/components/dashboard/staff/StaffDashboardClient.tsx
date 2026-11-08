@@ -1340,6 +1340,7 @@ export function StaffDashboardClient({
       {/* ========================================================= */}
       {/* TOP HEADER: SPANS FROM LEFT TO RIGHT ACROSS ENTIRE SCREEN */}
       {/* ========================================================= */}
+      <Link href="/wallet" className="block bg-orange-700 px-6 py-3 text-center font-bold text-white">My wallet · approved funds and payment history</Link>
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 py-3.5 shadow-sm w-full">
         <div className="max-w-[1600px] mx-auto flex items-center justify-between">
           {/* Left: Avatar + Identity */}

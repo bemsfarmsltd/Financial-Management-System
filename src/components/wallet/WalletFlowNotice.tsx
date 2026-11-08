@@ -1,0 +1,4 @@
+'use client';
+import {useEffect,useState} from 'react';
+import Link from 'next/link';
+export default function WalletFlowNotice(){const[enabled,setEnabled]=useState(false);useEffect(()=>{let current=true;fetch('/api/meta/features',{cache:'no-store'}).then(r=>r.json()).then(d=>{if(current)setEnabled(d.walletMode===true);}).catch(()=>{});return()=>{current=false;};},[]);return enabled?<aside className="mb-4 rounded-xl border border-orange-300 bg-orange-50 p-4"><strong>Wallet payment mode</strong><p>Prepare and approve new payments through funded wallets. Only GMD can release money. Historical bank-payment records remain available below.</p><Link href="/wallet/funding" className="font-bold text-orange-800">Open funded budgets, request releases and payroll approvals →</Link></aside>:null;}

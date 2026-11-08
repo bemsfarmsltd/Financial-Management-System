@@ -1,9 +1,11 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/auth_models.dart';
 import '../models/chat_models.dart';
 
 class ChatStorageService {
+  static const _secure = FlutterSecureStorage(aOptions: AndroidOptions(encryptedSharedPreferences: true));
   static const String _keyUser = 'bems_auth_user';
   static const String _keySeenWelcome = 'bems_seen_first_welcome';
   static const String _keySeenOnboardingCarousel = 'bems_seen_onboarding_carousel_v1';
@@ -14,12 +16,18 @@ class ChatStorageService {
   // --- Auth & User ---
   static Future<void> saveUser(AuthUser user) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyUser, jsonEncode(user.toJson()));
+    await _secure.write(key: _keyUser, value: jsonEncode(user.toJson()));
+    await prefs.remove(_keyUser);
   }
 
   static Future<AuthUser?> getUser() async {
     final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getString(_keyUser);
+    final legacyUser = prefs.getString(_keyUser);
+    if (legacyUser != null) {
+      await _secure.write(key: _keyUser, value: legacyUser);
+      await prefs.remove(_keyUser);
+    }
+    final data = await _secure.read(key: _keyUser);
     if (data == null || data.isEmpty) return null;
     try {
       return AuthUser.fromJson(jsonDecode(data));
@@ -31,6 +39,7 @@ class ChatStorageService {
   static Future<void> clearUser() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyUser);
+    await _secure.delete(key: _keyUser);
     await prefs.remove(_keySeenWelcome);
   }
 
@@ -63,15 +72,22 @@ class ChatStorageService {
     }
   }
 
+  static Future<String> _accountKey(String key) async {
+    final user = await getUser();
+    if (user == null || user.id.isEmpty) throw StateError('Sign in before reading private app data.');
+    return '${key}_${user.id}';
+  }
+
   // --- Chat Sessions ---
   static Future<List<ChatSession>> getSessions() async {
     final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getString(_keySessions);
+    await prefs.remove(_keySessions);
+    final data = await _secure.read(key: await _accountKey(_keySessions));
     if (data == null || data.isEmpty) {
       // Default welcome initial session
       return [
         ChatSession(
-          id: 'session-default',
+          id: 'session-${DateTime.now().microsecondsSinceEpoch}',
           title: 'Autonomous Ledger Governance',
           updatedAt: 'Today',
           messages: [
@@ -80,7 +96,7 @@ class ChatStorageService {
               sender: 'assistant',
               timestamp: 'Just now',
               content:
-                  'Good day, Executive. I am your BEMS Executive Copilot. Your treasury reserves, requisition approvals, and 72-hour advances are synchronized.',
+                  'Good day, Executive. I am your BEMS Executive Copilot. Ask me to review your records or prepare an action for approval.',
             ),
           ],
         ),
@@ -97,7 +113,8 @@ class ChatStorageService {
   static Future<void> saveSessions(List<ChatSession> sessions) async {
     final prefs = await SharedPreferences.getInstance();
     final data = jsonEncode(sessions.map((s) => s.toJson()).toList());
-    await prefs.setString(_keySessions, data);
+    await prefs.remove(_keySessions);
+    await _secure.write(key: await _accountKey(_keySessions), value: data);
   }
 
   static Future<void> upsertSession(ChatSession session) async {
@@ -119,12 +136,14 @@ class ChatStorageService {
 
   static Future<String?> getActiveSessionId() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyActiveSessionId);
+    await prefs.remove(_keyActiveSessionId);
+    return await _secure.read(key: await _accountKey(_keyActiveSessionId));
   }
 
   static Future<void> setActiveSessionId(String id) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyActiveSessionId, id);
+    await prefs.remove(_keyActiveSessionId);
+    await _secure.write(key: await _accountKey(_keyActiveSessionId), value: id);
   }
 
   // --- GMD Biometrics & Executive Security ---
@@ -187,20 +206,23 @@ class ChatStorageService {
 
   static Future<String?> getSecurityPin() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keySecurityPin);
+    await prefs.remove(_keySecurityPin);
+    return await _secure.read(key: await _accountKey(_keySecurityPin));
   }
 
   static Future<void> setSecurityPin(String pin) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keySecurityPin, pin);
+    await prefs.remove(_keySecurityPin);
+    await _secure.write(key: await _accountKey(_keySecurityPin), value: pin);
   }
 
   static Future<bool> verifySecurityPin(String pin) async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_keySecurityPin);
+    await prefs.remove(_keySecurityPin);
+    final saved = await _secure.read(key: await _accountKey(_keySecurityPin));
     if (saved == null || saved.isEmpty) {
-      // Default initial executive pin if unconfigured
-      return pin == '1234' || pin == '0000';
+      // An unconfigured PIN never unlocks the application.
+      return false;
     }
     return saved == pin;
   }
@@ -212,6 +234,7 @@ class ChatStorageService {
     await prefs.remove(_keyBioEnrolledAt);
     await prefs.remove(_keyBioFingerLabel);
     await prefs.remove(_keySecurityPin);
+    await _secure.delete(key: await _accountKey(_keySecurityPin));
   }
 
   // --- Executive Workstation Preferences ---

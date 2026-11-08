@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 export interface ThreeWayMatchResult {
@@ -208,10 +209,12 @@ export async function executeThreeWayMatch(params: {
   actorId?: string;
   actorName?: string;
   actorRole?: string;
-}): Promise<ThreeWayMatchResult> {
+}, client?: Prisma.TransactionClient): Promise<ThreeWayMatchResult> {
+  if (!client) return prisma.$transaction(tx => executeThreeWayMatch(params, tx), { isolationLevel: 'Serializable' });
+  const db = client;
   const { requestId, invoiceId, grnId, actorId, actorName, actorRole } = params;
 
-  const request = await prisma.expenditureRequest.findUnique({
+  const request = await db.expenditureRequest.findUnique({
     where: { id: requestId },
     include: {
       vendor: true,
@@ -237,12 +240,12 @@ export async function executeThreeWayMatch(params: {
   const invoiceAmountMinor = computed.invoiceAmountMinor ?? 0;
   const varianceMinor = computed.varianceMinor ?? 0;
 
-  await prisma.vendorInvoice.update({
+  await db.vendorInvoice.update({
     where: { id: invoice.id },
     data: { status: computed.targetInvoiceStatus },
   });
 
-  const matchRecord = await prisma.threeWayMatchRecord.upsert({
+  const matchRecord = await db.threeWayMatchRecord.upsert({
     where: { requestId: request.id },
     create: {
       requestId: request.id,
@@ -265,7 +268,7 @@ export async function executeThreeWayMatch(params: {
   });
 
   try {
-    await prisma.auditEvent.create({
+    await db.auditEvent.create({
       data: {
         actorId: actorId || null,
         actorName: actorName || '3-Way Match Verification Engine',
@@ -288,7 +291,7 @@ export async function executeThreeWayMatch(params: {
       },
     });
   } catch (e) {
-    console.warn('Could not record match audit event:', e);
+    throw e;
   }
 
   return {

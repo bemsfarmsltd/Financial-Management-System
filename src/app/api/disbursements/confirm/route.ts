@@ -1,3 +1,4 @@
+import { accountabilityDeadline } from '@/lib/services/accountability-deadline';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -155,7 +156,7 @@ export async function POST(request: Request) {
             requestId: disbursement.requestId!,
             ownerUserId: actor.id,
             requiredDeliverables: disbursement.request!.deliverable,
-            dueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            dueAt: await accountabilityDeadline(disbursement.request!.subsidiaryId, disbursement.request!.requestType === 'EMERGENCY', disbursement.paidAt, tx),
             status: 'OPEN',
           },
           update: {},

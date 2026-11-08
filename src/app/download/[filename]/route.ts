@@ -1,3 +1,4 @@
+import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
@@ -17,44 +18,10 @@ export async function GET(
     }
 
     const downloadsDir = path.join(process.cwd(), 'public', 'downloads');
-    let targetPath = path.join(downloadsDir, safeFilename);
-
-    let fileBuffer: Buffer | null = null;
-
-    try {
-      fileBuffer = await fs.readFile(targetPath);
-    } catch {
-      // Fallback aliases for GMD and Staff apps
-      const lower = safeFilename.toLowerCase();
-      const candidates: string[] = [];
-
-      if (lower.includes('gmd')) {
-        candidates.push(
-          'BEMS-GMD-Executive-v1.3.3.apk',
-          'BEMS-GMD-Executive-Cockpit-v1.3.3.apk',
-          'gmd-app.apk',
-          'BEMS-GMD-Executive-Cockpit.apk'
-        );
-      } else if (lower.includes('staff')) {
-        candidates.push(
-          'BEMS-Staff-Portal-v1.3.3.apk',
-          'staff-app.apk',
-          'BEMS-Staff-App.apk',
-          'BEMS-Staff-Portal.apk'
-        );
-      }
-
-      for (const cand of candidates) {
-        try {
-          const candPath = path.join(downloadsDir, cand);
-          fileBuffer = await fs.readFile(candPath);
-          targetPath = candPath;
-          break;
-        } catch {
-          // Continue to next candidate
-        }
-      }
-    }
+    const appId = safeFilename === 'gmd-app.apk' ? 'GMD_APP' : safeFilename === 'staff-app.apk' ? 'STAFF_APP' : null;
+    const active = appId ? await prisma.mobileAppRelease.findFirst({ where: { appId, status: 'ACTIVE' }, orderBy: { createdAt: 'desc' } }) : null;
+    const targetPath = path.join(downloadsDir, path.basename(active?.fileName || safeFilename));
+    const fileBuffer = await fs.readFile(targetPath).catch(() => null);
 
     if (!fileBuffer) {
       return NextResponse.json(

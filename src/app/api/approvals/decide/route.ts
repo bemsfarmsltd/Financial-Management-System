@@ -1,191 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { requestIdentifierWhere, toSystemRequestId } from '@/lib/request-id';
-import { sendApprovalDecisionEmail } from '@/lib/email';
-
-export const dynamic = 'force-dynamic';
+import { executeDashboardCommand } from '@/lib/staged-actions';
 
 export async function POST(request: Request) {
+  const actor = await getAuthenticatedEmployee(request, { disallowServiceToken: true });
+  if (!actor) return NextResponse.json({ error: 'Sign in to record a decision.' }, { status: 401 });
   try {
-    const actor = await getAuthenticatedEmployee(request);
-    if (!actor) return NextResponse.json({ error: 'Sign in to record an approval decision.' }, { status: 401 });
     const body = await request.json();
-    const { requestId, requestIds, decision, note, disbursementAssigneeId } = body;
-    const ids: string[] = Array.isArray(requestIds) && requestIds.length > 0 ? requestIds : requestId ? [requestId] : [];
+    const ids = Array.isArray(body.requestIds) ? body.requestIds : body.requestId ? [body.requestId] : [];
     if (!ids.length) return NextResponse.json({ error: 'Choose at least one request.' }, { status: 400 });
-    const normalizedDecision = decision === 'APPROVE' ? 'APPROVED' : decision === 'REJECT' ? 'REJECTED' : decision;
-    if (!['APPROVED', 'REJECTED', 'CLARIFICATION_REQUESTED'].includes(normalizedDecision)) {
-      return NextResponse.json({ error: 'Invalid decision type.' }, { status: 400 });
-    }
-
-    const results = [];
-    for (const id of ids) {
-      const expReq = await prisma.expenditureRequest.findUnique({
-        where: requestIdentifierWhere(id),
-        include: { approvalSteps: { orderBy: { stageIndex: 'asc' } }, channel: true, requester: true },
-      });
-      if (!expReq) continue;
-      const approvalSettings = await prisma.workspaceSetting.findUnique({ where: { organizationId_key: { organizationId: expReq.subsidiaryId, key: 'approval.controls' } }, select: { value: true } });
-      let policy: { requireDecisionReason?: boolean; requireAssignedDisbursementOwner?: boolean } = {};
-      try { if (approvalSettings?.value) policy = JSON.parse(approvalSettings.value); } catch { policy = {}; }
-      const requiresReason = policy.requireDecisionReason !== false;
-      if (['REJECTED', 'CLARIFICATION_REQUESTED'].includes(normalizedDecision) && requiresReason && (typeof note !== 'string' || !note.trim())) {
-        return NextResponse.json({ error: 'Add a reason before rejecting or requesting clarification.' }, { status: 400 });
-      }
-      const pendingStep = expReq.approvalSteps.find((step) => step.status === 'PENDING');
-      if (!pendingStep) return NextResponse.json({ error: `${expReq.requestNumber} has no pending approval step.` }, { status: 409 });
-      if (!['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'].includes(actor.role) && actor.role !== pendingStep.assignedRole) {
-        return NextResponse.json({ error: `${expReq.requestNumber} is assigned to another approver.` }, { status: 403 });
-      }
-      if (normalizedDecision === 'APPROVED' && expReq.requestedById === actor.id && actor.role !== 'GMD') {
-        return NextResponse.json({ error: `Separation of duties policy: You cannot approve your own request ${expReq.requestNumber}.` }, { status: 403 });
-      }
-
-      const timestamp = new Date();
-      const nextStatus = normalizedDecision === 'REJECTED'
-        ? 'REJECTED'
-        : normalizedDecision === 'CLARIFICATION_REQUESTED'
-          ? 'CLARIFICATION_REQUESTED'
-          : expReq.approvalSteps.some((step) => step.stageIndex > pendingStep.stageIndex && step.status === 'PENDING')
-            ? 'IN_REVIEW'
-            : 'APPROVED';
-      if (normalizedDecision === 'APPROVED' && nextStatus === 'APPROVED' && policy.requireAssignedDisbursementOwner && !disbursementAssigneeId) {
-        return NextResponse.json({ error: 'Assign an executive to record the payment before final approval.' }, { status: 400 });
-      }
-      let disbursementAssignee: { id: string; legalName: string } | null = null;
-      if (normalizedDecision === 'APPROVED' && disbursementAssigneeId) {
-        if (ids.length !== 1 || nextStatus !== 'APPROVED') {
-          return NextResponse.json({ error: 'A disbursement owner can only be assigned on the final approval of one request.' }, { status: 400 });
-        }
-        if (!['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(actor.role)) {
-          return NextResponse.json({ error: 'Only the GMD or Super Admin can assign the disbursement owner.' }, { status: 403 });
-        }
-        disbursementAssignee = await prisma.employee.findFirst({
-          where: {
-            id: String(disbursementAssigneeId),
-            status: 'ACTIVE',
-            approvalStatus: 'APPROVED',
-            role: { in: ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'] },
-          },
-          select: { id: true, legalName: true },
-        });
-        if (!disbursementAssignee) return NextResponse.json({ error: 'Choose an active, approved executive who can record payments.' }, { status: 400 });
-      }
-      await prisma.$transaction(async (tx) => {
-        await tx.approvalStep.update({
-          where: { id: pendingStep.id },
-          data: {
-            status: normalizedDecision === 'APPROVED' ? 'APPROVED' : normalizedDecision === 'REJECTED' ? 'REJECTED' : 'PENDING',
-            approverId: actor.id,
-            approverName: actor.legalName,
-            decidedAt: timestamp,
-            decisionReason: typeof note === 'string' && note.trim() ? note.trim() : 'Approved by authorized reviewer.',
-          },
-        });
-        await tx.expenditureRequest.update({ where: { id: expReq.id }, data: {
-          approvalStatus: nextStatus,
-          updatedAt: timestamp,
-          ...(disbursementAssignee ? { disbursementAssigneeId: disbursementAssignee.id } : {}),
-        } });
-        if (nextStatus === 'APPROVED') {
-          const activeBudget = await tx.budget.findFirst({
-            where: { organizationId: expReq.subsidiaryId, status: 'ACTIVE' },
-            include: { lines: true },
-            orderBy: { createdAt: 'desc' },
-          });
-          if (activeBudget) {
-            const amtNaira = Number(expReq.amountMinor) / 100;
-            await tx.budget.update({
-              where: { id: activeBudget.id },
-              data: { committedAmount: { increment: amtNaira } },
-            });
-            const matchedLine = activeBudget.lines.find(
-              (l) => l.category.toLowerCase() === (expReq.category || '').toLowerCase()
-            );
-            if (matchedLine) {
-              await tx.budgetLine.update({
-                where: { id: matchedLine.id },
-                data: { committedAmount: { increment: amtNaira } },
-              });
-            }
-          }
-        }
-        if (disbursementAssignee) {
-          await tx.systemNotification.create({ data: {
-            employeeId: disbursementAssignee.id,
-            kind: 'DISBURSEMENT_ASSIGNED',
-            title: 'Disbursement assigned to you',
-            body: `${expReq.requestNumber} was approved and assigned to you to record the off-platform payment and upload its receipt.`,
-            linkUrl: '/disbursements',
-          } });
-        }
-        if (expReq.channel) {
-          const actionText = normalizedDecision === 'APPROVED'
-            ? `Approved by ${actor.legalName}.${nextStatus === 'IN_REVIEW' ? ' Routed to the next approval stage.' : disbursementAssignee ? ` Disbursement recording and receipt upload assigned to ${disbursementAssignee.legalName}.` : ' Ready for Finance disbursement recording.'}`
-            : normalizedDecision === 'REJECTED'
-              ? `Declined by ${actor.legalName}: ${note.trim()}`
-              : `Clarification requested by ${actor.legalName}: ${note.trim()}`;
-          await tx.channelMessage.create({
-            data: { channelId: expReq.channel.id, authorId: actor.id, authorName: actor.legalName, authorRole: actor.role, body: actionText, messageType: normalizedDecision === 'CLARIFICATION_REQUESTED' ? 'CLARIFICATION' : 'AUDIT_EVENT' },
-          });
-        }
-        await tx.auditEvent.create({
-          data: {
-            actorId: actor.id, actorName: actor.legalName, actorRole: actor.role,
-            groupId: expReq.groupId, subsidiaryId: expReq.subsidiaryId,
-            targetType: 'REQUEST', targetId: expReq.id,
-            action: normalizedDecision === 'APPROVED' ? 'APPROVED' : normalizedDecision === 'REJECTED' ? 'REJECTED' : 'CLARIFICATION_REQUESTED',
-            correlationId: `CORR-${Date.now()}`,
-            metadata: JSON.stringify({ requestNumber: expReq.requestNumber, note: typeof note === 'string' ? note.trim() : null }),
-          },
-        });
-      });
-
-      // Dispatch decision email to the staff requester
-      if (expReq.requester?.workEmail) {
-        sendApprovalDecisionEmail({
-          to: expReq.requester.workEmail,
-          recipientName: expReq.requester.legalName,
-          decision: normalizedDecision as 'APPROVED' | 'REJECTED' | 'CLARIFICATION_REQUESTED',
-          decidedBy: actor.legalName,
-          decidedByRole: actor.role,
-          requestNumber: expReq.requestNumber,
-          title: expReq.title,
-          amountMinor: Number(expReq.amountMinor),
-          reason: typeof note === 'string' && note.trim() ? note.trim() : null,
-        }).catch((err) => console.error(`Failed to send decision email to ${expReq.requester.workEmail}:`, err));
-      }
-
-      const requesterDisbursementAccount = {
-        bankName: expReq.requester?.bankName || expReq.requester?.salaryBankName || null,
-        accountNumber: expReq.requester?.accountNumber || expReq.requester?.salaryAccountNumber || null,
-        accountName: expReq.requester?.accountName || expReq.requester?.salaryAccountName || expReq.requester?.legalName || '',
-        requesterName: expReq.requester?.legalName || 'Requester',
-        amountNaira: Number(expReq.amountMinor) / 100,
-        amountMinor: expReq.amountMinor.toString(),
-        currency: expReq.currency || 'NGN',
-        title: expReq.title,
-        requestNumber: expReq.requestNumber,
-      };
-
-      results.push({
-        id: expReq.id,
-        systemId: toSystemRequestId(expReq.id),
-        requestNumber: expReq.requestNumber,
-        status: nextStatus,
-        requesterDisbursementAccount,
-      });
-    }
-    return NextResponse.json({
-      success: true,
-      decision: normalizedDecision,
-      processedCount: results.length,
-      results,
-      requesterDisbursementAccount: results[0]?.requesterDisbursementAccount || null,
+    const result = await executeDashboardCommand(actor, 'approval_decision', {
+      request_id: ids[0], request_ids: ids, decision: body.decision, reason: String(body.note || '').trim(),
+      disbursementAssigneeId: body.disbursementAssigneeId,
     });
+    return NextResponse.json({ success: true, result });
   } catch (error) {
-    console.error('Error recording approval decision:', error);
-    return NextResponse.json({ error: 'Failed to process decision.' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Decision failed.' }, { status: 409 });
   }
 }

@@ -1,3 +1,4 @@
+import { executeDashboardCommand } from '@/lib/staged-actions';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
@@ -27,51 +28,9 @@ export async function POST(
       return NextResponse.json({ error: `Business "${businessId}" not found.` }, { status: 404 });
     }
 
-    const cleanTemplate = String(templateId || 'STANDARD_CORPORATE').trim().toUpperCase();
+    const result = await executeDashboardCommand(actor, 'policy_update', { sub_action: 'IMPORT_TEMPLATE', organizationId: org.id, templateId });
+    return NextResponse.json({ ok: true, imported: result.templateId, businessId: org.id, organizationName: org.legalName, appliedSettings: result.appliedSettings });
 
-    await prisma.workspaceSetting.upsert({
-      where: { organizationId_key: { organizationId: org.id, key: 'governance.template' } },
-      create: {
-        organizationId: org.id,
-        key: 'governance.template',
-        value: JSON.stringify({
-          templateId: cleanTemplate,
-          importedAt: new Date().toISOString(),
-          importedById: actor.id,
-        }),
-        updatedById: actor.id,
-      },
-      update: {
-        value: JSON.stringify({
-          templateId: cleanTemplate,
-          importedAt: new Date().toISOString(),
-          importedById: actor.id,
-        }),
-        updatedById: actor.id,
-      },
-    });
-
-    await prisma.auditEvent.create({
-      data: {
-        actorId: actor.id,
-        actorName: actor.legalName,
-        actorRole: actor.role,
-        groupId: org.parentGroupId || org.id,
-        subsidiaryId: org.id,
-        targetType: 'POLICY',
-        targetId: org.id,
-        action: 'TEMPLATE_IMPORTED',
-        correlationId: `TPL-${Date.now()}`,
-        metadata: JSON.stringify({ templateId: cleanTemplate, organizationId: org.id }),
-      },
-    });
-
-    return NextResponse.json({
-      ok: true,
-      imported: cleanTemplate,
-      businessId: org.id,
-      organizationName: org.legalName,
-    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to import template.' }, { status: 500 });
   }

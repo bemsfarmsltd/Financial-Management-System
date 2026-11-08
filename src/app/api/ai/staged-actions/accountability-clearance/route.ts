@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 export async function POST(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req, { allowServiceToken: true });
+    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
     if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN'])) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Only GMD or System Admin can stage accountability clearance.' }, { status: 403 });
@@ -26,7 +27,8 @@ export async function POST(req: Request) {
     if (!accCase) return NextResponse.json({ ok: false, error_code: 'NOT_FOUND', message: `Case ${case_id} not found.` }, { status: 404 });
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'accountability_clearance',
       materialPayload: {
         case_id: accCase.id,

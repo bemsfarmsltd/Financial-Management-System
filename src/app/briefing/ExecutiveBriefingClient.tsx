@@ -118,6 +118,7 @@ interface AccountabilityCaseItem {
 interface DisbursementItem {
   id: string;
   amountNaira: number;
+  currency?: string;
   externalReference: string;
   bankName: string;
   paidAt: string;
@@ -261,7 +262,7 @@ export function ExecutiveBriefingClient({
     const relevantAccounts = selectedSub === 'ALL'
       ? bankAccounts
       : bankAccounts.filter((a) => a.organizationId === selectedSub || a.organization?.id === selectedSub || (a.organization?.legalName && a.organization.legalName.toLowerCase().includes(selectedSub.toLowerCase())) || (a.assignedSubsidiary && a.assignedSubsidiary.toLowerCase().includes(selectedSub.toLowerCase())));
-    const totalLiquid = relevantAccounts.reduce((acc, a) => acc + (Number(a.balance) || 0), 0);
+    const totalLiquid = relevantAccounts.filter(a => !a.currency || a.currency === 'NGN').reduce((acc, a) => acc + (Number(a.balance) || 0), 0);
     const bankNames = relevantAccounts.map((a) => a.bankName).filter(Boolean);
     const uniqueBankNames = Array.from(new Set(bankNames));
     return {
@@ -273,13 +274,14 @@ export function ExecutiveBriefingClient({
 
   // Real monthly burn based on verified disbursements
   const monthlyBurn = useMemo(() => {
-    const totalDisb = filteredDisbList.reduce((acc, d) => acc + d.amountNaira, 0);
-    return totalDisb;
+    const since = Date.now() - 90 * 86400000;
+    const totalDisb = filteredDisbList.filter(d => new Date(d.paidAt).getTime() >= since && (!d.currency || d.currency === 'NGN')).reduce((acc, d) => acc + d.amountNaira, 0);
+    return totalDisb / 3;
   }, [filteredDisbList]);
 
   const runwayMonths = useMemo(() => {
     if (corporateTreasury.totalLiquid <= 0) return '0.0';
-    if (monthlyBurn <= 0) return '12.0';
+    if (monthlyBurn <= 0) return 'Unavailable';
     return (corporateTreasury.totalLiquid / monthlyBurn).toFixed(1);
   }, [corporateTreasury.totalLiquid, monthlyBurn]);
 
@@ -567,12 +569,12 @@ export function ExecutiveBriefingClient({
             {runwayMonths} <span style={{ fontSize: '15px', fontWeight: '500' }}>Months</span>
           </strong>
           <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.9)' }}>
-            {monthlyBurn > 0 ? `At ~₦${(monthlyBurn / 1000000).toFixed(1)}M monthly spend` : 'Safe cash reserve'}
+            {monthlyBurn > 0 ? `At ~₦${(monthlyBurn / 1000000).toFixed(1)}M/month from the displayed 90-day history` : 'Insufficient recorded expense history'}
           </span>
           <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
             <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: corporateTreasury.totalLiquid > 0 ? '#ffffff' : 'rgba(255,255,255,0.4)' }} />
             <small style={{ fontSize: '10px', color: '#ffffff', fontWeight: '700' }}>
-              {corporateTreasury.totalLiquid > 0 ? 'Safe cash reserve' : 'Awaiting treasury setup'}
+              {corporateTreasury.totalLiquid > 0 ? 'Insufficient recorded expense history' : 'Awaiting treasury setup'}
             </small>
           </div>
         </article>

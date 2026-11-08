@@ -1,3 +1,4 @@
+import { executeDashboardCommand } from '@/lib/staged-actions';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, getHrAuthorizationScope, hasAnyRole } from '@/lib/auth';
@@ -211,7 +212,7 @@ export async function GET(req: NextRequest) {
         lateArrivalsCount: attStats.countLate,
         unexcusedAbsenceCount: attStats.countAbsent,
         status: item.status,
-        paymentStatus: item.disbursement?.status || 'UNPAID',
+        paymentStatus: item.disbursement?.status || (item.status==='WALLET_CREDITED'?'WALLET_CREDITED':'UNPAID'),
         paymentId: item.disbursement?.id || null,
         paymentReceiptName: item.disbursement?.receipt?.fileName || null,
         paymentReceiptUrl: item.disbursement?.receipt?.fileUrl || null,
@@ -291,85 +292,8 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Sign in to approve payroll.' }, { status: 401 });
-    if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Only the System Admin or GMD can approve payroll.' }, { status: 403 });
     const body = await req.json();
-    const { batchId, comments, disbursementAssigneeId } = body;
-
-    if (!batchId) {
-      return NextResponse.json({ error: 'batchId is required' }, { status: 400 });
-    }
-
-    const batch = await prisma.payrollBatch.findUnique({
-      where: { id: batchId },
-      include: { period: true, items: { include: { employee: { select: { legalName: true, workEmail: true } }, allocations: true } } }
-    });
-
-    if (!batch) {
-      return NextResponse.json({ error: 'Payroll batch not found' }, { status: 404 });
-    }
-
-    if (batch.status !== 'SUBMITTED') {
-      return NextResponse.json({ error: 'Only a submitted payroll batch can be signed off.' }, { status: 409 });
-    }
-    if (!batch.items.length) return NextResponse.json({ error: 'The payroll batch has no staff items.' }, { status: 409 });
-    if (typeof disbursementAssigneeId !== 'string' || !disbursementAssigneeId) {
-      return NextResponse.json({ error: 'Assign an executive or HR administrator to record the external payroll payments.' }, { status: 400 });
-    }
-    const assignee = await prisma.employee.findFirst({ where: {
-      id: disbursementAssigneeId,
-      status: 'ACTIVE',
-      approvalStatus: 'APPROVED',
-      role: { in: ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'] }
-    } });
-    if (!assignee) return NextResponse.json({ error: 'Choose an active executive or HR user for payment recording.' }, { status: 400 });
-    const defaultOrg = batch.paymentEntityId || (await prisma.organization.findFirst({ orderBy: { type: 'asc' } }))?.id || null;
-    const snapshot = JSON.stringify(batch.items.map(item => ({
-      employeeId: item.employeeId,
-      grossMinor: item.grossMinor.toString(),
-      deductionsMinor: item.employeeDeductionsMinor.toString(),
-      employerCostMinor: item.employerCostMinor.toString(),
-      netMinor: item.netMinor.toString(),
-      allocations: item.allocations.map(a => ({ subsidiaryId: a.subsidiaryId, amountMinor: a.allocableCostMinor.toString(), percentage: a.percentage }))
-    })));
-    const snapshotHash = createHash('sha256').update(snapshot).digest('hex');
-    const updatedBatch = await prisma.$transaction(async tx => {
-      const updated = await tx.payrollBatch.update({
-        where: { id: batchId },
-        data: { status: 'APPROVED', approvedAt: new Date(), snapshotHash, disbursementAssigneeId: assignee.id, paymentEntityId: defaultOrg }
-      });
-      await tx.payrollPeriod.update({ where: { id: batch.periodId }, data: { lockStatus: 'LOCKED' } });
-      return updated;
-    });
-
-    // Record audit event
-    await prisma.auditEvent.create({
-      data: {
-        actorId: actor.id,
-        actorName: actor.legalName,
-        actorRole: actor.role,
-        groupId: batch.paymentEntityId || 'HQ',
-        targetType: 'PAYROLL',
-        targetId: batchId,
-        action: 'APPROVED',
-        correlationId: `CORR-PAY-${batchId}`,
-        metadata: JSON.stringify({
-          period: `${batch.period.year}-${batch.period.month}`,
-          totalGrossMinor: Number(batch.totalGrossMinor),
-          comments: comments || `${batch.period.year}-${String(batch.period.month).padStart(2, '0')} payroll approved for external payment processing.`,
-          snapshotHash,
-          employeeCount: batch.items.length,
-          disbursementAssigneeId: assignee.id
-        })
-      }
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: `${batch.period.year}-${String(batch.period.month).padStart(2, '0')} payroll batch approved by ${actor.legalName}.`,
-      approvedAt: updatedBatch.approvedAt
-    });
-  } catch (error: any) {
-    console.error('Error approving payroll:', error);
-    return NextResponse.json({ error: error.message || 'Failed to approve payroll' }, { status: 500 });
-  }
+    const result = await executeDashboardCommand(actor, 'payroll_action', { sub_action: 'SIGN_OFF', batchId: body.batchId, disbursementAssigneeId: body.disbursementAssigneeId, paymentEntityId: body.paymentEntityId, comments: body.comments });
+    return NextResponse.json({ success: true, ...result, message: 'Payroll approved for external transfer recording.' });
+  } catch (error: any) { return NextResponse.json({ error: error.message }, { status: 400 }); }
 }

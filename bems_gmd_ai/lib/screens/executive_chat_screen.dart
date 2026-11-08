@@ -6,6 +6,7 @@ import '../widgets/action_cards.dart';
 import '../widgets/chat_history_drawer.dart';
 import '../widgets/executive_markdown_body.dart';
 import 'voice_orb_screen.dart';
+import 'wallet_funding_screen.dart';
 
 class ExecutiveChatScreen extends StatefulWidget {
   final String? initialPrompt;
@@ -145,6 +146,7 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
       final response = await ApiService.sendAiMessage(
         message: text,
         history: _messages,
+        conversationId: _currentSession.id,
       );
 
       Map<String, dynamic>? resolvedActionCard;
@@ -257,6 +259,7 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
         ),
         centerTitle: true,
         actions: [
+          IconButton(icon: const Icon(Icons.account_balance_wallet_outlined), tooltip: 'Wallet funding and releases', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletFundingScreen()))),
           IconButton(
             icon: const Icon(Icons.add_comment_outlined, color: Color(0xFFEA580C), size: 20),
             tooltip: 'New Chat',

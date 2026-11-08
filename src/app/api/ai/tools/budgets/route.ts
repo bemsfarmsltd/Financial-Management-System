@@ -1,3 +1,4 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -8,6 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
   if (!actor) {
     return NextResponse.json(
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest) {
   const budgets = result.budgets;
   const recurringRequests =
     result.scope.organizationIds.length > 0
-      ? await prisma.expenditureRequest.findMany({
+      ? await db.expenditureRequest.findMany({
           where: {
             isRecurring: true,
             subsidiaryId: { in: result.scope.organizationIds },
@@ -112,6 +114,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
 
   if (!actor || !actor.isExecutive) {
@@ -148,7 +151,7 @@ export async function POST(req: NextRequest) {
   let orgRecord: { id: string; legalName: string; code: string } | null = null;
 
   if (budget_id) {
-    const byId = await prisma.budget.findUnique({
+    const byId = await db.budget.findUnique({
       where: { id: String(budget_id) },
       include: { organization: { select: { id: true, legalName: true, code: true } }, lines: true },
     });
@@ -175,7 +178,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const exactOrg = await prisma.organization.findFirst({
+    const exactOrg = await db.organization.findFirst({
       where: {
         OR: [
           { id: orgLookup },
@@ -190,7 +193,7 @@ export async function POST(req: NextRequest) {
       orgRecord = exactOrg;
       targetOrgId = exactOrg.id;
     } else {
-      const partialMatches = await prisma.organization.findMany({
+      const partialMatches = await db.organization.findMany({
         where: {
           OR: [
             { legalName: { contains: orgLookup, mode: 'insensitive' } },
@@ -230,7 +233,7 @@ export async function POST(req: NextRequest) {
 
   if (mode === 'update' || mode === 'reallocate' || mode === 'archive') {
     let targetBudget = resolvedBudgetId
-      ? await prisma.budget.findUnique({ where: { id: resolvedBudgetId }, include: { lines: true } })
+      ? await db.budget.findUnique({ where: { id: resolvedBudgetId }, include: { lines: true } })
       : null;
 
     if (!targetBudget) {
@@ -244,7 +247,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      const matches = await prisma.budget.findMany({
+      const matches = await db.budget.findMany({
         where: {
           organizationId: targetOrgId,
           status: 'ACTIVE',
@@ -317,7 +320,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const existingDuplicate = await prisma.budget.findFirst({
+    const existingDuplicate = await db.budget.findFirst({
       where: {
         organizationId: targetOrgId,
         periodName: { equals: resolvedPeriodName, mode: 'insensitive' },
@@ -354,7 +357,8 @@ export async function POST(req: NextRequest) {
 
   // Stage action for executive confirmation using unified contract
   const staged = await stageAction({
-    userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
     actionType: 'budget',
     summary,
     targetSubsidiaryId: targetOrgId,

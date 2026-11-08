@@ -23,15 +23,15 @@ export function semverCompare(v1: string, v2: string): number {
   const clean1 = (v1 || '').trim().replace(/^v/i, '');
   const clean2 = (v2 || '').trim().replace(/^v/i, '');
 
-  const parts1 = clean1.split('.').map(p => parseInt(p, 10) || 0);
-  const parts2 = clean2.split('.').map(p => parseInt(p, 10) || 0);
-
-  const maxLen = Math.max(parts1.length, parts2.length, 3);
-  for (let i = 0; i < maxLen; i++) {
-    const num1 = parts1[i] ?? 0;
-    const num2 = parts2[i] ?? 0;
-    if (num1 > num2) return 1;
-    if (num1 < num2) return -1;
+  const components = (version: string) => {
+    const [release, build = '0'] = version.split('+');
+    return [...release.split('.').slice(0, 3).map(part => Number(part) || 0), Number(build) || 0];
+  };
+  const parts1 = components(clean1);
+  const parts2 = components(clean2);
+  for (let i = 0; i < 4; i++) {
+    if ((parts1[i] || 0) > (parts2[i] || 0)) return 1;
+    if ((parts1[i] || 0) < (parts2[i] || 0)) return -1;
   }
   return 0;
 }
@@ -51,7 +51,7 @@ export async function getMobileAppGate(appId: string) {
       ? {
           appId: 'GMD_APP',
           appName: 'BEMS GMD AI',
-          packageName: 'com.bemsgroup.gmd_ai',
+          packageName: 'com.bemsgroup.bems_gmd_ai',
           minimumAllowedVersion: '1.0.0',
           latestVersionAvailable: '1.0.0',
           forceUpdate: false,
@@ -61,7 +61,7 @@ export async function getMobileAppGate(appId: string) {
       : {
           appId: 'STAFF_APP',
           appName: 'BEMS Staff App',
-          packageName: 'com.bemsgroup.staff',
+          packageName: 'com.bemsfarms.bems_staff_app',
           minimumAllowedVersion: '1.0.0',
           latestVersionAvailable: '1.0.0',
           forceUpdate: false,

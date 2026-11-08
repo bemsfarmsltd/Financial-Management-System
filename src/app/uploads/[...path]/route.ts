@@ -72,52 +72,19 @@ export async function GET(
     const ext = path.extname(filename).toLowerCase();
     const defaultContentType = MIME_TYPES[ext] || 'application/octet-stream';
 
-    // Public branding logos may be rendered on login screens; all evidence/profile/voucher files require authentication
-    const isPublicBrandAsset = filename.startsWith('logo-') || filename.startsWith('brand-');
-    let actor = null;
+    const attachment = await prisma.attachment.findFirst({
+      where: { fileUrl: { endsWith: '/' + filename } },
+      include: { request: { select: { requestedById: true, disbursementAssigneeId: true } } },
+    });
+    const brand = await prisma.organization.findFirst({ where: { logoUrl: { endsWith: '/' + filename } }, select: { id: true } });
+    const isPublicBrandAsset = Boolean(brand || attachment?.ownerType === 'PUBLIC_AVATAR');
     if (!isPublicBrandAsset) {
-      actor = await getAuthenticatedEmployee(request);
-      if (!actor) {
-        return new NextResponse('Authentication required to access uploaded documents.', {
-          status: 401,
-          headers: {
-            'Content-Type': 'text/plain',
-            'Cache-Control': 'private, no-store, no-cache, must-revalidate',
-            'X-Content-Type-Options': 'nosniff',
-          },
-        });
-      }
-
-      // Check Attachment ownership if this file is bound to a specific request/accountability attachment
-      const isExecutive = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);
-      if (!isExecutive && !filename.startsWith('avatar-')) {
-        const attachment = await prisma.attachment.findFirst({
-          where: { fileUrl: { endsWith: filename } },
-          include: {
-            request: {
-              select: {
-                requestedById: true,
-                disbursementAssigneeId: true,
-              },
-            },
-          },
-        });
-        if (
-          attachment?.request &&
-          attachment.request.requestedById !== actor.id &&
-          attachment.request.disbursementAssigneeId !== actor.id &&
-          attachment.uploadedById !== actor.id
-        ) {
-          return new NextResponse('Forbidden: You do not have access to this evidence document.', {
-            status: 403,
-            headers: {
-              'Content-Type': 'text/plain',
-              'Cache-Control': 'private, no-store, no-cache, must-revalidate',
-              'X-Content-Type-Options': 'nosniff',
-            },
-          });
-        }
-      }
+      const actor = await getAuthenticatedEmployee(request, { disallowServiceToken: true });
+      if (!actor) return new NextResponse('Authentication required.', { status: 401 });
+      const isExecutive = hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
+      const ownsAttachment = attachment && (attachment.uploadedById === actor.id || attachment.ownerId === actor.id || attachment.request?.requestedById === actor.id || attachment.request?.disbursementAssigneeId === actor.id);
+      const ownsProfile = await prisma.employee.findFirst({ where: { id: actor.id, avatarUrl: { endsWith: '/' + filename } }, select: { id: true } });
+      if (!isExecutive && !ownsAttachment && !ownsProfile) return new NextResponse('File not found.', { status: 404 });
     }
 
     const cacheControlHeader = isPublicBrandAsset
@@ -143,12 +110,6 @@ export async function GET(
         const buf = Buffer.from(dbFile.data);
         const resolvedMime = dbFile.mimeType || defaultContentType;
         setInMemoryCache(filename, buf, resolvedMime);
-
-        // Warm local disk cache asynchronously if possible
-        const diskPath = path.join(process.cwd(), 'public', 'uploads', ...safeSegments);
-        fs.mkdir(path.dirname(diskPath), { recursive: true })
-          .then(() => fs.writeFile(diskPath, buf))
-          .catch(() => {});
 
         return new NextResponse(new Uint8Array(buf), {
           headers: {

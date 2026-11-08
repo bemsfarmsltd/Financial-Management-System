@@ -138,6 +138,7 @@ export async function dispatchNotificationBridge(payload: NotificationPayload): 
   const slackWebhookUrl = process.env.SLACK_WEBHOOK_URL;
   const whatsappApiToken = process.env.WHATSAPP_API_TOKEN;
   const whatsappPhoneId = process.env.WHATSAPP_PHONE_ID;
+  const whatsappVersion = process.env.WHATSAPP_GRAPH_API_VERSION;
 
   // 1. Outbox + Dispatch Slack
   if (payload.channel === "SLACK" || payload.channel === "BOTH" || payload.channel === "ALL") {
@@ -192,7 +193,8 @@ export async function dispatchNotificationBridge(payload: NotificationPayload): 
       }
     } else {
       slackStatus = "SKIPPED";
-      slackExternalId = `unconfigured-slack-${correlationId}`;
+      slackExternalId = null;
+      result.success = false;
     }
 
     await prisma.outboundNotification.update({
@@ -220,7 +222,7 @@ export async function dispatchNotificationBridge(payload: NotificationPayload): 
     const outboxRow = await prisma.outboundNotification.create({
       data: {
         channel: "WHATSAPP",
-        recipient: payload.recipient || "+2348000000000",
+        recipient: payload.recipient || "",
         eventType: payload.eventType,
         payload: JSON.stringify({ correlationId, state: "PENDING", text: waText, metadata: payload.metadata }),
         status: "PENDING",
@@ -233,9 +235,9 @@ export async function dispatchNotificationBridge(payload: NotificationPayload): 
     let waExternalId: string | null = correlationId;
     let errorReason: string | null = null;
 
-    if (whatsappApiToken && whatsappPhoneId && payload.recipient && !payload.recipient.includes("@")) {
+    if (whatsappApiToken && whatsappPhoneId && /^v\d+\.\d+$/.test(whatsappVersion || "") && /^\+?\d{10,15}$/.test(payload.recipient)) {
       try {
-        const res = await fetch(`https://graph.facebook.com/v19.0/${whatsappPhoneId}/messages`, {
+        const res = await fetch(`https://graph.facebook.com/${whatsappVersion}/${whatsappPhoneId}/messages`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${whatsappApiToken}`,
@@ -264,7 +266,8 @@ export async function dispatchNotificationBridge(payload: NotificationPayload): 
       }
     } else {
       waStatus = "SKIPPED";
-      waExternalId = `unconfigured-wamid-${correlationId}`;
+      waExternalId = null;
+      result.success = false;
     }
 
     await prisma.outboundNotification.update({
@@ -368,7 +371,7 @@ export async function notifyApprovalRequired(params: {
   // Dispatch multi-channel bridge (Slack + WhatsApp)
   const bridgePromise = dispatchNotificationBridge({
     channel: "BOTH",
-    recipient: params.recipientPhone || "+2348011223344",
+    recipient: params.recipientPhone || "",
     eventType: "APPROVAL_REQUESTED",
     title: `Pending Approval: ${params.title}`,
     summary: `${params.requesterName} submitted a fund request of ₦${(params.amountMinor / 100).toLocaleString()} requiring ${params.approverRole} review.`,

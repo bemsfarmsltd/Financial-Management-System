@@ -1,3 +1,4 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -10,6 +11,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
   if (!actor) {
     return NextResponse.json(
@@ -43,7 +45,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const subsidiaries = await prisma.organization.findMany({
+  const subsidiaries = await db.organization.findMany({
     where: {
       status: 'ACTIVE',
       id: { in: scope.organizationIds },
@@ -127,6 +129,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
 
   if (!actor?.isExecutive) {
@@ -151,7 +154,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const existingOrg = await prisma.organization.findFirst({
+    const existingOrg = await db.organization.findFirst({
       where: {
         OR: [
           { id: lookup },
@@ -197,7 +200,8 @@ export async function POST(req: NextRequest) {
     }
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'subsidiary_update',
       summary: `Update Subsidiary Information: ${existingOrg.legalName} (${existingOrg.code})`,
       materialPayload,
@@ -265,13 +269,13 @@ export async function POST(req: NextRequest) {
       code = name.slice(0, 3).toUpperCase();
     }
     // Check if code collision
-    const existing = await prisma.organization.findUnique({ where: { code } });
+    const existing = await db.organization.findUnique({ where: { code } });
     if (existing) {
       code = `${code}${Math.floor(10 + Math.random() * 89)}`;
     }
   }
 
-  const existingByCode = await prisma.organization.findUnique({ where: { code } });
+  const existingByCode = await db.organization.findUnique({ where: { code } });
   if (existingByCode) {
     return NextResponse.json(
       { ok: false, error_code: 'DUPLICATE_CODE', message: `Subsidiary code "${code}" already exists.` },
@@ -285,7 +289,8 @@ export async function POST(req: NextRequest) {
   const canonicalCurrency = ['NGN', 'USD', 'GBP', 'EUR'].includes(currency) ? currency : 'NGN';
 
   const staged = await stageAction({
-    userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
     actionType: 'subsidiary_creation',
     summary: `Create new subsidiary "${name}" (${code}) in ${headquarters} (${industry})`,
     materialPayload: {

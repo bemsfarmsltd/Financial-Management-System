@@ -1,3 +1,4 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
     scope: requestId ? 'three_way_match' : 'vendors',
     mode: 'read',
   });
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
   if (!actor) {
     return NextResponse.json({ ok: false, error_code: 'UNAUTHORIZED', message: 'Unauthorized' }, { status: 401 });
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest) {
 
   // 1. Request Match Dossier permission & target ownership check
   if (requestId) {
-    const request = await prisma.expenditureRequest.findFirst({
+    const request = await db.expenditureRequest.findFirst({
       where: {
         OR: [{ id: requestId }, { requestNumber: requestId }],
       },
@@ -107,7 +109,7 @@ export async function GET(req: NextRequest) {
     ];
   }
 
-  const vendors = await prisma.vendor.findMany({
+  const vendors = await db.vendor.findMany({
     where,
     include: {
       _count: {
@@ -168,6 +170,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
   if (!actor) {
     return NextResponse.json({ ok: false, error_code: 'UNAUTHORIZED', message: 'Unauthorized' }, { status: 401 });
@@ -193,7 +196,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const request = await prisma.expenditureRequest.findFirst({
+    const request = await db.expenditureRequest.findFirst({
       where: {
         OR: [{ id: requestId }, { requestNumber: requestId }],
       },
@@ -246,7 +249,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const request = await prisma.expenditureRequest.findFirst({
+    const request = await db.expenditureRequest.findFirst({
       where: {
         OR: [{ id: requestId }, { requestNumber: requestId }],
       },
@@ -257,7 +260,8 @@ export async function POST(req: NextRequest) {
     }
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'vendor_approval',
       summary: `Recompute & commit 3-Way Match verification for ${request.requestNumber} (${request.title})`,
       materialPayload: {
@@ -308,7 +312,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const request = await prisma.expenditureRequest.findFirst({
+    const request = await db.expenditureRequest.findFirst({
       where: { OR: [{ id: requestId }, { requestNumber: requestId }] },
     });
     if (!request) {
@@ -316,7 +320,8 @@ export async function POST(req: NextRequest) {
     }
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'vendor_approval',
       targetSubsidiaryId: request.subsidiaryId,
       summary: `Authorize 3-Way Match Exception Override for ${request.requestNumber} (${request.title})`,
@@ -394,7 +399,7 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanTaxId = taxId && taxId.toUpperCase() !== 'PENDING_TIN' ? taxId : null;
-    const duplicate = await prisma.vendor.findFirst({
+    const duplicate = await db.vendor.findFirst({
       where: {
         OR: [
           { name: { equals: name, mode: 'insensitive' } },
@@ -416,13 +421,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate unique vendor code
-    const count = await prisma.vendor.count();
+    const count = await db.vendor.count();
     const words = name.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(Boolean);
     const prefix = words.length >= 2 ? words.map((w) => w[0]).join('').slice(0, 3).toUpperCase() : 'VND';
     const code = `${prefix}-${String(count + 1).padStart(4, '0')}`;
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'vendor_approval',
       summary: `Register verified vendor "${name}" (${code}) · ${bankName} ${accountNumber}`,
       materialPayload: {
@@ -474,7 +480,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const reqRecord = await prisma.expenditureRequest.findFirst({
+    const reqRecord = await db.expenditureRequest.findFirst({
       where: { OR: [{ id: requestLookup }, { requestNumber: requestLookup }] },
     });
     if (!reqRecord) {
@@ -487,7 +493,8 @@ export async function POST(req: NextRequest) {
     const conditionNotes = String(body.conditionNotes || 'Goods received in complete and good condition').trim();
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'grn_creation',
       summary: `Record Goods Receipt Note (${grnNumber}) for ${reqRecord.requestNumber} (${reqRecord.title})`,
       materialPayload: {
@@ -529,7 +536,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const reqRecord = await prisma.expenditureRequest.findFirst({
+    const reqRecord = await db.expenditureRequest.findFirst({
       where: { OR: [{ id: requestLookup }, { requestNumber: requestLookup }] },
       include: { vendor: true },
     });
@@ -539,7 +546,7 @@ export async function POST(req: NextRequest) {
 
     let vendorId = body.vendorId || reqRecord.vendorId;
     if (!vendorId && body.vendorName) {
-      const foundVendor = await prisma.vendor.findFirst({
+      const foundVendor = await db.vendor.findFirst({
         where: { name: { contains: String(body.vendorName), mode: 'insensitive' } },
       });
       if (foundVendor) vendorId = foundVendor.id;
@@ -557,7 +564,8 @@ export async function POST(req: NextRequest) {
     const amountNaira = body.amount !== undefined ? Number(body.amount) : Number(reqRecord.amountMinor) / 100;
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'vendor_invoice_creation',
       summary: `Record Vendor Invoice (${invoiceNumber}) of ₦${amountNaira.toLocaleString()} for ${reqRecord.requestNumber}`,
       materialPayload: {

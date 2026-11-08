@@ -140,26 +140,14 @@ export async function sendEmail({ to, subject, html, text, eventType = 'GENERAL_
     }
   }
 
-  // Simulation mode (logs to console and records in database)
-  console.log(`\n📧 [EMAIL DISPATCHED - ${eventType}] to: ${recipients} | subject: ${subject}`);
-  let notifId: string | undefined;
-  try {
-    const record = await prisma.outboundNotification.create({
-      data: {
-        channel: 'EMAIL',
-        recipient: recipients,
-        eventType,
-        payload: JSON.stringify({ subject, to: recipients, preview: text || subject, lastFailureError }),
-        status: 'SENT',
-        externalId: `sim-email-${Date.now()}`,
-      },
-    });
-    notifId = record.id;
-  } catch (dbErr) {
-    console.error('Failed to log simulated email:', dbErr);
-  }
+  // Provider failure is never reported as delivered.
+  await prisma.outboundNotification.create({ data: {
+    channel: 'EMAIL', recipient: recipients, eventType,
+    payload: JSON.stringify({ subject, providerConfigured: Boolean(resend || transporter) }),
+    status: 'FAILED',
+  } }).catch(() => {});
+  return { success: false, error: lastFailureError || 'Email delivery is not configured.' };
 
-  return { success: true, simulated: true, messageId: notifId, error: lastFailureError || undefined };
 }
 
 /**
@@ -169,14 +157,14 @@ export async function getExecutiveRecipients(): Promise<{ email: string; name: s
   try {
     const execs = await prisma.employee.findMany({
       where: {
-        role: { in: ['GMD', 'SYSTEM_ADMIN'] },
-        status: 'ACTIVE',
+        role: { in: ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] },
+        status: 'ACTIVE', approvalStatus: 'APPROVED',
       },
       select: { workEmail: true, legalName: true },
     });
     return execs.map(e => ({ email: e.workEmail, name: e.legalName }));
   } catch {
-    return [{ email: 'gmd@bemsgroup.com', name: 'Group Managing Director' }];
+    return [];
   }
 }
 

@@ -1,3 +1,4 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -7,12 +8,13 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
   if (!actor?.isExecutive) {
     return NextResponse.json({ ok: false, error_code: 'FORBIDDEN', message: 'Executive access required.' }, { status: 403 });
   }
 
-  const invitations = await prisma.adminInvitation.findMany({
+  const invitations = await db.adminInvitation.findMany({
     include: { subsidiary: { select: { id: true, legalName: true, code: true } } },
     orderBy: { createdAt: 'desc' },
     take: 50,
@@ -36,6 +38,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
 
   if (!actor?.isExecutive) {
@@ -53,7 +56,7 @@ export async function POST(req: NextRequest) {
     if (!lookup) {
       return NextResponse.json({ ok: false, error: 'invitationId or workEmail is required.' }, { status: 400 });
     }
-    const invitation = await prisma.adminInvitation.findFirst({
+    const invitation = await db.adminInvitation.findFirst({
       where: {
         OR: [{ id: lookup }, { workEmail: { equals: lookup, mode: 'insensitive' } }],
       },
@@ -65,7 +68,8 @@ export async function POST(req: NextRequest) {
     }
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'admin_onboarding',
       summary: `${subAction === 'REVOKE_INVITE' ? 'Revoke' : 'Resend'} Executive Invitation for ${invitation.workEmail} (${invitation.role})`,
       materialPayload: {
@@ -155,7 +159,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Check if user already exists
-  const existingEmployee = await prisma.employee.findFirst({
+  const existingEmployee = await db.employee.findFirst({
     where: {
       OR: [{ workEmail }, { phone: phone ? phone : undefined }],
     },
@@ -173,7 +177,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Resolve subsidiary
-  const allSubs = await prisma.organization.findMany({ where: { status: 'ACTIVE' }, take: 10 });
+  const allSubs = await db.organization.findMany({ where: { status: 'ACTIVE' }, take: 10 });
   const targetSub = (subsidiaryId ? allSubs.find((s) => s.id === subsidiaryId || s.code.toUpperCase() === subsidiaryId.toUpperCase()) : null) ||
     allSubs.find((s) => s.type === 'GROUP' || s.code === 'BEMS-GROUP') ||
     allSubs[0];
@@ -184,7 +188,7 @@ export async function POST(req: NextRequest) {
 
   // Single active GMD check before staging
   if (canonicalRole === 'GMD') {
-    const existingGmd = await prisma.employee.findFirst({
+    const existingGmd = await db.employee.findFirst({
       where: { role: 'GMD', status: 'ACTIVE', approvalStatus: 'APPROVED' },
       select: { id: true, legalName: true, workEmail: true },
     });
@@ -202,7 +206,8 @@ export async function POST(req: NextRequest) {
 
   // Stage canonical executive invitation proposal (requires human button click to dispatch invite)
   const staged = await stageAction({
-    userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
     actionType: 'admin_onboarding',
     summary: `Send Executive Invitation to ${legalName} (${workEmail}) as ${canonicalRole} at ${orgName}`,
     materialPayload: {

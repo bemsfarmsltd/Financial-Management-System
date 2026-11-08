@@ -1,3 +1,4 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -11,6 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
 
   if (!actor?.isExecutive) {
@@ -59,6 +61,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
 
   if (!actor?.isExecutive) {
@@ -106,7 +109,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const matches = await prisma.employee.findMany({
+    const matches = await db.employee.findMany({
       where: {
         OR: [
           { id: employeeIdentifier },
@@ -165,10 +168,10 @@ export async function POST(req: NextRequest) {
     const subsidiaryId = employee.assignments[0]?.subsidiaryId || employee.employmentAgreements[0]?.employerEntityId || null;
     const policy =
       (subsidiaryId
-        ? await prisma.attendancePolicy.findUnique({ where: { organizationId: subsidiaryId } })
+        ? await db.attendancePolicy.findUnique({ where: { organizationId: subsidiaryId } })
         : null) ||
-      (await prisma.attendancePolicy.findFirst({ where: { organization: { type: 'GROUP' } } })) ||
-      (await prisma.attendancePolicy.findFirst());
+      (await db.attendancePolicy.findFirst({ where: { organization: { type: 'GROUP' } } })) ||
+      (await db.attendancePolicy.findFirst());
 
     let canonicalAction: string = action;
     let targetStatus = String(body.status || '').toUpperCase().trim();
@@ -221,7 +224,8 @@ export async function POST(req: NextRequest) {
     }
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'attendance_override',
       targetEmployeeId: employee.id,
       targetSubsidiaryId: subsidiaryId || undefined,
@@ -272,7 +276,7 @@ export async function POST(req: NextRequest) {
     const workDate = (body.workDate || todayStr).trim();
     const stationName = (body.stationName || 'HQ Kiosk / AI Station').trim();
 
-    const employee = await prisma.employee.findFirst({
+    const employee = await db.employee.findFirst({
       where: {
         OR: [
           { id: employeeIdentifier },
@@ -291,7 +295,8 @@ export async function POST(req: NextRequest) {
 
     const subAction = isClockOut ? 'CLOCK_OUT' : 'CLOCK_IN';
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'attendance_override',
       summary: `Manual ${isClockOut ? 'Clock-Out' : 'Clock-In'} for ${employee.legalName} (${employee.employeeNumber}) on ${workDate}`,
       materialPayload: {
@@ -338,7 +343,7 @@ export async function POST(req: NextRequest) {
 
     let resolvedOrg: { id: string; legalName: string; code: string; type: string } | null = null;
     if (orgIdentifier && orgIdentifier.toUpperCase() !== 'ALL' && orgIdentifier.toUpperCase() !== 'GROUP') {
-      const orgMatches = await prisma.organization.findMany({
+      const orgMatches = await db.organization.findMany({
         where: {
           OR: [
             { id: orgIdentifier },
@@ -397,7 +402,8 @@ export async function POST(req: NextRequest) {
         : `Update Attendance Policy for ${targetLabel} (${Object.keys(updateData).join(', ') || 'policy parameters'})`;
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'attendance_override',
       targetSubsidiaryId: resolvedOrg?.id,
       summary,
@@ -433,7 +439,7 @@ export async function POST(req: NextRequest) {
   // -------------------------------------------------------------
   if (action === 'UPDATE_ROSTER' || action === 'SET_SCHEDULE') {
     const employeeLookup = String(body.employeeId || body.employeeNumber || body.name || '').trim();
-    const employee = await prisma.employee.findFirst({
+    const employee = await db.employee.findFirst({
       where: {
         OR: [
           { id: employeeLookup },
@@ -452,7 +458,8 @@ export async function POST(req: NextRequest) {
     const isExempt = Boolean(body.isExempt ?? false);
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'attendance_override',
       summary: `Update Work Schedule Roster for ${employee.legalName} (${customShiftIn}–${customShiftOut}, Off-days: ${weeklyOffDays})`,
       materialPayload: {
@@ -498,11 +505,14 @@ export async function POST(req: NextRequest) {
     }
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'attendance_override',
       summary: `Calibrate Attendance Station GPS to [${latitude.toFixed(5)}, ${longitude.toFixed(5)}] (${radiusMeters}m radius)`,
       materialPayload: {
         action_type: 'CALIBRATE_STATION',
+        organizationId: body.organizationId || body.subsidiaryId || actor.scopedOrganizationId || undefined,
+        stationId: body.stationId,
         name: body.name || 'BEMS Group Corporate Headquarters',
         latitude,
         longitude,

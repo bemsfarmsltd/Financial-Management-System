@@ -1,3 +1,4 @@
+import { getAuthenticatedStation } from '@/lib/attendance/station-auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateStationQrToken } from '@/lib/attendance/token';
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const clientIp = getClientIp(request);
-    const rateLimit = checkRateLimit(`station-qr:${clientIp}`, {
+    const rateLimit = await checkRateLimit(`station-qr:${clientIp}`, {
       maxAttempts: 60,
       windowMs: 60 * 1000,
     });
@@ -20,44 +21,14 @@ export async function GET(request: Request) {
       );
     }
 
-    const { searchParams } = new URL(request.url);
-    const stationCode = searchParams.get('stationCode')?.trim();
-    const providedSecret =
-      request.headers.get('x-station-secret')?.trim() ||
-      searchParams.get('stationSecret')?.trim();
-
-    let station = null;
-    if (stationCode) {
-      station = await prisma.attendanceStation.findFirst({
-        where: { code: stationCode, status: 'ACTIVE' },
-        include: { organization: { select: { legalName: true } } },
-      });
-      if (!station) {
-        return NextResponse.json(
-          { error: `Active attendance station "${stationCode}" not found.` },
-          { status: 404 }
-        );
-      }
-    } else {
-      station = await prisma.attendanceStation.findFirst({
-        where: { status: 'ACTIVE' },
-        include: { organization: { select: { legalName: true } } },
-      });
-    }
-
-    if (!station) {
-      return NextResponse.json({ error: 'No active attendance station configured' }, { status: 404 });
-    }
-
-    if (providedSecret && providedSecret !== station.activeSecret) {
-      return NextResponse.json({ error: 'Invalid attendance station secret.' }, { status: 403 });
-    }
+    const station = await getAuthenticatedStation(request);
+    if (!station) return NextResponse.json({ error: 'An authorized kiosk or executive session is required.' }, { status: 403 });
 
     const { token, expiresInSeconds } = generateStationQrToken(station.code, station.activeSecret);
 
     const policy = await prisma.attendancePolicy.findFirst({
       where: { organizationId: station.organizationId },
-    }) || await prisma.attendancePolicy.findFirst();
+    });
 
     // Pre-generate both DataURL and vector SVG on the server
     const [qrDataUrl, qrSvg] = await Promise.all([

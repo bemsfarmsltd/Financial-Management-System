@@ -285,6 +285,9 @@ model CostAllocation {
 }
 
 model Vendor {
+  bankCode String?
+  bankFingerprint String?
+  verifiedBankAt DateTime? @db.Timestamptz(6)
   id            String   @id @default(uuid())
   name          String
   code          String   @unique
@@ -415,7 +418,7 @@ model Disbursement {
   beneficiaryAccount String
   amountMinor        BigInt
   currency           String              @default("NGN")
-  externalReference  String              // Bank Transfer Reference
+  externalReference  String              @unique // Bank Transfer Reference
   bankName           String              // Bank executed through (e.g. GTBank)
   paidAt             DateTime            @default(now())
   recordedById       String
@@ -446,7 +449,7 @@ model PaymentReceipt {
   disbursement   Disbursement @relation(fields: [disbursementId], references: [id])
   fileName       String
   fileUrl        String
-  sha256         String       // Prevents duplicate receipt fraud
+  sha256         String       @unique // Prevents duplicate receipt fraud
   mimeType       String
   fileData       Bytes?
   uploadedById   String
@@ -966,3 +969,246 @@ model LeaveRequest {
 }
 
 
+
+model SecurityRateLimit {
+  key             String   @id
+  attempts        Int
+  windowStartedAt DateTime @db.Timestamptz(6)
+  blockedUntil    DateTime? @db.Timestamptz(6)
+  expiresAt       DateTime  @db.Timestamptz(6)
+
+  @@index([expiresAt])
+}
+
+model DeliveryOutbox {
+  id            String    @id
+  commandId     String
+  kind          String
+  payload       String
+  status        String    @default("PENDING")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now()) @db.Timestamptz(6)
+  lockedUntil   DateTime? @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
+  sentAt        DateTime? @db.Timestamptz(6)
+  lastError     String?
+
+  @@index([status, nextAttemptAt])
+  @@index([commandId])
+}
+
+// Internal staff-wallet foundation. Access through canonical wallet services;
+// no provider sub-wallet is created and no old approval is backfilled as value.
+model WalletFundingPool {
+  id              String   @id
+  environment     String
+  sourceAccount   String
+  availableMinor  BigInt
+  feeReserveMinor BigInt
+  observedAt      DateTime @db.Timestamptz(6)
+  observationId   String
+  paused          Boolean  @default(true)
+  version         Int      @default(1)
+}
+
+model WalletBudgetEnvelope {
+  id             String   @id
+  organizationId String
+  label          String
+  allocatedMinor BigInt
+  remainingMinor BigInt
+  createdById    String
+  parentId       String?
+  status         String @default("ACTIVE")
+  version        Int @default(1)
+  idempotencyKey String   @unique
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model WalletReleaseProposal {
+  id               String   @id
+  createdById      String
+  sourceType       String
+  sourceId         String
+  envelopeId       String?
+  employeeId       String?
+  conversationId   String?
+  workspaceId      String?
+  amountMinor      BigInt
+  category         String
+  sourceHash       String
+  confirmationHash String
+  expiresAt        DateTime @db.Timestamptz(6)
+  status           String   @default("PENDING")
+  approvedById     String?
+  approvedAt       DateTime? @db.Timestamptz(6)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model WalletCreditLot {
+  id             String   @id
+  proposalId     String
+  releaseItemId  String? @unique
+  requestId String?
+  payrollItemId String?
+  frozen         Boolean @default(false)
+  sourceType     String
+  sourceId       String
+  employeeId     String
+  organizationId String
+  category       String
+  amountMinor    BigInt
+  availableMinor BigInt
+  returnedMinor  BigInt   @default(0)
+  heldMinor      BigInt   @default(0)
+  settledMinor   BigInt   @default(0)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([sourceType, sourceId, organizationId])
+  @@index([employeeId, createdAt], map: "WalletCreditLot_owner")
+}
+
+model WalletJournal {
+  id        String   @id
+  kind      String
+  reference String   @unique
+  actorId   String
+  postingTx BigInt @default(dbgenerated("txid_current()"))
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model WalletJournalEntry {
+  id          String @id
+  journalId   String
+  accountKey  String
+  amountMinor BigInt
+
+  @@index([journalId], map: "WalletJournalEntry_journal")
+}
+
+model WalletReleaseItem {
+  id String @id
+  proposalId String
+  sourceType String
+  sourceId String
+  employeeId String?
+  organizationId String
+  envelopeId String
+  amountMinor BigInt
+  category String
+  @@unique([proposalId, sourceType, sourceId, organizationId])
+ vendorId String?
+ bankSnapshot String?
+}
+
+model WalletBankAccount {
+  id String @id
+  employeeId String
+  accountNumber String
+  bankCode String
+  accountName String
+  fingerprint String
+  active Boolean @default(true)
+  verifiedAt DateTime @default(now()) @db.Timestamptz(6)
+  @@unique([employeeId, fingerprint])
+}
+
+model WalletChallenge {
+  id String @id
+  actorId String
+  purpose String
+  payloadHash String
+  tokenHash String
+  sessionHash String
+  credentialHash String
+  expiresAt DateTime @db.Timestamptz(6)
+  usedAt DateTime? @db.Timestamptz(6)
+  @@index([expiresAt], map: "WalletChallenge_expiry")
+}
+
+model WalletWithdrawal {
+  id String @id
+  employeeId String
+  amountMinor BigInt
+  feeLimitMinor BigInt
+  feeMinor BigInt @default(0)
+  reference String @unique
+  idempotencyKey String
+  intentHash String
+  environment String
+  sourceAccount String
+  bankAccountId String?
+  bankCode String
+  accountNumber String
+  accountName String
+  status String @default("HELD")
+  providerReference String?
+  providerStatus String?
+  submittedAt DateTime? @db.Timestamptz(6)
+  leaseToken String?
+  leaseUntil DateTime? @db.Timestamptz(6)
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(6)
+  attempts Int @default(0)
+  lastError String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @db.Timestamptz(6)
+  @@unique([employeeId, idempotencyKey])
+  @@index([status, nextAttemptAt], map: "WalletWithdrawal_queue")
+ targetType String @default("STAFF")
+ vendorId String?
+ requestId String?
+ proposalId String?
+}
+
+model WalletWithdrawalAllocation {
+  id String @id
+  withdrawalId String
+  creditLotId String
+  amountMinor BigInt
+  @@unique([withdrawalId, creditLotId])
+}
+
+model WalletProviderInbox {
+  processedAt DateTime? @db.Timestamptz(6)
+  id String @id
+  bodyHash String @unique
+  reference String
+  eventType String
+  receivedAt DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model WalletReconciliationIssue {
+  id String @id
+  reference String?
+  code String
+  detail String
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  resolvedAt DateTime? @db.Timestamptz(6)
+  resolvedById String?
+}
+
+model WalletPaidSource {
+  key String @id
+  proposalId String
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model WalletBalanceObservation {
+ id String @id
+ environment String
+ sourceAccount String
+ availableMinor BigInt
+ observedAt DateTime @db.Timestamptz(6)
+}
+
+model WalletProjectReturn {
+ id String @id
+ employeeId String
+ creditLotId String
+ amountMinor BigInt
+ reason String
+ idempotencyKey String
+ intentHash String
+ createdAt DateTime @default(now()) @db.Timestamptz(6)
+ @@unique([employeeId,idempotencyKey])
+}

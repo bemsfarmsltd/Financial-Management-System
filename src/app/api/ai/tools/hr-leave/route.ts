@@ -1,3 +1,4 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -11,6 +12,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(request);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse || !actor) return errorResponse!;
 
   const { searchParams } = new URL(request.url);
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest) {
   }
   if (status) where.status = status.toUpperCase();
 
-  const leaveRequests = await prisma.leaveRequest.findMany({
+  const leaveRequests = await db.leaveRequest.findMany({
     where,
     include: {
       employee: {
@@ -52,6 +54,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { actor, errorResponse } = await authenticateAiToolRequest(request);
+  const db = actor ? await getAiReadClient(actor) : prisma;
     if (errorResponse || !actor) return errorResponse!;
 
     const body = await request.json();
@@ -69,7 +72,8 @@ export async function POST(request: NextRequest) {
       }
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'leave_action',
         summary: `Submit ${leaveType} Leave Request (${startDate} to ${endDate})`,
         materialPayload: {
@@ -105,13 +109,13 @@ export async function POST(request: NextRequest) {
 
     let leaveRecord = null;
     if (body.leaveId || body.id) {
-      leaveRecord = await prisma.leaveRequest.findUnique({
+      leaveRecord = await db.leaveRequest.findUnique({
         where: { id: String(body.leaveId || body.id) },
         include: { employee: true },
       });
     } else if (body.employeeName || body.employeeId) {
       const lookup = String(body.employeeName || body.employeeId).trim();
-      leaveRecord = await prisma.leaveRequest.findFirst({
+      leaveRecord = await db.leaveRequest.findFirst({
         where: {
           status: 'PENDING',
           employee: {
@@ -133,7 +137,8 @@ export async function POST(request: NextRequest) {
 
     const decision = subAction.includes('REJECT') || body.decision === 'REJECTED' ? 'REJECTED' : 'APPROVED';
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'leave_action',
       summary: `${decision === 'APPROVED' ? 'Approve' : 'Reject'} ${leaveRecord.leaveType} Leave (${leaveRecord.startDate} to ${leaveRecord.endDate}) for ${leaveRecord.employee.legalName}`,
       materialPayload: {

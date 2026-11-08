@@ -24,9 +24,9 @@ export async function POST(
     const isOwner = actor.id === employeeId;
     const isExecutive = hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
 
-    if (!isOwner && !isExecutive) {
+    if (!isOwner) {
       // Allow scoped HR only for STAFF targets in their subsidiary
-      await verifyTargetEmployeeAccess(actor, employeeId, { allowExecutiveTarget: false });
+      await verifyTargetEmployeeAccess(actor, employeeId, { allowExecutiveTarget: isExecutive });
     }
 
     const body = await request.json();
@@ -38,19 +38,21 @@ export async function POST(
       return NextResponse.json({ error: 'Provide a valid telephone number or passport photograph URL.' }, { status: 400 });
     }
 
-    const employee = await prisma.employee.findUnique({
+    const updated = await prisma.$transaction(async (tx) => {
+      if (!isOwner) await verifyTargetEmployeeAccess(actor, employeeId, { allowExecutiveTarget: isExecutive }, tx);
+    const employee = await tx.employee.findUnique({
       where: { id: employeeId },
     });
 
     if (!employee) {
-      return NextResponse.json({ error: 'Staff member not found.' }, { status: 404 });
+      throw new LifecycleAuthorizationError('Staff member not found.', 404);
     }
 
     const updateData: any = {};
     if (phone && phone.length >= 8) updateData.phone = phone;
     if (avatarUrl && avatarUrl.length > 5) updateData.avatarUrl = avatarUrl;
 
-    const updated = await prisma.employee.update({
+    const updated = await tx.employee.update({
       where: { id: employeeId },
       data: updateData,
     });
@@ -60,7 +62,10 @@ export async function POST(
       targetId: employeeId,
       action: 'CONTACT_UPDATED',
       metadata: { updatedPhone: Boolean(updateData.phone), updatedAvatar: Boolean(updateData.avatarUrl) },
-    });
+    }, tx);
+
+      return updated;
+    }, { isolationLevel: 'Serializable' });
 
     return NextResponse.json({
       success: true,

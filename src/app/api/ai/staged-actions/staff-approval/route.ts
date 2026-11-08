@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 export async function POST(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req, { allowServiceToken: true });
+    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
     if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN'])) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Only GMD or System Admin can stage staff approvals.' }, { status: 403 });
@@ -51,7 +52,8 @@ export async function POST(req: Request) {
     const dept = emp.assignments?.[0]?.department;
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'staff_approval',
       targetEmployeeId: emp.id,
       targetSubsidiaryId: emp.assignments?.[0]?.subsidiaryId,

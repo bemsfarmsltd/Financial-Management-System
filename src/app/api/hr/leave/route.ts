@@ -1,3 +1,4 @@
+import { executeDashboardCommand } from '@/lib/staged-actions';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, getHrAuthorizationScope } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -101,139 +102,12 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req);
-    if (!actor) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const hrScope = await getHrAuthorizationScope(actor);
-    if (!hrScope.authorized) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
+    if (!actor) return NextResponse.json({ error: 'Sign in to manage leave.' }, { status: 401 });
     const body = await req.json();
-    const { action, leaveId, employeeId, leaveType, startDate, endDate, reason, handoverNotes, reviewNote } = body;
-
-    if (action === 'CREATE') {
-      const targetEmpId = employeeId || actor.id;
-      if (!leaveType || !startDate || !endDate || !reason) {
-        return NextResponse.json({ error: 'Missing required leave fields' }, { status: 400 });
-      }
-
-      await verifyTargetEmployeeAccess(actor, targetEmpId, { allowExecutiveTarget: false });
-
-      const newLeave = await prisma.leaveRequest.create({
-        data: {
-          employeeId: targetEmpId,
-          leaveType,
-          startDate,
-          endDate,
-          reason,
-          handoverNotes: handoverNotes || null,
-          status: 'PENDING',
-        },
-      });
-
-      return NextResponse.json({ success: true, leave: newLeave });
-    }
-
-    if (action === 'APPROVE') {
-      if (!leaveId) {
-        return NextResponse.json({ error: 'Missing leaveId' }, { status: 400 });
-      }
-
-      const existingLeave = await prisma.leaveRequest.findUnique({
-        where: { id: leaveId },
-        select: { id: true, employeeId: true, status: true },
-      });
-      if (!existingLeave) {
-        return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
-      }
-
-      await verifyTargetEmployeeAccess(actor, existingLeave.employeeId, { allowExecutiveTarget: false });
-
-      const updated = await prisma.leaveRequest.update({
-        where: { id: leaveId },
-        data: {
-          status: 'APPROVED',
-          reviewedById: actor.id,
-          reviewedByName: actor.legalName,
-          reviewNote: reviewNote || 'Approved by HR',
-          reviewedAt: new Date(),
-        },
-        include: {
-          employee: { select: { id: true, legalName: true } },
-        },
-      });
-
-      // Update employee status to ON_LEAVE via shared lifecycle service (unless actor is approving their own leave)
-      if (actor.id !== updated.employeeId) {
-        await transitionEmployeeStatus({
-          actor,
-          targetEmployeeId: updated.employeeId,
-          nextStatus: 'ON_LEAVE',
-          reason: `Approved leave (${updated.startDate} to ${updated.endDate})`,
-          requireStaffRoleOnly: true,
-        });
-      }
-
-      await prisma.systemNotification.create({
-        data: {
-          employeeId: updated.employeeId,
-          kind: 'ALERT',
-          title: 'Leave Request Approved',
-          body: `Your leave request for ${updated.startDate} to ${updated.endDate} has been approved by HR.`,
-          linkUrl: '/dashboard',
-        },
-      });
-
-      return NextResponse.json({ success: true, leave: updated });
-    }
-
-    if (action === 'REJECT') {
-      if (!leaveId) {
-        return NextResponse.json({ error: 'Missing leaveId' }, { status: 400 });
-      }
-
-      const existingLeave = await prisma.leaveRequest.findUnique({
-        where: { id: leaveId },
-        select: { id: true, employeeId: true, status: true },
-      });
-      if (!existingLeave) {
-        return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
-      }
-
-      await verifyTargetEmployeeAccess(actor, existingLeave.employeeId, { allowExecutiveTarget: false });
-
-      const updated = await prisma.leaveRequest.update({
-        where: { id: leaveId },
-        data: {
-          status: 'REJECTED',
-          reviewedById: actor.id,
-          reviewedByName: actor.legalName,
-          reviewNote: reviewNote || 'Not approved at this time',
-          reviewedAt: new Date(),
-        },
-      });
-
-      await prisma.systemNotification.create({
-        data: {
-          employeeId: updated.employeeId,
-          kind: 'ALERT',
-          title: 'Leave Request Status',
-          body: `Your leave request was not approved: ${reviewNote || 'Please contact HR for details.'}`,
-          linkUrl: '/dashboard',
-        },
-      });
-
-      return NextResponse.json({ success: true, leave: updated });
-    }
-
-    return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
-  } catch (error) {
-    if (error instanceof LifecycleAuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error('HR Leave Action Error:', error);
-    return NextResponse.json({ error: 'Failed to process leave action' }, { status: 500 });
-  }
+    const actions: Record<string, string> = { CREATE: 'CREATE_LEAVE', APPROVE: 'APPROVE_LEAVE', REJECT: 'REJECT_LEAVE' };
+    const sub_action = actions[String(body.action || '').toUpperCase()];
+    if (!sub_action) return NextResponse.json({ error: 'Unknown leave action.' }, { status: 400 });
+    const leave = await executeDashboardCommand(actor, 'leave_action', { ...body, sub_action, rejectionReason: body.reviewNote });
+    return NextResponse.json({ success: true, leave });
+  } catch (error: any) { return NextResponse.json({ error: error.message }, { status: 400 }); }
 }

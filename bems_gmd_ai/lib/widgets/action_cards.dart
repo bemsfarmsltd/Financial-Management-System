@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../screens/wallet_funding_screen.dart';
 import 'disbursement_transfer_modal.dart';
 
 class InteractiveActionCard extends StatefulWidget {
@@ -226,6 +227,7 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
     final type = (widget.data['type'] ?? widget.data['cardType'] ?? '').toString().toUpperCase();
     final hasStagedId = (widget.data['staged_action_id']?.toString() ?? '').isNotEmpty;
 
+    if(type=='WALLET_RELEASE') return Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('GMD wallet release',style:TextStyle(fontWeight:FontWeight.bold)),const Text('Open the server-verified proposal, review exact recipients and securely confirm. Never enter passwords in chat.'),FilledButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>WalletFundingScreen(proposalId:widget.data['id']?.toString()))),child:const Text('Review exact wallet release'))])));
     if (type == 'STAGED_ACTION' || hasStagedId) {
       return _buildStagedActionCard(context);
     }

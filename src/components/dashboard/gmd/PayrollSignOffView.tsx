@@ -1,5 +1,6 @@
 'use client';
 
+import WalletFlowNotice from '@/components/wallet/WalletFlowNotice';
 import React, { useState, useEffect } from 'react';
 import {
   Users,
@@ -567,7 +568,7 @@ export function PayrollSignOffView({
     } catch { setNotice('Could not save your confirmation.'); }
   };
 
-  const isApproved = Boolean(data?.batch && (data.batch.status === 'APPROVED' || data.batch.status === 'DISBURSED'));
+  const isApproved = Boolean(data?.batch && (data.batch.status === 'APPROVED' || data.batch.status === 'DISBURSED' || data.batch.status === 'WALLET_CREDITED'));
   const monthName = data?.period?.periodName || 'Payroll';
 
   if (loading && !data && !staffPayments) {
@@ -593,6 +594,7 @@ export function PayrollSignOffView({
 
   return (
     <div style={{ width: '100%', minHeight: '100%', color: '#0f172a' }}>
+      <WalletFlowNotice />
       {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
         <div>

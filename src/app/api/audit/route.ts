@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
-import { resolveOrganizationScope } from '@/lib/organizations';
+import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,13 +19,8 @@ export async function GET(request: Request) {
     const format = (searchParams.get('format') || 'json').toLowerCase();
     const reportType = (searchParams.get('report_type') || 'audit').toLowerCase();
 
-    let scopeIds: string[] | null = null;
-    if (subsidiary && subsidiary !== 'ALL') {
-      const scope = await resolveOrganizationScope(subsidiary);
-      if (!scope.isGroup) {
-        scopeIds = scope.organizationIds;
-      }
-    }
+    const scope = await resolveAuthorizedOrganizationScope(actor, subsidiary);
+    const scopeIds = scope.organizationIds;
 
     if (isExport) {
       let rows: Record<string, any>[] = [];
@@ -105,7 +100,8 @@ export async function GET(request: Request) {
       if (format === 'csv') {
         const headers = rows.length > 0 ? Object.keys(rows[0]) : ['id', 'createdAt', 'action'];
         const escapeCsv = (val: unknown) => {
-          const str = val === null || val === undefined ? '' : String(val);
+          let str = val === null || val === undefined ? '' : String(val);
+          if (typeof val === 'string' && /^[=+@\t\r-]/.test(str)) str = "'" + str;
           return str.includes(',') || str.includes('"') || str.includes('\n')
             ? `"${str.replace(/"/g, '""')}"`
             : str;
@@ -118,6 +114,7 @@ export async function GET(request: Request) {
           status: 200,
           headers: {
             'Content-Type': 'text/csv; charset=utf-8',
+            'X-Report-Row-Count': String(rows.length),
             'Content-Disposition': `attachment; filename="bems-${reportType}-export.csv"`,
             'Cache-Control': 'no-store',
           },

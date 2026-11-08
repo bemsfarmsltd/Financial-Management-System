@@ -1,3 +1,4 @@
+import { recordTransfer } from '@/lib/services/payment';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requestIdentifierWhere, toSystemRequestId } from '@/lib/request-id';
@@ -163,283 +164,31 @@ export async function GET(req: NextRequest) {
 
 // Finance/GMD/System Admin records an off-platform bank transfer and notifies its requester.
 export async function POST(req: NextRequest) {
+  const actor = await getAuthenticatedEmployee(req, { disallowServiceToken: true });
+  if (!actor) return NextResponse.json({ error: 'Sign in to record payment.' }, { status: 401 });
+  if (!hasAnyRole(actor, ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'])) return NextResponse.json({ error: 'Executive access required.' }, { status: 403 });
   try {
-    const maker = await getAuthenticatedEmployee(req);
-    if (!maker) return NextResponse.json({ error: 'Sign in to record a payment.' }, { status: 401 });
-    if (!hasAnyRole(maker, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive or Super admin access is required to record a payment.' }, { status: 403 });
     const body = await req.formData();
-    const requestIdentifier = String(body.get('requestId') || '');
-    const payerOrgId = String(body.get('payerOrgId') || '');
-    const beneficiaryName = String(body.get('beneficiaryName') || '');
-    const beneficiaryBank = String(body.get('beneficiaryBank') || '');
-    const beneficiaryAccount = String(body.get('beneficiaryAccount') || '');
-    const amountMinor = String(body.get('amountMinor') || '');
-    const externalReference = String(body.get('externalReference') || '');
-    const bankName = String(body.get('bankName') || '');
-    const receiptFile = body.get('receipt');
-
-    if (!requestIdentifier || !payerOrgId || !externalReference || !bankName) {
-      return NextResponse.json({ error: 'Complete the payment details with corporate bank and external reference.' }, { status: 400 });
-    }
-    if (!/^\d+$/.test(amountMinor) || !Number.isSafeInteger(Number(amountMinor)) || BigInt(amountMinor) <= BigInt(0)) {
-      return NextResponse.json({ error: 'Payment amount must be a positive integer in minor units (kobo).' }, { status: 400 });
-    }
-
-    const hasReceiptFile = receiptFile instanceof File && receiptFile.size > 0;
-    let fileBytes: Buffer;
-    let fileName: string;
-    let mimeType: string;
-
-    if (hasReceiptFile) {
-      if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(receiptFile.type) || receiptFile.size > 10 * 1024 * 1024) {
-        return NextResponse.json({ error: 'Attach a PDF, PNG, or JPG bank slip up to 10 MB.' }, { status: 400 });
-      }
-      fileBytes = Buffer.from(await receiptFile.arrayBuffer());
-      fileName = receiptFile.name.replace(/[\\/]/g, '_').slice(0, 180);
-      mimeType = receiptFile.type;
-    } else {
-      const safeRefSlug = externalReference.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
-      fileName = `voucher-${safeRefSlug}.svg`;
-      mimeType = 'image/svg+xml';
-      const formattedNaira = (Number(amountMinor) / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
-      const safeExternalRef = escapeXml(externalReference);
-      const safeBeneficiaryName = escapeXml(beneficiaryName || 'Approved Beneficiary');
-      const safeBeneficiaryBank = escapeXml(beneficiaryBank);
-      const safeBeneficiaryAccount = escapeXml(beneficiaryAccount);
-      const safeBankName = escapeXml(bankName);
-      const voucherSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380" viewBox="0 0 600 380" style="background:#0f172a;font-family:sans-serif;color:#fff;">
-  <rect width="600" height="380" fill="#0f172a" rx="16"/>
-  <rect x="20" y="20" width="560" height="340" fill="#1e293b" rx="12" stroke="#334155" stroke-width="2"/>
-  <circle cx="56" cy="56" r="18" fill="#059669"/>
-  <path d="M49 56l5 5 10-10" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-  <text x="88" y="54" font-size="16" font-weight="bold" fill="#ffffff">BEMS ERP · DISBURSEMENT VOUCHER</text>
-  <text x="88" y="70" font-size="11" fill="#94a3b8">Off-Platform Direct Bank Transfer Record</text>
-  <line x1="40" y1="92" x2="560" y2="92" stroke="#334155" stroke-width="1"/>
-  <text x="40" y="120" font-size="11" fill="#94a3b8">BANK REFERENCE</text>
-  <text x="40" y="140" font-size="15" font-weight="bold" fill="#38bdf8">${safeExternalRef}</text>
-  <text x="320" y="120" font-size="11" fill="#94a3b8">AMOUNT TRANSFERRED</text>
-  <text x="320" y="142" font-size="18" font-weight="bold" fill="#34d399">NGN ${formattedNaira}</text>
-  <text x="40" y="180" font-size="11" fill="#94a3b8">BENEFICIARY</text>
-  <text x="40" y="200" font-size="13" font-weight="bold" fill="#ffffff">${safeBeneficiaryName}</text>
-  <text x="40" y="218" font-size="12" fill="#cbd5e1">${safeBeneficiaryBank} • ${safeBeneficiaryAccount}</text>
-  <text x="320" y="180" font-size="11" fill="#94a3b8">PAYER SOURCE</text>
-  <text x="320" y="200" font-size="13" font-weight="bold" fill="#ffffff">${safeBankName}</text>
-  <text x="320" y="218" font-size="11" fill="#94a3b8">Recorded: ${escapeXml(new Date().toUTCString())}</text>
-  <line x1="40" y1="245" x2="560" y2="245" stroke="#334155" stroke-width="1"/>
-  <text x="40" y="272" font-size="10" fill="#64748b">Direct transfer verified and recorded by corporate administrator.</text>
-  <text x="40" y="290" font-size="10" fill="#475569">BEMS ERP Secure Audit Trail</text>
-</svg>`.trim();
-      fileBytes = Buffer.from(voucherSvg, 'utf-8');
-    }
-
-    const receiptHash = crypto.createHash('sha256').update(fileBytes).digest('hex');
-
-    const request = await prisma.expenditureRequest.findUnique({
-      where: requestIdentifierWhere(requestIdentifier),
-      include: { vendor: true, requester: true },
-    });
-    if (!request) return NextResponse.json({ error: 'Request not found.' }, { status: 404 });
-    const requestId = request.id;
-    if (request.approvalStatus !== 'APPROVED') return NextResponse.json({ error: 'Only approved requests can be paid.' }, { status: 409 });
-    if (request.disbursementAssigneeId && request.disbursementAssigneeId !== maker.id && !['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'].includes(maker.role)) {
-      return NextResponse.json({ error: 'This disbursement is assigned to another executive.' }, { status: 403 });
-    }
-    if (request.paymentStatus === 'RECIPIENT_CONFIRMED') return NextResponse.json({ error: 'The requester has already confirmed this payment.' }, { status: 409 });
-    if (BigInt(amountMinor) > request.amountMinor) return NextResponse.json({ error: 'Payment exceeds the approved amount.' }, { status: 400 });
-
-    const resolvedBeneficiaryName =
-      beneficiaryName.trim() ||
-      request.vendor?.accountName ||
-      request.vendor?.name ||
-      request.requester?.accountName ||
-      request.requester?.salaryAccountName ||
-      request.requester?.legalName ||
-      '';
-    const resolvedBeneficiaryBank =
-      beneficiaryBank.trim() ||
-      request.vendor?.bankName ||
-      request.requester?.bankName ||
-      request.requester?.salaryBankName ||
-      '';
-    const resolvedBeneficiaryAccount = (
-      beneficiaryAccount.trim() ||
-      request.vendor?.accountNumber ||
-      request.requester?.accountNumber ||
-      request.requester?.salaryAccountNumber ||
-      ''
-    ).replace(/\D/g, '');
-
-    if (
-      !resolvedBeneficiaryName ||
-      !resolvedBeneficiaryBank ||
-      resolvedBeneficiaryAccount.length !== 10 ||
-      resolvedBeneficiaryAccount === '0000000000'
-    ) {
-      return NextResponse.json(
-        { error: 'A verified 10-digit NUBAN beneficiary account number, bank name, and account holder name are required.' },
-        { status: 400 }
-      );
-    }
-
-    const activePayment = await prisma.disbursement.findFirst({
-      where: { requestId, status: 'AWAITING_RECIPIENT_CONFIRMATION' },
-    });
-    if (activePayment) return NextResponse.json({ error: 'This request already has a payment awaiting staff confirmation.' }, { status: 409 });
-
-    const existingRef = await prisma.disbursement.findFirst({
-      where: { externalReference }
-    });
-    if (existingRef) {
-      return NextResponse.json({ error: `Bank Reference ${externalReference} already recorded in system.` }, { status: 409 });
-    }
-    if (hasReceiptFile) {
-      const duplicateReceipt = await prisma.paymentReceipt.findFirst({ where: { sha256: receiptHash } });
-      if (duplicateReceipt) return NextResponse.json({ error: 'This exact bank slip has already been attached to another payment.' }, { status: 409 });
-    }
-
-    const disbursement = await prisma.$transaction(async (tx) => {
-      const activeInTx = await tx.disbursement.findFirst({
-        where: { requestId, status: 'AWAITING_RECIPIENT_CONFIRMATION' },
-      });
-      if (activeInTx) {
-        throw new Error('CONFLICT: This request already has a payment awaiting staff confirmation.');
-      }
-
-      const existingRefInTx = await tx.disbursement.findFirst({
-        where: { externalReference },
-      });
-      if (existingRefInTx) {
-        throw new Error(`CONFLICT: Bank Reference ${externalReference} already recorded in system.`);
-      }
-
-      const created = await tx.disbursement.create({
-        data: {
-          requestId,
-          payerOrgId,
-          beneficiaryName: resolvedBeneficiaryName,
-          beneficiaryBank: resolvedBeneficiaryBank,
-          beneficiaryAccount: resolvedBeneficiaryAccount,
-          amountMinor: BigInt(amountMinor),
-          currency: request.currency,
-          externalReference,
-          bankName,
-          recordedById: maker.id,
-          status: 'AWAITING_RECIPIENT_CONFIRMATION',
-          idempotencyKey: `IDEMP-${requestId}-${externalReference}`,
-        }
-      });
-      const receiptId = crypto.randomUUID();
-      await tx.paymentReceipt.create({ data: {
-        id: receiptId,
-        disbursementId: created.id,
-        fileName: fileName,
-        fileUrl: `/api/receipts/${receiptId}`,
-        sha256: receiptHash,
-        mimeType: mimeType,
-        fileData: new Uint8Array(fileBytes),
-        uploadedById: maker.id,
-      } });
-      await tx.expenditureRequest.update({ where: { id: requestId }, data: { paymentStatus: 'AWAITING_RECIPIENT_CONFIRMATION' } });
-
-      // FIN-001: Deduct company bank account balance atomically inside transaction using exact bank match
-      const amountNaira = Number(amountMinor) / 100;
-      const bankAccount = await tx.companyBankAccount.findFirst({
-        where: {
-          organizationId: payerOrgId,
-          status: 'ACTIVE',
-          bankName: { contains: bankName, mode: 'insensitive' },
-        },
-      });
-
-      if (bankAccount) {
-        const currentBal = Number(bankAccount.balance);
-        if (currentBal >= amountNaira) {
-          await tx.companyBankAccount.update({
-            where: { id: bankAccount.id },
-            data: { balance: { decrement: amountNaira } },
-          });
-        } else {
-          await tx.companyBankAccount.update({
-            where: { id: bankAccount.id },
-            data: { balance: 0 },
-          });
-        }
-      }
-
-      let accountabilityCase = await tx.accountabilityCase.findUnique({ where: { requestId } });
-      if (!accountabilityCase) {
-        const dueAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-        accountabilityCase = await tx.accountabilityCase.create({ data: { requestId, ownerUserId: request.requestedById, requiredDeliverables: request.deliverable, dueAt, status: 'OPEN' } });
-        await tx.followupTask.create({ data: { accountabilityCaseId: accountabilityCase.id, assigneeId: request.requestedById, description: `Submit post-payment deliverables for ${request.requestNumber}`, dueAt } });
-      }
-
-      await tx.auditEvent.create({
-        data: {
-          actorId: maker.id,
-          actorName: maker.legalName,
-          actorRole: maker.role,
-          groupId: payerOrgId,
-          subsidiaryId: payerOrgId,
-          targetType: 'DISBURSEMENT',
-          targetId: created.id,
-          action: 'CREATED',
-          correlationId: `CORR-DISB-${created.id}`,
-          metadata: JSON.stringify({
-            externalReference,
-            bankName,
-            amountMinor,
-            receiptHash,
-            receiptName: fileName,
-            evidenceSource: hasReceiptFile ? 'BANK_SLIP' : 'INTERNAL_VOUCHER',
-          }),
-        },
-      });
-
-      return { ...created, accountabilityCaseId: accountabilityCase.id };
-    });
-
-    await prisma.systemNotification.create({ data: {
-      employeeId: request.requestedById,
-      kind: 'PAYMENT_CONFIRMATION_REQUIRED',
-      title: 'Confirm receipt of funds',
-      body: `A payment of ${formatNaira(BigInt(amountMinor))} was recorded for ${request.requestNumber}. Review the receipt and confirm whether you received it.`,
-      linkUrl: `/requests/${request.requestNumber}`,
-    } });
-
-    await prisma.systemNotification.create({ data: {
-      employeeId: request.requestedById,
-      kind: 'ACCOUNTABILITY_EVIDENCE_DUE',
-      title: 'Submit proof for your fund request',
-      body: `Upload the required post-payment deliverables for ${request.requestNumber} by ${new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('en-NG')}. Required: ${request.deliverable}`,
-      linkUrl: '/',
-    } });
-
-    const channel = await prisma.requestChannel.findUnique({ where: { requestId } });
-    if (channel) await prisma.channelMessage.create({ data: {
-      channelId: channel.id,
-      authorId: maker.id,
-      authorName: maker.legalName,
-      authorRole: maker.role,
-      messageType: 'AUDIT_EVENT',
-      body: `Payment recorded by ${maker.legalName} (reference ${externalReference}). The requester has been asked to confirm receipt.`,
-    } });
-
-    return NextResponse.json({
-      success: true,
-      disbursementId: disbursement.id,
-      requestSystemId: toSystemRequestId(request.id),
-      requestNumber: request.requestNumber,
-      accountabilityCaseId: disbursement.accountabilityCaseId,
-      sha256: receiptHash,
-      message: 'Payment recorded. The requester has been notified to confirm receipt.'
-    });
-  } catch (error: any) {
-    console.error('Error recording disbursement:', error);
-    return NextResponse.json({ error: error.message || 'Failed to record disbursement' }, { status: 500 });
+    const receipt = body.get('receipt');
+    if (!(receipt instanceof File)) return NextResponse.json({ error: 'Upload the actual bank receipt.' }, { status: 400 });
+    const amount = String(body.get('amountMinor') || '');
+    if (!/^\d+$/.test(amount)) return NextResponse.json({ error: 'A positive amount in kobo is required.' }, { status: 400 });
+    const reference = String(body.get('externalReference') || '').trim();
+    const receiptBytes = Buffer.from(await receipt.arrayBuffer());
+    const payment = await prisma.$transaction(tx => recordTransfer(tx, {
+      actor, requestId: String(body.get('requestId') || ''), payerOrgId: String(body.get('payerOrgId') || ''),
+      payerAccountId: String(body.get('payerAccountId') || '') || undefined, bankName: String(body.get('bankName') || ''),
+      amountMinor: BigInt(amount), reference, beneficiaryName: String(body.get('beneficiaryName') || ''),
+      beneficiaryBank: String(body.get('beneficiaryBank') || ''), beneficiaryAccount: String(body.get('beneficiaryAccount') || ''),
+      receipt: { name: receipt.name, type: receipt.type, bytes: receiptBytes },
+      idempotencyKey: 'TRANSFER-' + reference,
+    }));
+    return NextResponse.json({ success: true, disbursement: { ...payment, amountMinor: payment.amountMinor.toString() } });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Payment could not be recorded.' }, { status: 409 });
   }
 }
 
-// Payment receipt is confirmed by the requesting staff member, not by a separate checker.
-export async function PATCH(req: NextRequest) {
-  return NextResponse.json({ error: 'The requesting staff member confirms receipt from the request page.' }, { status: 410 });
+export async function PATCH() {
+  return NextResponse.json({ error: 'The recipient must confirm receipt.' }, { status: 410 });
 }

@@ -1,3 +1,4 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -10,6 +11,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
   if (!actor || !actor.isExecutive) {
     return NextResponse.json(
@@ -29,7 +31,7 @@ export async function GET(req: NextRequest) {
     whereClause.organizationId = { in: orgScope.organizationIds };
   }
 
-  const accounts = await prisma.companyBankAccount.findMany({
+  const accounts = await db.companyBankAccount.findMany({
     where: whereClause,
     include: {
       organization: { select: { id: true, legalName: true, code: true } },
@@ -75,6 +77,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse) return errorResponse;
 
   if (!actor?.isExecutive) {
@@ -124,7 +127,7 @@ export async function POST(req: NextRequest) {
 
   // 1. Handle STAFF
   if (targetType === 'STAFF') {
-    const employee = await prisma.employee.findFirst({
+    const employee = await db.employee.findFirst({
       where: {
         OR: [
           { id: targetQuery },
@@ -144,7 +147,8 @@ export async function POST(req: NextRequest) {
 
     const resolvedAccountName = accountName || employee.legalName;
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'bank_account_update',
       summary: `Update staff bank account for ${employee.legalName} (${employee.employeeNumber}) to ${canonicalBankName} · ${accountNumber}`,
       materialPayload: {
@@ -179,7 +183,7 @@ export async function POST(req: NextRequest) {
 
   // 2. Handle SUBSIDIARY (CompanyBankAccount)
   if (targetType === 'SUBSIDIARY' || targetType === 'COMPANY' || targetType === 'ORGANIZATION') {
-    const exactOrg = await prisma.organization.findFirst({
+    const exactOrg = await db.organization.findFirst({
       where: {
         OR: [
           { id: targetQuery },
@@ -190,7 +194,7 @@ export async function POST(req: NextRequest) {
     });
     let org = exactOrg;
     if (!org) {
-      const partial = await prisma.organization.findMany({
+      const partial = await db.organization.findMany({
         where: {
           OR: [
             { legalName: { contains: targetQuery, mode: 'insensitive' } },
@@ -218,7 +222,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const existingAcct = await prisma.companyBankAccount.findUnique({
+    const existingAcct = await db.companyBankAccount.findUnique({
       where: { accountNumber },
       include: { organization: true },
     });
@@ -236,7 +240,8 @@ export async function POST(req: NextRequest) {
     const requestedMode = String(body.mode || (existingAcct ? 'update_metadata' : 'register')).toLowerCase().trim();
     const resolvedAccountName = accountName || org.legalName;
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'bank_account_update',
       targetSubsidiaryId: org.id,
       summary:
@@ -281,7 +286,7 @@ export async function POST(req: NextRequest) {
 
   // 3. Handle VENDOR
   if (targetType === 'VENDOR') {
-    const vendor = await prisma.vendor.findFirst({
+    const vendor = await db.vendor.findFirst({
       where: {
         OR: [
           { id: targetQuery },
@@ -300,7 +305,8 @@ export async function POST(req: NextRequest) {
 
     const resolvedAccountName = accountName || vendor.name;
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'bank_account_update',
       summary: `Update vendor bank account for ${vendor.name} (${vendor.code}) to ${canonicalBankName} · ${accountNumber}`,
       materialPayload: {

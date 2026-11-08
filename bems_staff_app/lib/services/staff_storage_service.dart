@@ -1,8 +1,16 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/staff_models.dart';
 
 class StaffStorageService {
+  static const _secure = FlutterSecureStorage(aOptions: AndroidOptions(encryptedSharedPreferences: true));
+  static Future<Map<String,dynamic>> walletIntent(String employeeId,Map<String,dynamic> input) async {
+    final key='wallet-intent:$employeeId';final old=await _secure.read(key:key);
+    if(old!=null){final parsed=jsonDecode(old) as Map<String,dynamic>;if(parsed['amountMinor']==input['amountMinor']&&parsed['bankAccountId']==input['bankAccountId']&&jsonEncode(parsed['creditAllocations'])==jsonEncode(input['creditAllocations']))return parsed;}
+    await _secure.write(key:key,value:jsonEncode(input));return input;
+  }
+  static Future<void> clearWalletIntent(String employeeId) => _secure.delete(key:'wallet-intent:$employeeId');
   static const _keyUser = 'bems_staff_user';
   static const _keySeenOnboardingCarousel = 'bems_staff_seen_onboarding_carousel_v1';
   static const _keyLastSeenJourneyVersion = 'bems_staff_last_seen_journey_version';
@@ -14,12 +22,18 @@ class StaffStorageService {
 
   static Future<void> saveUser(StaffUser user) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyUser, jsonEncode(user.toJson()));
+    await _secure.write(key: _keyUser, value: jsonEncode(user.toJson()));
+    await prefs.remove(_keyUser);
   }
 
   static Future<StaffUser?> getUser() async {
     final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getString(_keyUser);
+    final legacyUser = prefs.getString(_keyUser);
+    if (legacyUser != null) {
+      await _secure.write(key: _keyUser, value: legacyUser);
+      await prefs.remove(_keyUser);
+    }
+    final data = await _secure.read(key: _keyUser);
     if (data == null) return null;
     try {
       return StaffUser.fromJson(jsonDecode(data));
@@ -31,6 +45,7 @@ class StaffStorageService {
   static Future<void> clearUser() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyUser);
+    await _secure.delete(key: _keyUser);
   }
 
   static Future<bool> hasSeenOnboardingCarousel({String? version}) async {
@@ -86,14 +101,17 @@ class StaffStorageService {
 
   static Future<void> saveCredentials({required String email, required String password}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keySavedEmail, email);
-    await prefs.setString(_keySavedPassword, password);
+    await prefs.remove(_keySavedEmail);
+    await prefs.remove(_keySavedPassword);
+    await _secure.write(key: _keySavedEmail, value: email);
+    await _secure.write(key: _keySavedPassword, value: password);
   }
 
   static Future<Map<String, String>?> getSavedCredentials() async {
     final prefs = await SharedPreferences.getInstance();
-    final email = prefs.getString(_keySavedEmail);
-    final password = prefs.getString(_keySavedPassword);
+    final email = await _secure.read(key: _keySavedEmail);
+    await prefs.remove(_keySavedPassword);
+    final password = await _secure.read(key: _keySavedPassword);
     if (email != null && password != null && email.isNotEmpty && password.isNotEmpty) {
       return {'email': email, 'password': password};
     }
@@ -104,6 +122,8 @@ class StaffStorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keySavedEmail);
     await prefs.remove(_keySavedPassword);
+    await _secure.delete(key: _keySavedEmail);
+    await _secure.delete(key: _keySavedPassword);
   }
 
   static Future<void> resetBiometrics() async {
@@ -113,5 +133,7 @@ class StaffStorageService {
     await prefs.remove(_keyBioEnrolledAt);
     await prefs.remove(_keySavedEmail);
     await prefs.remove(_keySavedPassword);
+    await _secure.delete(key: _keySavedEmail);
+    await _secure.delete(key: _keySavedPassword);
   }
 }

@@ -5,7 +5,39 @@ import '../models/auth_models.dart';
 import '../models/chat_models.dart';
 
 class ApiService {
-  static const String serviceToken = 'bems_ai_svc_9a7e2b1c4d6f80931e5f72ab4c10de';
+  static Future<Map<String, dynamic>> getWalletFunding() async {
+    final response = await _executeWithFailover((host) => http.get(Uri.parse('$host/api/wallet/funding'), headers: authHeaders));
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode != 200) throw Exception(data['error'] ?? 'Funding unavailable.');
+    return data;
+  }
+
+  static Future<void> approveWalletRelease(String id, String confirmationHash, String password) async {
+    // Financial mutations use the active host once. Network uncertainty is
+    // resolved by reloading the stored proposal, never host-failover resubmission.
+    final proof = await walletRequest('challenges', {'purpose':'RELEASE','payload':{'id':id,'confirmationHash':confirmationHash},'password':password});
+    final response = await http.post(Uri.parse('$baseUrl/api/wallet/releases/${Uri.encodeComponent(id)}/approve'), headers: authHeaders, body: jsonEncode({'confirmationHash': confirmationHash,'challengeId':proof['id'],'challengeToken':proof['token']})).timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(data['error'] ?? 'Release could not be confirmed. Refresh its status before retrying.');
+    }
+  }
+
+  static Future<Map<String,dynamic>> walletRequest(String path, Map<String,dynamic> body, {String method='POST'}) async {
+    final headers={...authHeaders,if(path=='envelopes'&&body['idempotencyKey']!=null)'Idempotency-Key':body['idempotencyKey'].toString()};
+    final response=await (method=='PATCH'?http.patch(Uri.parse('$baseUrl/api/wallet/$path'),headers:headers,body:jsonEncode(body)):http.post(Uri.parse('$baseUrl/api/wallet/$path'),headers:headers,body:jsonEncode(body))).timeout(const Duration(seconds:30));
+    final data=jsonDecode(response.body) as Map<String,dynamic>;
+    if(response.statusCode!=200) throw Exception(data['error'] ?? 'Wallet operation failed. Refresh its status before retrying.');
+    return data;
+  }
+
+  static Future<List<dynamic>> walletBanks() async {
+    final response=await http.get(Uri.parse('$baseUrl/api/wallet/banks'),headers:authHeaders).timeout(const Duration(seconds:20));
+    final data=jsonDecode(response.body) as Map<String,dynamic>;
+    if(response.statusCode!=200)throw Exception(data['error'] ?? 'Supported bank list unavailable.');
+    return data['banks'] as List<dynamic>;
+  }
+
   static const String primaryBaseUrl = 'https://bemserp.work';
   static const String fallbackBaseUrl = 'https://pink-horse-318730.hostingersite.com';
   static String _activeBaseUrl = primaryBaseUrl;
@@ -25,9 +57,7 @@ class ApiService {
 
   static Map<String, String> get authHeaders => {
         'Content-Type': 'application/json',
-        'Authorization': (activeUserToken != null && activeUserToken!.isNotEmpty)
-            ? 'Bearer $activeUserToken'
-            : 'Bearer $serviceToken',
+        if (activeUserToken != null && activeUserToken!.isNotEmpty) 'Authorization': 'Bearer $activeUserToken',
         if (activeUserId != null && activeUserId!.isNotEmpty) 'x-user-id': activeUserId!,
         'x-bems-mobile-role': 'GMD',
         'x-app-id': appId,
@@ -80,9 +110,7 @@ class ApiService {
           Uri.parse('$host/api/auth/session'),
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': (user.token != null && user.token!.isNotEmpty)
-                ? 'Bearer ${user.token}'
-                : 'Bearer $serviceToken',
+            if (user.token != null && user.token!.isNotEmpty) 'Authorization': 'Bearer ${user.token}',
             'x-user-id': user.id,
             'x-bems-mobile-role': 'GMD',
             'x-app-id': appId,
@@ -96,7 +124,7 @@ class ApiService {
         final data = jsonDecode(res.body);
         if (data is Map<String, dynamic> && data['user'] != null) {
           final returnedUser = data['user'];
-          if (returnedUser['id'] == user.id || returnedUser['workEmail'] == user.email) {
+          if (returnedUser['role'] == 'GMD' && (returnedUser['id'] == user.id || returnedUser['workEmail'] == user.email)) {
             activeUserToken = user.token;
             activeUserId = user.id;
             return true;
@@ -263,6 +291,7 @@ class ApiService {
   static Future<Map<String, dynamic>> sendAiMessage({
     required String message,
     required List<ChatMessage> history,
+    String? conversationId,
   }) async {
     final response = await _executeWithFailover(
       (host) => http.post(
@@ -270,6 +299,7 @@ class ApiService {
         headers: authHeaders,
         body: jsonEncode({
           'message': message,
+          'conversation_id': conversationId,
           'history':
               history.map((m) => {'role': m.sender, 'content': m.content}).toList(),
         }),

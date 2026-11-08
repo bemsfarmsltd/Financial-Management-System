@@ -1,3 +1,6 @@
+import {walletRequestFunding} from '@/lib/wallet/accountability';
+import { accountabilityDeadline } from '@/lib/services/accountability-deadline';
+import { executeDashboardCommand } from '@/lib/staged-actions';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthenticatedEmployee, hasAnyRole } from "@/lib/auth";
@@ -9,7 +12,7 @@ export async function POST(request: Request) {
     if (!actor) return NextResponse.json({ error: "Sign in to submit or close accountability cases." }, { status: 401 });
 
     const body = await request.json();
-    const { caseId, requestId, decision, closureNotes, actualSpentMinor, refundAmountMinor, notes, receiptFileName } = body;
+    const { caseId, requestId, decision, closureNotes, actualSpentMinor, refundAmountMinor, notes, receiptFileName, attachmentId } = body;
 
     // SCENARIO 1: Staff submits retirement evidence via requestId (e.g. from Mobile or Web Staff Desk)
     if (requestId && !caseId) {
@@ -32,6 +35,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Only the request owner or executive can submit retirement evidence." }, { status: 403 });
       }
 
+      const walletFunding=await walletRequestFunding(prisma,expRequest.id);
+      if(walletFunding&&walletFunding.settledMinor<=BigInt(0))return NextResponse.json({error:'A confirmed project bank withdrawal is required before submitting expense evidence.'},{status:409});
       // Guard against submitting retirement before funds have been disbursed
       if (expRequest.paymentStatus === "UNPAID" && expRequest.disbursements.length === 0) {
         return NextResponse.json(
@@ -48,6 +53,12 @@ export async function POST(request: Request) {
         );
       }
 
+      const evidence = attachmentId ? await prisma.attachment.findUnique({ where: { id: String(attachmentId) } }) : null;
+      if (!evidence?.fileData?.length || (!isPrivileged && evidence.uploadedById !== actor.id)) {
+        return NextResponse.json({ error: 'Upload an evidence file and provide its attachmentId.' }, { status: 400 });
+      }
+      if (evidence.requestId && evidence.requestId !== expRequest.id) return NextResponse.json({ error: 'Evidence belongs to another request.' }, { status: 403 });
+
       // Ensure accountability case exists
       let accCase = expRequest.accountabilityCase;
       if (!accCase) {
@@ -56,7 +67,7 @@ export async function POST(request: Request) {
             requestId: expRequest.id,
             ownerUserId: expRequest.requestedById,
             requiredDeliverables: expRequest.deliverable || "Itemized expense receipts and retirement declaration",
-            dueAt: new Date(Date.now() + 14 * 24 * 3600 * 1000), // Canonical 14-day SLA
+            dueAt: await accountabilityDeadline(expRequest.subsidiaryId, expRequest.requestType === 'EMERGENCY', expRequest.disbursements[0]?.paidAt || new Date()),
             status: "OPEN",
           },
         });
@@ -66,19 +77,7 @@ export async function POST(request: Request) {
       const fileName = receiptFileName || "retirement_evidence.pdf";
 
       await prisma.$transaction(async (tx) => {
-        // Record attachment evidence
-        await tx.attachment.create({
-          data: {
-            ownerType: "ACCOUNTABILITY",
-            ownerId: accCase.id,
-            requestId: expRequest.id,
-            fileName,
-            fileUrl: `/uploads/${fileName}`,
-            contentType: "application/pdf",
-            notes: `Actual Spent: ₦${actualSpentMinor ? (Number(actualSpentMinor) / 100).toLocaleString() : 'N/A'}. Refund: ₦${refundAmountMinor ? (Number(refundAmountMinor) / 100).toLocaleString() : '0'}. Details: ${noteText}`,
-            uploadedById: actor.id,
-          },
-        });
+        await tx.attachment.update({ where: { id: evidence.id }, data: { ownerType: 'ACCOUNTABILITY', ownerId: accCase.id, requestId: expRequest.id } });
 
         // Update case status to EVIDENCE_SUBMITTED
         await tx.accountabilityCase.update({
@@ -119,7 +118,7 @@ export async function POST(request: Request) {
             subsidiaryId: expRequest.subsidiaryId,
             targetType: "REQUEST",
             targetId: expRequest.id,
-            action: "CLOSED",
+            action: "EVIDENCE_SUBMITTED",
             correlationId: `CORR-RETIRE-${accCase.id}-${Date.now()}`,
             metadata: JSON.stringify({
               caseId: accCase.id,
@@ -134,103 +133,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, caseId: accCase.id, status: "EVIDENCE_SUBMITTED" });
     }
 
-    // SCENARIO 2: Executive closes accountability case via caseId
-    if (!hasAnyRole(actor, ["SYSTEM_ADMIN", "SUPER_ADMIN", "GMD"])) {
-      return NextResponse.json({ error: "Executive or admin access is required to close cases." }, { status: 403 });
-    }
+    if (decision && decision !== 'CLOSE') return NextResponse.json({ error: 'Invalid action.' }, { status: 400 });
+    const result = await executeDashboardCommand(actor, 'accountability_clearance', { case_id: caseId, sub_action: 'CLEAR_CASE', clearance_notes: closureNotes });
+    return NextResponse.json({ success: true, caseId, status: result.status });
 
-    const accCase = await prisma.accountabilityCase.findUnique({
-      where: { id: caseId },
-      include: {
-        request: {
-          include: {
-            channel: true,
-            disbursements: true,
-          },
-        },
-      },
-    });
-
-    if (!accCase) {
-      return NextResponse.json({ error: "Case not found" }, { status: 404 });
-    }
-
-    if (decision === "CLOSE" || !decision) {
-      if (!["OPEN", "EVIDENCE_SUBMITTED", "VERIFIED"].includes(accCase.status)) {
-        return NextResponse.json({ error: "This case cannot be closed from its current state." }, { status: 409 });
-      }
-
-      if (accCase.request.paymentStatus === "UNPAID" && accCase.request.disbursements.length === 0) {
-        return NextResponse.json(
-          { error: "Cannot close an accountability case before payment has been disbursed." },
-          { status: 409 }
-        );
-      }
-
-      const evidenceCount = await prisma.attachment.count({
-        where: {
-          OR: [
-            { requestId: accCase.requestId },
-            { ownerId: accCase.id },
-          ],
-        },
-      });
-      if (evidenceCount === 0) {
-        return NextResponse.json(
-          { error: "Supporting retirement evidence or deliverable attachment is required before closing an accountability case." },
-          { status: 409 }
-        );
-      }
-
-      await prisma.$transaction(async (tx) => {
-        await tx.accountabilityCase.update({
-          where: { id: caseId },
-          data: {
-            status: "CLOSED",
-            verifierUserId: actor.id,
-            verifiedAt: new Date(),
-            closureNotes: typeof closureNotes === "string" && closureNotes.trim() ? closureNotes.trim() : "Supporting deliverables inspected and verified.",
-          },
-        });
-
-        await tx.expenditureRequest.update({
-          where: { id: accCase.requestId },
-          data: { accountabilityStatus: "CLOSED" },
-        });
-
-        if (accCase.request.channel) {
-          await tx.channelMessage.create({
-            data: {
-              channelId: accCase.request.channel.id,
-              authorId: actor.id,
-              authorName: actor.legalName,
-              authorRole: actor.role,
-              messageType: "AUDIT_EVENT",
-              body: `Post-payment deliverables inspected and verified closed by ${actor.legalName}.`,
-            },
-          });
-        }
-
-        await tx.auditEvent.create({
-          data: {
-            actorId: actor.id,
-            actorName: actor.legalName,
-            actorRole: actor.role,
-            groupId: accCase.request.groupId,
-            subsidiaryId: accCase.request.subsidiaryId,
-            targetType: "REQUEST",
-            targetId: accCase.requestId,
-            action: "CLOSED",
-            correlationId: `CORR-CLOSE-${caseId}-${Date.now()}`,
-            metadata: JSON.stringify({ caseId, closureNotes: closureNotes || null }),
-          },
-        });
-      });
-
-      return NextResponse.json({ success: true, caseId, status: "CLOSED" });
-    }
-
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error: any) {
     console.error("Closure error:", error);
     return NextResponse.json(

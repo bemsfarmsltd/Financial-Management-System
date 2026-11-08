@@ -23,6 +23,7 @@ function isPlaceholder(val: unknown): boolean {
 export async function POST(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req, { allowServiceToken: true });
+    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
     if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Only authorized executives can stage payment recordings.' }, { status: 403 });
@@ -61,7 +62,8 @@ export async function POST(req: Request) {
       const reqNum = targetDisb.request?.requestNumber || targetDisb.id;
 
       const stagedResolve = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'payment_record',
         targetSubsidiaryId: targetDisb.request?.subsidiaryId || targetDisb.payerOrgId,
         summary: `Resolve Reported Payment Issue for ${reqNum} (Ref: ${targetDisb.externalReference}) and Request Recipient Re-confirmation`,
@@ -271,7 +273,8 @@ export async function POST(req: Request) {
     };
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'payment_record',
       targetSubsidiaryId: reqItem.subsidiaryId,
       attachmentIds,

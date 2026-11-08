@@ -44,9 +44,10 @@ function checkRequiredFields(
 }
 
 export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
+  notification_read: { actionType: 'notification_read', commandVersion: 2, title: 'Mark notifications read', aiScope: 'messages', allowedCallerRoles: ['GMD', 'SUPER_ADMIN'], allowedApproverRoles: ['GMD', 'SUPER_ADMIN'], requiredFields: [], targetEntityType: 'NOTIFICATION', dashboardRoutes: ['/api/notifications'], validateInput: () => ({ valid: true, missingFields: [] }) },
   budget: {
     actionType: 'budget',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Budget Allocation / Reallocation / Lifecycle',
     aiScope: 'budgets',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -71,7 +72,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   approval_decision: {
     actionType: 'approval_decision',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Expenditure Requisition Approval Decision',
     aiScope: 'approvals',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -90,7 +91,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   payment_record: {
     actionType: 'payment_record',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Corporate Disbursement & Payment Voucher Recording',
     aiScope: 'approvals',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -117,7 +118,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   payment_recorder: {
     actionType: 'payment_recorder',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Assign Disbursement Payment Recorder',
     aiScope: 'approvals',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -136,7 +137,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   salary_change: {
     actionType: 'salary_change',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Staff Compensation & Payroll Agreement Modification',
     aiScope: 'salary',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -158,7 +159,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   staff_approval: {
     actionType: 'staff_approval',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Self-Service Staff Onboarding Approval',
     aiScope: 'staff_status',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -177,7 +178,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   role_change: {
     actionType: 'role_change',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'System Role Assignment & Session Revocation',
     aiScope: 'staff_status',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -203,7 +204,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   accountability_clearance: {
     actionType: 'accountability_clearance',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Accountability Case Clearance & Closure',
     aiScope: 'accountability',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -222,7 +223,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   deadline_extension: {
     actionType: 'deadline_extension',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Accountability Case Deadline Extension',
     aiScope: 'accountability',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -241,7 +242,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   treasury_account: {
     actionType: 'treasury_account',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Corporate Treasury Bank Account Lifecycle',
     aiScope: 'bank_accounts',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -260,7 +261,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   intercompany_note: {
     actionType: 'intercompany_note',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Intercompany Paired-Note Issuance & Net Settlement',
     aiScope: 'intercompany',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -269,10 +270,10 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
     targetEntityType: 'INTERCOMPANY_NOTE',
     dashboardRoutes: ['/api/intercompany', '/api/intercompany/settle', '/api/intercompany/[noteId]'],
     validateInput: (payload) => {
-      const subAction = String(payload.sub_action || payload.action || 'CREATE_NOTE').toUpperCase();
-      if (subAction === 'SETTLE' || subAction === 'RECONCILE_NOTE') {
+      const subAction = String(payload.sub_action || payload.mode || payload.action || 'CREATE_NOTE').toUpperCase();
+      if (['SETTLE', 'STAGE_SETTLEMENT', 'RECONCILE_SETTLEMENT', 'RECONCILE', 'RECONCILE_NOTE'].includes(subAction)) {
         const hasNotes =
-          (Array.isArray(payload.targetNoteIds) && payload.targetNoteIds.length > 0) ||
+          (Array.isArray(payload.targetNoteIds) && payload.targetNoteIds.length > 0) || (Array.isArray(payload.noteIds) && payload.noteIds.length > 0) ||
           Boolean(payload.noteId);
         return {
           valid: hasNotes,
@@ -294,7 +295,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   vendor_approval: {
     actionType: 'vendor_approval',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Vendor Registry Onboarding & Verification',
     aiScope: 'vendors',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -313,7 +314,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   emergency_override: {
     actionType: 'emergency_override',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Executive Emergency Declaration & Request Override',
     aiScope: 'approvals',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -339,7 +340,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   attendance_override: {
     actionType: 'attendance_override',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Attendance Status Override, Roster & Policy Control',
     aiScope: 'attendance_logs',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -374,7 +375,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   admin_onboarding: {
     actionType: 'admin_onboarding',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Executive Email Invitation & Onboarding',
     aiScope: 'admin_onboarding',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -383,6 +384,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
     targetEntityType: 'ADMIN_INVITATION',
     dashboardRoutes: ['/api/staff/invite', '/api/staff/invite/resend', '/api/staff/onboard'],
     validateInput: (payload) => {
+      if (['RESEND_INVITE', 'REVOKE_INVITE'].includes(String(payload.sub_action || '').toUpperCase())) { const missing = checkRequiredFields(payload, [['invitationId', 'id']]); return { valid: missing.length === 0, missingFields: missing }; }
       const missing = checkRequiredFields(payload, [
         ['workEmail', 'work_email', 'email'],
         'role',
@@ -397,7 +399,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   subsidiary_creation: {
     actionType: 'subsidiary_creation',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Subsidiary Entity Creation',
     aiScope: 'subsidiary_create',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -416,7 +418,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   subsidiary_update: {
     actionType: 'subsidiary_update',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Subsidiary Profile & Configuration Update',
     aiScope: 'subsidiary_edit',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -435,7 +437,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   bank_account_update: {
     actionType: 'bank_account_update',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Staff / Vendor / Subsidiary Bank Account Update',
     aiScope: 'bank_accounts',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -454,7 +456,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   payroll_action: {
     actionType: 'payroll_action',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Payroll Batch Preparation, Approval & Disbursement',
     aiScope: 'payroll',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -478,7 +480,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   staff_management: {
     actionType: 'staff_management',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Staff Dossier, Status & Exemption Management',
     aiScope: 'staff_profiles',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -509,7 +511,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   request_creation: {
     actionType: 'request_creation',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Expenditure Requisition Creation & Channel Messaging',
     aiScope: 'requests',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN', 'STAFF'],
@@ -529,7 +531,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   grn_creation: {
     actionType: 'grn_creation',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Goods Receipt Note (GRN) Recording',
     aiScope: 'three_way_match',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -544,7 +546,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   vendor_invoice_creation: {
     actionType: 'vendor_invoice_creation',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Vendor Invoice Recording & 3-Way Match',
     aiScope: 'three_way_match',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -559,7 +561,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   leave_action: {
     actionType: 'leave_action',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Staff Leave Request & Approval Decision',
     aiScope: 'hr_leave',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -569,8 +571,8 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
     dashboardRoutes: ['/api/hr/leave'],
     validateInput: (payload) => {
       const sub = String(payload.sub_action || 'CREATE').toUpperCase();
-      if (sub === 'DECIDE') {
-        const missing = checkRequiredFields(payload, ['leaveId', 'status']);
+      if (['DECIDE', 'APPROVE_LEAVE', 'REJECT_LEAVE'].includes(sub)) {
+        const missing = checkRequiredFields(payload, ['leaveId']);
         return { valid: missing.length === 0, missingFields: missing };
       }
       const missing = checkRequiredFields(payload, ['employeeId', 'startDate', 'endDate']);
@@ -579,7 +581,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   task_action: {
     actionType: 'task_action',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Follow-up Task Assignment & Completion',
     aiScope: 'tasks',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -589,7 +591,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
     dashboardRoutes: ['/api/tasks', '/api/tasks/[taskId]'],
     validateInput: (payload) => {
       const sub = String(payload.sub_action || 'CREATE').toUpperCase();
-      if (sub === 'COMPLETE' || sub === 'UPDATE') {
+      if (['COMPLETE', 'UPDATE', 'COMPLETE_TASK', 'REOPEN_TASK'].includes(sub)) {
         const missing = checkRequiredFields(payload, ['taskId']);
         return { valid: missing.length === 0, missingFields: missing };
       }
@@ -599,7 +601,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   staff_message: {
     actionType: 'staff_message',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Direct Executive / HR Staff Communication',
     aiScope: 'messages',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],
@@ -614,7 +616,7 @@ export const COMMAND_CATALOG: Record<StagedActionType, CommandDescriptor> = {
   },
   policy_update: {
     actionType: 'policy_update',
-    commandVersion: 1,
+    commandVersion: 2,
     title: 'Approval Matrix & Workspace Setting Configuration',
     aiScope: 'policies',
     allowedCallerRoles: ['GMD', 'SUPER_ADMIN'],

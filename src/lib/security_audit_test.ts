@@ -54,24 +54,24 @@ async function runSecurityVerification() {
   // TEST 3: Rate Limiter - Enforce sliding window lockout
   try {
     const testKey = 'test-ip-attack-simulator';
-    resetRateLimit(testKey);
+    await resetRateLimit(testKey);
 
     // 5 allowed attempts
     for (let i = 0; i < 5; i++) {
-      const res = checkRateLimit(testKey, { windowMs: 10000, maxAttempts: 5, blockDurationMs: 60000 });
+      const res = await checkRateLimit(testKey, { windowMs: 10000, maxAttempts: 5, blockDurationMs: 60000 });
       if (!res.allowed) {
         throw new Error(`Attempt ${i + 1} was prematurely blocked`);
       }
     }
 
     // 6th attempt MUST be blocked
-    const blockedRes = checkRateLimit(testKey, { windowMs: 10000, maxAttempts: 5, blockDurationMs: 60000 });
+    const blockedRes = await checkRateLimit(testKey, { windowMs: 10000, maxAttempts: 5, blockDurationMs: 60000 });
     assert(
       blockedRes.allowed === false && (blockedRes.retryAfterSeconds || 0) > 0,
       'VULN-07: Rate Limiter Brute Force Lockout Enforcement',
       '6th attempt was not blocked'
     );
-    resetRateLimit(testKey);
+    await resetRateLimit(testKey);
   } catch (err: any) {
     assert(false, 'VULN-07: Rate Limiter Brute Force Lockout Enforcement', err.message);
   }

@@ -1,3 +1,4 @@
+import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAiToolRequest } from '@/lib/ai-tools-auth';
@@ -11,12 +12,13 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: NextRequest) {
   const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
   if (errorResponse || !actor) return errorResponse!;
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status') || undefined;
 
-  const cases = await prisma.accountabilityCase.findMany({
+  const cases = await db.accountabilityCase.findMany({
     where: {
       ...(actor.isExecutive ? {} : { ownerUserId: actor.id }),
       ...(status ? { status: status.toUpperCase() } : {}),
@@ -63,6 +65,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { actor, errorResponse } = await authenticateAiToolRequest(req);
+  const db = actor ? await getAiReadClient(actor) : prisma;
     if (errorResponse || !actor) return errorResponse!;
 
     const body = await req.json();
@@ -72,13 +75,14 @@ export async function POST(req: NextRequest) {
       if (!actor.isExecutive) {
         return NextResponse.json({ ok: false, error: 'Executive access required.' }, { status: 403 });
       }
-      const legacyRequests = await prisma.expenditureRequest.findMany({
+      const legacyRequests = await db.expenditureRequest.findMany({
         where: { disbursements: { some: {} }, accountabilityCase: { is: null } },
         select: { id: true, requestNumber: true },
       });
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'accountability_clearance',
         summary: `Initialize ${legacyRequests.length} historical accountability case(s) for disbursed requests`,
         materialPayload: {
@@ -103,7 +107,7 @@ export async function POST(req: NextRequest) {
     const lookup = String(body.caseId || body.case_id || body.requestId || body.requestNumber || '').trim();
 
     const targetCase = lookup
-      ? await prisma.accountabilityCase.findFirst({
+      ? await db.accountabilityCase.findFirst({
           where: {
             OR: [
               { id: lookup },
@@ -113,7 +117,7 @@ export async function POST(req: NextRequest) {
           },
           include: { request: true, owner: true },
         })
-      : await prisma.accountabilityCase.findFirst({
+      : await db.accountabilityCase.findFirst({
           where: { status: { not: 'CLOSED' }, ...(actor.isExecutive ? {} : { ownerUserId: actor.id }) },
           include: { request: true, owner: true },
           orderBy: { dueAt: 'asc' },
@@ -139,7 +143,8 @@ export async function POST(req: NextRequest) {
       const notes = String(body.notes || body.description || 'Post-payment evidence submitted via BEMI').trim();
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'accountability_clearance',
         targetSubsidiaryId: targetCase.request.subsidiaryId,
         attachmentIds,
@@ -175,7 +180,8 @@ export async function POST(req: NextRequest) {
 
     if (subAction === 'REVIEW_CASE') {
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'accountability_clearance',
         targetSubsidiaryId: targetCase.request.subsidiaryId,
         summary: `Review Accountability Evidence for ${targetCase.request.requestNumber} (${targetCase.owner.legalName})`,
@@ -207,7 +213,8 @@ export async function POST(req: NextRequest) {
         : new Date(Math.max(Date.now(), new Date(targetCase.dueAt).getTime()) + extensionHours * 3600_000);
 
       const staged = await stageAction({
-        userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
         actionType: 'deadline_extension',
         targetSubsidiaryId: targetCase.request.subsidiaryId,
         summary: `Extend Accountability Retiral Deadline for ${targetCase.request.requestNumber} (${targetCase.owner.legalName}) to ${newDueAt.toISOString().split('T')[0]}`,
@@ -239,7 +246,8 @@ export async function POST(req: NextRequest) {
     }
 
     const staged = await stageAction({
-      userId: actor.id,
+          actorContext: actor,
+          userId: actor.id,
       actionType: 'accountability_clearance',
       targetSubsidiaryId: targetCase.request.subsidiaryId,
       summary: `Grant Final Retiral Clearance for ${targetCase.request.requestNumber} (${targetCase.owner.legalName})`,

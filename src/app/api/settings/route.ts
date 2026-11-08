@@ -1,3 +1,4 @@
+import { executeDashboardCommand } from '@/lib/staged-actions';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
@@ -59,43 +60,7 @@ export async function PUT(request: Request) {
   const json = JSON.stringify(normalizedValue);
   if (json.length > 16000) return NextResponse.json({ error: 'Settings are too large.' }, { status: 400 });
 
-  const saved = await prisma.$transaction(async (tx) => {
-    const row = await tx.workspaceSetting.upsert({
-      where: { organizationId_key: { organizationId, key } },
-      create: { organizationId, key, value: json, updatedById: actor.id },
-      update: { value: json, updatedById: actor.id },
-    });
-
-    // If updating `ai.access`, also sync to the parent/root Group organization so conglomerate AI tools see the same matrix
-    if (key === 'ai.access') {
-      const allOrgs = await tx.organization.findMany({ select: { id: true } });
-      for (const org of allOrgs) {
-        if (org.id !== organizationId) {
-          await tx.workspaceSetting.upsert({
-            where: { organizationId_key: { organizationId: org.id, key: 'ai.access' } },
-            create: { organizationId: org.id, key: 'ai.access', value: json, updatedById: actor.id },
-            update: { value: json, updatedById: actor.id },
-          });
-        }
-      }
-    }
-
-    await tx.auditEvent.create({
-      data: {
-        actorId: actor.id,
-        actorName: actor.legalName,
-        actorRole: actor.role,
-        groupId: organization.parentGroupId || organization.id,
-        subsidiaryId: organization.id,
-        targetType: 'POLICY',
-        targetId: row.id,
-        action: 'WORKSPACE_SETTINGS_UPDATED',
-        correlationId: `CORR-SET-${randomUUID()}`,
-        metadata: JSON.stringify({ key, value: normalizedValue }),
-      },
-    });
-    return row;
-  });
+  const saved = await executeDashboardCommand(actor, 'policy_update', { sub_action: 'UPDATE_WORKSPACE_SETTINGS', organizationId, key, value: normalizedValue });
 
   return NextResponse.json({ key: saved.key, value: JSON.parse(saved.value), updatedAt: saved.updatedAt });
 }
