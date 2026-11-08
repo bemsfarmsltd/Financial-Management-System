@@ -24,6 +24,7 @@ async function sourceItems(tx:Prisma.TransactionClient,type:string,id:string):Pr
       if(v.bankFingerprint!==hash(bankSnapshot))throw new WalletError('VENDOR_BANK_CHANGED','Reverify the changed vendor destination.');
       return {sourceHash:hash({source,vendorBank:bankSnapshot}),items:[{sourceType:'REQUEST',sourceId:id,sourceKey:'REQUEST:'+id,employeeId:null,vendorId:source.vendorId,bankSnapshot,organizationId:source.subsidiaryId,amountMinor:source.amountMinor,category:'VENDOR',employeeName:v.name,employeeNumber:'Vendor',title:source.title}]};
     }
+    if (source.requester.role !== 'STAFF') throw new WalletError('NOT_A_STAFF_WALLET', 'Only staff members receive disbursements into internal wallets. Executives and administrators do not hold wallets.');
     const category=source.requestType==='REIMBURSEMENT'?'REIMBURSEMENT':/ALLOWANCE/.test(source.category)?'ALLOWANCE':source.requestType==='ADVANCE'?'PROJECT':'REQUEST';
     return {sourceHash:hash({...source,requester:{id:source.requester.id,role:source.requester.role,status:source.requester.status,approvalStatus:source.requester.approvalStatus,legalName:source.requester.legalName,workEmail:source.requester.workEmail,employeeNumber:source.requester.employeeNumber}}),items:[{sourceType:'REQUEST',sourceId:id,sourceKey:'REQUEST:'+id,employeeId:source.requestedById,organizationId:source.subsidiaryId,amountMinor:source.amountMinor,category,employeeName:source.requester.legalName,employeeNumber:source.requester.employeeNumber,title:source.title}]};
   }

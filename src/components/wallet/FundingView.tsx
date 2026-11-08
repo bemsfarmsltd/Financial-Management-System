@@ -219,10 +219,10 @@ export default function FundingView({
     return list;
   }, [data?.transfers, searchQuery]);
 
-  // Filtered Staff Wallets
+  // Filtered Staff Wallets (Strictly STAFF role only; Admins and GMD do not have wallets)
   const filteredStaffWallets = useMemo(() => {
     if (!data?.staffWallets) return [];
-    let list = data.staffWallets;
+    let list = data.staffWallets.filter((s: any) => s.role === 'STAFF');
     if (activeSubsidiary) {
       list = list.filter((s: any) => s.subsidiaryId === activeSubsidiary.id);
     }
