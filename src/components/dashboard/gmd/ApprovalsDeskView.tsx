@@ -151,6 +151,7 @@ interface ApprovalsDeskProps {
   onNavigate?: (view: string) => void;
   onSelectBusiness?: (id: string) => void;
   onApprovedRequest?: (requestId: string) => void;
+  hideHeader?: boolean;
 }
 
 export function ApprovalsDeskView({
@@ -162,6 +163,7 @@ export function ApprovalsDeskView({
   onNavigate,
   onSelectBusiness,
   onApprovedRequest,
+  hideHeader = false,
 }: ApprovalsDeskProps) {
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [summary, setSummary] = useState<SummaryData>({
@@ -553,67 +555,68 @@ export function ApprovalsDeskView({
       )}
 
       {/* Executive Header */}
-      <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-        <div>
-          <span style={{ fontSize: '8px', letterSpacing: '1.2px', fontWeight: 800, color: '#7d8ba1', textTransform: 'uppercase' }}>
-            EXECUTIVE COMMAND / APPROVALS DESK
-          </span>
-          <h1 style={{ fontSize: '18px', letterSpacing: '-0.3px', fontWeight: 700, margin: '4px 0 2px', color: '#17253d' }}>
-            Approvals desk
-          </h1>
-          <p style={{ fontSize: '11px', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
-            Review approvals desk across your selected company and period with deterministic multi-tier routing.
-          </p>
-        </div>
+      {!hideHeader && (
+        <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+          <div>
+            <span style={{ fontSize: '8px', letterSpacing: '1.2px', fontWeight: 800, color: '#7d8ba1', textTransform: 'uppercase' }}>
+              EXECUTIVE COMMAND / APPROVALS DESK
+            </span>
+            <h1 style={{ fontSize: '18px', letterSpacing: '-0.3px', fontWeight: 700, margin: '4px 0 2px', color: '#17253d' }}>
+              Approvals desk
+            </h1>
+            <p style={{ fontSize: '11px', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
+              Review approvals desk across your selected company and period with deterministic multi-tier routing.
+            </p>
+          </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <button
-            onClick={exportCsv}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '5px',
-              padding: '6px 10px',
-              borderRadius: '7px',
-              fontSize: '10px',
-              fontWeight: 650,
-              background: '#fff',
-              color: '#263c60',
-              border: '1px solid #dce4ef',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-              cursor: 'pointer',
-            }}
-          >
-            <ArrowDownToLine size={12} />
-            Export
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              onClick={exportCsv}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '6px 10px',
+                borderRadius: '7px',
+                fontSize: '10px',
+                fontWeight: 650,
+                background: '#fff',
+                color: '#263c60',
+                border: '1px solid #dce4ef',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                cursor: 'pointer',
+              }}
+            >
+              <ArrowDownToLine size={12} />
+              Export
+            </button>
 
-          <button
-            onClick={() => {
-              setBatchMode(!batchMode);
-              setSelectedIds(new Set());
-            }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '5px',
-              padding: '6px 10px',
-              borderRadius: '7px',
-              fontSize: '10px',
-              fontWeight: 650,
-              background: batchMode ? '#fff7ed' : '#fff',
-              color: batchMode ? '#ea580c' : '#263c60',
-              border: batchMode ? '1px solid #fed7aa' : '1px solid #dce4ef',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-              cursor: 'pointer',
-            }}
-          >
-            <Layers size={12} />
-            {batchMode ? 'Exit Batch Mode' : 'Batch Sign-off'}
-          </button>
-
-        </div>
-      </header>
+            <button
+              onClick={() => {
+                setBatchMode(!batchMode);
+                setSelectedIds(new Set());
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '6px 10px',
+                borderRadius: '7px',
+                fontSize: '10px',
+                fontWeight: 650,
+                background: batchMode ? '#fff7ed' : '#fff',
+                color: batchMode ? '#ea580c' : '#263c60',
+                border: batchMode ? '1px solid #fed7aa' : '1px solid #dce4ef',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                cursor: 'pointer',
+              }}
+            >
+              <Layers size={12} />
+              {batchMode ? 'Exit Batch Mode' : 'Batch Sign-off'}
+            </button>
+          </div>
+        </header>
+      )}
 
       {/* Top Metric Strip (4 High-Density Sleek Cards ~75px height) */}
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px' }}>
@@ -1365,23 +1368,33 @@ export function ApprovalsDeskView({
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                         <button
                           onClick={() => handleApproveRequest(req)}
-                          title="Authorize release and credit to staff internal wallet"
+                          title={!req.vendor && req.requester ? "Authorize release and credit to staff internal wallet" : "Authorize vendor payout"}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '3px',
-                            padding: '4px 8px',
-                            borderRadius: '5px',
+                            gap: '4px',
+                            padding: '5px 10px',
+                            borderRadius: '6px',
                             fontSize: '10px',
                             fontWeight: 700,
-                            background: '#059669',
+                            background: !req.vendor && req.requester ? 'linear-gradient(135deg, #059669, #047857)' : '#ea580c',
                             color: '#fff',
-                            border: '1px solid #047857',
+                            border: 0,
                             cursor: 'pointer',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                           }}
                         >
-                          <Check size={11} />
-                          Approve &amp; record
+                          {!req.vendor && req.requester ? (
+                            <>
+                              <Wallet size={11} />
+                              Release to Wallet →
+                            </>
+                          ) : (
+                            <>
+                              <Check size={11} />
+                              Approve Payout →
+                            </>
+                          )}
                         </button>
 
                         <button

@@ -5,7 +5,6 @@ import {
   BadgeCheck,
   Building2,
   ClipboardCheck,
-  FileCheck2,
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
@@ -79,191 +78,166 @@ export function FundFlowWorkspace({
     void refreshCounts();
   }, [refreshCounts]);
 
-  const navPill = (
-    tab: WorkspaceTab,
-    label: string,
-    badgeCount: number | null,
-    icon: React.ReactNode,
-    badgeTone: 'orange' | 'blue' | 'emerald' | 'slate' = 'slate'
-  ) => {
-    const isSelected = activeTab === tab;
-    return (
-      <button
-        type="button"
-        role="tab"
-        aria-selected={isSelected}
-        onClick={() => setActiveTab(tab)}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '8px 14px',
-          fontSize: 12.5,
-          fontWeight: isSelected ? 700 : 600,
-          borderRadius: 8,
-          border: isSelected ? '1px solid #ea580c' : '1px solid #e2e8f0',
-          background: isSelected ? '#ea580c' : '#ffffff',
-          color: isSelected ? '#ffffff' : '#475569',
-          cursor: 'pointer',
-          transition: 'all 0.15s ease-in-out',
-          boxShadow: isSelected ? '0 1px 3px rgba(234, 88, 12, 0.25)' : 'none',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        <span style={{ display: 'inline-flex', alignItems: 'center', color: isSelected ? '#ffffff' : '#64748b' }}>
-          {icon}
-        </span>
-        <span>{label}</span>
-        {badgeCount !== null && badgeCount > 0 && (
-          <span
-            style={{
-              padding: '1px 7px',
-              borderRadius: 9999,
-              fontSize: 10.5,
-              fontWeight: 800,
-              background: isSelected ? 'rgba(255, 255, 255, 0.28)' : '#f1f5f9',
-              color: isSelected ? '#ffffff' : '#0f172a',
-              border: isSelected ? 'none' : '1px solid #cbd5e1',
-            }}
-          >
-            {badgeCount}
-          </span>
-        )}
-      </button>
-    );
-  };
+  const tabs: { key: WorkspaceTab; label: string; count: number | null; icon: React.ReactNode }[] = [
+    { key: 'approvals', label: 'Requisition Approvals', count: reviewCount, icon: <ClipboardCheck size={13} /> },
+    { key: 'vendors', label: 'Vendor Disbursements', count: readyCount, icon: <Building2 size={13} /> },
+    { key: 'settlements', label: 'Settlement Ledger', count: confirmationCount, icon: <BadgeCheck size={13} /> },
+    { key: 'governance', label: 'Approval Matrix & Overrides', count: null, icon: <ShieldCheck size={13} /> },
+  ];
 
   return (
-    <main style={{ display: 'grid', gap: 14, width: '100%', background: '#f8fafc', minHeight: '100vh', padding: '0 0 32px' }}>
-      {/* HEADER WITH UNIFIED NAV PILLS */}
-      <header
-        style={{
-          background: '#ffffff',
-          border: '1px solid #e2e8f0',
-          borderRadius: 12,
-          padding: '16px 20px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: '#ea580c', fontSize: 10, fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase' }}>
-                Fund Lifecycle
-              </span>
-              <span style={{ color: '#94a3b8', fontSize: 10 }}>·</span>
-              <span style={{ color: '#64748b', fontSize: 10, fontWeight: 700, letterSpacing: '0.8px' }}>
-                {businessName}
-              </span>
-            </div>
-            <h1 style={{ color: '#0f172a', fontSize: 22, fontWeight: 800, margin: '4px 0 2px', letterSpacing: '-0.3px' }}>
-              Approvals &amp; Disbursements
-            </h1>
-            <p style={{ color: '#64748b', fontSize: 12, margin: 0 }}>
-              Direct GMD authorization, staff wallet funding, and corporate vendor settlement ledger.
-            </p>
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+      {/* 1. SEAMLESS EXECUTIVE HEADER (Matching FundingView & BEMS ERP Standard) */}
+      <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <span style={{ fontSize: '8.5px', letterSpacing: '1.2px', fontWeight: 800, color: '#7d8ba1', textTransform: 'uppercase' }}>
+            FUND LIFECYCLE &amp; APPROVALS DESK · {businessName.toUpperCase()}
+          </span>
+          <h1 style={{ fontSize: '18px', letterSpacing: '-0.3px', fontWeight: 700, margin: '4px 0 2px', color: '#17253d' }}>
+            Approvals &amp; Disbursements
+          </h1>
+          <p style={{ fontSize: '11px', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
+            Direct GMD authorization, staff wallet funding, and corporate vendor settlement ledger.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={() => void refreshCounts()}
             disabled={refreshing}
-            aria-label="Refresh workspace counts"
-            title="Refresh workspace counts"
+            aria-label="Refresh counts"
+            title="Refresh counts"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 6,
-              border: '1px solid #cbd5e1',
-              background: '#ffffff',
-              borderRadius: 8,
-              padding: '7px 12px',
-              color: '#334155',
-              fontSize: 11.5,
+              gap: 5,
+              padding: '6px 11px',
+              borderRadius: 7,
+              fontSize: '11px',
               fontWeight: 650,
+              background: '#fff',
+              color: '#263c60',
+              border: '1px solid #dce4ef',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
               cursor: refreshing ? 'not-allowed' : 'pointer',
               whiteSpace: 'nowrap',
-              transition: 'background 0.15s ease',
             }}
           >
-            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
             {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
-
-        {/* TOP TAB PILLS */}
-        <nav
-          role="tablist"
-          aria-label="Approvals and Disbursements Workspace Tabs"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            marginTop: 14,
-            paddingTop: 12,
-            borderTop: '1px solid #f1f5f9',
-            overflowX: 'auto',
-          }}
-        >
-          {navPill('approvals', 'Requisition Approvals', reviewCount, <ClipboardCheck size={14} />, 'orange')}
-          {navPill('vendors', 'Vendor Disbursements', readyCount, <Building2 size={14} />, 'blue')}
-          {navPill('settlements', 'Settlement & Confirmation Ledger', confirmationCount, <BadgeCheck size={14} />, 'emerald')}
-          {navPill('governance', 'Approval Matrix & Overrides', null, <ShieldCheck size={14} />, 'slate')}
-        </nav>
       </header>
 
-      {/* TAB CONTENT 1: REQUISITION APPROVALS */}
+      {/* 2. MULTI-TAB TOOLBAR (Light Enterprise Styling matching FundingView) */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 8,
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          borderRadius: 10,
+          padding: '6px 10px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 12px',
+                  borderRadius: 7,
+                  fontSize: '11.5px',
+                  fontWeight: isActive ? 700 : 600,
+                  background: isActive ? '#ea580c' : '#f8fafc',
+                  color: isActive ? '#ffffff' : '#475569',
+                  border: isActive ? '1px solid #ea580c' : '1px solid #e2e8f0',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: isActive ? '0 1px 2px rgba(234, 88, 12, 0.2)' : 'none',
+                }}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', color: isActive ? '#ffffff' : '#64748b' }}>
+                  {tab.icon}
+                </span>
+                <span>{tab.label}</span>
+                {tab.count !== null && tab.count > 0 && (
+                  <span
+                    style={{
+                      fontSize: '9.5px',
+                      fontWeight: 800,
+                      padding: '1px 6px',
+                      borderRadius: 10,
+                      background: isActive ? 'rgba(255, 255, 255, 0.28)' : '#e2e8f0',
+                      color: isActive ? '#ffffff' : '#334155',
+                    }}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 3. TAB CONTENT */}
       {activeTab === 'approvals' && (
-        <section aria-label="Requisition approvals">
-          <ApprovalsDeskView
-            businessName={businessName}
-            userName={userName}
-            scope={activeScope}
-            businessId={businessId}
-            businessCode={businessCode}
-            onNavigate={onNavigate}
-            onSelectBusiness={onSelectBusiness}
-            onApprovedRequest={() => void refreshCounts()}
-          />
-        </section>
+        <ApprovalsDeskView
+          businessName={businessName}
+          userName={userName}
+          scope={activeScope}
+          businessId={businessId}
+          businessCode={businessCode}
+          onNavigate={onNavigate}
+          onSelectBusiness={onSelectBusiness}
+          onApprovedRequest={() => void refreshCounts()}
+          hideHeader={true}
+        />
       )}
 
-      {/* TAB CONTENT 2: VENDOR DISBURSEMENTS */}
       {activeTab === 'vendors' && (
-        <section aria-label="Vendor disbursements">
-          <DisbursementsDeskView
-            businessName={businessName}
-            userName={userName}
-            scope={activeScope}
-            businessId={businessId}
-            businessCode={businessCode}
-            onNavigate={onNavigate}
-            onSelectBusiness={onSelectBusiness}
-            filterMode="vendors"
-            initialTab="AWAITING_TRANSFER"
-          />
-        </section>
+        <DisbursementsDeskView
+          businessName={businessName}
+          userName={userName}
+          scope={activeScope}
+          businessId={businessId}
+          businessCode={businessCode}
+          onNavigate={onNavigate}
+          onSelectBusiness={onSelectBusiness}
+          filterMode="vendors"
+          initialTab="AWAITING_TRANSFER"
+        />
       )}
 
-      {/* TAB CONTENT 3: SETTLEMENT & CONFIRMATION LEDGER */}
       {activeTab === 'settlements' && (
-        <section aria-label="Settlement and confirmation ledger">
-          <DisbursementsDeskView
-            businessName={businessName}
-            userName={userName}
-            scope={activeScope}
-            businessId={businessId}
-            businessCode={businessCode}
-            onNavigate={onNavigate}
-            onSelectBusiness={onSelectBusiness}
-            filterMode="settled"
-            initialTab="CLEARED"
-          />
-        </section>
+        <DisbursementsDeskView
+          businessName={businessName}
+          userName={userName}
+          scope={activeScope}
+          businessId={businessId}
+          businessCode={businessCode}
+          onNavigate={onNavigate}
+          onSelectBusiness={onSelectBusiness}
+          filterMode="settled"
+          initialTab="CLEARED"
+        />
       )}
 
-      {/* TAB CONTENT 4: APPROVAL MATRIX & OVERRIDES */}
       {activeTab === 'governance' && (
-        <section aria-label="Approval matrix and governance" style={{ display: 'grid', gap: 12 }}>
+        <section style={{ display: 'grid', gap: 12 }}>
           {/* Sub-tab navigation */}
           <div
             style={{
@@ -285,7 +259,7 @@ export function FundFlowWorkspace({
                 alignItems: 'center',
                 gap: 6,
                 padding: '6px 12px',
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: governanceTab === 'matrix' ? 700 : 500,
                 borderRadius: 6,
                 border: 'none',
@@ -305,7 +279,7 @@ export function FundFlowWorkspace({
                 alignItems: 'center',
                 gap: 6,
                 padding: '6px 12px',
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: governanceTab === 'emergency' ? 700 : 500,
                 borderRadius: 6,
                 border: 'none',
@@ -338,6 +312,6 @@ export function FundFlowWorkspace({
           )}
         </section>
       )}
-    </main>
+    </div>
   );
 }
