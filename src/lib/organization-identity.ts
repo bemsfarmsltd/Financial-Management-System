@@ -1,7 +1,7 @@
 /** Stable identity; old HQ tokens are accepted only for existing clients/bookmarks. */
 export const BEMS_GROUP_CODE = 'BEMS-GROUP';
 export const BEMS_GROUP_NAME = 'BEMS Group';
-const legacyGroupIds = new Set(['bems-group-hq', 'bems_group_hq', 'group_hq', 'bems-hq', 'general hq', 'bems group hq', 'hq']);
+const legacyGroupIds = new Set(['bems-group-hq', 'bems_group_hq', 'group_hq', 'bems-hq', 'general hq', 'bems group hq', 'hq', 'bems group', 'bems group holdings', 'bems group holdings ltd', 'bems group holdings limited']);
 export function normalizeOrganizationIdentifier(value: string): string {
   const clean = value.trim();
   return clean.toUpperCase() === BEMS_GROUP_CODE || legacyGroupIds.has(clean.toLowerCase()) ? BEMS_GROUP_CODE : clean;

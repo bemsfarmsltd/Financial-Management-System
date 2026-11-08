@@ -9,7 +9,7 @@ export default function IntercompanyPage() {
     <ConnectAppShell>
       <div style={{ padding: '4px 0' }}>
         <IntercompanyAuditHubView
-          businessName="BEMS Group Holdings Ltd"
+          businessName="BEMS Group"
           userName="Group Managing Director"
           onNavigate={() => {}}
           onSelectBusiness={() => {}}

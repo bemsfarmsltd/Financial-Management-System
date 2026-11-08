@@ -10,7 +10,7 @@ export default function PayrollPage() {
       <div style={{ padding: '4px 0' }}>
         <TreasuryFinanceHubView
           initialTab="payroll"
-          businessName="BEMS Group Holdings Ltd"
+          businessName="BEMS Group"
           userName="Group Managing Director"
           onNavigate={() => {}}
           onSelectBusiness={() => {}}

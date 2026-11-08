@@ -9,7 +9,7 @@ export default function ApprovalsPage() {
     <ConnectAppShell>
       <div style={{ padding: '4px 0' }}>
         <ApprovalsHubView
-          businessName="BEMS Group Holdings Ltd"
+          businessName="BEMS Group"
           userName="Group Managing Director"
           onNavigate={(p) => { window.location.href = p; }}
           onSelectBusiness={() => {}}

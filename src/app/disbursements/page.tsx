@@ -9,7 +9,7 @@ export default function DisbursementsPage() {
     <ConnectAppShell>
       <div style={{ padding: '4px 0' }}>
         <TreasuryFinanceHubView
-          businessName="BEMS Group Holdings Ltd"
+          businessName="BEMS Group"
           userName="Group Managing Director"
           onNavigate={(p) => { window.location.href = p; }}
           onSelectBusiness={() => {}}

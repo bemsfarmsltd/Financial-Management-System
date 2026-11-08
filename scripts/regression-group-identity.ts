@@ -14,7 +14,7 @@ async function main() {
  assert.equal(await prisma.organization.count({where:{parentGroupId:group.id}}),5);
  assert.equal((await prisma.employee.findUniqueOrThrow({where:{id:staff.id}})).workLocation,'BEMS_GROUP');
  const expected=[group.id,...children.map(c=>c.id)].sort();
- for(const alias of [group.id,'BEMS-GROUP','bems-group-hq','BEMS_GROUP_HQ','group_hq','General HQ']) assert.deepEqual((await resolveOrganizationScope(alias)).organizationIds.sort(),expected,alias);
+ for(const alias of [group.id,'BEMS-GROUP','bems-group-hq','BEMS_GROUP_HQ','group_hq','General HQ','BEMS Group','BEMS Group Holdings Ltd']) assert.deepEqual((await resolveOrganizationScope(alias)).organizationIds.sort(),expected,alias);
  const staffScope=await resolveAuthorizedOrganizationScope({...staff,canonicalRole:'STAFF',isExecutive:false,authSource:'HUMAN_SESSION'} as any,'BEMS-GROUP');
  assert.deepEqual(staffScope.organizationIds,[children[2].id]);
  assert.equal((await resolveOrganizationScope('unknown-org')).length,0);

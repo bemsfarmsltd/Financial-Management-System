@@ -10,7 +10,7 @@ export default function AuditPage() {
       <div style={{ padding: '4px 0' }}>
         <IntercompanyAuditHubView
           initialTab="audit"
-          businessName="BEMS Group Holdings Ltd"
+          businessName="BEMS Group"
           userName="Group Managing Director"
           onNavigate={() => {}}
           onSelectBusiness={() => {}}
