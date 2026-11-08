@@ -47,6 +47,12 @@ export async function GET(request: Request) {
       }),
       prisma.department.findMany(),
       prisma.employeeAssignment.findMany({
+        where: {
+          status: 'ACTIVE',
+          employee: {
+            status: 'ACTIVE',
+          },
+        },
         include: {
           employee: {
             select: {
@@ -216,19 +222,18 @@ export async function GET(request: Request) {
       },
     }));
 
-    const uniqueStaffIds = new Set(
-      assignments
-        .filter((a) => a.employee.role === 'STAFF')
-        .map((a) => a.employee.id)
+    const activeStaffAssignments = assignments.filter(
+      (a) => a.employee.role === 'STAFF' && a.employee.status === 'ACTIVE'
     );
+    const uniqueStaffIds = new Set(activeStaffAssignments.map((a) => a.employee.id));
     const totalGroupBudget = portfolio.reduce((acc, p) => acc + p.budget, 0);
     const totalGroupSpent = portfolio.reduce((acc, p) => acc + p.spent, 0);
-    const totalGroupHeadcount = uniqueStaffIds.size > 0 ? uniqueStaffIds.size : portfolio.reduce((acc, p) => acc + p.headcount, 0);
+    const totalGroupHeadcount = portfolio.reduce((acc, p) => acc + p.headcount, 0);
     const totalIntercompanyVolume = serializedNotes.reduce((acc, n) => acc + n.amountNaira, 0);
 
     return NextResponse.json({
       summary: {
-        totalCompanies: portfolio.filter(p => p.type !== 'GROUP').length,
+        totalCompanies: portfolio.length,
         totalOrganizations: portfolio.length,
         totalGroupHeadcount,
         totalGroupBudget,
@@ -237,7 +242,7 @@ export async function GET(request: Request) {
         activeNotesCount: serializedNotes.length,
       },
       group: portfolio.find(p => p.type === 'GROUP') || null,
-      portfolio: portfolio.filter(p => p.type !== 'GROUP'),
+      portfolio: portfolio,
       intercompanyNotes: serializedNotes,
     });
   } catch (error: any) {

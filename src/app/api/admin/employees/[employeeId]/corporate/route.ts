@@ -77,7 +77,7 @@ export async function PATCH(
         data: employeeUpdateData,
       });
 
-      // 2. Update or Upsert primary EmployeeAssignment
+      // 2. Update or Upsert single primary EmployeeAssignment (Enforce strict 1-to-1 subsidiary assignment)
       const primaryAssignment = target.assignments.find((a) => a.isPrimary) || target.assignments[0];
       let assignedSubsidiaryId = subsidiaryId || primaryAssignment?.subsidiaryId;
 
@@ -93,9 +93,21 @@ export async function PATCH(
             ...(subsidiaryId ? { subsidiaryId } : {}),
             ...(departmentId !== undefined ? { departmentId } : {}),
             ...(positionName ? { positionName } : {}),
+            status: 'ACTIVE',
+            isPrimary: true,
+          },
+        });
+        // Strictly eliminate any secondary assignments to guarantee 1-to-1 subsidiary mapping
+        await tx.employeeAssignment.deleteMany({
+          where: {
+            employeeId,
+            id: { not: primaryAssignment.id },
           },
         });
       } else if (assignedSubsidiaryId) {
+        await tx.employeeAssignment.deleteMany({
+          where: { employeeId },
+        });
         await tx.employeeAssignment.create({
           data: {
             employeeId,

@@ -1177,6 +1177,13 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
   },
   {
     group: 'staff',
+    apiPath: '/api/staff/me',
+    relativeFilePath: 'src/app/api/staff/me/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'staff',
     apiPath: '/api/staff',
     relativeFilePath: 'src/app/api/staff/route.ts',
     declaredMethods: ['GET'],

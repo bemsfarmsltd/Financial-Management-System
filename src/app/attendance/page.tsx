@@ -361,7 +361,17 @@ export default function AttendanceDeskPage() {
       if (res.ok) {
         const data = await res.json();
         if (data.policy) setPolicy(data.policy);
-        if (data.callerIp) setCallerIp(data.callerIp);
+        if (data.callerIp && data.callerIp !== 'direct' && data.callerIp !== '127.0.0.1') {
+          setCallerIp(data.callerIp);
+        } else {
+          // Asynchronously query public IP if behind local proxy or dev server
+          fetch('https://api.ipify.org?format=json')
+            .then((r) => r.json())
+            .then((j) => {
+              if (j.ip) setCallerIp(j.ip);
+            })
+            .catch(() => setCallerIp(data.callerIp || '127.0.0.1'));
+        }
       }
     } catch (e) {
       console.error(e);
@@ -3043,47 +3053,58 @@ export default function AttendanceDeskPage() {
                         background: '#ffffff',
                       }}
                     />
-                    {callerIp && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          let formatted = callerIp;
-                          if (callerIp.includes(':')) {
-                            const parts = callerIp.split(':').filter(Boolean);
-                            const prefix = parts.slice(0, 4).join(':');
-                            formatted = `${prefix}:*, 98.97.*, ${callerIp}`;
-                          } else if (callerIp.startsWith('98.97.')) {
-                            formatted = `2605:59c1:*, 98.97.*, ${callerIp}`;
-                          } else {
-                            const octets = callerIp.split('.');
-                            if (octets.length === 4) {
-                              formatted = `${octets.slice(0, 3).join('.')}.*, ${callerIp}`;
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        let ipToUse = callerIp;
+                        if (!ipToUse || ipToUse === 'direct' || ipToUse === '127.0.0.1' || ipToUse === 'localhost' || ipToUse === '::1') {
+                          try {
+                            const res = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(3000) });
+                            if (res.ok) {
+                              const json = await res.json();
+                              if (json.ip) {
+                                ipToUse = json.ip;
+                                setCallerIp(json.ip);
+                              }
                             }
+                          } catch (_) {}
+                        }
+                        if (!ipToUse || ipToUse === 'direct') return;
+
+                        let formatted = ipToUse;
+                        if (ipToUse.includes(':')) {
+                          const parts = ipToUse.split(':').filter(Boolean);
+                          const prefix = parts.slice(0, 4).join(':');
+                          formatted = `${prefix}:*, ${ipToUse}`;
+                        } else {
+                          const octets = ipToUse.split('.');
+                          if (octets.length === 4) {
+                            formatted = `${octets.slice(0, 3).join('.')}.*, ${ipToUse}`;
                           }
-                          setPolicy(prev => ({ ...prev, starlinkIpAddresses: formatted }));
-                        }}
-                        style={{
-                          padding: '10px 14px',
-                          borderRadius: '8px',
-                          background: '#0284c7',
-                          color: '#ffffff',
-                          fontSize: '11px',
-                          fontWeight: 800,
-                          border: 'none',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        <Globe size={13} />
-                        <span>Detect &amp; Use Current IP ({callerIp})</span>
-                      </button>
-                    )}
+                        }
+                        setPolicy(prev => ({ ...prev, starlinkIpAddresses: formatted }));
+                      }}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        background: '#0284c7',
+                        color: '#ffffff',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Globe size={13} />
+                      <span>Detect &amp; Use Current IP {callerIp && callerIp !== 'direct' ? `(${callerIp})` : ''}</span>
+                    </button>
                   </div>
                   <span style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', display: 'block' }}>
-                    Detected Gateway IP: <strong style={{ color: '#0f172a' }}>{callerIp || '127.0.0.1'}</strong>. Multiple subnets can be comma-separated with wildcard asterisks (*).
+                    Detected Gateway IP: <strong style={{ color: '#0f172a' }}>{callerIp && callerIp !== 'direct' ? callerIp : '127.0.0.1'}</strong>. Multiple subnets can be comma-separated with wildcard asterisks (*).
                   </span>
                 </div>
               )}

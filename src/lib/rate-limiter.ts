@@ -41,7 +41,24 @@ export async function resetRateLimit(identifier: string): Promise<void> {
   await prisma.$executeRaw`DELETE FROM "SecurityRateLimit" WHERE "key" = ${identifierHash(identifier)}`;
 }
 export function getClientIp(req: Request): string {
-  // Enable only behind a proxy that overwrites the chosen header.
-  const header = process.env.BEMS_TRUSTED_CLIENT_IP_HEADER;
-  return header ? (req.headers.get(header)?.split(',')[0].trim().slice(0, 80) || 'unknown-ip') : 'direct';
+  const customHeader = process.env.BEMS_TRUSTED_CLIENT_IP_HEADER;
+  if (customHeader) {
+    const customVal = req.headers.get(customHeader)?.split(',')[0].trim();
+    if (customVal && customVal !== 'direct') return customVal.slice(0, 80);
+  }
+
+  // Inspect standard reverse proxy / CDN headers (Cloudflare, Nginx, Hostinger, Starlink)
+  const cfConnectingIp = req.headers.get('cf-connecting-ip')?.trim();
+  if (cfConnectingIp && cfConnectingIp !== 'direct') return cfConnectingIp.slice(0, 80);
+
+  const realIp = req.headers.get('x-real-ip')?.trim();
+  if (realIp && realIp !== 'direct') return realIp.slice(0, 80);
+
+  const forwardedFor = req.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    const firstIp = forwardedFor.split(',')[0].trim();
+    if (firstIp && firstIp !== 'direct') return firstIp.slice(0, 80);
+  }
+
+  return '127.0.0.1';
 }

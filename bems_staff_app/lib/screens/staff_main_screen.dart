@@ -193,17 +193,20 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         employeeId: _currentUser.id,
         token: _currentUser.token,
       ),
+      StaffApiService.fetchMyProfile(_currentUser),
     ]);
     final data = results[0] as Map<String, dynamic>;
-    final attendance = results[1];
+    final attendance = results[1] as Map<String, dynamic>?;
+    final refreshedUser = results[2] as StaffUser;
 
     Map<String, dynamic>? wallet;
     try {
-      wallet = await StaffApiService.getOwnWallet(_currentUser);
+      wallet = await StaffApiService.getOwnWallet(refreshedUser);
     } catch (_) {}
 
     if (mounted) {
       setState(() {
+        _currentUser = refreshedUser;
         _requests = data['requests'] as List<FundRequestItem>;
         _disbursementsAwaiting = data['disbursementsAwaiting'] as List<DisbursementItem>;
         _cases = data['accountabilityCases'] as List<AccountabilityCaseItem>;

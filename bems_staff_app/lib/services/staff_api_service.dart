@@ -3,8 +3,36 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../models/staff_models.dart';
+import 'staff_storage_service.dart';
 
 class StaffApiService {
+  static Future<StaffUser> fetchMyProfile(StaffUser user) async {
+    try {
+      final response = await _executeWithFailover(
+        (host) => http.get(
+          Uri.parse('$host/api/staff/me'),
+          headers: _headers(token: user.token, employeeId: user.id),
+        ),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (data['user'] is Map<String, dynamic>) {
+          final profileMap = Map<String, dynamic>.from(data['user'] as Map);
+          if (profileMap['token'] == null || (profileMap['token'] as String).isEmpty) {
+            profileMap['token'] = user.token;
+          }
+          final refreshed = StaffUser.fromJson(profileMap);
+          // Persist fresh profile in local storage
+          await StaffStorageService.saveUser(refreshed);
+          return refreshed;
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to refresh profile from /api/staff/me: $e');
+    }
+    return user;
+  }
+
   static Future<Map<String, dynamic>> getOwnWallet(StaffUser user) async {
     final response = await _executeWithFailover((host) => http.get(Uri.parse('$host/api/wallet/me'), headers: _headers(token: user.token)));
     final data = jsonDecode(response.body) as Map<String, dynamic>;

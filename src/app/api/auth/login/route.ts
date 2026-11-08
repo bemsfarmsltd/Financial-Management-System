@@ -32,6 +32,8 @@ export async function POST(request: Request) {
       where: { workEmail: email },
       include: {
         assignments: {
+          where: { status: 'ACTIVE' },
+          orderBy: [{ isPrimary: 'desc' }, { startsOn: 'desc' }],
           include: {
             subsidiary: true,
             department: true,
