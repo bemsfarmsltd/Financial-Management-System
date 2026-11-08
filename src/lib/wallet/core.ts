@@ -119,7 +119,7 @@ export async function readOwnWallet(actor: WalletActor) {
     const banks = await tx.$queryRaw<any[]>`SELECT "id","bankCode",right("accountNumber",4) AS "lastFour","accountName","verifiedAt" FROM "WalletBankAccount" WHERE "employeeId" = ${actor.id} AND "active"`;
     const withdrawals = await tx.$queryRaw<any[]>`SELECT "id","amountMinor","feeMinor","reference","status","providerStatus",right("accountNumber",4) AS "lastFour","createdAt" FROM "WalletWithdrawal" WHERE "employeeId" = ${actor.id} ORDER BY "createdAt" DESC LIMIT 100`;
     return walletJson({ walletMode:walletEnabled(), currency: 'NGN', environment:process.env.MONNIFY_ENVIRONMENT, ...totals, credits, banks, withdrawals, withdrawalsEnabled: walletEnabled() && process.env.BEMS_WALLET_TRANSFERS_ENABLED === 'true', withdrawalMessage: 'Withdraw only your approved available funds to your verified bank account. The company pays transfer fees.' });
-  });
+  }, { maxWait: 10000, timeout: 30000, isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 }
 export async function readFundingDashboard(actor: WalletActor) {
   if(walletEnabled() && ['GMD','SUPER_ADMIN','SYSTEM_ADMIN'].includes(actor.role))await(await import('./monnify-balance')).ensureWalletFundingFresh(actor);
@@ -142,5 +142,5 @@ export async function readFundingDashboard(actor: WalletActor) {
     const staffWallets = await tx.$queryRaw<any[]>`SELECT e."id", e."legalName", e."employeeNumber", e."role", COALESCE(a."subsidiaryId", '') AS "subsidiaryId", COALESCE(o."legalName", 'Unassigned') AS "organizationName", COALESCE(sum(c."availableMinor"),0)::bigint AS "availableMinor", COALESCE(sum(c."heldMinor"),0)::bigint AS "heldMinor", COALESCE(sum(c."settledMinor"),0)::bigint AS "settledMinor" FROM "Employee" e LEFT JOIN "EmployeeAssignment" a ON a."employeeId"=e."id" AND a."status"='ACTIVE' AND a."isPrimary"=true LEFT JOIN "Organization" o ON o."id"=a."subsidiaryId" LEFT JOIN "WalletCreditLot" c ON c."employeeId"=e."id" WHERE e."approvalStatus"='APPROVED' AND e."status" IN ('ACTIVE','ON_LEAVE') GROUP BY e."id", e."legalName", e."employeeNumber", e."role", a."subsidiaryId", o."legalName" ORDER BY "availableMinor" DESC, e."legalName" ASC LIMIT 100`;
     const journals = await tx.$queryRaw<any[]>`SELECT j."id", j."kind", j."reference", j."createdAt", j."actorId", COALESCE(json_agg(json_build_object('id', je."id", 'accountKey', je."accountKey", 'amountMinor', je."amountMinor"::text)) FILTER (WHERE je."id" IS NOT NULL), '[]'::json) AS "entries" FROM "WalletJournal" j LEFT JOIN "WalletJournalEntry" je ON je."journalId"=j."id" GROUP BY j."id", j."kind", j."reference", j."createdAt", j."actorId" ORDER BY j."createdAt" DESC LIMIT 50`;
     return walletJson({ walletMode:walletEnabled(), processing:walletWorkerStatus(), funding, envelopes, proposals, requests, organizations, vendors, transfers, payrollBatches, issues, staffWallets, journals, approvalLabel: financialApproverLabel(), canApprove: walletEnabled() && canApproveWalletRelease(actor) });
-  });
+  }, { maxWait: 10000, timeout: 30000, isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 }

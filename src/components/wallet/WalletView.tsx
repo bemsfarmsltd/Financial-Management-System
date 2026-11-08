@@ -1,4 +1,5 @@
 'use client';
+import { walletApi } from '@/lib/wallet/client';
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -36,20 +37,7 @@ export function nairaToMinor(value: string) {
   return (BigInt(w) * BigInt(100) + BigInt((f + '00').slice(0, 2))).toString();
 }
 
-export async function walletApi(path: string, body?: any, method = 'POST', idempotencyKey?: string) {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (idempotencyKey) headers['idempotency-key'] = idempotencyKey;
-  const res = await fetch(`/api/wallet/${path}`, {
-    method,
-    headers,
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(json.message || json.error || 'Operation failed.');
-  }
-  return json;
-}
+export { walletApi } from '@/lib/wallet/client';
 
 type DestinationBank = {
   id: string;
@@ -114,12 +102,7 @@ export default function WalletView({ brandColor = '#ea580c' }: { brandColor?: st
     let cancel = false;
     async function load() {
       try {
-        const res = await fetch('/api/wallet', { cache: 'no-store' });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.message || 'Failed to load wallet.');
-        }
-        const json = await res.json();
+        const json = await walletApi('me');
         if (!cancel) {
           setData(json);
           if (json.credits?.length > 0 && !creditId) {
@@ -148,19 +131,6 @@ export default function WalletView({ brandColor = '#ea580c' }: { brandColor?: st
     }
     loadBanks();
   }, []);
-
-  async function walletApi(path: string, body: any) {
-    const res = await fetch(`/api/wallet/${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(json.message || json.error || 'Operation failed.');
-    }
-    return json;
-  }
 
   async function run(work: () => Promise<void>) {
     setBusy(true);

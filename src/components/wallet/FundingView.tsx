@@ -112,7 +112,7 @@ export default function FundingView({
   // Fetch banks list
   useEffect(() => {
     let current = true;
-    api('banks')
+    api('banks', undefined, 'GET')
       .then((d: any) => {
         if (current && d.banks) setBankList(d.banks);
       })
@@ -125,7 +125,9 @@ export default function FundingView({
   // Load funding dashboard data
   const load = useCallback(async () => {
     try {
-      const d = await api('funding');
+      const d = await api('funding', undefined, 'GET');
+      if (!Array.isArray(d.organizations) || !Array.isArray(d.envelopes) || typeof d.walletMode !== 'boolean') throw new Error('The funding dashboard returned incomplete data. Please retry.');
+      setError('');
       setData(d);
     } catch (e: any) {
       setError(e instanceof Error ? e.message : 'Failed to load wallet dashboard.');
@@ -305,6 +307,15 @@ export default function FundingView({
     });
   }
 
+  if (!data) {
+    return (
+      <section aria-busy={!error} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 24 }}>
+        <h1 style={{ fontSize: 20, margin: '0 0 12px' }}>Wallets &amp; Funded Budgets</h1>
+        {error ? <><p role="alert">{error}</p><button onClick={() => { setError(''); void load(); }}>Retry loading wallet data</button></> : <p role="status">Loading verified funding and wallet records…</p>}
+      </section>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0, paddingBottom: '24px' }}>
       {/* Toast Notice */}
@@ -383,15 +394,23 @@ export default function FundingView({
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <AlertTriangle size={14} color="#d97706" />
             <span>
-              <strong>Safe Read-Only Review Active:</strong> Live Monnify transfers are safely disabled. All subsidiary budget envelopes, balances, and previews are fully reviewable.
+              <strong>Safe Read-Only Review Active:</strong> Wallet execution is disabled in the hosting configuration. You can review recorded balances and wallet records; allocations, approvals and transfers remain disabled.
             </span>
           </div>
           <span style={{ fontSize: '9px', fontWeight: 800, background: '#fef3c7', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: '4px', textTransform: 'uppercase' }}>
-            SANDBOX MODE
+            REVIEW MODE
           </span>
         </div>
       )}
 
+      {data.funding && (
+        <div role="status" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 12, border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff' }}>
+          <span>Company funding pool: <strong>{data.funding.paused ? 'Paused' : 'Active'}</strong>. {data.funding.paused ? 'Allocations, payment approvals and withdrawals are blocked until secure activation.' : 'Payments remain subject to verified funding and approval checks.'}</span>
+          <button disabled={busy || !data.canApprove} onClick={() => { setPassword(''); setConfirmation({ operation: data.funding.paused ? 'ACTIVATE' : 'PAUSE' }); }}>
+            {data.funding.paused ? 'Review activation' : 'Pause funding pool'}
+          </button>
+        </div>
+      )}
       {/* Executive Header */}
       <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
         <div>
@@ -402,13 +421,13 @@ export default function FundingView({
             Wallets & Funded Budgets
           </h1>
           <p style={{ fontSize: '11px', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
-            Central Monnify funding account, subsidiary budget envelopes, and sole-GMD release execution.
+            Central Monnify funding account and subsidiary budgets. Payments require {data.approvalLabel || 'an authorized executive'} approval.
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <button
-            disabled={busy}
+            disabled={busy || !data.walletMode}
             onClick={() =>
               run(async () => {
                 await api('funding/refresh', {});
@@ -435,7 +454,7 @@ export default function FundingView({
           </button>
 
           <button
-            disabled={busy}
+            disabled={busy || !data.walletMode}
             onClick={() =>
               run(async () => {
                 const result = await api('reconcile', {});
@@ -462,8 +481,10 @@ export default function FundingView({
           </button>
 
           <button
+            disabled={busy || !data.walletMode || !data.funding || data.funding.paused || !data.funding.configured}
+            title={!data.walletMode ? 'Enable wallet execution in hosting settings first.' : data.funding?.paused ? 'Activate the company funding pool first.' : ''}
             onClick={() => {
-              setOrganizationId(activeSubsidiary?.id || (selectedSubId !== 'ALL' ? selectedSubId : ''));
+              setOrganizationId(activeSubsidiary?.id || data.organizations.find((o: any) => selectedSubId === 'ALL' ? isBemsGroup(o) : o.id === selectedSubId || o.code === selectedSubId)?.id || '');
               setLabel('');
               setAmount('');
               setParentId('');
@@ -506,16 +527,16 @@ export default function FundingView({
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.6px', color: '#64748b', textTransform: 'uppercase' }}>
-              Monnify Verified Available
+              Last Verified Monnify Balance
             </span>
             <Landmark size={13} color="#059669" />
           </div>
           <div>
             <strong style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2, color: '#059669', display: 'block' }}>
-              {data?.funding ? walletMoney(data.funding.availableMinor) : '₦0.00'}
+              {data?.funding ? walletMoney(data.funding.availableMinor) : '—'}
             </strong>
             <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#64748b' }}>
-              {data?.funding?.fresh ? '● Real-time verified' : '○ Refresh required'}
+              {data.funding ? `Checked ${new Date(data.funding.observedAt).toLocaleString()}${data.funding.fresh ? '' : ' · Refresh required'}` : 'No verified funding snapshot available'}
             </p>
           </div>
         </div>
@@ -541,7 +562,7 @@ export default function FundingView({
           </div>
           <div>
             <strong style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2, color: '#17253d', display: 'block' }}>
-              {data?.funding ? walletMoney(data.funding.envelopeMinor) : '₦0.00'}
+              {data?.funding ? walletMoney(data.funding.envelopeMinor) : '—'}
             </strong>
             <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#64748b' }}>
               {data?.envelopes?.length || 0} active subsidiary envelopes
@@ -570,7 +591,7 @@ export default function FundingView({
           </div>
           <div>
             <strong style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2, color: '#d97706', display: 'block' }}>
-              {data?.funding ? walletMoney(data.funding.liabilityMinor) : '₦0.00'}
+              {data?.funding ? walletMoney(data.funding.liabilityMinor) : '—'}
             </strong>
             <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#64748b' }}>
               GMD-approved funds in staff wallets
@@ -599,7 +620,7 @@ export default function FundingView({
           </div>
           <div>
             <strong style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2, color: effectiveBrandColor, display: 'block' }}>
-              {data?.funding ? walletMoney(data.funding.freeMinor) : '₦0.00'}
+              {data?.funding ? walletMoney(data.funding.freeMinor) : '—'}
             </strong>
             <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#64748b' }}>
               Available to allocate to subsidiaries
@@ -936,7 +957,7 @@ export default function FundingView({
                     }}
                   >
                     <ShieldCheck size={13} />
-                    {data?.canApprove ? 'Review & Execute Approval' : 'GMD Authorization Required'}
+                    {data?.canApprove ? 'Review & Execute Approval' : 'Authorized Financial Approver Required'}
                   </button>
                 </div>
               </div>
@@ -1653,7 +1674,7 @@ export default function FundingView({
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <ShieldCheck size={16} color={effectiveBrandColor} />
                 <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: '#17253d' }}>
-                  {confirmation.operation || (confirmation.category === 'VENDOR' ? 'Approve Verified Supplier Payment' : 'Executive Release Approval (GMD)')}
+                  {confirmation.operation || (confirmation.category === 'VENDOR' ? 'Approve Verified Supplier Payment' : 'Executive Release Approval')}
                 </h3>
               </div>
               <button onClick={() => { setConfirmation(null); setPassword(''); }} style={{ background: 'none', border: 0, color: '#94a3b8', cursor: 'pointer' }}>
@@ -1707,7 +1728,7 @@ export default function FundingView({
             )}
 
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: effectiveBrandColor, display: 'block', marginBottom: 4 }}>Enter Current GMD Password to Authorize *</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: effectiveBrandColor, display: 'block', marginBottom: 4 }}>Enter Your Current Password to Authorize *</label>
               <input
                 autoFocus
                 type="password"
