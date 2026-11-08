@@ -1,3 +1,4 @@
+import { canApproveWalletRelease, financialApproverLabel } from '@/lib/gmd-access';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -30,8 +31,8 @@ export async function liveWalletActor(tx: Tx, actor: WalletActor, gmdOnly = fals
     throw new WalletError('ACCOUNT_NOT_AUTHORIZED', 'Your account is no longer authorized.', 403);
   }
   if (!['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN', 'STAFF'].includes(employee.role)) throw new WalletError('ACCOUNT_NOT_AUTHORIZED', 'Account role is not supported.', 403);
-  if (gmdOnly && (employee.role !== 'GMD' || !process.env.BEMS_FINANCIAL_GMD_ID || employee.id !== process.env.BEMS_FINANCIAL_GMD_ID)) {
-    throw new WalletError('GMD_REQUIRED', 'Only the designated GMD can release funds.', 403);
+  if (gmdOnly && (!canApproveWalletRelease(employee))) {
+    throw new WalletError('GMD_REQUIRED', 'Only an authorized financial approver can release funds.', 403);
   }
   return employee;
 }
@@ -131,7 +132,9 @@ export async function readFundingDashboard(actor: WalletActor) {
     const requests = await tx.expenditureRequest.findMany({ where: { currency: 'NGN', paymentStatus: {in:['UNPAID','MONNIFY_FAILED','MONNIFY_REVERSED']}, approvalStatus: { in: ['SUBMITTED','IN_REVIEW','APPROVED'] }, disbursements: { none: {} }, OR:[{vendorId:{not:null}},{requester: { role: 'STAFF', approvalStatus: 'APPROVED', status: { in: ['ACTIVE','ON_LEAVE'] } }}] }, select: { id: true, title: true, subsidiaryId: true, amountMinor: true, vendor:{select:{id:true,name:true}}, requester: { select: { legalName: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
     const transfers=await tx.$queryRaw<any[]>`SELECT w."id",w."reference",w."targetType",w."amountMinor",w."feeMinor",w."status",w."providerStatus",w."providerReference",w."createdAt",right(w."accountNumber",4) AS "lastFour",COALESCE(v."name",e."legalName") AS "beneficiaryName" FROM "WalletWithdrawal" w JOIN "Employee" e ON e."id"=w."employeeId" LEFT JOIN "Vendor" v ON v."id"=w."vendorId" ORDER BY w."createdAt" DESC LIMIT 100`;
     const vendors=await tx.$queryRaw<any[]>`SELECT "id","name","accountName",right(COALESCE("accountNumber",''),4) AS "lastFour","bankCode","verifiedBankAt" FROM "Vendor" ORDER BY "name" LIMIT 200`;
-    const organizations = await tx.organization.findMany({ where: { status: 'ACTIVE', defaultCurrency: 'NGN' }, select: { id: true, legalName: true } });
-    return walletJson({ walletMode:walletEnabled(), funding, envelopes, proposals, requests, organizations, vendors, transfers, payrollBatches, issues, canApprove: walletEnabled() && actor.role === 'GMD' && actor.id === process.env.BEMS_FINANCIAL_GMD_ID });
+    const organizations = await tx.organization.findMany({ where: { status: 'ACTIVE', defaultCurrency: 'NGN' }, select: { id: true, code: true, legalName: true, type: true } });
+    const staffWallets = await tx.$queryRaw<any[]>`SELECT e."id", e."legalName", e."employeeNumber", e."role", COALESCE(a."subsidiaryId", '') AS "subsidiaryId", COALESCE(o."legalName", 'Unassigned') AS "organizationName", COALESCE(sum(c."availableMinor"),0)::bigint AS "availableMinor", COALESCE(sum(c."heldMinor"),0)::bigint AS "heldMinor", COALESCE(sum(c."settledMinor"),0)::bigint AS "settledMinor" FROM "Employee" e LEFT JOIN "EmployeeAssignment" a ON a."employeeId"=e."id" AND a."status"='ACTIVE' AND a."isPrimary"=true LEFT JOIN "Organization" o ON o."id"=a."subsidiaryId" LEFT JOIN "WalletCreditLot" c ON c."employeeId"=e."id" WHERE e."approvalStatus"='APPROVED' AND e."status" IN ('ACTIVE','ON_LEAVE') GROUP BY e."id", e."legalName", e."employeeNumber", e."role", a."subsidiaryId", o."legalName" ORDER BY "availableMinor" DESC, e."legalName" ASC LIMIT 100`;
+    const journals = await tx.$queryRaw<any[]>`SELECT j."id", j."kind", j."reference", j."createdAt", j."actorId", COALESCE(json_agg(json_build_object('id', je."id", 'accountKey', je."accountKey", 'amountMinor', je."amountMinor"::text)) FILTER (WHERE je."id" IS NOT NULL), '[]'::json) AS "entries" FROM "WalletJournal" j LEFT JOIN "WalletJournalEntry" je ON je."journalId"=j."id" GROUP BY j."id", j."kind", j."reference", j."createdAt", j."actorId" ORDER BY j."createdAt" DESC LIMIT 50`;
+    return walletJson({ walletMode:walletEnabled(), funding, envelopes, proposals, requests, organizations, vendors, transfers, payrollBatches, issues, staffWallets, journals, approvalLabel: financialApproverLabel(), canApprove: walletEnabled() && canApproveWalletRelease(actor) });
   });
 }

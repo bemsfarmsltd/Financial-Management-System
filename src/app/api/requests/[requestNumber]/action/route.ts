@@ -1,3 +1,4 @@
+import { hasGmdFeatureAccess } from '@/lib/gmd-access';
 import { executeDashboardCommand } from '@/lib/staged-actions';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
@@ -216,7 +217,7 @@ export async function POST(
 
     if (action === 'APPROVE') {
       // Separation of duties policy: Requesters cannot self-approve requests unless GMD
-      if (req.requestedById === actor.id && actor.role !== 'GMD') {
+      if (req.requestedById === actor.id && !hasGmdFeatureAccess(actor.role)) {
         return NextResponse.json({ error: 'Separation of duties policy: You cannot approve your own expenditure request.' }, { status: 403 });
       }
     }

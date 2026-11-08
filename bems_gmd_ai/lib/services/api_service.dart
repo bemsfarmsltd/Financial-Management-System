@@ -5,6 +5,17 @@ import '../models/auth_models.dart';
 import '../models/chat_models.dart';
 
 class ApiService {
+  static Future<bool> canUseGmdAccess(String role) async {
+    if (role == 'GMD') return true;
+    if (role != 'SUPER_ADMIN' && role != 'SYSTEM_ADMIN') return false;
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/api/meta/features')).timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) return false;
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['superAdminGmdAccess'] == true;
+    } catch (_) { return false; }
+  }
+
   static Future<Map<String, dynamic>> getWalletFunding() async {
     final response = await _executeWithFailover((host) => http.get(Uri.parse('$host/api/wallet/funding'), headers: authHeaders));
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -124,7 +135,7 @@ class ApiService {
         final data = jsonDecode(res.body);
         if (data is Map<String, dynamic> && data['user'] != null) {
           final returnedUser = data['user'];
-          if (returnedUser['role'] == 'GMD' && (returnedUser['id'] == user.id || returnedUser['workEmail'] == user.email)) {
+          if (await canUseGmdAccess((returnedUser['role'] ?? '').toString()) && (returnedUser['id'] == user.id || returnedUser['workEmail'] == user.email)) {
             activeUserToken = user.token;
             activeUserId = user.id;
             return true;

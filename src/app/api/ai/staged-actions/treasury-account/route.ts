@@ -1,3 +1,4 @@
+import { hasGmdFeatureAccess } from '@/lib/gmd-access';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
@@ -6,7 +7,7 @@ import { stageAction } from '@/lib/staged-actions';
 export async function POST(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req, { allowServiceToken: true });
-    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
+    if (actor && !hasGmdFeatureAccess(actor.role)) return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access requires GMD or an authorized Super Admin.'},{status:403});
     if (!actor) return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
     if (!hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'])) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Only GMD or Super Admin can stage corporate treasury accounts.' }, { status: 403 });

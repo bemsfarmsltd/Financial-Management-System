@@ -1,3 +1,4 @@
+import { hasGmdFeatureAccess } from '@/lib/gmd-access';
 import { walletProposal } from '@/lib/wallet/proposals';
 import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 import { getAiReadClient } from '@/lib/platform/scoped-database';
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     if (gateBlock) return gateBlock;
 
     const actor = await getAuthenticatedEmployee(req);
-    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
+    if (actor && !hasGmdFeatureAccess(actor.role)) return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access requires GMD or an authorized Super Admin.'},{status:403});
     if (!actor) {
       return NextResponse.json({ error: 'Unauthorized: Valid BEMS session required to use AI Assistant.' }, { status: 401 });
     }
@@ -261,7 +262,7 @@ export async function POST(req: NextRequest) {
             channel: 'web_chat',
             target_element: targetElement ? { ...targetElement, trust_level: 'UNTRUSTED_UI_TELEMETRY' } : null,
             conversation_history: conversationHistory,
-            wallet_contract: {endpoint:'/api/ai/tools/wallet',approval:'Only current GMD through secure human wallet_release card',sources:['REQUEST','PAYROLL_BATCH'],staff_withdrawal:'Owner-only secure portal; never collect a password or OTP in chat',stage_fields:['sourceType','sourceId','envelopesByOrganization'],response:'Return actionCard exactly as provided by the wallet tool'},
+            wallet_contract: {endpoint:'/api/ai/tools/wallet',approval:'Only current authorized GMD or temporarily authorized Super Admin through secure human wallet_release card',sources:['REQUEST','PAYROLL_BATCH'],staff_withdrawal:'Owner-only secure portal; never collect a password or OTP in chat',stage_fields:['sourceType','sourceId','envelopesByOrganization'],response:'Return actionCard exactly as provided by the wallet tool'},
             formatting_guidance: `EXECUTIVE PRESENTATION DIRECTIVES:
 1. Fluid English Prose & Explanations: When explaining definitions, sections, or answering 'what does this represent', or when the user asks for 'detailed paragraph explanation', write in continuous, eloquent English paragraphs and complete sentences with bold highlights. Do NOT chop text into redundant bullet points or artificial boxes.
 2. Histograms & Visual Graphs: When the user asks 'in a graph', 'show histogram', 'chart', 'breakdown', or when comparing numbers across vendors, subsidiaries, or months, output a structured chart block:

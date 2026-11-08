@@ -1,5 +1,6 @@
 'use client';
 
+import {useGmdAccess} from './useGmdAccess';
 import { useState, useCallback, useEffect } from 'react';
 import { AiMessage, AiRole, BriefingCardData, ApprovalDecisionCardData, BudgetProposalCardData, SalaryAdjustmentCardData, DisbursementRecordCardData, ScenarioSimulatorCardData } from './types';
 import { ElementContextPayload } from './useUniversalContextHarvester';
@@ -13,12 +14,13 @@ interface UseAiOptions {
 }
 
 export function useAiFinancialManager({ userRole, userName, businessName, businessId, currentPage }: UseAiOptions) {
+  const canUseAi=useGmdAccess(userRole);
   const isGroupScope = !businessId || businessId === 'bems-group-hq' || businessId === 'ALL';
   const scopeKey = isGroupScope ? 'group_hq' : (businessId || 'group_hq');
 
   // Scoped executive keys ensure each workspace has clean, isolated conversation memory
   const [accountId, setAccountId] = useState<string>('');
-  useEffect(() => { if(userRole!=='GMD'){setAccountId('');return;} fetch('/api/auth/session', { cache: 'no-store' }).then(r => r.json()).then(data => { if (data.user?.id) setAccountId(data.user.id); }).catch(() => {}); }, [userRole]);
+  useEffect(() => { if(!canUseAi){setAccountId('');return;} fetch('/api/auth/session', { cache: 'no-store' }).then(r => r.json()).then(data => { if (data.user?.id) setAccountId(data.user.id); }).catch(() => {}); }, [userRole,canUseAi]);
   const storageKey = `bems_executive_chat_history_v4_${accountId}_${scopeKey}`;
   const sessionsKey = `bems_executive_chat_sessions_v4_${accountId}_${scopeKey}`;
 
@@ -192,7 +194,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
   // Send a user prompt and generate an intelligent response with interactive action cards
   const sendMessage = useCallback(
     async (text: string, elementContext?: ElementContextPayload) => {
-      if(userRole!=='GMD')return;
+      if(!canUseAi)return;
       const displayContent = elementContext
         ? `[Re: ${elementContext.label}${elementContext.value ? ` · ${elementContext.value}` : ''}] ${text}`
         : text;
@@ -362,7 +364,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
       }]);
       setIsTyping(false);
     },
-    [businessName, businessId, isGroupScope, activeSessionId, accountId, userRole]
+    [businessName, businessId, isGroupScope, activeSessionId, accountId, userRole, canUseAi]
   );
 
   // Execute confirmation for an action card (strictly bound to backend confirmation endpoint)

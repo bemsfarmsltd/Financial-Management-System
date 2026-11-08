@@ -60,7 +60,7 @@ class _BiometricAuthScreenState extends State<BiometricAuthScreen>
   Future<void> _loadBiometricDetails() async {
     final user = await ChatStorageService.getUser();
     final role = (user?.role ?? '').trim().toUpperCase();
-    final isExecutive = role == 'GMD';
+    final isExecutive = await ApiService.canUseGmdAccess(role);
     if (user == null || !isExecutive) {
       await ChatStorageService.clearUser();
       if (mounted) {

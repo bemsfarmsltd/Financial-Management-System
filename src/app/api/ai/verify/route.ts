@@ -1,3 +1,4 @@
+import { hasGmdFeatureAccess } from '@/lib/gmd-access';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -6,7 +7,7 @@ import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 export async function GET(req: Request) {
   try {
     const actor = await getAuthenticatedEmployee(req);
-    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
+    if (actor && !hasGmdFeatureAccess(actor.role)) return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access requires GMD or an authorized Super Admin.'},{status:403});
     if (!actor) {
       return NextResponse.json({ ok: false, error_code: 'NOT_PERMITTED', message: 'Authentication required.' }, { status: 401 });
     }

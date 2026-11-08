@@ -169,7 +169,8 @@ async function main() {
     assert.equal(response.status,403);
     assert.equal((await response.json()).code,'ORIGIN_NOT_ALLOWED');
   });
-  await check('Staff and Super Admin cannot read AI memory or invoke AI tooling',async()=>{
+  await check('Revoking the temporary grant denies staff and Super Admin AI access',async()=>{
+    process.env.BEMS_SUPER_ADMIN_GMD_ACCESS='false';
     for(const role of ['STAFF','SUPER_ADMIN','SYSTEM_ADMIN']){
       actor={...actor,role};
       const memory=await load('src/app/api/ai/memory/route.ts').GET(new Request('https://test/api/ai/memory'));
@@ -179,12 +180,27 @@ async function main() {
       assert.equal(tool.actor,null);assert.equal(tool.errorResponse.status,403);
     }
   });
-  await check('Non-GMD AI staging and confirmation routes deny direct calls',async()=>{
+  await check('Revoked Super Admin grant blocks direct AI staging and confirmation',async()=>{
+    process.env.BEMS_SUPER_ADMIN_GMD_ACCESS='false';
     actor={...actor,role:'SUPER_ADMIN'};
     const staged=await load('src/app/api/ai/staged-actions/budget/route.ts').POST(new Request('https://test/api/ai/staged-actions/budget',{method:'POST',body:'{}'}));
     assert.equal(staged.status,403);
     const confirm=await load('src/app/api/ai/staged-actions/[id]/confirm/route.ts').POST(new Request('https://test/api/ai/staged-actions/action/confirm',{method:'POST',body:'{}'}),{params:Promise.resolve({id:'action'})});
     assert.equal(confirm.status,403);
+  });
+  await check('Temporary grant admits executive AI memory while preserving staff denial and revocation',async()=>{
+    process.env.BEMS_SUPER_ADMIN_GMD_ACCESS='true';
+    database.$queryRaw=async()=>[];
+    for(const role of ['SUPER_ADMIN','SYSTEM_ADMIN']){
+      actor={...actor,role};
+      const response=await load('src/app/api/ai/memory/route.ts').GET(new Request('https://test/api/ai/memory'));
+      assert.equal(response.status,200,'Enabled executive grant must reach the real memory handler.');
+    }
+    actor={...actor,role:'STAFF'};
+    assert.equal((await load('src/app/api/ai/memory/route.ts').GET(new Request('https://test/api/ai/memory'))).status,403);
+    process.env.BEMS_SUPER_ADMIN_GMD_ACCESS='false';actor={...actor,role:'SUPER_ADMIN'};
+    assert.equal((await load('src/app/api/ai/memory/route.ts').GET(new Request('https://test/api/ai/memory'))).status,403);
+    delete process.env.BEMS_SUPER_ADMIN_GMD_ACCESS;
   });
   console.log(passed + ' behavioral security regressions passed. Database transaction and native-device verification run separately.');
 }

@@ -11,6 +11,7 @@ import {approveWalletRelease,stageWalletRelease} from '../src/lib/wallet/release
 import { providerAmountMinor } from '../src/lib/wallet/monnify-balance';
 if (new URL(process.env.DATABASE_URL || '').pathname !== '/bems_corrections_test') throw new Error('Wallet tests require the isolated bems_corrections_test database.');
 if (!new URL(process.env.DATABASE_URL!).searchParams.get('schema')?.startsWith('wallet_regression_')) throw new Error('Use the isolated wallet schema runner.');
+process.env.BEMS_SUPER_ADMIN_GMD_ACCESS='false';
 process.env.BEMS_WALLET_ENABLED = 'true';
 process.env.BEMS_WALLET_AUTO_REFRESH = 'false';
 process.env.BEMS_WALLET_MAX_TRANSFER_FEE_MINOR='1000';
@@ -22,7 +23,7 @@ async function main() {
   const prior = await prisma.employee.findFirst({ where: { role: 'GMD', status: 'ACTIVE', approvalStatus: 'APPROVED' } });
   assert.equal(prior, null, 'Use a clean isolated GMD fixture.');
   const password='Isolated-wallet-only-123!';const passwordHash=await hashPassword(password);
-  const admin = await prisma.employee.create({ data: { employeeNumber: 'WA-' + suffix, legalName: 'Wallet Admin', workEmail: 'wa-' + suffix + '@example.invalid', role: 'SUPER_ADMIN', status: 'ACTIVE', approvalStatus: 'APPROVED' } });
+  const admin = await prisma.employee.create({ data: { employeeNumber: 'WA-' + suffix, legalName: 'Wallet Admin', workEmail: 'wa-' + suffix + '@example.invalid', passwordHash, role: 'SUPER_ADMIN', status: 'ACTIVE', approvalStatus: 'APPROVED' } });
   const gmd = await prisma.employee.create({ data: { employeeNumber: 'WG-' + suffix, legalName: 'Wallet GMD', workEmail: 'wg-' + suffix + '@example.invalid', passwordHash, role: 'GMD', status: 'ACTIVE', approvalStatus: 'APPROVED' } });
   const staff = await prisma.employee.create({ data: { employeeNumber: 'WS-' + suffix, legalName: 'Wallet Staff', workEmail: 'ws-' + suffix + '@example.invalid', passwordHash, role: 'STAFF', status: 'ACTIVE', approvalStatus: 'APPROVED' } });
   const other = await prisma.employee.create({ data: { employeeNumber: 'WO-' + suffix, legalName: 'Other Staff', workEmail: 'wo-' + suffix + '@example.invalid', passwordHash, role: 'STAFF', status: 'ACTIVE', approvalStatus: 'APPROVED' } });
@@ -49,8 +50,8 @@ async function main() {
   const second = await createRequest('SECOND');
   const stage = (sourceId: string) => stageWalletRelease(admin, { sourceType: 'REQUEST', sourceId, envelopeId: envelope.id });
   const [p1,p2] = await Promise.all([stage(first.id),stage(second.id)]);
-  await assert.rejects(approveWalletRelease(admin, p1.id, p1.confirmationHash), /Only the designated GMD/);
-  await assert.rejects(approveWalletRelease(staff, p1.id, p1.confirmationHash), /Only the designated GMD/);
+  await assert.rejects(approveWalletRelease(admin, p1.id, p1.confirmationHash), /Only an authorized financial approver/);
+  await assert.rejects(approveWalletRelease(staff, p1.id, p1.confirmationHash), /Only an authorized financial approver/);
   await assert.rejects(approveWalletRelease(gmd, p1.id, '0'.repeat(64)), /exact stored preview/);
   assert.equal((await readOwnWallet(staff)).availableMinor, '0');
   console.log('PASS direct non-GMD approval and forged preview cannot create wallet funds');
@@ -98,6 +99,20 @@ async function main() {
   await runWalletExecutionRegressions({admin,gmd,staff,other,org,envelope,secureApprove,password});
   await prisma.$executeRaw`UPDATE "WalletFundingPool" SET "observedAt"=now(),"paused"=false WHERE "id"='MONNIFY_NGN'`;
   await runVendorRegressions({admin,gmd,staff,other,org,envelope,secureApprove,password});
+  process.env.BEMS_SUPER_ADMIN_GMD_ACCESS='true';
+  await prisma.$executeRaw`UPDATE "WalletFundingPool" SET "observedAt"=now(),"paused"=false WHERE "id"='MONNIFY_NGN'`;
+  const adminSource=await createRequest('TEMP-ADMIN',BigInt(10000));
+  const adminProposal=await stageWalletRelease(admin,{sourceType:'REQUEST',sourceId:adminSource.id,envelopeId:envelope.id});
+  await assert.rejects(approveWalletRelease(admin,adminProposal.id,adminProposal.confirmationHash),{code:'TRANSACTION_AUTH_REQUIRED'});
+  const adminProof=await issueWalletChallenge(admin,{purpose:'RELEASE',payload:{id:adminProposal.id,confirmationHash:adminProposal.confirmationHash},password,sessionHash:'temporary-admin-session'});
+  await approveWalletRelease(admin,adminProposal.id,adminProposal.confirmationHash,{...adminProof,sessionHash:'temporary-admin-session'});
+  const approved=await prisma.$queryRaw<any[]>`SELECT "approvedById" FROM "WalletReleaseProposal" WHERE "id"=${adminProposal.id}`;
+  assert.equal(approved[0].approvedById,admin.id);
+  const recorded=await prisma.auditEvent.findFirstOrThrow({where:{correlationId:adminProposal.id,targetType:'WALLET_CREDIT'}});
+  assert.equal(recorded.actorRole,'SUPER_ADMIN','Temporary approval must never impersonate GMD in the audit.');
+  process.env.BEMS_SUPER_ADMIN_GMD_ACCESS='false';
+  await assert.rejects(issueWalletChallenge(admin,{purpose:'RELEASE',payload:{id:adminProposal.id,confirmationHash:adminProposal.confirmationHash},password,sessionHash:'temporary-admin-session'}),{code:'GMD_REQUIRED'});
+  console.log('PASS temporary Super Admin approval requires exact password proof, records the real approver and is revoked centrally');
   process.env.BEMS_WALLET_ENABLED='false';
   try {
     const own=await readOwnWallet(staff);assert.equal(own.walletMode,false);assert.equal(own.withdrawalsEnabled,false);

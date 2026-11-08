@@ -10,7 +10,7 @@ export async function processWalletTransfer(provider:WalletTransferProvider=real
   if(process.env.BEMS_WALLET_TRANSFERS_ENABLED!=='true')throw new WalletError('WITHDRAWALS_NOT_ACTIVATED','Transfer worker is disabled.',503);
   const {prisma}=await import('@/lib/prisma');
   const [next]=await prisma.$queryRaw<any[]>`SELECT "employeeId","status" FROM "WalletWithdrawal" WHERE "status" IN ('HELD','SUBMITTING','PENDING','UNKNOWN','SUCCEEDED','FAILED') AND "nextAttemptAt"<=now() AND ("leaseUntil" IS NULL OR "leaseUntil"<now()) ORDER BY CASE WHEN "status"='HELD' THEN 1 ELSE 0 END,"nextAttemptAt" LIMIT 1`;
-  if(next?.status==='HELD'){const employee=await prisma.employee.findUnique({where:{id:next.employeeId}});if(employee&&['STAFF','GMD'].includes(employee.role)&&['ACTIVE','ON_LEAVE'].includes(employee.status))await(await import('./monnify-balance')).ensureWalletFundingFresh(employee,true);}
+  if(next?.status==='HELD'){const employee=await prisma.employee.findUnique({where:{id:next.employeeId}});if(employee&&['STAFF','GMD','SUPER_ADMIN','SYSTEM_ADMIN'].includes(employee.role)&&['ACTIVE','ON_LEAVE'].includes(employee.status))await(await import('./monnify-balance')).ensureWalletFundingFresh(employee,true);}
   const job=await walletTransaction(async tx=>{
     const [w]=await tx.$queryRaw<any[]>`SELECT * FROM "WalletWithdrawal" WHERE "nextAttemptAt"<=now() AND ("leaseUntil" IS NULL OR "leaseUntil"<now()) AND "status" IN ('HELD','SUBMITTING','PENDING','UNKNOWN','SUCCEEDED','FAILED') ORDER BY CASE WHEN "status"='HELD' THEN 1 ELSE 0 END,"nextAttemptAt","id" LIMIT 1 FOR UPDATE SKIP LOCKED`;
     if(!w)return null;

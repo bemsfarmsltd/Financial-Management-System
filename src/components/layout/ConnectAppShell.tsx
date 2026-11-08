@@ -184,6 +184,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
         ['Fund requests', '/requests', '▱'],
         ['Approvals & payments', '/approvals', '✓'],
         ['Budgets & commitments', '/budgets', '◫'],
+        ['Wallet funding', '/wallet/funding', '💳'],
         ['Treasury accounts', '/finance?tab=Treasury+accounts', '🏦'],
         ['Recurring commitments', '/finance?tab=Recurring+commitments', '◌'],
         ['Hybrid payroll', '/payroll', '⌁'],
@@ -217,6 +218,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
         ['Fund requests', '/requests', '▱'],
         ['Approvals & payments', '/approvals', '✓'],
         ['Budgets & commitments', '/budgets', '◫'],
+        ['Wallet funding', '/wallet/funding', '💳'],
         ['Treasury accounts', '/finance?tab=Treasury+accounts', '🏦'],
         ['Recurring commitments', '/finance?tab=Recurring+commitments', '◌'],
         ['Hybrid payroll', '/payroll', '⌁'],
@@ -241,6 +243,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
       label: 'MY WORKSPACE',
       items: [
         ['Staff Dashboard', '/staff', '⌂'],
+        ['My Wallet', '/wallet', '💳'],
         ['My Attendance', '/staff?tab=attendance', '⏱'],
         ['My Fund Requests', '/requests', '▱'],
         ['Submit New Request', '/requests/new', '＋'],

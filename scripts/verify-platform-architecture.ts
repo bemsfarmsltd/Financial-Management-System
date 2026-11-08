@@ -90,10 +90,17 @@ async function main() {
   assert.deepEqual(verified.delegation.allowedScopes, ['budgets', 'approvals']);
   assert.equal(verified.delegation.operationMode, 'READ_AND_STAGE');
 
-  for(const requesterRole of ['STAFF','SUPER_ADMIN'] as const)assert.throws(()=>createScopedAutomationToken({requesterId:'non-gmd',requesterRole,conversationId:'denied'}),/Only GMD/,'Non-GMD accounts cannot obtain AI delegations');
+  process.env.BEMS_SUPER_ADMIN_GMD_ACCESS='false';
+  for(const requesterRole of ['STAFF','SUPER_ADMIN'] as const)assert.throws(()=>createScopedAutomationToken({requesterId:'non-gmd',requesterRole,conversationId:'denied'}),/Only authorized GMD/,'Non-GMD accounts cannot obtain AI delegations');
 
   const tampered = token.slice(0, -4) + 'ffff';
   assert.equal(verifyScopedAutomationToken(tampered).valid, false, 'Tampered delegation token must be rejected');
+  process.env.BEMS_SUPER_ADMIN_GMD_ACCESS='true';
+  const adminDelegation=createScopedAutomationToken({requesterId:'temporary-admin',requesterRole:'SUPER_ADMIN',conversationId:'temporary-admin-conversation'});
+  assert.equal(verifyScopedAutomationToken(adminDelegation).valid,true);
+  process.env.BEMS_SUPER_ADMIN_GMD_ACCESS='false';
+  assert.equal(verifyScopedAutomationToken(adminDelegation).valid,false,'Revocation must invalidate earlier Super Admin delegation tokens.');
+  delete process.env.BEMS_SUPER_ADMIN_GMD_ACCESS;
   console.log('  ✓ 3-role normalization and HMAC-SHA256 delegation token verified.');
 
   // 2. Read Catalog: Redaction & Pagination

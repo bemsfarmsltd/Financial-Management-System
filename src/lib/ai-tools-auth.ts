@@ -1,3 +1,4 @@
+import { hasGmdFeatureAccess } from '@/lib/gmd-access';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -105,7 +106,7 @@ export async function authenticateAiToolRequest(
     }
 
     const del = verified.delegation;
-    if(del.requesterRole!=='GMD')return {actor:null,errorResponse:NextResponse.json({error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403})};
+    if(!hasGmdFeatureAccess(del.requesterRole))return {actor:null,errorResponse:NextResponse.json({error_code:'GMD_AI_ONLY',message:'AI access requires GMD or an authorized Super Admin.'},{status:403})};
     if (mode === 'write' && del.operationMode === 'READ_ONLY') {
       return {
         actor: null,
@@ -201,7 +202,7 @@ export async function authenticateAiToolRequest(
     };
   }
 
-  if(standardUser.role!=='GMD')return {actor:null,errorResponse:NextResponse.json({error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403})};
+  if(!hasGmdFeatureAccess(standardUser.role))return {actor:null,errorResponse:NextResponse.json({error_code:'GMD_AI_ONLY',message:'AI access requires GMD or an authorized Super Admin.'},{status:403})};
   const canonicalRole = normalizeCanonicalRole(standardUser.role) || 'STAFF';
   const isExecutive = hasAnyRole(standardUser, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
 

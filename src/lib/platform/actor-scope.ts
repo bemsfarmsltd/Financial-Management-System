@@ -1,3 +1,4 @@
+import { hasGmdFeatureAccess } from '@/lib/gmd-access';
 import { canAccessEmployeePortal } from '@/lib/portal-access';
 import crypto from 'node:crypto';
 import { prisma } from '@/lib/prisma';
@@ -75,7 +76,7 @@ export function createScopedAutomationToken(input: {
   operationMode?: DelegationOperationMode;
   ttlMs?: number;
 }): string {
-  if(input.requesterRole!=='GMD')throw new Error('Only GMD can delegate AI access.');
+  if(!hasGmdFeatureAccess(input.requesterRole))throw new Error('Only authorized GMD or Super Admin accounts can delegate AI access.');
   const now = Date.now();
   const isExecutiveRole = input.requesterRole === 'GMD' || input.requesterRole === 'SUPER_ADMIN';
   const effectiveOperationMode: DelegationOperationMode =
@@ -149,8 +150,8 @@ export function verifyScopedAutomationToken(token: string | null | undefined): {
     }
 
     const role = normalizeCanonicalRole(parsed.requesterRole);
-    if (role!=='GMD') {
-      return { valid: false, reason: 'AI delegation is exclusively for GMD.' };
+    if (!role || !hasGmdFeatureAccess(role)) {
+      return { valid: false, reason: 'AI delegation requires an authorized executive.' };
     }
 
     if (!Number.isFinite(parsed.issuedAtMs) || !Number.isFinite(parsed.expiresAtMs) ||

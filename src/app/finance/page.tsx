@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import {useGmdAccess} from '@/components/ai/useGmdAccess';
 import FundingView from '@/components/wallet/FundingView';
 import WalletView from '@/components/wallet/WalletView';
 import WalletDashboardSummary from '@/components/wallet/WalletDashboardSummary';
@@ -3194,7 +3195,8 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
   const [activeAiPrompt, setActiveAiPrompt] = useState<string | undefined>(undefined);
   const [isInspectMode, setIsInspectMode] = useState(false);
   const toggleInspectMode = useCallback(() => setIsInspectMode((prev) => !prev), []);
-  const isAiAuthorized = safeUser.role === 'GMD' && currentRole === 'GMD';
+  const gmdAccess = useGmdAccess(safeUser.role);
+  const isAiAuthorized = gmdAccess && currentRole === safeUser.role;
 
   const aiManager = useAiFinancialManager({
     userRole: currentRole,
@@ -3327,7 +3329,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
     }
 
 
-    if (currentRole === 'GMD') {
+    if (gmdAccess) {
       if (target === 'Fund requests') return <FundRequestsModule business={current} setNotice={setNotice} onNavigate={(p)=>window.location.href=p} canCreate={false}/>;
       if (target === 'Request channels') return <RequestChannelsModule business={current} setNotice={setNotice} onNavigate={path=>setActive(path==='/requests'?'Fund requests':path)}/>;
       // Evidence is submitted by the requester. GMDs only review staff uploads and close-out status.
@@ -3528,7 +3530,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
     }
 
     if (target === 'AI Copilot & Chat') {
-      if(!isAiAuthorized)return <div>AI access is exclusively for the GMD.</div>;
+      if(!isAiAuthorized)return <div>AI access requires an authorized executive.</div>;
       return (
         <AiChatWorkspaceView
           businessName={current.name}
@@ -3600,7 +3602,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
     if(target==='Settings' || target==='Admin Settings') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice}/>;
     if(target==='Mobile App Settings' || target==='Mobile settings' || target==='Mobile App Version Control') return <LiveWorkspaceSettingsModule businessName={current.name} setNotice={setNotice} initialSection="Mobile App Settings"/>;
     return <DetailedModule name={target} business={current} cases={cases} onResolveCase={resolveCase} onAddCase={addCase} setNotice={setNotice}/>;
-  },[active,current,currentRole,businesses,onAddBusiness,selectBusiness,onUpdateBusiness,setNotice,cases,resolveCase,addCase,user]);
+  },[active,current,currentRole,gmdAccess,isAiAuthorized,businesses,onAddBusiness,selectBusiness,onUpdateBusiness,setNotice,cases,resolveCase,addCase,user]);
 
   if(marketplaceOpen){const destination=businesses.find(b=>b.id===marketplaceBusinessId)||current;return <main className="marketplace-portal"><header><button className="marketplace-brand" onClick={()=>setMarketplaceOpen(false)}><img src="/bems-group-logo.png?v=20261024" alt=""/><div><strong>BEMS</strong><span>Fund Request Desk</span></div></button><div className="marketplace-destination"><span>IMPORT DESTINATION</span><select value={destination.id} onChange={e=>setMarketplaceBusinessId(e.target.value)}>{businesses.map(b=><option value={b.id} key={b.id}>{b.name} · {b.industry}</option>)}</select></div><div><button className="market-library">My library</button><button className="market-cart">Cart · 0</button><button className="marketplace-close" onClick={()=>setMarketplaceOpen(false)}>Return to workspace →</button></div></header><div className="marketplace-content">{notices.length>0&&<div className="marketplace-toast">✓ {notices[notices.length-1].message}<button onClick={()=>dismissNotice(notices[notices.length-1].id)}>×</button></div>}<TemplateMarketplace key={destination.id} business={destination} setNotice={setNotice}/></div></main>}
   const shellClass=`app-shell ${collapsed?'collapsed ':''}${isStaff ? 'staff-view ' : currentRole === 'GMD' ? 'gmd-view' : ''}`;
@@ -4212,6 +4214,7 @@ export default function Home() {
   }, [currentId]);
   const [status,setStatus]=useState<'loading'|'ready'|'error'>('ready');
   const [showAiEntry, setShowAiEntry] = useState(false);
+  const canEnterAi=useGmdAccess(user?.role||'');
   const [entryMode, setEntryMode] = useState<'login' | 'reload'>('reload');
 
   const checkAuth = () => {
@@ -4394,7 +4397,7 @@ export default function Home() {
   }
 
   // 3. Dynamic AI Motion Pre-Screen before dashboard access (on login & reload)
-  if (showAiEntry && user.role==='GMD') {
+  if (showAiEntry && canEnterAi) {
     const activeEntryBusiness = businesses.find(b => b.id === currentId) || businesses[0] || defaultBemsBusinesses[0];
     const entryBrandColor = activeEntryBusiness?.brandColor || activeEntryBusiness?.color || '#0d8a70';
     return (

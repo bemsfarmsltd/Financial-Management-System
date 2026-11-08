@@ -1,3 +1,4 @@
+import { hasGmdFeatureAccess } from '@/lib/gmd-access';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthenticatedEmployee } from "@/lib/auth";
@@ -47,7 +48,7 @@ function sanitizeAllowedMetadata(raw: unknown): Record<string, string> {
 export async function GET(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
-    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
+    if (actor && !hasGmdFeatureAccess(actor.role)) return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access requires GMD or an authorized Super Admin.'},{status:403});
     if (!actor) {
       return NextResponse.json({ ok: false, error_code: "NOT_PERMITTED", message: "Authentication required." }, { status: 401 });
     }
@@ -187,7 +188,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const actor = await getAuthenticatedEmployee(req);
-    if (actor && actor.role !== 'GMD') return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access is exclusively for the GMD.'},{status:403});
+    if (actor && !hasGmdFeatureAccess(actor.role)) return NextResponse.json({ok:false,error_code:'GMD_AI_ONLY',message:'AI access requires GMD or an authorized Super Admin.'},{status:403});
     if (!actor) {
       return NextResponse.json({ ok: false, error_code: "NOT_PERMITTED", message: "Authentication required." }, { status: 401 });
     }

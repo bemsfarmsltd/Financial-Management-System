@@ -1,3 +1,4 @@
+import { hasGmdFeatureAccess } from '@/lib/gmd-access';
 import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -322,7 +323,7 @@ export async function POST(req: NextRequest) {
           { status: 409 }
         );
       }
-      if (canonicalDecision === 'APPROVE' && r.requestedById === actor.id && actor.role !== 'GMD') {
+      if (canonicalDecision === 'APPROVE' && r.requestedById === actor.id && !hasGmdFeatureAccess(actor.role)) {
         return NextResponse.json(
           { ok: false, error_code: 'SEPARATION_OF_DUTIES', message: `You cannot approve your own request ${r.requestNumber}.` },
           { status: 403 }
@@ -413,7 +414,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (canonicalDecision === 'APPROVE' && expReq.requestedById === actor.id && actor.role !== 'GMD') {
+  if (canonicalDecision === 'APPROVE' && expReq.requestedById === actor.id && !hasGmdFeatureAccess(actor.role)) {
     return NextResponse.json(
       {
         ok: false,

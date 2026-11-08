@@ -1,3 +1,4 @@
+import { hasGmdFeatureAccess } from '@/lib/gmd-access';
 import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
 import { NextRequest, NextResponse } from 'next/server';
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const authorizedScope = await resolveAuthorizedOrganizationScope(actor as any, searchParams.get('subsidiary_id') || searchParams.get('subsidiary') || searchParams.get('organization_id') || 'ALL');
-  const channel = (searchParams.get('channel') || (actor.role === 'GMD' ? 'GMD' : 'HR')).toUpperCase();
+  const channel = (searchParams.get('channel') || (hasGmdFeatureAccess(actor.role) ? 'GMD' : 'HR')).toUpperCase();
   if (channel === 'GMD' && !actor.isExecutive) {
     return NextResponse.json(
       { ok: false, error_code: 'FORBIDDEN_CHANNEL', error: 'Confidential GMD Executive Line can only be read by the Group Managing Director.' },
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
 
     const lookup = String(body.employeeId || body.employee_id || body.employeeName || body.workEmail || '').trim();
     const messageText = String(body.message || body.text || body.body || body.content || '').trim();
-    const channel = String(body.channel || (actor.role === 'GMD' ? 'GMD' : 'HR')).toUpperCase();
+    const channel = String(body.channel || (hasGmdFeatureAccess(actor.role) ? 'GMD' : 'HR')).toUpperCase();
     if (channel === 'GMD' && !actor.isExecutive) {
       return NextResponse.json(
         { ok: false, error_code: 'FORBIDDEN_CHANNEL', error: 'Only the Group Managing Director can send messages on the GMD Executive Line.' },

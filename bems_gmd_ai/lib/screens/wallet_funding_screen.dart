@@ -532,7 +532,7 @@ class _WalletFundingScreenState extends State<WalletFundingScreen> {
                 funding = data['funding'] as Map<String, dynamic>?;
             return ListView(padding: const EdgeInsets.all(20), children: [
               const Text(
-                  'Only designated GMD releases funds. Wallet credits and actual bank transfers have separate records.'),
+                  'Only authorized financial approvers release funds. Wallet credits and actual bank transfers have separate records.'),
               OutlinedButton(
                   onPressed: _busy ? null : _reconcile,
                   child: const Text('Reconcile provider history')),
@@ -618,7 +618,7 @@ class _WalletFundingScreenState extends State<WalletFundingScreen> {
                                 : () => _prepare(data, 'PAYROLL_BATCH',
                                     Map<String, dynamic>.from(b as Map)),
                             child: const Text('Preview')))),
-              const Text('Pending GMD releases',
+              const Text('Pending payment releases',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               for (final p in data['proposals'] as List<dynamic>)
                 Card(

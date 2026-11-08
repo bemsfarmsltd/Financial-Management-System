@@ -23,7 +23,7 @@ export default function WalletDashboardSummary({ onOpen }: { onOpen: () => void 
       <div>
         <p className="kicker">WALLETS & FUNDED SUBSIDIARY BUDGETS</p>
         <h2 style={{ margin: '8px 0' }}>Company funding, staff wallets and vendor payments</h2>
-        <p>Review funded budgets, salary releases, staff requests and direct vendor payments. Only the GMD can approve disbursement.</p>
+        <p>Review funded budgets, salary releases, staff requests and direct vendor payments. Authorized financial approvers confirm each disbursement.</p>
       </div>
       <button className="primary-button" onClick={onOpen} style={{ background: '#ea580c', color: '#fff', border: 0, borderRadius: 12, padding: '14px 20px', cursor: 'pointer', fontWeight: 700 }}>Open wallet funding →</button>
     </div>

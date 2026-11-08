@@ -1,3 +1,4 @@
+import { canApproveWalletRelease, financialApproverLabel } from '@/lib/gmd-access';
 import {requiredFeeReserve} from './fees';
 import {prisma} from '@/lib/prisma';
 import {verifiedVendorDestination} from './vendor-bank';
@@ -73,12 +74,12 @@ export async function stageWalletRelease(actor:WalletActor,input:Input,context:C
     const amount=items.reduce((n,i)=>n+i.amountMinor,BigInt(0)),confirmationHash=hash({version:2,id,type:input.sourceType,sourceId:input.sourceId,items,sourceHash:source.sourceHash,expiresAt});
     await tx.$executeRaw`INSERT INTO "WalletReleaseProposal" ("id","createdById","sourceType","sourceId","amountMinor","category","sourceHash","confirmationHash","expiresAt","conversationId","workspaceId") VALUES (${id},${actor.id},${input.sourceType},${input.sourceId},${amount},${input.sourceType==='PAYROLL_BATCH'?'SALARY':items[0].category},${source.sourceHash},${confirmationHash},${expiresAt},${context.conversationId||null},${context.workspaceId||null})`;
     for(const i of items)await tx.$executeRaw`INSERT INTO "WalletReleaseItem" ("id","proposalId","sourceType","sourceId","employeeId","organizationId","envelopeId","amountMinor","category","vendorId","bankSnapshot") VALUES (${i.id},${id},${i.sourceType},${i.sourceId},${i.employeeId},${i.organizationId},${i.envelopeId},${i.amountMinor},${i.category},${i.vendorId||null},${i.bankSnapshot?JSON.stringify(i.bankSnapshot):null})`;
-    return walletJson({id,confirmationHash,expiresAt,sourceType:input.sourceType,sourceId:input.sourceId,amountMinor:amount,currency:'NGN',items,requiredApprover:'GMD',conversationId:context.conversationId||null,message:'Preview only. GMD must securely confirm this exact release.'});
+    return walletJson({id,confirmationHash,expiresAt,sourceType:input.sourceType,sourceId:input.sourceId,amountMinor:amount,currency:'NGN',items,requiredApprover:financialApproverLabel(),conversationId:context.conversationId||null,message:'Preview only. GMD must securely confirm this exact release.'});
   });
 }
 export async function approveWalletRelease(actor:WalletActor,id:string,confirmationHash:string,proof?:SecurityProof) {
   requireCommitments();
-  if(actor.role!=='GMD')throw new WalletError('GMD_REQUIRED','Only the designated GMD can release funds.',403);
+  if(!canApproveWalletRelease(actor))throw new WalletError('GMD_REQUIRED','Only an authorized financial approver can release funds.',403);
   await (await import('./monnify-balance')).ensureWalletFundingFresh(actor);
   return walletTransaction(async tx=>{
     await liveWalletActor(tx,actor,true);
@@ -121,7 +122,7 @@ export async function approveWalletRelease(actor:WalletActor,id:string,confirmat
         await tx.$executeRaw`INSERT INTO "WalletWithdrawal" ("id","employeeId","targetType","vendorId","requestId","proposalId","amountMinor","feeLimitMinor","reference","idempotencyKey","intentHash","environment","sourceAccount","bankCode","accountNumber","accountName") VALUES (${withdrawalId},${actor.id},'VENDOR',${i.vendorId},${i.sourceId},${id},${i.amountMinor},${fee},${'BEMS-V-'+withdrawalId},${'vendor:'+id},${hash({id,bank,amount:i.amountMinor})},${process.env.MONNIFY_ENVIRONMENT!},${process.env.MONNIFY_SOURCE_ACCOUNT!},${bank.bankCode},${bank.accountNumber},${bank.accountName})`;
         await journal(tx,actor.id,'VENDOR_PAYMENT_HELD',i.id,'ENVELOPE:'+i.envelopeId,'VENDOR_HELD:'+withdrawalId,i.amountMinor);
         const org=await tx.organization.findUniqueOrThrow({where:{id:i.organizationId}});
-        await tx.auditEvent.create({data:{actorId:actor.id,actorName:actor.legalName,actorRole:'GMD',groupId:org.parentGroupId||org.id,subsidiaryId:org.id,targetType:'VENDOR_PAYMENT',targetId:withdrawalId,action:'GMD_VENDOR_PAYMENT_APPROVED',correlationId:id,metadata:JSON.stringify({vendorId:i.vendorId,requestId:i.sourceId,amountMinor:i.amountMinor.toString(),bankLastFour:bank.accountNumber.slice(-4),confirmationHash})}});
+        await tx.auditEvent.create({data:{actorId:actor.id,actorName:actor.legalName,actorRole:actor.role,groupId:org.parentGroupId||org.id,subsidiaryId:org.id,targetType:'VENDOR_PAYMENT',targetId:withdrawalId,action:'GMD_VENDOR_PAYMENT_APPROVED',correlationId:id,metadata:JSON.stringify({approvalAuthority:actor.role,temporarySuperAdminAccess:actor.role!=='GMD',vendorId:i.vendorId,requestId:i.sourceId,amountMinor:i.amountMinor.toString(),bankLastFour:bank.accountNumber.slice(-4),confirmationHash})}});
         await tx.systemNotification.create({data:{employeeId:actor.id,kind:'VENDOR_PAYMENT_QUEUED',title:'Vendor payment approved and queued',body:'The exact verified supplier transfer was reserved. Its bank outcome will be reconciled separately.',linkUrl:'/wallet/funding'}});
         continue;
       }
@@ -129,8 +130,8 @@ export async function approveWalletRelease(actor:WalletActor,id:string,confirmat
       await tx.$executeRaw`INSERT INTO "WalletCreditLot" ("id","proposalId","releaseItemId","sourceType","sourceId","employeeId","organizationId","category","amountMinor","availableMinor","requestId","payrollItemId") VALUES (${creditId},${id},${i.id},${i.sourceType},${i.sourceId},${i.employeeId},${i.organizationId},${i.category},${i.amountMinor},${i.amountMinor},${i.sourceType==='REQUEST'?i.sourceId:null},${i.sourceType==='PAYROLL_ITEM'?i.sourceId:null})`;
       await journal(tx,actor.id,'WALLET_CREDITED',i.id,'ENVELOPE:'+i.envelopeId,'STAFF:'+i.employeeId+':'+i.category,i.amountMinor);
       const org=await tx.organization.findUniqueOrThrow({where:{id:i.organizationId}});
-      await tx.auditEvent.create({data:{actorId:actor.id,actorName:actor.legalName,actorRole:'GMD',groupId:org.parentGroupId||org.id,subsidiaryId:org.id,targetType:'WALLET_CREDIT',targetId:creditId,action:'GMD_WALLET_RELEASED',correlationId:id,metadata:JSON.stringify({amountMinor:i.amountMinor.toString(),sourceId:i.sourceId,envelopeId:i.envelopeId,confirmationHash})}});
-      await tx.systemNotification.create({data:{employeeId:i.employeeId,kind:'WALLET_CREDITED',title:'Approved funds added to your wallet',body:'GMD approved your payment. View the source and available funds in your wallet.',linkUrl:'/wallet'}});
+      await tx.auditEvent.create({data:{actorId:actor.id,actorName:actor.legalName,actorRole:actor.role,groupId:org.parentGroupId||org.id,subsidiaryId:org.id,targetType:'WALLET_CREDIT',targetId:creditId,action:'GMD_WALLET_RELEASED',correlationId:id,metadata:JSON.stringify({approvalAuthority:actor.role,temporarySuperAdminAccess:actor.role!=='GMD',amountMinor:i.amountMinor.toString(),sourceId:i.sourceId,envelopeId:i.envelopeId,confirmationHash})}});
+      await tx.systemNotification.create({data:{employeeId:i.employeeId,kind:'WALLET_CREDITED',title:'Approved funds added to your wallet',body:'An authorized executive approved your payment. View the source and available funds in your wallet.',linkUrl:'/wallet'}});
     }
     if(p.sourceType==='REQUEST') {
       await tx.expenditureRequest.update({where:{id:p.sourceId},data:{approvalStatus:'APPROVED',paymentStatus:items[0].vendorId?'MONNIFY_PENDING':'WALLET_CREDITED',requestVersion:{increment:1}}});
