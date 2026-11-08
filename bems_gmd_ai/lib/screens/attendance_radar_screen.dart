@@ -394,7 +394,7 @@ class _AttendanceRadarScreenState extends State<AttendanceRadarScreen> {
                       final num = emp['employeeNumber'] ?? '';
                       final role = emp['role'] ?? 'STAFF';
                       final org = emp['organizationName'] ?? 'BEMS Group';
-                      final loc = emp['workLocation'] ?? 'HQ';
+                      final loc = emp['workLocation'] ?? 'BEMS Group';
                       final status = emp['status']?.toString() ?? 'ABSENT';
                       final checkIn = _formatTime(emp['checkInTime']?.toString());
                       final checkOut = _formatTime(emp['checkOutTime']?.toString());

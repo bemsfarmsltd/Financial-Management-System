@@ -1,3 +1,4 @@
+import { normalizeOrganizationIdentifier } from '@/lib/organization-identity';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
@@ -35,8 +36,8 @@ const DEFAULT_CHANNELS = [
 ];
 
 async function resolveOrg(businessId: string) {
-  if (!businessId || businessId === 'all' || businessId === 'bems-group-hq') {
-    return prisma.organization.findFirst({ where: { OR: [{ type: 'GROUP' }, { code: 'BEMS-GROUP' }, { code: 'BEMS-HQ' }] } });
+  if (!businessId || businessId === 'all' || businessId === 'BEMS-GROUP') {
+    return prisma.organization.findFirst({ where: { code: 'BEMS-GROUP' } });
   }
   return prisma.organization.findFirst({
     where: { OR: [{ id: businessId }, { code: { equals: businessId, mode: 'insensitive' } }] },
@@ -50,7 +51,8 @@ export async function GET(
   const actor = await getAuthenticatedEmployee(req);
   if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  const { businessId } = await params;
+  const { businessId: requestedBusinessId } = await params;
+    const businessId = normalizeOrganizationIdentifier(requestedBusinessId);
   const org = await resolveOrg(businessId);
   if (!org) return NextResponse.json(DEFAULT_CHANNELS);
 
@@ -78,7 +80,8 @@ export async function POST(
     return NextResponse.json({ error: 'Executive access is required to configure notification channels.' }, { status: 403 });
   }
 
-  const { businessId } = await params;
+  const { businessId: requestedBusinessId } = await params;
+    const businessId = normalizeOrganizationIdentifier(requestedBusinessId);
   const org = await resolveOrg(businessId);
   if (!org) {
     return NextResponse.json({ error: `Business "${businessId}" not found.` }, { status: 404 });

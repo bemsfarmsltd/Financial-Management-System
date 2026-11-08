@@ -1,3 +1,4 @@
+import { normalizeOrganizationIdentifier } from '@/lib/organization-identity';
 import { executeDashboardCommand } from '@/lib/staged-actions';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -15,7 +16,8 @@ export async function GET(
     const actor = await getAuthenticatedEmployee(req);
     if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-    const { businessId } = await params;
+    const { businessId: requestedBusinessId } = await params;
+    const businessId = normalizeOrganizationIdentifier(requestedBusinessId);
 
     const scopeCheck = await resolveAuthorizedOrganizationScope(actor, businessId);
     if (scopeCheck.organizationIds.length === 0) {
@@ -23,6 +25,7 @@ export async function GET(
     }
 
     const employees = await prisma.employee.findMany({
+      where: { assignments: { some: { subsidiaryId: { in: scopeCheck.organizationIds }, status: 'ACTIVE' } } },
       include: {
         assignments: {
           include: {
@@ -57,13 +60,12 @@ export async function GET(
       };
     });
 
-    if (businessId && businessId !== 'all' && businessId !== 'bems-group-hq') {
+    if (!scopeCheck.isGroup) {
       const filtered = members.filter((m) => {
         const emp = employees.find((e) => e.id === m.id);
         return emp?.assignments?.some(
           (a) =>
-            a.subsidiary?.id === businessId ||
-            a.subsidiary?.code?.toLowerCase() === businessId.toLowerCase()
+            scopeCheck.organizationIds.includes(a.subsidiaryId)
         );
       });
       return NextResponse.json(filtered);
@@ -87,7 +89,8 @@ export async function POST(
       return NextResponse.json({ error: 'Executive access is required to invite executive members.' }, { status: 403 });
     }
 
-    const { businessId } = await params;
+    const { businessId: requestedBusinessId } = await params;
+    const businessId = normalizeOrganizationIdentifier(requestedBusinessId);
     const body = await req.json().catch(() => ({}));
     const email = body.email?.trim()?.toLowerCase();
     const rawRole = String(body.role || '').trim().toUpperCase();
@@ -115,8 +118,8 @@ export async function POST(
     }
 
     const org =
-      !businessId || businessId === 'all' || businessId === 'bems-group-hq'
-        ? await prisma.organization.findFirst({ where: { OR: [{ type: 'GROUP' }, { code: 'BEMS-GROUP' }, { code: 'BEMS-HQ' }] } })
+      !businessId || businessId === 'all' || businessId === 'BEMS-GROUP'
+        ? await prisma.organization.findFirst({ where: { code: 'BEMS-GROUP' } })
         : await prisma.organization.findFirst({
             where: { OR: [{ id: businessId }, { code: { equals: businessId, mode: 'insensitive' } }] },
           });

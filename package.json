@@ -16,7 +16,7 @@
     "outbox:process": "node scripts/run-typescript.cjs scripts/process-outbox.ts",
     "test:database": "node scripts/run-typescript.cjs scripts/regression-database.ts && node scripts/run-typescript.cjs scripts/regression-scoped-reads.ts && node scripts/run-typescript.cjs scripts/regression-outbox.ts",
     "corrections:preflight": "node scripts/run-typescript.cjs scripts/preflight-corrections.ts",
-    "test:wallet": "node scripts/run-wallet-regressions.cjs",
+    "test:wallet": "node scripts/run-wallet-regressions.cjs && node scripts/run-group-regressions.cjs",
     "wallet:process": "node scripts/run-typescript.cjs scripts/process-wallet-transfers.ts",
     "wallet:preflight": "node scripts/run-typescript.cjs scripts/wallet-preflight.ts",
     "wallet:reconcile": "node scripts/run-typescript.cjs scripts/reconcile-wallet.ts"

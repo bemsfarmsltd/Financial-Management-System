@@ -1,3 +1,4 @@
+import { normalizeOrganizationIdentifier } from '@/lib/organization-identity';
 import { hasGmdFeatureAccess } from '@/lib/gmd-access';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -54,8 +55,13 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const scope = searchParams.get("scope");
-    const defaultSessionId = (!scope || scope === "group_hq" || scope === "bems-group-hq" || scope === "ALL")
+    const requestedScope = searchParams.get("scope");
+    let scope = requestedScope ? normalizeOrganizationIdentifier(requestedScope) : null;
+    if (scope && scope !== "ALL" && scope !== "BEMS-GROUP") {
+      const org = await prisma.organization.findFirst({ where: { id: scope }, select: { type: true } });
+      if (org?.type === "GROUP") scope = "BEMS-GROUP";
+    }
+    const defaultSessionId = (!scope || scope === "group_hq" || scope === "BEMS-GROUP" || scope === "ALL")
       ? `conv_${actor.id}`
       : `conv_${actor.id}_${scope}`;
     const sessionId = searchParams.get("session_id") || defaultSessionId;
@@ -66,11 +72,11 @@ export async function GET(req: NextRequest) {
 
     // Mode: return all distinct sessions owned by this actor
     if (mode === "sessions") {
-      const sessionPrefix = scope ? `conv_${actor.id}_${["group_hq", "bems-group-hq", "ALL"].includes(scope) ? "group" : scope}_` : `conv_${actor.id}_`;
+      const sessionPrefix = scope ? `conv_${actor.id}_${["group_hq", "BEMS-GROUP", "ALL"].includes(scope) ? "group" : scope}_` : `conv_${actor.id}_`;
       const sessionRows = await prisma.$queryRaw<Array<{ session_id: string; total_turns: bigint; latest_at: Date }>>`
         SELECT session_id, COUNT(*) as total_turns, MAX(created_at) as latest_at
         FROM n8n_chat_histories
-        WHERE LEFT(session_id, LENGTH(${sessionPrefix})) = ${sessionPrefix} OR (${!scope || ["group_hq", "bems-group-hq", "ALL"].includes(scope)} AND session_id = ${`conv_${actor.id}`})
+        WHERE LEFT(session_id, LENGTH(${sessionPrefix})) = ${sessionPrefix} OR (${!scope || ["group_hq", "BEMS-GROUP", "ALL"].includes(scope)} AND session_id = ${`conv_${actor.id}`})
         GROUP BY session_id
         ORDER BY MAX(created_at) DESC
         LIMIT 25

@@ -15,7 +15,7 @@ interface UseAiOptions {
 
 export function useAiFinancialManager({ userRole, userName, businessName, businessId, currentPage }: UseAiOptions) {
   const canUseAi=useGmdAccess(userRole);
-  const isGroupScope = !businessId || businessId === 'bems-group-hq' || businessId === 'ALL';
+  const isGroupScope = !businessId || businessId === 'BEMS-GROUP' || businessId === 'ALL' || businessName === 'BEMS Group';
   const scopeKey = isGroupScope ? 'group_hq' : (businessId || 'group_hq');
 
   // Scoped executive keys ensure each workspace has clean, isolated conversation memory
@@ -25,7 +25,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
   const sessionsKey = `bems_executive_chat_sessions_v4_${accountId}_${scopeKey}`;
 
   const defaultWelcomeText = isGroupScope
-    ? `Good afternoon, ${userName ? userName.split(' ')[0] : 'Executive'}. I am your BEMS AI Group Financial Manager. I monitor real-time expenditure, approvals, cash runway, and compliance across BEMS Group Conglomerate HQ.\n\nHow can I assist your financial oversight today?`
+    ? `Good afternoon, ${userName ? userName.split(' ')[0] : 'Executive'}. I am your BEMS AI Group Financial Manager. I monitor real-time expenditure, approvals, cash runway, and compliance across BEMS Group.\n\nHow can I assist your financial oversight today?`
     : `Good afternoon, ${userName ? userName.split(' ')[0] : 'Executive'}. I am your dedicated AI Financial Manager for ${businessName}. I am strictly scoped to ${businessName}'s budgets, bank accounts, staff, and requisitions.\n\nHow can I assist your financial oversight for ${businessName} today?`;
 
   const [messages, setMessages] = useState<AiMessage[]>(() => [

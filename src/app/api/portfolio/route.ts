@@ -216,14 +216,16 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       summary: {
-        totalCompanies: portfolio.length,
+        totalCompanies: portfolio.filter(p => p.type !== 'GROUP').length,
+        totalOrganizations: portfolio.length,
         totalGroupHeadcount,
         totalGroupBudget,
         totalGroupSpent,
         totalIntercompanyVolume,
         activeNotesCount: serializedNotes.length,
       },
-      portfolio,
+      group: portfolio.find(p => p.type === 'GROUP') || null,
+      portfolio: portfolio.filter(p => p.type !== 'GROUP'),
       intercompanyNotes: serializedNotes,
     });
   } catch (error: any) {

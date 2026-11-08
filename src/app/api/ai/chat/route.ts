@@ -1,3 +1,4 @@
+import { normalizeOrganizationIdentifier } from '@/lib/organization-identity';
 import { hasGmdFeatureAccess } from '@/lib/gmd-access';
 import { walletProposal } from '@/lib/wallet/proposals';
 import { resolveAuthorizedOrganizationScope } from '@/lib/organizations';
@@ -62,11 +63,11 @@ export async function POST(req: NextRequest) {
     const isExecutive = hasAnyRole(actor, ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN']);
     const isReadOnlyUser = !isExecutive;
 
-    const rawBusinessId = (body.context?.active_business_id || '').trim();
+    const rawBusinessId = normalizeOrganizationIdentifier((body.context?.active_business_id || '').trim());
 
     // Resolve target subsidiary if in a scoped workspace
     let targetOrg = null;
-    if (rawBusinessId && rawBusinessId !== 'bems-group-hq' && rawBusinessId !== 'ALL' && rawBusinessId !== 'group_hq') {
+    if (rawBusinessId && rawBusinessId !== 'ALL' && rawBusinessId !== 'group_hq') {
       targetOrg = await prisma.organization.findFirst({
         where: {
           status: 'ACTIVE',
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (rawBusinessId && !['bems-group-hq', 'ALL', 'group_hq'].includes(rawBusinessId) && !targetOrg) return NextResponse.json({ error: 'The selected workspace was not found.' }, { status: 404 });
+    if (rawBusinessId && !['ALL', 'group_hq'].includes(rawBusinessId) && !targetOrg) return NextResponse.json({ error: 'The selected workspace was not found.' }, { status: 404 });
     const authorizedScope = await resolveAuthorizedOrganizationScope(actor, targetOrg?.id || 'ALL');
     if (!authorizedScope.organizationIds.length) return NextResponse.json({ error: 'You cannot access this workspace.' }, { status: 403 });
     const isGroupScope = !targetOrg || targetOrg.type === 'GROUP' || targetOrg.code === 'BEMS-GROUP';
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
 
       if (mentionedOther) {
         return NextResponse.json({
-          message: `🔒 **Subsidiary Boundary Enforcement**\n\nYou are currently operating inside the workspace of **${scopedOrgName}**.\n\nI am strictly partitioned to only access data, bank balances, budgets, staff dossiers, and requisitions belonging to **${scopedOrgName}**.\n\nTo view financial data, budgets, or records for **${mentionedOther.legalName}**, please switch your workspace using the workspace switcher in the top navigation, or select **BEMS Group (Holding & Conglomerate HQ)** to inspect consolidated group operations.`,
+          message: `🔒 **Subsidiary Boundary Enforcement**\n\nYou are currently operating inside the workspace of **${scopedOrgName}**.\n\nI am strictly partitioned to only access data, bank balances, budgets, staff dossiers, and requisitions belonging to **${scopedOrgName}**.\n\nTo view financial data, budgets, or records for **${mentionedOther.legalName}**, please switch your workspace using the workspace switcher in the top navigation, or select **BEMS Group (Group & Subsidiaries)** to inspect consolidated group operations.`,
           timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
         });
       }
@@ -1473,7 +1474,7 @@ title: "<Chart Title>"
     ) {
       const orgNames = orgs.length ? orgs.map((o) => `• **${o.legalName}** (${o.type})`).join('\n') : `• **${scopedOrgName}**`;
       reply = !isGroupScope
-        ? `**Active Workspace Subsidiary:**\n\n• **${scopedOrgName}** (Code: \`${scopedOrgCode}\`)\n\n*The AI Copilot is strictly isolated to this subsidiary. To view the group conglomerate portfolio, switch to BEMS Group HQ.*`
+        ? `**Active Workspace Subsidiary:**\n\n• **${scopedOrgName}** (Code: \`${scopedOrgCode}\`)\n\n*The AI Copilot is strictly isolated to this subsidiary. To view the group conglomerate portfolio, switch to BEMS Group.*`
         : `**BEMS Group Multi-Subsidiary Architecture:**\n\n${orgNames}\n\nAll intercompany transactions generate automated bilateral Debit/Credit notes with zero double-counting.`;
     } else {
       // General financial advisor intelligence fallback
@@ -1487,8 +1488,8 @@ title: "<Chart Title>"
           `• *"What is our budget allocation?"*\n` +
           `• *"Are there any fund requests pending for ${scopedOrgName}?"*\n` +
           `• *"Show today's attendance for our staff."*\n\n` +
-          `*🔒 Note: I am partitioned exclusively to ${scopedOrgName}. To view other subsidiaries or consolidated figures, switch to BEMS Group HQ.*`
-        : `I am your **BEMS Executive Financial AI Copilot**, grounded with live database ledger telemetry across BEMS Group Conglomerate HQ.\n\n` +
+          `*🔒 Note: I am partitioned exclusively to ${scopedOrgName}. To view other subsidiaries or consolidated figures, switch to BEMS Group.*`
+        : `I am your **BEMS Executive Financial AI Copilot**, grounded with live database ledger telemetry across BEMS Group.\n\n` +
           (hasSpecificQuery ? `I noted your instruction: *"${message}"*.\n\n` : '') +
           `You can ask me:\n` +
           `• *"What is our total cash balance across bank accounts?"*\n` +

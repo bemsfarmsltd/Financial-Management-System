@@ -93,7 +93,7 @@ type WalletData = {
   withdrawals: Withdrawal[];
 };
 
-export default function WalletView() {
+export default function WalletView({ brandColor = '#ea580c' }: { brandColor?: string } = {}) {
   const [data, setData] = useState<WalletData | null>(null);
   const [banks, setBanks] = useState<{ code: string; name: string }[]>([]);
   const [error, setError] = useState('');
@@ -299,7 +299,7 @@ export default function WalletView() {
 
       {!data && !error && (
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '48px', textAlign: 'center', color: '#64748b', fontSize: 12 }}>
-          <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 12px', color: '#ea580c' }} />
+          <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 12px', color: brandColor }} />
           <div>Loading your staff wallet…</div>
         </div>
       )}
@@ -401,7 +401,7 @@ export default function WalletView() {
             {/* Card 1: Destination Bank Account */}
             <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #f1f5f9' }}>
-                <Landmark size={16} color="#ea580c" />
+                <Landmark size={16} color={brandColor} />
                 <div>
                   <h3 style={{ fontSize: 13, fontWeight: 700, color: '#17253d', margin: 0 }}>Withdrawal Bank Account</h3>
                   <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>Account name must match your legal staff identity.</p>
@@ -481,7 +481,7 @@ export default function WalletView() {
                         setMessage('Your bank account was verified successfully.');
                       })
                     }
-                    style={{ padding: '7px 14px', borderRadius: 6, border: 0, background: '#ea580c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start' }}
+                    style={{ padding: '7px 14px', borderRadius: 6, border: 0, background: brandColor, color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start' }}
                   >
                     Verify Bank Account →
                   </button>

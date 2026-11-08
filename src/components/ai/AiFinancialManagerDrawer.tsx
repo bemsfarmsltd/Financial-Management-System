@@ -1,4 +1,5 @@
 'use client';
+import { isBemsGroup } from '@/lib/organization-identity';
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -66,7 +67,7 @@ export function AiFinancialManagerDrawer({
   onCancelAction,
   onNewChat,
 }: Props) {
-  const isGroupScope = !businessName || businessName === 'BEMS Group' || businessName?.toLowerCase().includes('bems group');
+  const isGroupScope = !businessName || isBemsGroup({ id: businessId }) || businessName === 'BEMS Group';
   const [isExpanded, setIsExpanded] = useState(false);
   const [inputText, setInputText] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -204,7 +205,7 @@ export function AiFinancialManagerDrawer({
                     letterSpacing: '0.04em',
                   }}
                 >
-                  {isGroupScope ? '🌐 Group Conglomerate HQ' : `🔒 Scoped to ${businessName}`}
+                  {isGroupScope ? '🌐 BEMS Group' : `🔒 Scoped to ${businessName}`}
                 </span>
               </div>
               <span style={{ fontSize: '11.5px', color: '#475569', fontWeight: 500 }}>

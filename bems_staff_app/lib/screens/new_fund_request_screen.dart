@@ -707,7 +707,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                                   if (widget.user.subsidiary.isNotEmpty) widget.user.subsidiary,
                                   'Bems Logistics & Distribution Ltd',
                                   'BemsSoft Hub Ltd',
-                                  'BEMS Group Holdings Ltd (HQ)',
+                                  'BEMS Group',
                                 }.toList();
 
                           final currentVal = availableSubsidiaries.contains(_selectedSubsidiary)

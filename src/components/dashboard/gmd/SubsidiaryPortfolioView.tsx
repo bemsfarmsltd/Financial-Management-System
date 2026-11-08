@@ -1469,7 +1469,7 @@ export function SubsidiaryPortfolioView({
                 {/* 5. HEADQUARTERS LOCATION */}
                 <div>
                   <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
-                    Operating City / Headquarters
+                    Operating City
                   </label>
                   <input
                     placeholder="e.g. Victoria Island, Lagos"

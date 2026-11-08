@@ -163,7 +163,7 @@ export default function AttendanceDeskPage() {
     longitude: number;
     radiusMeters: number;
   }>({
-    name: 'BEMS Group Corporate Headquarters',
+    name: 'BEMS Group',
     code: 'BEMS-HQ-MAIN',
     latitude: 6.4281,
     longitude: 3.4219,
@@ -1424,7 +1424,7 @@ export default function AttendanceDeskPage() {
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <Wifi size={13} color={r.starlinkIp ? '#059669' : '#94a3b8'} />
                                 <span style={{ fontSize: '11px', color: '#475569' }}>
-                                  {r.stationName || 'HQ Kiosk'}{r.starlinkIp ? ` (${r.starlinkIp})` : ''}
+                                  {r.stationName || 'BEMS Group Kiosk'}{r.starlinkIp ? ` (${r.starlinkIp})` : ''}
                                 </span>
                               </div>
                             </td>
@@ -1496,7 +1496,7 @@ export default function AttendanceDeskPage() {
                                           legalName: r.legalName,
                                           employeeNumber: r.employeeNumber,
                                           role: r.role,
-                                          workLocation: r.stationName || 'HQ',
+                                          workLocation: r.stationName || 'BEMS Group',
                                           organizationName: r.subsidiary?.legalName || 'BEMS Group',
                                           status: r.morningStatus === 'LATE' ? 'LATE' : 'ABSENT',
                                           isManualOverride: false,
@@ -2106,7 +2106,7 @@ export default function AttendanceDeskPage() {
                     <div style={{ padding: '10px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '11px', color: '#475569' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                         <MapPin size={13} color="#ea580c" />
-                        <span>Station: <strong>{selectedCalendarDay.stationName || 'HQ Reception Main Kiosk'}</strong></span>
+                        <span>Station: <strong>{selectedCalendarDay.stationName || 'BEMS Group Reception Kiosk'}</strong></span>
                       </div>
                       {selectedCalendarDay.notes && (
                         <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e2e8f0', color: '#0f172a' }}>

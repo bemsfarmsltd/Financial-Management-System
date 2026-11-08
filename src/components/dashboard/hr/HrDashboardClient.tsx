@@ -1360,7 +1360,7 @@ export function HrDashboardClient({ user }: { user: HrUser }) {
                       <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
                         <div style={{ color: '#64748b' }}>Work Location</div>
                         <div style={{ fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
-                          {selectedStaff.workLocation || 'Lagos HQ'}
+                          {selectedStaff.workLocation || 'BEMS Group'}
                         </div>
                       </div>
                       <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>

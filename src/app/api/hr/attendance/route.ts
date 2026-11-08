@@ -120,7 +120,7 @@ export async function GET(req: Request) {
       excuseStatus: r.excuseStatus,
       excuseRequestNote: r.excuseRequestNote,
       excuseRequestedByName: r.excuseRequestedByName,
-      stationName: r.station?.name || 'HQ Primary',
+      stationName: r.station?.name || 'BEMS Group',
     }));
 
     return NextResponse.json({

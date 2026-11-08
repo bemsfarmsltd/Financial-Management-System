@@ -157,7 +157,7 @@ export default function QuickPayPage({ params }: { params: Promise<{ id: string 
 
       const formData = new FormData();
       formData.append('requestId', data.request.id);
-      formData.append('payerOrgId', payerOrgId || 'bems-group-hq');
+      formData.append('payerOrgId', payerOrgId || 'BEMS-GROUP');
       formData.append('beneficiaryName', data.beneficiary.name);
       formData.append('beneficiaryBank', data.beneficiary.bankName);
       formData.append('beneficiaryAccount', data.beneficiary.accountNumber);

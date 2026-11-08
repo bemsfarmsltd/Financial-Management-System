@@ -151,7 +151,7 @@ export function ExecutiveBriefingClient({
   onNavigate,
 }: Partial<Props> = {}) {
   const router = useRouter();
-  const isGroupHq = !activeSubsidiaryId || activeSubsidiaryId === 'bems-group-hq' || activeSubsidiaryId === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30' || activeSubsidiaryId === 'ALL';
+  const isGroupHq = !activeSubsidiaryId || activeSubsidiaryId === 'BEMS-GROUP' || activeSubsidiaryId === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30' || activeSubsidiaryId === 'ALL';
   const initialSub = isGroupHq ? 'ALL' : activeSubsidiaryId;
 
   const [selectedSub, setSelectedSub] = useState<string>(initialSub);
@@ -167,7 +167,7 @@ export function ExecutiveBriefingClient({
 
   useEffect(() => {
     if (activeSubsidiaryId) {
-      const isGroup = activeSubsidiaryId === 'bems-group-hq' || activeSubsidiaryId === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30' || activeSubsidiaryId === 'ALL';
+      const isGroup = activeSubsidiaryId === 'BEMS-GROUP' || activeSubsidiaryId === 'a2fb4699-9f4e-4066-b173-b6bc3bb91f30' || activeSubsidiaryId === 'ALL';
       setSelectedSub(isGroup ? 'ALL' : activeSubsidiaryId);
     }
   }, [activeSubsidiaryId]);
@@ -200,7 +200,7 @@ export function ExecutiveBriefingClient({
               accountType: a.accountType || 'Corporate Operational',
               balance: a.balanceNaira || a.balance || 0,
               status: 'Active',
-              assignedSubsidiary: a.assignedSubsidiary || a.organization?.legalName || (a.scope === 'HQ' ? 'BEMS Group Holdings Ltd (HQ)' : 'BEMS Subsidiary'),
+              assignedSubsidiary: a.assignedSubsidiary || a.organization?.legalName || (a.scope === 'HQ' ? 'BEMS Group' : 'BEMS Subsidiary'),
             })) : prev);
           }
         })

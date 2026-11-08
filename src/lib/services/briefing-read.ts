@@ -108,12 +108,7 @@ export async function loadAuthorizedExecutiveBriefing(
       balance: balNum,
       balanceNaira: balNum,
       dailyLimit: limitNum,
-      scope:
-        a.organization?.code === 'BEMS-LOG'
-          ? 'LOG'
-          : a.organization?.code === 'BEMS-SOFT'
-          ? 'SOFT'
-          : 'HQ',
+      scope: a.organization.code,
       assignedSubsidiary: a.organization?.legalName || 'BEMS Group',
       organization: {
         id: a.organization.id,

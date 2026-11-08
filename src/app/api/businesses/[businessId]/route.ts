@@ -1,3 +1,5 @@
+import { assertGroupIdentityUpdate } from '@/lib/organization-identity';
+import { normalizeOrganizationIdentifier } from '@/lib/organization-identity';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
@@ -17,7 +19,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Executive access is required to edit business entities.' }, { status: 403 });
     }
 
-    const { businessId } = await params;
+    const { businessId: requestedBusinessId } = await params;
+    const businessId = normalizeOrganizationIdentifier(requestedBusinessId);
     const body = await req.json().catch(() => ({}));
 
     const existing = await prisma.organization.findFirst({
@@ -47,6 +50,8 @@ export async function PATCH(
     if (body.logoUrl !== undefined) {
       updateData.logoUrl = body.logoUrl ? String(body.logoUrl).trim() : null;
     }
+
+    assertGroupIdentityUpdate(existing, updateData);
 
     const updated = await prisma.organization.update({
       where: { id: existing.id },

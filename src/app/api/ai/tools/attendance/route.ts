@@ -274,7 +274,7 @@ export async function POST(req: NextRequest) {
     const isClockOut = action === 'CLOCK_OUT' || action === 'CHECK_OUT';
     const employeeIdentifier = (body.employeeId || body.employeeNumber || body.name || '').trim();
     const workDate = (body.workDate || todayStr).trim();
-    const stationName = (body.stationName || 'HQ Kiosk / AI Station').trim();
+    const stationName = (body.stationName || 'BEMS Group Kiosk / AI Station').trim();
 
     const employee = await db.employee.findFirst({
       where: {
@@ -513,14 +513,14 @@ export async function POST(req: NextRequest) {
         action_type: 'CALIBRATE_STATION',
         organizationId: body.organizationId || body.subsidiaryId || actor.scopedOrganizationId || undefined,
         stationId: body.stationId,
-        name: body.name || 'BEMS Group Corporate Headquarters',
+        name: body.name || 'BEMS Group',
         latitude,
         longitude,
         radiusMeters,
       },
       preview: {
         action: 'CALIBRATE_STATION',
-        station_name: body.name || 'BEMS Group Corporate Headquarters',
+        station_name: body.name || 'BEMS Group',
         coordinates: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
         radius_meters: `${radiusMeters}m`,
       },

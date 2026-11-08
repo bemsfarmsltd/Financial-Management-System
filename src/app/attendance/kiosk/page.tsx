@@ -399,7 +399,7 @@ export default function AttendanceKioskPage() {
                 </span>
               </div>
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '1px' }}>
-                {stationData?.stationName || 'BEMS Group Corporate Headquarters'} · Victoria Island HQ
+                {stationData?.stationName || 'BEMS Group'} · Victoria Island
               </div>
             </div>
           </div>

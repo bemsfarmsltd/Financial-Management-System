@@ -52,7 +52,7 @@ export async function getConsolidatedTreasury(subsidiaryId?: string): Promise<Co
     status: { in: ['RECIPIENT_CONFIRMED', 'AWAITING_RECIPIENT_CONFIRMATION'] },
   };
 
-  if (subsidiaryId && subsidiaryId !== 'ALL' && subsidiaryId !== 'bems-group-hq') {
+  if (subsidiaryId && subsidiaryId !== 'ALL' && subsidiaryId !== 'BEMS-GROUP') {
     const { resolveOrganizationScope } = await import('@/lib/organizations');
     const scope = await resolveOrganizationScope(subsidiaryId);
     if (!scope.isGroup) {
@@ -126,7 +126,7 @@ export async function getConsolidatedTreasury(subsidiaryId?: string): Promise<Co
  */
 export async function getConsolidatedBudgets(organizationId?: string) {
   let budgetWhere: any = {};
-  if (organizationId && organizationId !== 'ALL' && organizationId !== 'bems-group-hq') {
+  if (organizationId && organizationId !== 'ALL' && organizationId !== 'BEMS-GROUP') {
     const { resolveOrganizationScope } = await import('@/lib/organizations');
     const scope = await resolveOrganizationScope(organizationId);
     if (!scope.isGroup) {

@@ -2353,7 +2353,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                         <div><b>Department:</b> {selected.employee.assignment?.departmentName || '—'}</div>
                         <div><b>Operating Subsidiary:</b> {selected.employee.assignment?.subsidiaryName || '—'}</div>
                         <div><b>Agreement Type:</b> {selected.employee.employmentType || selected.employee.employment?.agreementType || 'Full-time'} ({selected.employee.staffGrade || 'General Staff'})</div>
-                        <div><b>Work Location:</b> {selected.employee.workLocation || 'Lagos HQ'}</div>
+                        <div><b>Work Location:</b> {selected.employee.workLocation || 'BEMS Group'}</div>
                         <div><b>Resumption Date:</b> {selected.employee.resumptionDate ? date(selected.employee.resumptionDate) : '—'}</div>
                       </div>
                     </div>

@@ -169,7 +169,7 @@ export async function POST(request: Request) {
             actorId: created.id,
             actorName: created.legalName,
             actorRole: created.role,
-            groupId: 'bems-group-hq',
+            groupId: 'BEMS-GROUP',
             targetType: 'EMPLOYEE',
             targetId: created.id,
             action: 'BOOTSTRAP_ADMIN_PROVISIONED',

@@ -207,7 +207,7 @@ export const AI_ACCESS_SCOPES: AiScopeDefinition[] = [
     category: 'Corporate, Attendance & Operations',
     label: 'Subsidiary Profile, RC Number & Budget Editing',
     description:
-      'Read subsidiary metadata (RC number, HQ, industry, active status) or stage editing existing subsidiary details and monthly budgets.',
+      'Read subsidiary metadata (RC number, operating location, industry, active status) or stage editing existing subsidiary details and monthly budgets.',
     endpoint: '/api/ai/tools/subsidiary (Update)',
     readLabel: 'Read Subsidiary Metadata',
     writeLabel: 'Stage Subsidiary Info Edits',

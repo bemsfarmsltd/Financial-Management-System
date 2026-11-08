@@ -58,10 +58,11 @@ class WorkstationProfile {
 }
 
 class WorkstationRepository {
+  static bool isGroupScope(String scope) => ['all', 'hq', 'bems-group', 'bems-group-hq'].contains(scope.toLowerCase());
   static const WorkstationProfile allGroup = WorkstationProfile(
     code: 'all',
-    shortName: 'All Workstations',
-    fullName: 'BEMS Group Holdings (Consolidated)',
+    shortName: 'BEMS Group',
+    fullName: 'BEMS Group',
     description: 'Consolidated conglomerate operations & treasury pools',
     totalTreasuryDisplay: '₦0.00',
     totalTreasuryAmount: 0.0,
@@ -92,6 +93,7 @@ class WorkstationRepository {
     int idx = 0;
     for (final org in orgs) {
       final code = (org['code'] ?? org['id'] ?? 'SUB').toString();
+      if (org['type'] == 'GROUP' || code.toUpperCase() == 'BEMS-GROUP') continue;
       final name = (org['legalName'] ?? org['name'] ?? 'Subsidiary').toString();
       list.add(WorkstationProfile(
         code: code,
@@ -153,13 +155,10 @@ class WorkstationRepository {
     final accountabilityCases = (data['accountabilityCases'] as List<dynamic>?) ?? [];
 
     bool matchesScope(String? orgCode, String? orgName) {
-      if (scope == 'all') return true;
+      if (isGroupScope(scope)) return true;
       final c = (orgCode ?? '').toUpperCase();
       final n = (orgName ?? '').toUpperCase();
-      if (scope == 'SOFT') return c.contains('SOFT') || n.contains('SOFT') || n.contains('TECH');
-      if (scope == 'LOG') return c.contains('LOG') || n.contains('LOG') || n.contains('SUPPLY');
-      if (scope == 'HQ') return c.contains('GROUP') || c.contains('HQ') || n.contains('CORP') || n.contains('ADMIN');
-      return true;
+      return c == scope.toUpperCase() || n == scope.toUpperCase();
     }
 
     // 1. Filter budgets
@@ -205,14 +204,11 @@ class WorkstationRepository {
         final accBal = (num.tryParse(acc['balanceNaira']?.toString() ?? acc['balance']?.toString() ?? '0') ?? 0).toDouble();
 
         bool match = false;
-        if (scope == 'all') {
+        if (isGroupScope(scope)) {
           match = true;
-        } else if (scope == 'HQ' && (accScope == 'HQ' || accBank.contains('Corporate') || accBank.contains('Head Office'))) {
+        } else if (accScope.toUpperCase() == scope.toUpperCase()) {
           match = true;
-        } else if (scope == 'LOG' && (accScope == 'LOG' || accBank.contains('Agribusiness') || accBank.contains('Logistics') || accBank.contains('Feed'))) {
-          match = true;
-        } else if (scope == 'SOFT' && (accScope == 'SOFT' || accBank.contains('Tech') || accBank.contains('Cloud'))) {
-          match = true;
+
         }
 
         if (match) {
@@ -275,7 +271,7 @@ class WorkstationRepository {
 
     // 8. Dynamic Subsidiary Bars from real DB budgets & registered subsidiaries
     final List<SubsidiaryBudgetItem> dynamicSubsidiaries = [];
-    if (scope == 'all') {
+    if (isGroupScope(scope)) {
       if (budgets.isNotEmpty) {
         for (final b in budgets) {
           final org = b['organization'] is Map ? b['organization'] : null;

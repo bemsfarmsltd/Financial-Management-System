@@ -1,3 +1,4 @@
+import { normalizeOrganizationIdentifier } from '@/lib/organization-identity';
 import { executeDashboardCommand } from '@/lib/staged-actions';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -16,10 +17,11 @@ export async function POST(
       return NextResponse.json({ error: 'Executive access is required to import business templates.' }, { status: 403 });
     }
 
-    const { businessId, templateId } = await params;
+    const { businessId: rawBusinessId, templateId } = await params;
+    const businessId = normalizeOrganizationIdentifier(rawBusinessId);
     const org =
-      !businessId || businessId === 'all' || businessId === 'bems-group-hq'
-        ? await prisma.organization.findFirst({ where: { OR: [{ type: 'GROUP' }, { code: 'BEMS-GROUP' }, { code: 'BEMS-HQ' }] } })
+      !businessId || businessId === 'all' || businessId === 'BEMS-GROUP'
+        ? await prisma.organization.findFirst({ where: { code: 'BEMS-GROUP' } })
         : await prisma.organization.findFirst({
             where: { OR: [{ id: businessId }, { code: { equals: businessId, mode: 'insensitive' } }] },
           });

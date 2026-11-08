@@ -1,4 +1,5 @@
 'use client';
+import { isBemsGroup, normalizeOrganizationIdentifier } from '@/lib/organization-identity';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -43,7 +44,7 @@ interface AppNotification {
 }
 
 const defaultSubsidiaries: Subsidiary[] = [
-  { id: 'bems-group-hq', name: 'BEMS Group', code: 'BEMS-GROUP', industry: 'Conglomerate & Holding HQ', initials: 'BG', color: '#0b1220', status: 'Live' },
+  { id: 'BEMS-GROUP', name: 'BEMS Group', code: 'BEMS-GROUP', industry: 'Group & Subsidiaries', initials: 'BG', color: '#0b1220', status: 'Live' },
 ];
 
 export function ConnectAppShell({ children, initialRole, initialSubId }: { children: React.ReactNode; initialRole?: SystemRole; initialSubId?: string }) {
@@ -54,7 +55,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
   });
   const [collapsed, setCollapsed] = useState(true);
   const [subsidiaries, setSubsidiaries] = useState<Subsidiary[]>(defaultSubsidiaries);
-  const [currentSubId, setCurrentSubId] = useState(initialSubId || 'bems-group-hq');
+  const [currentSubId, setCurrentSubId] = useState(initialSubId || 'BEMS-GROUP');
   const [subSwitcherOpen, setSubSwitcherOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -66,7 +67,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
   const [unreadCount, setUnreadCount] = useState(0);
 
   const currentSub = subsidiaries.find(s => s.id === currentSubId) || subsidiaries[0];
-  const activeBrand = currentSub?.brandColor || currentSub?.color || (currentSub?.id === 'bems-group-hq' ? '#ea580c' : '#0d8a70');
+  const activeBrand = currentSub?.brandColor || currentSub?.color || (currentSub?.id === 'BEMS-GROUP' ? '#ea580c' : '#0d8a70');
 
   useEffect(() => {
     if (!initialRole) {
@@ -91,15 +92,16 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
           setSubsidiaries(d.organizations);
           let targetId = initialSubId || d.organizations[0].id;
           if (!initialSubId && typeof window !== 'undefined') {
-            const stored = localStorage.getItem('bems_active_org');
-            if (stored && d.organizations.some((o: any) => o.id === stored)) {
-              targetId = stored;
+            const saved = localStorage.getItem('bems_active_org');
+            const stored = saved ? normalizeOrganizationIdentifier(saved) : null;
+            if (stored && d.organizations.some((o: any) => o.id === stored || o.code === stored)) {
+              targetId = d.organizations.find((o: any) => o.id === stored || o.code === stored).id;
             }
           }
           setCurrentSubId(targetId);
         } else {
           setSubsidiaries(defaultSubsidiaries);
-          setCurrentSubId(initialSubId || 'bems-group-hq');
+          setCurrentSubId(initialSubId || 'BEMS-GROUP');
         }
       })
       .catch(() => {});
@@ -254,7 +256,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
 
   const isExecutiveAdmin = currentRole === 'GMD' || currentRole === 'SystemAdmin';
   const navGroups = currentRole === 'GMD' ? gmdNav : currentRole === 'SystemAdmin' ? sysAdminNav : staffNav;
-  const isGroupScope = !currentSub || currentSub.id === 'bems-group-hq' || currentSub.code === 'BEMS-GROUP' || currentSub.name?.toLowerCase().includes('bems group');
+  const isGroupScope = !currentSub || isBemsGroup(currentSub);
   const activeBrandColor = currentSub?.brandColor || currentSub?.color || (isGroupScope ? '#ea580c' : '#0d8a70');
   const activeLogoUrl = currentSub?.logoUrl || (isGroupScope ? '/bems-group-logo.png?v=20261024' : null);
 

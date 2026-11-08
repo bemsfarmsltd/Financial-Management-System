@@ -114,17 +114,12 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
   List<dynamic> _getFilteredRequests() {
     final rawRequests = (_dashboardData?['pendingRequests'] as List<dynamic>?) ?? [];
     final activeRequests = rawRequests.where((r) => !_processedIds.contains(r['id'])).toList();
-    if (_selectedScope == 'all') return activeRequests;
+    if (WorkstationRepository.isGroupScope(_selectedScope)) return activeRequests;
 
     return activeRequests.where((r) {
       final subMap = r['subsidiary'];
       final subCode = (subMap is Map ? subMap['code'] : subMap)?.toString().toLowerCase() ?? '';
-      final subName = (subMap is Map ? subMap['legalName'] : subMap)?.toString().toLowerCase() ?? '';
-      final dept = (r['department'] ?? '').toString().toLowerCase();
-      if (_selectedScope == 'SOFT') return subCode.contains('soft') || subName.contains('soft') || dept.contains('tech');
-      if (_selectedScope == 'LOG') return subCode.contains('log') || subName.contains('log') || dept.contains('supply');
-      if (_selectedScope == 'HQ') return subCode.contains('group') || subName.contains('group') || dept.contains('corp');
-      return true;
+      return subCode == _selectedScope.toLowerCase();
     }).toList();
   }
 
@@ -1460,7 +1455,7 @@ class _ExecutiveSystemDashboardState extends State<ExecutiveSystemDashboard> {
             const Divider(height: 16, color: Color(0xFFF1F5F9)),
             _buildHubRow('Edo Benin Ops Hub', 'Edo State · Agribusiness & Regional Center'),
             const Divider(height: 16, color: Color(0xFFF1F5F9)),
-            _buildHubRow('BEMS Group HQ', 'Corporate Directorate & Governance'),
+            _buildHubRow('BEMS Group', 'Corporate Directorate & Governance'),
           ],
         ),
       ),

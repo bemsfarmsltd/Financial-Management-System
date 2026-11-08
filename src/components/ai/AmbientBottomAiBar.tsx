@@ -50,7 +50,7 @@ export function AmbientBottomAiBar({
   onOpenFullCockpit,
   onNavigate,
 }: Props) {
-  const isGroupScope = !businessName || businessName === 'BEMS Group' || businessName?.toLowerCase().includes('bems group');
+  const isGroupScope = !businessName || businessName === 'BEMS Group';
   const [inputText, setInputText] = useState('');
   const [isDeckOpen, setIsDeckOpen] = useState(false);
   const [isOrbitActive, setIsOrbitActive] = useState(true);
@@ -176,7 +176,7 @@ export function AmbientBottomAiBar({
                     letterSpacing: '0.02em',
                   }}
                 >
-                  🌐 Group HQ
+                  🌐 BEMS Group
                 </span>
               ) : (
                 <span

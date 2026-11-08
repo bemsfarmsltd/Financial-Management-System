@@ -740,7 +740,7 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen>
                     icon: Icons.location_on_rounded,
                     label: _isVerifyingGates
                         ? 'Verifying GPS...'
-                        : (_isGeofenceVerified ? 'HQ Geofence Active (Within 500m)' : 'Outside HQ Geofence'),
+                        : (_isGeofenceVerified ? 'Workplace Geofence Active (Within 500m)' : 'Outside Workplace Geofence'),
                     isOk: _isGeofenceVerified,
                   ),
                 ],

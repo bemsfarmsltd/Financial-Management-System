@@ -1,3 +1,4 @@
+import { normalizeOrganizationIdentifier } from '@/lib/organization-identity';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
@@ -18,7 +19,8 @@ export async function GET(
       return NextResponse.json({ error: 'Executive access is required to read business audit logs.' }, { status: 403 });
     }
 
-    const { businessId } = await params;
+    const { businessId: requestedBusinessId } = await params;
+    const businessId = normalizeOrganizationIdentifier(requestedBusinessId);
 
     const scopeCheck = await resolveAuthorizedOrganizationScope(actor, businessId);
     if (scopeCheck.organizationIds.length === 0) {
@@ -28,7 +30,7 @@ export async function GET(
     const isGroupWide =
       !businessId ||
       businessId === 'all' ||
-      businessId === 'bems-group-hq' ||
+      businessId === 'BEMS-GROUP' ||
       scopeCheck.isGroup;
 
     const logs = await prisma.auditEvent.findMany({

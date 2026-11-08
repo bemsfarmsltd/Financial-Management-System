@@ -1,3 +1,4 @@
+import { normalizeOrganizationIdentifier } from '@/lib/organization-identity';
 import { getAiReadClient } from '@/lib/platform/scoped-database';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -177,13 +178,11 @@ export async function POST(req: NextRequest) {
   }
 
   // Resolve subsidiary
-  const allSubs = await db.organization.findMany({ where: { status: 'ACTIVE' }, take: 10 });
-  const targetSub = (subsidiaryId ? allSubs.find((s) => s.id === subsidiaryId || s.code.toUpperCase() === subsidiaryId.toUpperCase()) : null) ||
-    allSubs.find((s) => s.type === 'GROUP' || s.code === 'BEMS-GROUP') ||
-    allSubs[0];
-
-  const orgId = targetSub?.id || 'bems-group-hq';
-  const orgName = targetSub?.legalName || 'BEMS Group';
+  const requestedOrganization = normalizeOrganizationIdentifier(subsidiaryId || 'BEMS-GROUP');
+  const targetSub = await db.organization.findFirst({ where: { status: 'ACTIVE', OR: [{ id: requestedOrganization }, { code: requestedOrganization }] } });
+  if (!targetSub) return NextResponse.json({ ok: false, error_code: 'ORGANIZATION_NOT_FOUND', message: 'The selected organization was not found or is outside your authorized scope.' }, { status: 404 });
+  const orgId = targetSub.id;
+  const orgName = targetSub.legalName;
   const positionName = canonicalRole === 'GMD' ? 'The Group Managing Director' : 'Super Admin';
 
   // Single active GMD check before staging

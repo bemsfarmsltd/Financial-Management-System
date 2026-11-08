@@ -1,3 +1,4 @@
+import { assertGroupIdentityUpdate } from '@/lib/organization-identity';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
@@ -9,7 +10,7 @@ export async function GET(request: Request) {
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) return NextResponse.json({ error: 'Executive access is required.' }, { status: 403 });
     // Ensure BEMS Group always exists in the database as the master holding entity
     const existingGroup = await prisma.organization.findFirst({
-      where: { OR: [{ code: 'BEMS-GROUP' }, { type: 'GROUP' }] },
+      where: { code: 'BEMS-GROUP' },
     });
     if (!existingGroup) {
       await prisma.organization.create({
@@ -66,7 +67,7 @@ export async function GET(request: Request) {
 
         const resolvedIndustry = industrySetting?.value || (
           o.type === 'GROUP' 
-            ? 'Holding & Conglomerate HQ' 
+            ? 'Group & Subsidiaries'
             : o.type === 'TECH_IP_ENTITY' 
             ? 'Technology & Digital Platforms'
             : o.type === 'AGRICULTURAL_HUB' 
@@ -146,9 +147,16 @@ export async function POST(req: Request) {
       'SUBSIDIARY'
     ];
 
+    if (body.type === 'GROUP' || generatedCode === 'BEMS-GROUP') return NextResponse.json({ error: 'BEMS Group already exists. Create a subsidiary under BEMS Group.' }, { status: 400 });
+    try { assertGroupIdentityUpdate({ code: 'NEW_SUBSIDIARY' }, { legalName: name.trim(), code: generatedCode, type: body.type }); }
+    catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid subsidiary identity.' }, { status: 400 }); }
+    const parentGroup = await prisma.organization.findUnique({ where: { code: 'BEMS-GROUP' } });
+    if (!parentGroup || parentGroup.type !== 'GROUP') return NextResponse.json({ error: 'BEMS Group must be configured before adding subsidiaries.' }, { status: 409 });
+
     // 1. Create Organization in Prisma
     const newOrg = await prisma.organization.create({
       data: {
+        parentGroupId: parentGroup.id,
         legalName: name.trim(),
         code: generatedCode,
         type: body.type && validTypes.includes(body.type) ? body.type : 'SUBSIDIARY',

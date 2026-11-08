@@ -147,7 +147,7 @@ export async function POST(request: Request) {
           actorId: created.id,
           actorName: created.legalName,
           actorRole: created.role,
-          groupId: 'bems-group-hq',
+          groupId: 'BEMS-GROUP',
           subsidiaryId: invitation.subsidiaryId,
           targetType: 'EMPLOYEE',
           targetId: created.id,

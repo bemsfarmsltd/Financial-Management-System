@@ -46,7 +46,7 @@ export interface OrganizationOption {
 
 export const ORGANIZATIONS: OrganizationOption[] = [
   { code: "ALL", name: "Consolidated Group View (All Entities)", shortName: "All Entities" },
-  { code: "BEMS-GROUP", name: "Bems Group Holdings Ltd (Group HQ)", shortName: "Group HQ" },
+  { code: "BEMS-GROUP", name: "BEMS Group", shortName: "BEMS Group" },
   { code: "BEMS-TECH", name: "Bems Group Cloud & Technologies Ltd", shortName: "Tech Ltd" },
   { code: "BEMS-MEDIA", name: "Bems Group Media & Logistics Ltd", shortName: "Media Ltd" },
 ];

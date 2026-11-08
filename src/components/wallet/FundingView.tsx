@@ -1,4 +1,5 @@
 'use client';
+import { isBemsGroup, normalizeOrganizationIdentifier } from '@/lib/organization-identity';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -33,13 +34,45 @@ import { walletApi as api, walletMoney, nairaToMinor } from './WalletView';
 
 type TabKey = 'envelopes' | 'releases' | 'vendors' | 'transfers' | 'staff';
 
-export default function FundingView() {
+export interface FundingViewProps {
+  businessName?: string;
+  scope?: string;
+  businessId?: string;
+  brandColor?: string;
+  isGroup?: boolean;
+}
+
+export default function FundingView({
+  businessName,
+  scope,
+  businessId,
+  brandColor,
+  isGroup,
+}: FundingViewProps = {}) {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('envelopes');
-  const [selectedSubId, setSelectedSubId] = useState<string>('ALL');
+
+  // Resolve active subsidiary from general workspace filtering
+  const effectiveScope = scope || businessId;
+  const [selectedSubId, setSelectedSubId] = useState<string>(
+    effectiveScope ? normalizeOrganizationIdentifier(effectiveScope) : 'ALL'
+  );
+
+  useEffect(() => {
+    if (scope !== undefined) {
+      setSelectedSubId(scope ? normalizeOrganizationIdentifier(scope) : 'ALL');
+    } else if (businessId !== undefined) {
+      setSelectedSubId(businessId ? normalizeOrganizationIdentifier(businessId) : 'ALL');
+    } else if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('bems_active_org');
+      const urlOrg = new URLSearchParams(window.location.search).get('org');
+      if (urlOrg) setSelectedSubId(normalizeOrganizationIdentifier(urlOrg));
+      else if (stored) setSelectedSubId(normalizeOrganizationIdentifier(stored));
+    }
+  }, [scope, businessId]);
 
   // Allocation Modal State
   const [showAllocateModal, setShowAllocateModal] = useState(false);
@@ -76,16 +109,6 @@ export default function FundingView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [ledgerSubTab, setLedgerSubTab] = useState<'transfers' | 'journals'>('transfers');
 
-  // Read initial subsidiary from localStorage or URL
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('bems_active_org');
-      const urlOrg = new URLSearchParams(window.location.search).get('org');
-      if (urlOrg) setSelectedSubId(urlOrg);
-      else if (stored) setSelectedSubId(stored);
-    }
-  }, []);
-
   // Fetch banks list
   useEffect(() => {
     let current = true;
@@ -104,7 +127,7 @@ export default function FundingView() {
     try {
       const d = await api('funding');
       setData(d);
-    } catch (e) {
+    } catch (e: any) {
       setError(e instanceof Error ? e.message : 'Failed to load wallet dashboard.');
     }
   }, []);
@@ -124,8 +147,8 @@ export default function FundingView() {
     try {
       await work();
       await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Operation failed.');
+    } catch (e: any) {
+      setError(e?.message || (typeof e === 'string' ? e : 'The requested operation could not be completed.'));
     } finally {
       setBusy(false);
       setPassword('');
@@ -136,8 +159,20 @@ export default function FundingView() {
   // Active subsidiary info
   const activeSubsidiary = useMemo(() => {
     if (!data?.organizations || selectedSubId === 'ALL') return null;
-    return data.organizations.find((o: any) => o.id === selectedSubId || o.code === selectedSubId) || null;
+    const org = data.organizations.find((o: any) => o.id === selectedSubId || o.code === selectedSubId);
+    return isBemsGroup(org) ? null : org || null;
   }, [data?.organizations, selectedSubId]);
+
+  // Dynamic brand color: follows active subsidiary
+  const effectiveBrandColor =
+    brandColor ||
+    (activeSubsidiary as any)?.brandColor ||
+    (activeSubsidiary as any)?.color ||
+    (isGroup || selectedSubId === 'ALL' ? '#ea580c' : '#0d8a70');
+
+  const displayBusinessName =
+    businessName ||
+    (activeSubsidiary ? activeSubsidiary.legalName : 'BEMS Group');
 
   // Filtered Envelopes by active subsidiary
   const filteredEnvelopes = useMemo(() => {
@@ -361,7 +396,7 @@ export default function FundingView() {
       <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
         <div>
           <span style={{ fontSize: '8px', letterSpacing: '1.2px', fontWeight: 800, color: '#7d8ba1', textTransform: 'uppercase' }}>
-            TREASURY & WALLET GOVERNANCE · {activeSubsidiary ? activeSubsidiary.legalName : 'BEMS GROUP HQ'}
+            TREASURY & WALLET GOVERNANCE · {displayBusinessName.toUpperCase()}
           </span>
           <h1 style={{ fontSize: '18px', letterSpacing: '-0.3px', fontWeight: 700, margin: '4px 0 2px', color: '#17253d' }}>
             Wallets & Funded Budgets
@@ -372,42 +407,6 @@ export default function FundingView() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {/* Subsidiary Workspace Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Building2 size={13} color="#ea580c" />
-            <select
-              value={selectedSubId}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSelectedSubId(val);
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem('bems_active_org', val);
-                  const url = new URL(window.location.href);
-                  if (val === 'ALL') url.searchParams.delete('org');
-                  else url.searchParams.set('org', val);
-                  window.history.replaceState(null, '', url.toString());
-                }
-              }}
-              style={{
-                background: '#fff',
-                border: '1px solid #cbd5e1',
-                borderRadius: '7px',
-                padding: '5px 10px',
-                fontSize: '11px',
-                fontWeight: 600,
-                color: '#1e293b',
-                cursor: 'pointer',
-              }}
-            >
-              <option value="ALL">All Subsidiaries (Holding HQ View)</option>
-              {data?.organizations?.map((org: any) => (
-                <option key={org.id} value={org.id}>
-                  {org.type === 'GROUP' ? '🏛️' : '🏢'} {org.legalName} ({org.code})
-                </option>
-              ))}
-            </select>
-          </div>
-
           <button
             disabled={busy}
             onClick={() =>
@@ -464,7 +463,7 @@ export default function FundingView() {
 
           <button
             onClick={() => {
-              setOrganizationId(activeSubsidiary?.id || '');
+              setOrganizationId(activeSubsidiary?.id || (selectedSubId !== 'ALL' ? selectedSubId : ''));
               setLabel('');
               setAmount('');
               setParentId('');
@@ -478,10 +477,10 @@ export default function FundingView() {
               borderRadius: '7px',
               fontSize: '11px',
               fontWeight: 700,
-              background: '#ea580c',
+              background: effectiveBrandColor,
               color: '#ffffff',
               border: 0,
-              boxShadow: '0 1px 3px rgba(234, 88, 12, 0.25)',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
               cursor: 'pointer',
             }}
           >
@@ -583,23 +582,23 @@ export default function FundingView() {
         <div
           style={{
             background: '#ffffff',
-            border: '1px solid #fed7aa',
+            border: `1px solid ${effectiveBrandColor}33`,
             borderRadius: '10px',
             padding: '10px 14px',
             display: 'flex',
             flexDirection: 'column',
             gap: '4px',
-            boxShadow: '0 1px 4px rgba(234, 88, 12, 0.05)',
+            boxShadow: `0 1px 4px ${effectiveBrandColor}12`,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.6px', color: '#ea580c', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.6px', color: effectiveBrandColor, textTransform: 'uppercase' }}>
               Unallocated Capacity
             </span>
-            <Coins size={13} color="#ea580c" />
+            <Coins size={13} color={effectiveBrandColor} />
           </div>
           <div>
-            <strong style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2, color: '#ea580c', display: 'block' }}>
+            <strong style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2, color: effectiveBrandColor, display: 'block' }}>
               {data?.funding ? walletMoney(data.funding.freeMinor) : '₦0.00'}
             </strong>
             <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#64748b' }}>
@@ -645,9 +644,9 @@ export default function FundingView() {
                   borderRadius: 7,
                   fontSize: '11px',
                   fontWeight: isActive ? 700 : 600,
-                  background: isActive ? '#ea580c' : '#f8fafc',
+                  background: isActive ? effectiveBrandColor : '#f8fafc',
                   color: isActive ? '#ffffff' : '#475569',
-                  border: isActive ? '1px solid #ea580c' : '1px solid #e2e8f0',
+                  border: isActive ? `1px solid ${effectiveBrandColor}` : '1px solid #e2e8f0',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                 }}
@@ -722,7 +721,7 @@ export default function FundingView() {
                   >
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                       <div>
-                        <span style={{ fontSize: '8px', fontWeight: 800, color: '#ea580c', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
+                        <span style={{ fontSize: '8px', fontWeight: 800, color: effectiveBrandColor, letterSpacing: '0.6px', textTransform: 'uppercase' }}>
                           {e.organizationName}
                         </span>
                         <h4 style={{ fontSize: '13px', fontWeight: 700, margin: '2px 0 0', color: '#17253d' }}>
@@ -855,7 +854,7 @@ export default function FundingView() {
                       <span style={{ fontSize: '10px', fontWeight: 800, color: '#475569', fontFamily: 'monospace' }}>
                         {p.requestNumber}
                       </span>
-                      <span style={{ fontSize: '9px', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa' }}>
+                      <span style={{ fontSize: '9px', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: `${effectiveBrandColor}14`, color: effectiveBrandColor, border: `1px solid ${effectiveBrandColor}33` }}>
                         {p.category}
                       </span>
                     </div>
@@ -929,11 +928,11 @@ export default function FundingView() {
                       borderRadius: 7,
                       fontSize: '11px',
                       fontWeight: 700,
-                      background: data?.canApprove ? '#ea580c' : '#f1f5f9',
+                      background: data?.canApprove ? effectiveBrandColor : '#f1f5f9',
                       color: data?.canApprove ? '#ffffff' : '#94a3b8',
                       border: data?.canApprove ? 0 : '1px solid #e2e8f0',
                       cursor: data?.canApprove ? 'pointer' : 'not-allowed',
-                      boxShadow: data?.canApprove ? '0 1px 3px rgba(234, 88, 12, 0.25)' : 'none',
+                      boxShadow: data?.canApprove ? `0 1px 3px ${effectiveBrandColor}40` : 'none',
                     }}
                   >
                     <ShieldCheck size={13} />
@@ -1051,7 +1050,7 @@ export default function FundingView() {
                 borderRadius: 7,
                 fontSize: 11,
                 fontWeight: 700,
-                background: '#ea580c',
+                background: effectiveBrandColor,
                 color: '#fff',
                 border: 0,
                 cursor: 'pointer',
@@ -1089,7 +1088,7 @@ export default function FundingView() {
                 cursor: 'pointer',
               }}
             >
-              <Plus size={12} color="#ea580c" /> Verify Supplier Bank
+              <Plus size={12} color={effectiveBrandColor} /> Verify Supplier Bank
             </button>
           </div>
 
@@ -1155,9 +1154,9 @@ export default function FundingView() {
                 borderRadius: 6,
                 fontSize: 10,
                 fontWeight: 700,
-                background: ledgerSubTab === 'transfers' ? '#ea580c' : '#f8fafc',
+                background: ledgerSubTab === 'transfers' ? effectiveBrandColor : '#f8fafc',
                 color: ledgerSubTab === 'transfers' ? '#fff' : '#64748b',
-                border: ledgerSubTab === 'transfers' ? '1px solid #ea580c' : '1px solid #e2e8f0',
+                border: ledgerSubTab === 'transfers' ? `1px solid ${effectiveBrandColor}` : '1px solid #e2e8f0',
                 cursor: 'pointer',
               }}
             >
@@ -1170,9 +1169,9 @@ export default function FundingView() {
                 borderRadius: 6,
                 fontSize: 10,
                 fontWeight: 700,
-                background: ledgerSubTab === 'journals' ? '#ea580c' : '#f8fafc',
+                background: ledgerSubTab === 'journals' ? effectiveBrandColor : '#f8fafc',
                 color: ledgerSubTab === 'journals' ? '#fff' : '#64748b',
-                border: ledgerSubTab === 'journals' ? '1px solid #ea580c' : '1px solid #e2e8f0',
+                border: ledgerSubTab === 'journals' ? `1px solid ${effectiveBrandColor}` : '1px solid #e2e8f0',
                 cursor: 'pointer',
               }}
             >
@@ -1245,7 +1244,7 @@ export default function FundingView() {
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                      <strong style={{ color: '#ea580c', fontFamily: 'monospace' }}>{j.kind} · Ref: {j.reference}</strong>
+                      <strong style={{ color: effectiveBrandColor, fontFamily: 'monospace' }}>{j.kind} · Ref: {j.reference}</strong>
                       <span style={{ color: '#94a3b8' }}>{new Date(j.createdAt).toLocaleString()}</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 10, fontFamily: 'monospace' }}>
@@ -1333,7 +1332,7 @@ export default function FundingView() {
           <div style={{ width: '100%', maxWidth: 480, background: '#ffffff', borderRadius: 12, padding: 20, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
               <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: '#17253d', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Plus size={14} color="#ea580c" /> Allocate Funded Budget Envelope
+                <Plus size={14} color={effectiveBrandColor} /> Allocate Funded Budget Envelope
               </h3>
               <button onClick={() => setShowAllocateModal(false)} style={{ background: 'none', border: 0, color: '#94a3b8', cursor: 'pointer' }}>
                 <X size={16} />
@@ -1432,7 +1431,7 @@ export default function FundingView() {
                     setNotice('Funded budget envelope allocated successfully.');
                   })
                 }
-                style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: '#ea580c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: effectiveBrandColor, color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
                 Confirm Allocation
               </button>
@@ -1532,7 +1531,7 @@ export default function FundingView() {
                     setNotice('Budget envelope adjusted successfully.');
                   })
                 }
-                style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: '#ea580c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: effectiveBrandColor, color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
                 Apply Change
               </button>
@@ -1547,7 +1546,7 @@ export default function FundingView() {
           <div style={{ width: '100%', maxWidth: 480, background: '#ffffff', borderRadius: 12, padding: 20, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
               <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: '#17253d', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Landmark size={14} color="#ea580c" /> Verify Supplier Bank Account
+                <Landmark size={14} color={effectiveBrandColor} /> Verify Supplier Bank Account
               </h3>
               <button onClick={() => setShowVendorModal(false)} style={{ background: 'none', border: 0, color: '#94a3b8', cursor: 'pointer' }}>
                 <X size={16} />
@@ -1637,7 +1636,7 @@ export default function FundingView() {
                     }
                   })
                 }
-                style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: '#ea580c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: effectiveBrandColor, color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
                 Verify & Save
               </button>
@@ -1649,10 +1648,10 @@ export default function FundingView() {
       {/* CONFIRMATION MODAL (GMD SIGN-OFF, LIGHT THEME) */}
       {confirmation && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ width: '100%', maxWidth: 520, background: '#ffffff', borderRadius: 12, padding: 20, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', border: '1px solid #fed7aa', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ width: '100%', maxWidth: 520, background: '#ffffff', borderRadius: 12, padding: 20, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', border: `1px solid ${effectiveBrandColor}40`, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <ShieldCheck size={16} color="#ea580c" />
+                <ShieldCheck size={16} color={effectiveBrandColor} />
                 <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: '#17253d' }}>
                   {confirmation.operation || (confirmation.category === 'VENDOR' ? 'Approve Verified Supplier Payment' : 'Executive Release Approval (GMD)')}
                 </h3>
@@ -1663,7 +1662,7 @@ export default function FundingView() {
             </div>
 
             {confirmation.amountMinor && (
-              <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 14px', fontSize: 11, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ background: `${effectiveBrandColor}10`, border: `1px solid ${effectiveBrandColor}33`, borderRadius: 8, padding: '10px 14px', fontSize: 11, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ color: '#475569', fontWeight: 600 }}>Total Authorized Release:</span>
                   <strong style={{ fontSize: 15, color: '#059669', fontFamily: 'monospace' }}>
@@ -1708,7 +1707,7 @@ export default function FundingView() {
             )}
 
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#ea580c', display: 'block', marginBottom: 4 }}>Enter Current GMD Password to Authorize *</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: effectiveBrandColor, display: 'block', marginBottom: 4 }}>Enter Current GMD Password to Authorize *</label>
               <input
                 autoFocus
                 type="password"
@@ -1716,7 +1715,7 @@ export default function FundingView() {
                 placeholder="Enter password…"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #fed7aa', fontSize: 12, background: '#fff', boxSizing: 'border-box', fontFamily: 'monospace' }}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: `1px solid ${effectiveBrandColor}40`, fontSize: 12, background: '#fff', boxSizing: 'border-box', fontFamily: 'monospace' }}
               />
             </div>
 
@@ -1732,7 +1731,7 @@ export default function FundingView() {
                 type="button"
                 disabled={busy || !password || (confirmation.operation === 'ACKNOWLEDGE_ISSUE' && (confirmation.note || '').trim().length < 10)}
                 onClick={handleConfirmAction}
-                style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: '#ea580c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: effectiveBrandColor, color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
                 {busy ? 'Authenticating…' : 'Authorize Release →'}
               </button>

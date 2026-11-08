@@ -880,7 +880,7 @@ export function ApprovalMatrixView({
                   >
                     <option value="BEMS-SOFT">BemsSoft Hub</option>
                     <option value="BEMS-LOG">Bems Logistics</option>
-                    <option value="BEMS-GROUP">Group HQ</option>
+                    <option value="BEMS-GROUP">BEMS Group</option>
                   </select>
                 </label>
 

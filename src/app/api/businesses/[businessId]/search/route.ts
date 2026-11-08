@@ -1,3 +1,4 @@
+import { normalizeOrganizationIdentifier } from '@/lib/organization-identity';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
@@ -14,7 +15,8 @@ export async function GET(
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
-  const { businessId } = await params;
+  const { businessId: requestedBusinessId } = await params;
+    const businessId = normalizeOrganizationIdentifier(requestedBusinessId);
   const scope = await resolveAuthorizedOrganizationScope(actor, businessId);
   if (scope.organizationIds.length === 0) {
     return NextResponse.json({ error: 'Forbidden: Outside authorized subsidiary scope.' }, { status: 403 });

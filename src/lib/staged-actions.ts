@@ -1,3 +1,4 @@
+import { assertGroupIdentityUpdate } from '@/lib/organization-identity';
 import {walletRequestFunding} from '@/lib/wallet/accountability';
 import {createFundedEnvelopeTx} from '@/lib/wallet/core';
 import {adjustFundedEnvelopeTx} from '@/lib/wallet/operations';
@@ -1940,7 +1941,7 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
         };
       } else {
         const targetOrgId = String(subsidiary_id || materialPayload.organization_id || '').trim();
-        if (!targetOrgId || targetOrgId === 'bems-group-hq' || targetOrgId.toUpperCase() === 'ALL') {
+        if (!targetOrgId || targetOrgId === 'BEMS-GROUP' || targetOrgId.toUpperCase() === 'ALL') {
           throw new StagedValidationError(
             'TREASURY_ORG_REQUIRED',
             'An explicit resolved organization ID is required for corporate treasury operations.'
@@ -2767,7 +2768,7 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
           station = await tx.attendanceStation.create({
             data: {
               organizationId: org.id,
-              name: materialPayload.name?.trim() || 'BEMS Group Corporate Headquarters',
+              name: materialPayload.name?.trim() || 'BEMS Group',
               code: `STN-${org.code}-${crypto.randomUUID().slice(0, 8)}`,
               latitude: latNum,
               longitude: lngNum,
@@ -3111,10 +3112,15 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
       }
     } else if (action.actionType === 'subsidiary_creation') {
       const { name, code, type, currency, brandColor, industry, headquarters, logoUrl } = materialPayload;
+      if (type === 'GROUP' || String(code).toUpperCase() === 'BEMS-GROUP') throw new Error('BEMS Group already exists; create a subsidiary instead.');
+      assertGroupIdentityUpdate({ code: 'NEW_SUBSIDIARY' }, { legalName: name, code, type });
+      const parentGroup = await tx.organization.findUnique({ where: { code: 'BEMS-GROUP' } });
+      if (!parentGroup || parentGroup.type !== 'GROUP') throw new Error('BEMS Group is not configured.');
 
       const org = await tx.organization.create({
         data: {
           legalName: name,
+          parentGroupId: parentGroup.id,
           code,
           type: ['GROUP', 'SUBSIDIARY', 'OPERATING_SUBSIDIARY', 'SPECIAL_PURPOSE_VEHICLE'].includes(type) ? type : 'SUBSIDIARY',
           status: 'ACTIVE',
@@ -3685,6 +3691,8 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
             ? materialPayload.logoUrl.trim()
             : null;
       }
+
+      assertGroupIdentityUpdate(existingOrg, updateData);
 
       const updatedOrg = await tx.organization.update({
         where: { id: organizationId },
@@ -4772,7 +4780,7 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
 
     // Resolve actual Group & Subsidiary scope for AuditEvent
     const groupOrg = await tx.organization.findFirst({
-      where: { OR: [{ type: 'GROUP' }, { code: 'BEMS-GROUP' }, { code: 'BEMS-HQ' }] },
+      where: { code: 'BEMS-GROUP' },
       select: { id: true },
     });
     const resolvedGroupId = groupOrg?.id || resolvedSubsidiaryId || 'BEMS-GROUP';

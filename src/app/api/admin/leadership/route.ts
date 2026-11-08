@@ -38,7 +38,7 @@ export async function GET(request: Request) {
       phone: l.phone,
       role: l.role,
       status: l.status,
-      subsidiaryName: l.assignments[0]?.subsidiary?.legalName || 'BEMS Group Headquarters',
+      subsidiaryName: l.assignments[0]?.subsidiary?.legalName || 'BEMS Group',
       departmentName: l.assignments[0]?.department?.name || 'Executive Directorate',
       positionName: l.jobTitle || l.role,
       isCurrentUser: l.id === actor.id || l.workEmail.toLowerCase() === actor.workEmail.toLowerCase(),

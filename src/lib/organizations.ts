@@ -1,3 +1,4 @@
+import { normalizeOrganizationIdentifier } from '@/lib/organization-identity';
 import { prisma } from '@/lib/prisma';
 import { type AuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 
@@ -29,7 +30,8 @@ export class OrganizationScopeResult extends Array<string> implements ScopeInfo 
  * - Never returns `[orgIdentifier]` when a lookup fails; returns `[]` so callers never widen access on a failed lookup.
  */
 export async function resolveOrganizationScope(orgIdentifier?: string | null): Promise<OrganizationScopeResult> {
-  if (!orgIdentifier || orgIdentifier === 'ALL' || orgIdentifier === 'all' || orgIdentifier === 'bems-group-hq') {
+  if (orgIdentifier) orgIdentifier = normalizeOrganizationIdentifier(orgIdentifier);
+  if (!orgIdentifier || orgIdentifier.toLowerCase() === 'all') {
     try {
       const allOrgs = await prisma.organization.findMany({
         where: { status: 'ACTIVE' },

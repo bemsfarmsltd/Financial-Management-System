@@ -37,7 +37,7 @@ export async function GET(request: Request) {
       legalName: emp.legalName,
       employeeNumber: emp.employeeNumber,
       role: emp.role,
-      workLocation: emp.workLocation || 'HQ',
+      workLocation: emp.workLocation || 'BEMS Group',
       organizationName: emp.assignments[0]?.subsidiary?.legalName || 'BEMS Group',
       weeklyOffDays: emp.workSchedule?.weeklyOffDays || '0,6',
       customShiftIn: emp.workSchedule?.customShiftIn || '08:00',

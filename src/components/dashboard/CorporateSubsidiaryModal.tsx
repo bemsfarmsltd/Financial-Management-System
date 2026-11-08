@@ -93,7 +93,7 @@ export const DEPARTMENTS_BY_SECTOR: Record<string, string[]> = {
 };
 
 export const CONGLOMERATE_LOCATIONS = [
-  'Lagos Headquarters — Victoria Island / Ikoyi',
+  'Lagos — Victoria Island / Ikoyi',
   'Lagos Innovation Hub — Yaba / Lekki',
   'Abuja Corporate Center — Central Business District, FCT',
   'Port Harcourt Energy & Petroleum Corridor — Rivers State',
@@ -127,7 +127,7 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
   const [entityType, setEntityType] = useState('OPERATING_SUBSIDIARY');
   const [rcNumber, setRcNumber] = useState('');
   const [currency, setCurrency] = useState('NGN');
-  const [location, setLocation] = useState('Lagos Headquarters — Victoria Island / Ikoyi');
+  const [location, setLocation] = useState('Lagos — Victoria Island / Ikoyi');
   const [customLocation, setCustomLocation] = useState('');
   const [initialBudget, setInitialBudget] = useState('50000000');
   const [selectedDepts, setSelectedDepts] = useState<string[]>(DEPARTMENTS_BY_SECTOR.TECHNOLOGY.slice(0, 4));
@@ -895,7 +895,7 @@ export function CorporateSubsidiaryModal({ onCancel, onComplete }: CorporateSubs
             {/* Operating Location */}
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                Headquarters / Operating Hub
+                Operating Location
               </label>
               <select
                 value={location}

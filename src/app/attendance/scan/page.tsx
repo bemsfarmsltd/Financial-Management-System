@@ -694,7 +694,7 @@ export default function MobileAttendanceScannerPage() {
             <MapPin size={12} />
             <span>
               {gpsCoordinates
-                ? `HQ Perimeter Active (${gpsAccuracy ? `±${gpsAccuracy}m` : 'Accurate'})`
+                ? `Workplace Perimeter Active (${gpsAccuracy ? `±${gpsAccuracy}m` : 'Accurate'})`
                 : 'Acquiring GPS...'}
             </span>
           </div>

@@ -145,9 +145,9 @@ type AuthUser = { id: string; email: string; fullName: string; phone: string; em
 
 const defaultBemsBusinesses: Business[] = [
   {
-    id: "bems-group-hq",
+    id: "BEMS-GROUP",
     name: "BEMS Group",
-    industry: "Conglomerate Consolidated HQ",
+    industry: "Group & Subsidiaries",
     initials: "BG",
     status: "Live",
     readiness: 100,
@@ -973,7 +973,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
                       { value: 'UMUAHIA_OPS_HUB', label: 'Umuahia Operations Center (Abia State)' },
                       { value: 'OWERRI_OPS_HUB', label: 'Owerri Operations Center (Imo State)' },
                       { value: 'EDO_BENIN_OPS_HUB', label: 'Benin City / Edo State Operations Hub' },
-                      { value: 'BEMS_GROUP_HQ', label: 'BEMS Corporate Headquarters (Executive Center)' },
+                      { value: 'BEMS_GROUP', label: 'BEMS Group' },
                     ]).map(loc => (
                       <option key={loc.value} value={loc.value}>{loc.label}</option>
                     ))}
@@ -1742,7 +1742,7 @@ function DetailedModule({name,business,cases,onResolveCase,onAddCase,setNotice}:
 
 
 function RoleOverviewModule({role,business,user,cases,setActive,setNotice,onRoleChange}:{role:SystemRole;business:Business;user:AuthUser;cases:CaseRecord[];setActive:(x:string)=>void;setNotice:(x:string)=>void;onRoleChange?:(r:SystemRole)=>void}) {
-  const isGroup = business.code === 'BEMS-GROUP' || (business as any).type === 'GROUP' || business.id === 'bems-group-hq';
+  const isGroup = business.code === 'BEMS-GROUP' || (business as any).type === 'GROUP' || business.id === 'BEMS-GROUP';
   const activeScope = isGroup ? 'ALL' : (business.code || business.id);
   const brandColor = (business as any).brandColor || business.color || (isGroup ? '#ea580c' : '#0d8a70');
 
@@ -1790,7 +1790,7 @@ function RequestChannelsModule({business,setNotice,onNavigate}:{business:Busines
   const [selectedChat, setSelectedChat] = useState<GmdRequest|null>(null);
   const [loadState, setLoadState] = useState<'loading'|'ready'|'error'>('loading');
 
-  const isGroup = business.code === 'BEMS-GROUP' || (business as any).type === 'GROUP' || business.id === 'bems-group-hq';
+  const isGroup = business.code === 'BEMS-GROUP' || (business as any).type === 'GROUP' || business.id === 'BEMS-GROUP';
   const activeScope = isGroup ? 'ALL' : (business.code || business.id);
 
   // Staff Helpdesk State
@@ -2060,7 +2060,7 @@ function FundRequestsModule({
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [selectedRequest, setSelectedRequest] = useState<GmdRequest | null>(null);
 
-  const isGroup = business.code === 'BEMS-GROUP' || (business as any).type === 'GROUP' || business.id === 'bems-group-hq';
+  const isGroup = business.code === 'BEMS-GROUP' || (business as any).type === 'GROUP' || business.id === 'BEMS-GROUP';
   const activeScope = isGroup ? 'ALL' : (business.code || business.id);
   const brandColor = business.brandColor || business.color || (isGroup ? '#ea580c' : '#0d8a70');
   const brandLogo = business.logoUrl || (isGroup ? '/bems-group-logo.png?v=20261024' : null);
@@ -3054,7 +3054,7 @@ function VendorsModule({business,setNotice,onNavigate}:{business:Business;setNot
 function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,currentId,setCurrentId,onUpdateBusiness}:{user:AuthUser;onSignOut:()=>void;onAddBusiness:()=>void;onEditBusiness?:(b:Business)=>void;businesses:Business[];currentId:string;setCurrentId:(value:string)=>void;onUpdateBusiness:(id:string,patch:Partial<Business>)=>Promise<Business>}) {
   const safeUser: AuthUser = user;
   const current = (businesses && businesses.length > 0 ? (businesses.find(b=>b.id===currentId) || businesses[0]) : defaultBemsBusinesses[0]) || defaultBemsBusinesses[0];
-  const isGroupScope = (current as any).code === 'BEMS-GROUP' || (current as any).type === 'GROUP' || current.id === 'bems-group-hq';
+  const isGroupScope = (current as any).code === 'BEMS-GROUP' || (current as any).type === 'GROUP' || current.id === 'BEMS-GROUP';
   const activeScope = isGroupScope ? 'ALL' : ((current as any).code || current.id);
   const activeBrandColor = current.brandColor || current.color || (isGroupScope ? '#ea580c' : '#0d8a70');
   const activeLogoUrl = current.logoUrl || (isGroupScope ? '/bems-group-logo.png?v=20261024' : null);
@@ -3202,7 +3202,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
     userRole: currentRole,
     userName: safeUser.fullName || 'User',
     businessName: current?.name || 'BEMS Group',
-    businessId: current?.id || 'bems-group-hq',
+    businessId: current?.id || 'BEMS-GROUP',
     currentPage: active,
   });
 
@@ -3246,7 +3246,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
       url.searchParams.set('org', id);
       window.history.replaceState({}, '', url.toString());
     }
-    const isNextGroup = next.type === 'GROUP' || next.id === 'bems-group-hq' || next.code === 'BEMS-GROUP';
+    const isNextGroup = next.type === 'GROUP' || next.id === 'BEMS-GROUP' || next.code === 'BEMS-GROUP';
     if (isNextGroup) {
       setNotice('Switched to BEMS Group Master View: Consolidated data across all subsidiaries.');
     } else {
@@ -3282,8 +3282,18 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
       'chat': 'AI Copilot & Chat',
     };
     const target = navAliases[active] || active;
-    if (target === 'Wallets & funded budgets' && ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(safeUser.role)) return <FundingView />;
-    if (target === 'My wallet' && safeUser.role === 'STAFF') return <WalletView />;
+    if (target === 'Wallets & funded budgets' && ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(safeUser.role)) {
+      return (
+        <FundingView
+          businessName={current.name}
+          scope={activeScope}
+          businessId={current.id}
+          brandColor={(current as any).brandColor || current.color || (isGroupScope ? '#ea580c' : '#0d8a70')}
+          isGroup={isGroupScope}
+        />
+      );
+    }
+    if (target === 'My wallet' && safeUser.role === 'STAFF') return <WalletView brandColor={activeBrandColor} />;
 
     if (isStaff) {
       if (target === 'Overview') {
@@ -4197,7 +4207,7 @@ export default function Home() {
       const stored = localStorage.getItem('bems_active_org');
       if (stored) return stored;
     }
-    return 'bems-group-hq';
+    return 'BEMS-GROUP';
   });
 
   useEffect(() => {

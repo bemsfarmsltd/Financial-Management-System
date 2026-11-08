@@ -1,3 +1,4 @@
+import { assertGroupIdentityUpdate } from '@/lib/organization-identity';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
@@ -45,6 +46,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ or
       : typeof body.initialBudget === 'number' 
       ? body.initialBudget 
       : Number(body.monthlyBudget || body.initialBudget) || undefined;
+
+    assertGroupIdentityUpdate(current, { legalName, code, type });
 
     // Check code uniqueness if code changed
     if (code !== current.code) {

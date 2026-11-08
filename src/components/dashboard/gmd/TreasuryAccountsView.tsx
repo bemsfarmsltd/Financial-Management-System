@@ -773,7 +773,7 @@ export function TreasuryAccountsView({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. BEMS Group Holding HQ - Main Operations"
+                  placeholder="e.g. BEMS Group - Main Operations"
                   value={form.accountName}
                   onChange={(e) => setForm({ ...form, accountName: e.target.value })}
                   style={{

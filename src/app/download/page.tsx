@@ -10,8 +10,8 @@ export default async function PublicDownloadPage() {
     prisma.mobileAppGate.findUnique({ where: { appId: 'GMD_APP' } }),
   ]);
 
-  const staffVersion = staffGate?.latestVersionAvailable || '1.3.4';
-  const gmdVersion = gmdGate?.latestVersionAvailable || '1.3.4';
+  const staffVersion = staffGate?.latestVersionAvailable || '1.3.5';
+  const gmdVersion = gmdGate?.latestVersionAvailable || '1.3.5';
 
   return (
     <div

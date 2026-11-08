@@ -12,7 +12,7 @@ const WORK_LOCATIONS = [
   { value: 'UMUAHIA_OPS_HUB', label: 'Umuahia Operations Center (Abia State)' },
   { value: 'OWERRI_OPS_HUB', label: 'Owerri Operations Center (Imo State)' },
   { value: 'EDO_BENIN_OPS_HUB', label: 'Benin City / Edo State Operations Hub' },
-  { value: 'BEMS_GROUP_HQ', label: 'BEMS Corporate Headquarters (Executive Center)' },
+  { value: 'BEMS_GROUP', label: 'BEMS Group' },
 ];
 
 const EMPLOYMENT_TYPES = [

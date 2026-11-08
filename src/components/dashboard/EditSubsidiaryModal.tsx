@@ -23,7 +23,7 @@ export function EditSubsidiaryModal({ subsidiary, onCancel, onComplete }: EditSu
   const [rcNumber, setRcNumber] = useState(subsidiary.rcNumber || '');
   const [currency, setCurrency] = useState(subsidiary.currency || subsidiary.defaultCurrency || 'NGN');
   
-  const initialHq = subsidiary.headquarters || 'Lagos Headquarters — Victoria Island / Ikoyi';
+  const initialHq = subsidiary.headquarters || 'Lagos — Victoria Island / Ikoyi';
   const isPresetLoc = CONGLOMERATE_LOCATIONS.includes(initialHq);
   const [location, setLocation] = useState(isPresetLoc ? initialHq : 'OTHER');
   const [customLocation, setCustomLocation] = useState(isPresetLoc ? '' : initialHq);
