@@ -109,6 +109,8 @@ export function DisbursementsDeskView({
   onSelectBusiness,
   requestToRecordId,
   onRequestToRecordOpened,
+  filterMode = 'all',
+  initialTab,
 }: {
   businessName: string;
   userName: string;
@@ -119,6 +121,8 @@ export function DisbursementsDeskView({
   onSelectBusiness?: (id: string) => void;
   requestToRecordId?: string | null;
   onRequestToRecordOpened?: () => void;
+  filterMode?: 'all' | 'vendors' | 'settled';
+  initialTab?: 'AWAITING_TRANSFER' | 'AWAITING_CONFIRMATION' | 'CLEARED';
 }) {
   const [readyRequests, setReadyRequests] = useState<RequestItem[]>([]);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState<DisbursementItem[]>([]);
@@ -133,21 +137,35 @@ export function DisbursementsDeskView({
   });
 
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'AWAITING_TRANSFER' | 'AWAITING_CONFIRMATION' | 'CLEARED'>('AWAITING_TRANSFER');
+  const [activeTab, setActiveTab] = useState<'AWAITING_TRANSFER' | 'AWAITING_CONFIRMATION' | 'CLEARED'>(
+    initialTab || (filterMode === 'settled' ? 'CLEARED' : 'AWAITING_TRANSFER')
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    } else if (filterMode === 'settled') {
+      setActiveTab('CLEARED');
+    }
+  }, [initialTab, filterMode]);
+
   const filteredReadyRequests = useMemo(() => {
+    let list = readyRequests;
+    if (filterMode === 'vendors') {
+      list = list.filter(req => Boolean(req.vendor));
+    }
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return readyRequests;
-    return readyRequests.filter(req =>
+    if (!q) return list;
+    return list.filter(req =>
       req.requestNumber.toLowerCase().includes(q) ||
       req.title.toLowerCase().includes(q) ||
       req.subsidiary.legalName.toLowerCase().includes(q) ||
       (req.vendor?.name && req.vendor.name.toLowerCase().includes(q)) ||
       (req.requester?.legalName && req.requester.legalName.toLowerCase().includes(q))
     );
-  }, [readyRequests, searchQuery]);
+  }, [readyRequests, searchQuery, filterMode]);
 
   const filteredAwaitingConfirmation = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -250,6 +268,10 @@ export function DisbursementsDeskView({
   };
 
   const openMakerModal = (req: RequestItem) => {
+    if (!req.vendor && req.requester?.role === 'STAFF') {
+      openStaffWalletModal(req);
+      return;
+    }
     setSelectedRequest(req);
     const targetBank = req.requester?.bankName || req.requester?.salaryBankName || req.vendor?.bankName || '';
     const targetAccount = req.requester?.accountNumber || req.requester?.salaryAccountNumber || req.vendor?.accountNumber || '';

@@ -1,11 +1,23 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { BadgeCheck, CircleDollarSign, ClipboardCheck, RefreshCw } from 'lucide-react';
-import { ApprovalsHubView } from './ApprovalsHubView';
+import {
+  BadgeCheck,
+  Building2,
+  ClipboardCheck,
+  FileCheck2,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+  SlidersHorizontal,
+} from 'lucide-react';
+import { ApprovalsDeskView } from './ApprovalsDeskView';
 import { DisbursementsDeskView } from './DisbursementsDeskView';
+import { ApprovalMatrixView } from './ApprovalMatrixView';
+import { EmergencyOverridesView } from './EmergencyOverridesView';
 
-type Stage = 'REVIEW' | 'PAYMENTS';
+export type WorkspaceTab = 'approvals' | 'vendors' | 'settlements' | 'governance';
+export type GovernanceSubTab = 'matrix' | 'emergency';
 
 export function FundFlowWorkspace({
   businessName,
@@ -24,12 +36,12 @@ export function FundFlowWorkspace({
   onNavigate: (page: string) => void;
   onSelectBusiness: (id: string) => void;
 }) {
-  const [stage, setStage] = useState<Stage>('REVIEW');
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>('approvals');
+  const [governanceTab, setGovernanceTab] = useState<GovernanceSubTab>('matrix');
   const [reviewCount, setReviewCount] = useState<number | null>(null);
   const [readyCount, setReadyCount] = useState<number | null>(null);
   const [confirmationCount, setConfirmationCount] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [requestToRecordId, setRequestToRecordId] = useState<string | null>(null);
 
   const activeScope = scope || 'ALL';
 
@@ -63,77 +75,269 @@ export function FundFlowWorkspace({
     }
   }, [activeScope]);
 
-  const continueToPayment = useCallback((requestId: string) => {
-    setRequestToRecordId(requestId);
-    setStage('PAYMENTS');
+  useEffect(() => {
     void refreshCounts();
   }, [refreshCounts]);
-  const clearPaymentRequest = useCallback(() => setRequestToRecordId(null), []);
 
-  useEffect(() => { void refreshCounts(); }, [refreshCounts]);
-
-  const stageCard = (next: Stage, title: string, description: string, countText: string, icon: React.ReactNode) => {
-    const selected = stage === next;
+  const navPill = (
+    tab: WorkspaceTab,
+    label: string,
+    badgeCount: number | null,
+    icon: React.ReactNode,
+    badgeTone: 'orange' | 'blue' | 'emerald' | 'slate' = 'slate'
+  ) => {
+    const isSelected = activeTab === tab;
     return (
       <button
         type="button"
-        aria-pressed={selected}
-        onClick={() => setStage(next)}
+        role="tab"
+        aria-selected={isSelected}
+        onClick={() => setActiveTab(tab)}
         style={{
-          display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', width: '100%', minHeight: 76,
-          border: selected ? '2px solid var(--brand-primary, #0d8a70)' : '1px solid #dbe4ef', borderRadius: 10,
-          background: selected ? 'var(--brand-soft, rgba(13, 138, 112, 0.12))' : '#fff', padding: '12px 14px', cursor: 'pointer',
-          boxShadow: selected ? '0 0 0 2px var(--brand-shadow-color, rgba(13, 138, 112, 0.15))' : 'none',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '8px 14px',
+          fontSize: 12.5,
+          fontWeight: isSelected ? 700 : 600,
+          borderRadius: 8,
+          border: isSelected ? '1px solid #ea580c' : '1px solid #e2e8f0',
+          background: isSelected ? '#ea580c' : '#ffffff',
+          color: isSelected ? '#ffffff' : '#475569',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease-in-out',
+          boxShadow: isSelected ? '0 1px 3px rgba(234, 88, 12, 0.25)' : 'none',
+          whiteSpace: 'nowrap',
         }}
       >
-        <span style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', flex: '0 0 auto', borderRadius: 9, background: selected ? 'var(--brand-primary, #0d8a70)' : '#edf2f8', color: selected ? '#fff' : '#506784' }}>{icon}</span>
-        <span style={{ minWidth: 0, flex: 1 }}>
-          <strong style={{ display: 'block', color: '#172b4d', fontSize: 13 }}>{title}</strong>
-          <small style={{ display: 'block', color: '#62748b', fontSize: 11, lineHeight: 1.4, marginTop: 3 }}>{description}</small>
+        <span style={{ display: 'inline-flex', alignItems: 'center', color: isSelected ? '#ffffff' : '#64748b' }}>
+          {icon}
         </span>
-        <span style={{ flex: '0 0 auto', color: selected ? 'var(--brand-primary, #0d8a70)' : '#64748b', fontSize: 11, fontWeight: 700 }}>{countText}</span>
+        <span>{label}</span>
+        {badgeCount !== null && badgeCount > 0 && (
+          <span
+            style={{
+              padding: '1px 7px',
+              borderRadius: 9999,
+              fontSize: 10.5,
+              fontWeight: 800,
+              background: isSelected ? 'rgba(255, 255, 255, 0.28)' : '#f1f5f9',
+              color: isSelected ? '#ffffff' : '#0f172a',
+              border: isSelected ? 'none' : '1px solid #cbd5e1',
+            }}
+          >
+            {badgeCount}
+          </span>
+        )}
       </button>
     );
   };
 
   return (
-    <main style={{ display: 'grid', gap: 16, width: '100%' }}>
-      <header style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '16px 18px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+    <main style={{ display: 'grid', gap: 14, width: '100%', background: '#f8fafc', minHeight: '100vh', padding: '0 0 32px' }}>
+      {/* HEADER WITH UNIFIED NAV PILLS */}
+      <header
+        style={{
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          borderRadius: 12,
+          padding: '16px 20px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
           <div>
-            <span style={{ color: '#8392a8', fontSize: 10, fontWeight: 800, letterSpacing: '1.3px' }}>FUND LIFECYCLE · {businessName}</span>
-            <h1 style={{ color: '#102344', fontSize: 23, margin: '5px 0 4px' }}>Approvals &amp; Payments</h1>
-            <p style={{ color: '#64748b', fontSize: 12, margin: 0 }}>Approval authorizes payment. After payment is recorded, the requester confirms receipt and completes accountability.</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: '#ea580c', fontSize: 10, fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase' }}>
+                Fund Lifecycle
+              </span>
+              <span style={{ color: '#94a3b8', fontSize: 10 }}>·</span>
+              <span style={{ color: '#64748b', fontSize: 10, fontWeight: 700, letterSpacing: '0.8px' }}>
+                {businessName}
+              </span>
+            </div>
+            <h1 style={{ color: '#0f172a', fontSize: 22, fontWeight: 800, margin: '4px 0 2px', letterSpacing: '-0.3px' }}>
+              Approvals &amp; Disbursements
+            </h1>
+            <p style={{ color: '#64748b', fontSize: 12, margin: 0 }}>
+              Direct GMD authorization, staff wallet funding, and corporate vendor settlement ledger.
+            </p>
           </div>
-          <button type="button" onClick={() => void refreshCounts()} disabled={refreshing} aria-label="Refresh workflow counts" title="Refresh workflow counts" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #dbe4ef', background: '#fff', borderRadius: 8, padding: '7px 9px', color: '#52667f', fontSize: 11, fontWeight: 650, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''}/> Refresh
+          <button
+            type="button"
+            onClick={() => void refreshCounts()}
+            disabled={refreshing}
+            aria-label="Refresh workspace counts"
+            title="Refresh workspace counts"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              borderRadius: 8,
+              padding: '7px 12px',
+              color: '#334155',
+              fontSize: 11.5,
+              fontWeight: 650,
+              cursor: refreshing ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'background 0.15s ease',
+            }}
+          >
+            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+            {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginTop: 14 }}>
-          {stageCard('REVIEW', '1. Request Review', 'Check the request, ask questions, approve or decline, and review policy or emergency controls.', reviewCount === null ? 'Loading…' : `${reviewCount} awaiting`, <ClipboardCheck size={18}/>)}
-          {stageCard('PAYMENTS', '2. Payments & Staff Confirmation', 'Record payment and upload the receipt, then track staff confirmation and completed payments.', readyCount === null || confirmationCount === null ? 'Loading…' : `${readyCount} ready · ${confirmationCount} awaiting staff`, <CircleDollarSign size={18}/>)}
-        </div>
-        <p aria-live="polite" style={{ margin: '9px 0 0', color: '#64748b', fontSize: 11 }}>
-          Showing {stage === 'REVIEW' ? 'Stage 1: request decisions' : 'Stage 2: payment recording and receipt confirmation'} below.
-        </p>
+        {/* TOP TAB PILLS */}
+        <nav
+          role="tablist"
+          aria-label="Approvals and Disbursements Workspace Tabs"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginTop: 14,
+            paddingTop: 12,
+            borderTop: '1px solid #f1f5f9',
+            overflowX: 'auto',
+          }}
+        >
+          {navPill('approvals', 'Requisition Approvals', reviewCount, <ClipboardCheck size={14} />, 'orange')}
+          {navPill('vendors', 'Vendor Disbursements', readyCount, <Building2 size={14} />, 'blue')}
+          {navPill('settlements', 'Settlement & Confirmation Ledger', confirmationCount, <BadgeCheck size={14} />, 'emerald')}
+          {navPill('governance', 'Approval Matrix & Overrides', null, <ShieldCheck size={14} />, 'slate')}
+        </nav>
       </header>
 
-      <section style={{ display: stage === 'REVIEW' ? 'block' : 'none' }} aria-label="Request review stage" aria-hidden={stage !== 'REVIEW'}>
-        <ApprovalsHubView businessName={businessName} userName={userName} scope={activeScope} businessId={businessId} businessCode={businessCode} onNavigate={onNavigate} onSelectBusiness={onSelectBusiness} onApprovedRequest={continueToPayment}/>
-      </section>
-      <section style={{ display: stage === 'PAYMENTS' ? 'grid' : 'none', gap: 14 }} aria-label="Payments and confirmation stage" aria-hidden={stage !== 'PAYMENTS'}>
-        <>
-          <div style={{ background: '#f1f7ff', border: '1px solid #d4e5ff', borderRadius: 10, padding: '11px 14px', color: '#38516f', fontSize: 12 }}>
-            <strong style={{ color: '#102344' }}>After approval:</strong> record the off-platform payment and upload the actual bank slip. The staff requester then confirms receipt or reports a problem.
+      {/* TAB CONTENT 1: REQUISITION APPROVALS */}
+      {activeTab === 'approvals' && (
+        <section aria-label="Requisition approvals">
+          <ApprovalsDeskView
+            businessName={businessName}
+            userName={userName}
+            scope={activeScope}
+            businessId={businessId}
+            businessCode={businessCode}
+            onNavigate={onNavigate}
+            onSelectBusiness={onSelectBusiness}
+            onApprovedRequest={() => void refreshCounts()}
+          />
+        </section>
+      )}
+
+      {/* TAB CONTENT 2: VENDOR DISBURSEMENTS */}
+      {activeTab === 'vendors' && (
+        <section aria-label="Vendor disbursements">
+          <DisbursementsDeskView
+            businessName={businessName}
+            userName={userName}
+            scope={activeScope}
+            businessId={businessId}
+            businessCode={businessCode}
+            onNavigate={onNavigate}
+            onSelectBusiness={onSelectBusiness}
+            filterMode="vendors"
+            initialTab="AWAITING_TRANSFER"
+          />
+        </section>
+      )}
+
+      {/* TAB CONTENT 3: SETTLEMENT & CONFIRMATION LEDGER */}
+      {activeTab === 'settlements' && (
+        <section aria-label="Settlement and confirmation ledger">
+          <DisbursementsDeskView
+            businessName={businessName}
+            userName={userName}
+            scope={activeScope}
+            businessId={businessId}
+            businessCode={businessCode}
+            onNavigate={onNavigate}
+            onSelectBusiness={onSelectBusiness}
+            filterMode="settled"
+            initialTab="CLEARED"
+          />
+        </section>
+      )}
+
+      {/* TAB CONTENT 4: APPROVAL MATRIX & OVERRIDES */}
+      {activeTab === 'governance' && (
+        <section aria-label="Approval matrix and governance" style={{ display: 'grid', gap: 12 }}>
+          {/* Sub-tab navigation */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              padding: 4,
+              width: 'fit-content',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setGovernanceTab('matrix')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                fontSize: 12,
+                fontWeight: governanceTab === 'matrix' ? 700 : 500,
+                borderRadius: 6,
+                border: 'none',
+                background: governanceTab === 'matrix' ? '#0f172a' : 'transparent',
+                color: governanceTab === 'matrix' ? '#ffffff' : '#64748b',
+                cursor: 'pointer',
+              }}
+            >
+              <SlidersHorizontal size={13} />
+              Approval Policy Matrix
+            </button>
+            <button
+              type="button"
+              onClick={() => setGovernanceTab('emergency')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                fontSize: 12,
+                fontWeight: governanceTab === 'emergency' ? 700 : 500,
+                borderRadius: 6,
+                border: 'none',
+                background: governanceTab === 'emergency' ? '#b42318' : 'transparent',
+                color: governanceTab === 'emergency' ? '#ffffff' : '#64748b',
+                cursor: 'pointer',
+              }}
+            >
+              <ShieldAlert size={13} />
+              Emergency Overrides
+            </button>
           </div>
-          <DisbursementsDeskView businessName={businessName} userName={userName} scope={activeScope} businessId={businessId} businessCode={businessCode} onNavigate={onNavigate} onSelectBusiness={onSelectBusiness} requestToRecordId={requestToRecordId} onRequestToRecordOpened={clearPaymentRequest}/>
-          <aside style={{ background: '#fff', border: '1px solid #dce5f0', borderRadius: 10, padding: '12px 15px', color: '#52667f', fontSize: 12 }}>
-            <BadgeCheck size={15} style={{ verticalAlign: 'middle', marginRight: 6, color: '#098764' }}/>
-            Staff confirmation completes the payment-receipt step and opens the request’s accountability follow-up.
-          </aside>
-        </>
-      </section>
+
+          {governanceTab === 'matrix' && (
+            <ApprovalMatrixView
+              businessName={businessName}
+              userName={userName}
+              onNavigate={onNavigate}
+              onSelectBusiness={onSelectBusiness}
+            />
+          )}
+
+          {governanceTab === 'emergency' && (
+            <EmergencyOverridesView
+              businessName={businessName}
+              userName={userName}
+              onNavigate={onNavigate}
+              onSelectBusiness={onSelectBusiness}
+            />
+          )}
+        </section>
+      )}
     </main>
   );
 }

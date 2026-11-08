@@ -401,18 +401,25 @@ export function ApprovalsDeskView({
       setDossierRequest(null);
 
       if (decisionModal.type === 'APPROVED') {
-        const transferDetails: RequesterDisbursementAccount = resData.requesterDisbursementAccount || {
-          bankName: decisionModal.request?.requester?.bankName || null,
-          accountNumber: decisionModal.request?.requester?.accountNumber || null,
-          accountName: decisionModal.request?.requester?.accountName || decisionModal.request?.requester?.name || '',
-          requesterName: decisionModal.request?.requester?.name,
-          amountNaira: decisionModal.request?.amount,
-          currency: decisionModal.request?.currency || 'NGN',
-          title: decisionModal.request?.title,
-          requestNumber: decisionModal.request?.requestNumber,
-        };
-        setTransferModalAccount(transferDetails);
-        setPendingTransferRequestId(approvedRequestId || null);
+        const isStaff = !decisionModal.request?.vendor && Boolean(decisionModal.request?.requester);
+        if (isStaff) {
+          // Staff requests are credited to internal staff wallet; do not pop off-platform transfer modal
+          setTransferModalAccount(null);
+          setPendingTransferRequestId(null);
+        } else {
+          const transferDetails: RequesterDisbursementAccount = resData.requesterDisbursementAccount || {
+            bankName: decisionModal.request?.requester?.bankName || null,
+            accountNumber: decisionModal.request?.requester?.accountNumber || null,
+            accountName: decisionModal.request?.requester?.accountName || decisionModal.request?.requester?.name || '',
+            requesterName: decisionModal.request?.requester?.name,
+            amountNaira: decisionModal.request?.amount,
+            currency: decisionModal.request?.currency || 'NGN',
+            title: decisionModal.request?.title,
+            requestNumber: decisionModal.request?.requestNumber,
+          };
+          setTransferModalAccount(transferDetails);
+          setPendingTransferRequestId(approvedRequestId || null);
+        }
       } else {
         if (approvedRequestId) onApprovedRequest?.(approvedRequestId);
       }

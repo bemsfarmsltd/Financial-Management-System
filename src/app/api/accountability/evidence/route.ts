@@ -59,7 +59,8 @@ export async function POST(request: Request) {
   const hrScope = await getHrAuthorizationScope(actor);
   const isAuthorized = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']) || (hrScope.authorized && (hrScope.isGlobal || hrScope.subsidiaryIds.includes(accCase.request.subsidiaryId))) || actor.id === accCase.ownerUserId || actor.id === accCase.request.requestedById;
   if (!isAuthorized) return NextResponse.json({ error: 'Only the requester, case owner, or an authorized executive can submit evidence.' }, { status: 403 });
-  if (!accCase.request.disbursements.length) return NextResponse.json({ error: 'Evidence can only be submitted for a request with a recorded payment.' }, { status: 409 });
+  const isPaidOrCredited = accCase.request.disbursements.length > 0 || accCase.request.paymentStatus === 'WALLET_CREDITED';
+  if (!isPaidOrCredited) return NextResponse.json({ error: 'Evidence can only be submitted for a request with released or credited funds.' }, { status: 409 });
   if (accCase.status === 'CLOSED') return NextResponse.json({ error: 'This accountability case is already closed.' }, { status: 409 });
 
   const checksum = createHash('sha256').update(bytes).digest('hex');

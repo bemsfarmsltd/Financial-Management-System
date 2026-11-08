@@ -143,17 +143,22 @@ export function RequestChannelClient({ request }: RequestChannelClientProps) {
       if (res.ok) {
         const resData = await res.json().catch(() => ({}));
         setShowApproveModal(false);
-        const transferDetails: RequesterDisbursementAccount = resData.requesterDisbursementAccount || {
-          bankName: request.requester?.bankName || null,
-          accountNumber: request.requester?.accountNumber || null,
-          accountName: request.requester?.accountName || request.requester?.legalName || '',
-          requesterName: request.requester?.legalName,
-          amountMinor: request.amountMinor?.toString(),
-          currency: request.currency || 'NGN',
-          title: request.title,
-          requestNumber: request.requestNumber,
-        };
-        setTransferAccountModal(transferDetails);
+        const isStaff = !request.vendor && request.requester?.role === 'STAFF';
+        if (!isStaff) {
+          const transferDetails: RequesterDisbursementAccount = resData.requesterDisbursementAccount || {
+            bankName: request.requester?.bankName || null,
+            accountNumber: request.requester?.accountNumber || null,
+            accountName: request.requester?.accountName || request.requester?.legalName || '',
+            requesterName: request.requester?.legalName,
+            amountMinor: request.amountMinor?.toString(),
+            currency: request.currency || 'NGN',
+            title: request.title,
+            requestNumber: request.requestNumber,
+          };
+          setTransferAccountModal(transferDetails);
+        } else {
+          router.refresh();
+        }
       }
     } catch (err) {
       console.error(err);
