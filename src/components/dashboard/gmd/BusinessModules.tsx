@@ -36,6 +36,7 @@ import {
   Receipt,
   ChevronDown,
   ListChecks,
+  Edit2,
 } from 'lucide-react';
 
 async function api<T>(path: string, init?: RequestInit, retries = 1): Promise<T> {
@@ -1082,6 +1083,19 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
     avatarUrl: '',
   });
 
+  // Corporate Placement Editing State
+  const [editingCorporate, setEditingCorporate] = useState(false);
+  const [corporateSaving, setCorporateSaving] = useState(false);
+  const [corpForm, setCorpForm] = useState({
+    positionName: '',
+    subsidiaryId: '',
+    departmentId: '',
+    employmentType: 'FULL_TIME',
+    staffGrade: '',
+    workLocation: '',
+    resumptionDate: '',
+  });
+
   useEffect(() => {
     fetch('/api/auth/session', { credentials: 'include' })
       .then((r) => r.json())
@@ -1170,12 +1184,59 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
     setDetailLoading(true);
     setSelected(null);
     setModalTab('dossier');
+    setEditingCorporate(false);
     try {
       setSelected(await api<StaffDetail>(`/api/payroll/staff/${encodeURIComponent(id)}`));
     } catch (e) {
       setError(errorText(e));
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  const startEditCorporate = () => {
+    if (!selected) return;
+    const emp = selected.employee;
+    const asg = emp.assignment as any;
+    const matchedSub = orgsList.find((o) => o.legalName === asg?.subsidiaryName || o.id === asg?.subsidiaryId);
+    const subId = asg?.subsidiaryId || matchedSub?.id || (orgsList[0]?.id || '');
+    const matchedDept = deptsList.find((d) => d.name === asg?.departmentName || d.id === asg?.departmentId);
+    const deptId = asg?.departmentId || matchedDept?.id || '';
+
+    setCorpForm({
+      positionName: asg?.positionName || emp.jobTitle || '',
+      subsidiaryId: subId,
+      departmentId: deptId,
+      employmentType: emp.employmentType || emp.employment?.agreementType || 'FULL_TIME',
+      staffGrade: emp.staffGrade || '',
+      workLocation: emp.workLocation || '',
+      resumptionDate: emp.resumptionDate ? new Date(emp.resumptionDate).toISOString().slice(0, 10) : '',
+    });
+    setEditingCorporate(true);
+  };
+
+  const saveCorporatePlacement = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selected) return;
+    setCorporateSaving(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/admin/employees/${selected.employee.id}/corporate`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(corpForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update company placement details.');
+      setNotice(data.message || 'Staff corporate placement updated.');
+      setEditingCorporate(false);
+      await open(selected.employee.id);
+      await load();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update corporate placement details.');
+    } finally {
+      setCorporateSaving(false);
     }
   };
 
@@ -2345,17 +2406,188 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
                     {/* Panel 1: Placement & Official Details */}
                     <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 12px 0', color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                        <Briefcase size={14} /> Corporate Placement &amp; Official Details
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 12px 0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#ea580c', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                          <Briefcase size={14} /> Corporate Placement &amp; Official Details
+                        </div>
+                        {!editingCorporate && (
+                          <button
+                            type="button"
+                            onClick={startEditCorporate}
+                            style={{
+                              background: '#ffffff',
+                              border: '1px solid #fed7aa',
+                              color: '#ea580c',
+                              fontWeight: 700,
+                              fontSize: 11,
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                            }}
+                          >
+                            <Edit2 size={11} /> Edit Details
+                          </button>
+                        )}
                       </div>
-                      <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
-                        <div><b>Position / Title:</b> {selected.employee.assignment?.positionName || selected.employee.jobTitle || '—'}</div>
-                        <div><b>Department:</b> {selected.employee.assignment?.departmentName || '—'}</div>
-                        <div><b>Operating Subsidiary:</b> {selected.employee.assignment?.subsidiaryName || '—'}</div>
-                        <div><b>Agreement Type:</b> {selected.employee.employmentType || selected.employee.employment?.agreementType || 'Full-time'} ({selected.employee.staffGrade || 'General Staff'})</div>
-                        <div><b>Work Location:</b> {selected.employee.workLocation || 'BEMS Group'}</div>
-                        <div><b>Resumption Date:</b> {selected.employee.resumptionDate ? date(selected.employee.resumptionDate) : '—'}</div>
-                      </div>
+
+                      {!editingCorporate ? (
+                        <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
+                          <div><b>Position / Title:</b> {selected.employee.assignment?.positionName || selected.employee.jobTitle || '—'}</div>
+                          <div><b>Department:</b> {selected.employee.assignment?.departmentName || '—'}</div>
+                          <div><b>Operating Subsidiary:</b> {selected.employee.assignment?.subsidiaryName || '—'}</div>
+                          <div><b>Agreement Type:</b> {selected.employee.employmentType || selected.employee.employment?.agreementType || 'Full-time'} ({selected.employee.staffGrade || 'General Staff'})</div>
+                          <div><b>Work Location:</b> {selected.employee.workLocation || 'BEMS Group'}</div>
+                          <div><b>Resumption Date:</b> {selected.employee.resumptionDate ? date(selected.employee.resumptionDate) : '—'}</div>
+                        </div>
+                      ) : (
+                        <form onSubmit={saveCorporatePlacement} style={{ display: 'grid', gap: 10 }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 3 }}>Position / Title *</label>
+                            <input
+                              type="text"
+                              value={corpForm.positionName}
+                              onChange={(e) => setCorpForm((p) => ({ ...p, positionName: e.target.value }))}
+                              placeholder="e.g. Frontend Engineer (Mobile and Web)"
+                              required
+                              style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff', boxSizing: 'border-box' }}
+                            />
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 3 }}>Operating Subsidiary *</label>
+                              <select
+                                value={corpForm.subsidiaryId}
+                                onChange={(e) => {
+                                  const newSubId = e.target.value;
+                                  setCorpForm((p) => ({ ...p, subsidiaryId: newSubId, departmentId: '' }));
+                                }}
+                                required
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff' }}
+                              >
+                                <option value="">Select subsidiary…</option>
+                                {orgsList.map((org) => (
+                                  <option key={org.id} value={org.id}>
+                                    {org.legalName} ({org.code})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 3 }}>Department</label>
+                              <select
+                                value={corpForm.departmentId}
+                                onChange={(e) => setCorpForm((p) => ({ ...p, departmentId: e.target.value }))}
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff' }}
+                              >
+                                <option value="">No Department / Direct Staff</option>
+                                {deptsList
+                                  .filter((d) => !corpForm.subsidiaryId || d.organizationId === corpForm.subsidiaryId)
+                                  .map((dept) => (
+                                    <option key={dept.id} value={dept.id}>
+                                      {dept.name}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 3 }}>Agreement Type</label>
+                              <select
+                                value={corpForm.employmentType}
+                                onChange={(e) => setCorpForm((p) => ({ ...p, employmentType: e.target.value }))}
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff' }}
+                              >
+                                <option value="FULL_TIME">FULL_TIME (Full-time)</option>
+                                <option value="CONTRACT">CONTRACT (Contractual)</option>
+                                <option value="PART_TIME">PART_TIME (Part-time)</option>
+                                <option value="INTERN">INTERN (Internship)</option>
+                                <option value="PROBATION">PROBATION (Probationary)</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 3 }}>Staff Grade Level</label>
+                              <input
+                                type="text"
+                                value={corpForm.staffGrade}
+                                onChange={(e) => setCorpForm((p) => ({ ...p, staffGrade: e.target.value }))}
+                                placeholder="e.g. Level 08 - Senior Specialist"
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 3 }}>Work Location</label>
+                              <input
+                                type="text"
+                                value={corpForm.workLocation}
+                                onChange={(e) => setCorpForm((p) => ({ ...p, workLocation: e.target.value }))}
+                                placeholder="e.g. Umuahia Operations Center"
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff', boxSizing: 'border-box' }}
+                              />
+                            </div>
+
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 3 }}>Resumption Date</label>
+                              <input
+                                type="date"
+                                value={corpForm.resumptionDate}
+                                onChange={(e) => setCorpForm((p) => ({ ...p, resumptionDate: e.target.value }))}
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+                            <button
+                              type="button"
+                              onClick={() => setEditingCorporate(false)}
+                              disabled={corporateSaving}
+                              style={{
+                                background: '#ffffff',
+                                border: '1px solid #cbd5e1',
+                                color: '#475569',
+                                fontWeight: 600,
+                                fontSize: 11,
+                                padding: '6px 12px',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={corporateSaving}
+                              style={{
+                                background: '#ea580c',
+                                border: 0,
+                                color: '#ffffff',
+                                fontWeight: 700,
+                                fontSize: 11,
+                                padding: '6px 14px',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                              }}
+                            >
+                              {corporateSaving ? 'Saving…' : 'Save Changes'}
+                            </button>
+                          </div>
+                        </form>
+                      )}
                     </div>
 
                     {/* Panel 2: Personal & Demographics */}

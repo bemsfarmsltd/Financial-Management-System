@@ -22,8 +22,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ empl
       assignments: {
         where: { status: 'ACTIVE' },
         include: {
-          subsidiary: { select: { legalName: true } },
-          department: { select: { name: true } }
+          subsidiary: { select: { id: true, legalName: true } },
+          department: { select: { id: true, name: true } }
         },
         orderBy: [{ isPrimary: 'desc' }, { startsOn: 'desc' }]
       },
@@ -191,7 +191,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ empl
       kioskPin: employee.kioskPin,
       assignment: employee.assignments[0] ? {
         positionName: employee.assignments[0].positionName,
+        subsidiaryId: employee.assignments[0].subsidiary.id,
         subsidiaryName: employee.assignments[0].subsidiary.legalName,
+        departmentId: employee.assignments[0].department?.id || null,
         departmentName: employee.assignments[0].department?.name || null,
         startsOn: employee.assignments[0].startsOn
       } : null,
