@@ -153,7 +153,7 @@ export function StaffPortalContainer({
 
           {/* Open in Standalone Tab */}
           <a
-            href="/staff-app-v1.3.5/index.html"
+            href="/staff-app-v1.3.5-r2/index.html"
             target="_blank"
             rel="noopener noreferrer"
             className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-all"
@@ -215,7 +215,7 @@ export function StaffPortalContainer({
             {/* The Native Flutter Web Application */}
             <iframe
               key={iframeKey}
-              src="/staff-app-v1.3.5/index.html"
+              src="/staff-app-v1.3.5-r2/index.html"
               onLoad={() => setIsLoadingEngine(false)}
               className="w-full h-full border-0 block"
               allow="camera; geolocation; microphone; clipboard-read; clipboard-write; display-capture"
