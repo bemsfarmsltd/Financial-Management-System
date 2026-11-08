@@ -24,6 +24,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { InstantTransferModal, RequesterDisbursementAccount } from "@/components/dashboard/gmd/InstantTransferModal";
+import { ReleaseToStaffWalletModal, StaffWalletReleaseData } from "@/components/dashboard/gmd/ReleaseToStaffWalletModal";
 
 interface RequestChannelClientProps {
   request: any;
@@ -40,6 +41,7 @@ export function RequestChannelClient({ request }: RequestChannelClientProps) {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approvalReason, setApprovalReason] = useState("Approved within standard operating budget.");
   const [transferAccountModal, setTransferAccountModal] = useState<RequesterDisbursementAccount | null>(null);
+  const [showStaffWalletModal, setShowStaffWalletModal] = useState(false);
   const [confirmingReceipt, setConfirmingReceipt] = useState(false);
   const [receiptIssue, setReceiptIssue] = useState("");
   const [showReceiptIssue, setShowReceiptIssue] = useState(false);
@@ -349,11 +351,17 @@ export function RequestChannelClient({ request }: RequestChannelClientProps) {
               <span>Ask Clarification</span>
             </button>
             <button
-              onClick={() => setShowApproveModal(true)}
+              onClick={() => {
+                if (!request.vendor && (!request.requester?.role || request.requester.role === 'STAFF')) {
+                  setShowStaffWalletModal(true);
+                } else {
+                  setShowApproveModal(true);
+                }
+              }}
               className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20"
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>Approve for Payment</span>
+              <span>Release to Staff Wallet</span>
             </button>
           </div>
         </div>
@@ -790,6 +798,27 @@ export function RequestChannelClient({ request }: RequestChannelClientProps) {
             router.refresh();
           }}
           account={transferAccountModal}
+        />
+      )}
+      {showStaffWalletModal && (
+        <ReleaseToStaffWalletModal
+          isOpen={showStaffWalletModal}
+          onClose={() => setShowStaffWalletModal(false)}
+          onSuccess={() => {
+            setShowStaffWalletModal(false);
+            router.refresh();
+          }}
+          data={{
+            requestId: request.id,
+            requestNumber: request.requestNumber,
+            title: request.title,
+            amountFormatted: formatMoney(request.amountMinor, request.currency),
+            staffName: request.requester?.legalName || request.requester?.name || 'Staff Member',
+            staffNumber: request.requester?.employeeNumber || 'STAFF',
+            staffRole: request.requester?.role || 'Staff Member',
+            subsidiaryName: request.subsidiary?.legalName || request.subsidiary?.name || 'BEMS Group',
+            subsidiaryId: request.subsidiaryId,
+          }}
         />
       )}
     </div>

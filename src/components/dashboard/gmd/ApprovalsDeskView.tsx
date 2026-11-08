@@ -39,6 +39,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { InstantTransferModal, RequesterDisbursementAccount } from './InstantTransferModal';
+import { ReleaseToStaffWalletModal, StaffWalletReleaseData } from './ReleaseToStaffWalletModal';
 
 interface ApprovalStepItem {
   id: string;
@@ -206,11 +207,31 @@ export function ApprovalsDeskView({
     isBatch?: boolean;
   } | null>(null);
   const [transferModalAccount, setTransferModalAccount] = useState<RequesterDisbursementAccount | null>(null);
+  const [staffWalletModalData, setStaffWalletModalData] = useState<StaffWalletReleaseData | null>(null);
   const [pendingTransferRequestId, setPendingTransferRequestId] = useState<string | null>(null);
   const [decisionNote, setDecisionNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const handleApproveRequest = (req: RequestItem) => {
+    if (!req.vendor && req.requester) {
+      setStaffWalletModalData({
+        requestId: req.id,
+        requestNumber: req.requestNumber,
+        title: req.title,
+        amountFormatted: req.amountFormatted || ('₦' + (Number(req.amount || 0)).toLocaleString('en-NG')),
+        staffName: req.requester.name,
+        staffNumber: req.requester.employeeNumber,
+        staffRole: req.requester.role,
+        subsidiaryName: req.subsidiary?.name || 'BEMS Group',
+        subsidiaryId: req.subsidiary?.id,
+        brandColor: '#059669',
+      });
+    } else {
+      setDecisionModal({ type: 'APPROVED', request: req });
+    }
+  };
 
   // New request modal
   const [newRequestOpen, setNewRequestOpen] = useState(false);
@@ -1336,8 +1357,8 @@ export function ApprovalsDeskView({
                     {['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(req.approvalStatus) ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                         <button
-                          onClick={() => setDecisionModal({ type: 'APPROVED', request: req })}
-                          title="Approve, then continue to record the payment and receipt"
+                          onClick={() => handleApproveRequest(req)}
+                          title="Authorize release and credit to staff internal wallet"
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -1450,7 +1471,7 @@ export function ApprovalsDeskView({
           onRequestChat={() => setChatRequest(dossierRequest)}
           onImageClick={(att) => setLightboxImage({ url: att.url, name: att.name })}
           canDecide={['SUBMITTED', 'IN_REVIEW', 'CLARIFICATION_REQUESTED'].includes(dossierRequest.approvalStatus)}
-          onApprove={() => setDecisionModal({ type: 'APPROVED', request: dossierRequest })}
+          onApprove={() => handleApproveRequest(dossierRequest)}
           onClarify={() => setDecisionModal({ type: 'CLARIFICATION_REQUESTED', request: dossierRequest })}
           onDecline={() => setDecisionModal({ type: 'REJECTED', request: dossierRequest })}
         />
@@ -1927,6 +1948,20 @@ export function ApprovalsDeskView({
             if (nextId) onApprovedRequest?.(nextId);
           }}
           account={transferModalAccount}
+        />
+      )}
+      {staffWalletModalData && (
+        <ReleaseToStaffWalletModal
+          isOpen={Boolean(staffWalletModalData)}
+          onClose={() => setStaffWalletModalData(null)}
+          onSuccess={() => {
+            const num = staffWalletModalData.requestNumber;
+            const staff = staffWalletModalData.staffName;
+            setNotice(`Requisition ${num} authorized and credited to ${staff}'s internal wallet.`);
+            setDossierRequest(null);
+            void fetchApprovals();
+          }}
+          data={staffWalletModalData}
         />
       )}
     </div>

@@ -1262,6 +1262,7 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
   { group: 'wallet', apiPath: '/api/wallet/funding/refresh', relativeFilePath: 'src/app/api/wallet/funding/refresh/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
   { group: 'wallet', apiPath: '/api/wallet/envelopes', relativeFilePath: 'src/app/api/wallet/envelopes/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
   { group: 'wallet', apiPath: '/api/wallet/releases', relativeFilePath: 'src/app/api/wallet/releases/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
+  { group: 'wallet', apiPath: '/api/wallet/releases/approve-request', relativeFilePath: 'src/app/api/wallet/releases/approve-request/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
   { group: 'wallet', apiPath: '/api/wallet/releases/[id]/approve', relativeFilePath: 'src/app/api/wallet/releases/[id]/approve/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
   { group: 'wallet', apiPath: '/api/wallet/withdrawals', relativeFilePath: 'src/app/api/wallet/withdrawals/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
 
