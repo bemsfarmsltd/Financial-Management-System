@@ -3706,10 +3706,10 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
         .ambient-bottom-ai-wrapper [style*="color: rgb(234, 88, 12)"] {
           color: ${activeBrandColor} !important;
         }
-        .workspace [style*="#ea580c"],
-        .workspace [style*="#f97316"],
-        .workspace [style*="rgb(234, 88, 12)"],
-        .workspace [style*="rgb(249, 115, 22)"] {
+        .workspace [style*="#ea580c"]:not([style*="color: #fff"]):not([style*="color:#fff"]):not([style*="color: rgb(255, 255, 255)"]):not([style*="color: white"]):not([data-active-pill="true"]),
+        .workspace [style*="#f97316"]:not([style*="color: #fff"]):not([style*="color:#fff"]):not([style*="color: rgb(255, 255, 255)"]):not([style*="color: white"]):not([data-active-pill="true"]),
+        .workspace [style*="rgb(234, 88, 12)"]:not([style*="color: #fff"]):not([style*="color:#fff"]):not([style*="color: rgb(255, 255, 255)"]):not([style*="color: white"]):not([data-active-pill="true"]),
+        .workspace [style*="rgb(249, 115, 22)"]:not([style*="color: #fff"]):not([style*="color:#fff"]):not([style*="color: rgb(255, 255, 255)"]):not([style*="color: white"]):not([data-active-pill="true"]) {
           color: ${activeBrandColor} !important;
           border-color: ${activeBrandColor} !important;
         }

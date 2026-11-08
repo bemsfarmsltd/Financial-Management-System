@@ -111,6 +111,7 @@ export function DisbursementsDeskView({
   onRequestToRecordOpened,
   filterMode = 'all',
   initialTab,
+  hideHeader = false,
 }: {
   businessName: string;
   userName: string;
@@ -123,6 +124,7 @@ export function DisbursementsDeskView({
   onRequestToRecordOpened?: () => void;
   filterMode?: 'all' | 'vendors' | 'settled';
   initialTab?: 'AWAITING_TRANSFER' | 'AWAITING_CONFIRMATION' | 'CLEARED';
+  hideHeader?: boolean;
 }) {
   const [readyRequests, setReadyRequests] = useState<RequestItem[]>([]);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState<DisbursementItem[]>([]);
@@ -396,41 +398,43 @@ export function DisbursementsDeskView({
 
   return (
     <div style={{ width: '100%', minHeight: '100%', color: '#0f172a' }}>
-      <WalletFlowNotice />
+      {!hideHeader && <WalletFlowNotice />}
       {/* HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-        <div>
-          <span style={{ fontSize: '8px', letterSpacing: '1.2px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
-            TREASURY & BANKING · PAYMENT FOLLOW-THROUGH
-          </span>
-          <h1 style={{ fontSize: '18px', fontWeight: 700, margin: '3px 0 2px', letterSpacing: '-0.3px', color: '#0f172a' }}>
-            Disbursements Desk
-          </h1>
-          <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>
-            Record off-platform payments and follow up until the requesting staff member confirms receipt.
-          </p>
-        </div>
+      {!hideHeader && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+          <div>
+            <span style={{ fontSize: '8px', letterSpacing: '1.2px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+              TREASURY & BANKING · PAYMENT FOLLOW-THROUGH
+            </span>
+            <h1 style={{ fontSize: '18px', fontWeight: 700, margin: '3px 0 2px', letterSpacing: '-0.3px', color: '#0f172a' }}>
+              Disbursements Desk
+            </h1>
+            <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>
+              Record off-platform payments and follow up until the requesting staff member confirms receipt.
+            </p>
+          </div>
 
-        <button
-          onClick={fetchDisbursements}
-          style={{
-            padding: '6px 10px',
-            borderRadius: '6px',
-            border: '1px solid #e2e8f0',
-            background: '#fff',
-            fontSize: '10px',
-            fontWeight: 600,
-            color: '#334155',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
-          Refresh Desk
-        </button>
-      </div>
+          <button
+            onClick={fetchDisbursements}
+            style={{
+              padding: '6px 10px',
+              borderRadius: '6px',
+              border: '1px solid #e2e8f0',
+              background: '#fff',
+              fontSize: '10px',
+              fontWeight: 600,
+              color: '#334155',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
+            Refresh Desk
+          </button>
+        </div>
+      )}
 
       {notice && (
         <div style={{
@@ -525,7 +529,7 @@ export function DisbursementsDeskView({
           background: '#ffffff',
           borderRadius: '10px',
           border: '1px solid #e2e8f0',
-          borderTop: '4px solid #059669',
+          borderTop: '4px solid #ea580c',
           padding: '12px 14px',
           display: 'flex',
           flexDirection: 'column',
@@ -538,15 +542,15 @@ export function DisbursementsDeskView({
             <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.8px', color: '#64748b', textTransform: 'uppercase' }}>
               3. STAFF-CONFIRMED PAYMENTS
             </span>
-            <span style={{ background: '#ecfdf5', color: '#047857', padding: '1px 6px', borderRadius: '4px', fontSize: '8px', fontWeight: 800 }}>
-              RECEIVED
+            <span style={{ background: '#fff7ed', color: '#c2410c', padding: '1px 6px', borderRadius: '4px', fontSize: '8px', fontWeight: 800 }}>
+              SETTLED
             </span>
           </div>
           <div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: '#059669', lineHeight: 1.1 }}>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', lineHeight: 1.1 }}>
               {summary.totalDisbursedFormatted}
             </div>
-            <div style={{ fontSize: '9.5px', color: '#047857', fontWeight: 700, marginTop: '3px' }}>
+            <div style={{ fontSize: '9.5px', color: '#64748b', fontWeight: 700, marginTop: '3px' }}>
               {summary.verifiedCount} Cleared Corporate Transfers
             </div>
           </div>
@@ -649,7 +653,7 @@ export function DisbursementsDeskView({
               padding: '6px 12px',
               borderRadius: '6px',
               border: 0,
-              background: activeTab === 'CLEARED' ? '#059669' : '#f1f5f9',
+              background: activeTab === 'CLEARED' ? '#ea580c' : '#f1f5f9',
               color: activeTab === 'CLEARED' ? '#fff' : '#475569',
               fontSize: '11px',
               fontWeight: 700,
@@ -664,7 +668,8 @@ export function DisbursementsDeskView({
               background: activeTab === 'CLEARED' ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
               padding: '1px 6px',
               borderRadius: '10px',
-              fontSize: '9px'
+              fontSize: '9px',
+              color: activeTab === 'CLEARED' ? '#fff' : '#475569',
             }}>
               {verifiedDisbursements.length}
             </span>

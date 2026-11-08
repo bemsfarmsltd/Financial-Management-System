@@ -87,6 +87,13 @@ export function FundFlowWorkspace({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+      <style>{`
+        .bems-tab-pill-active,
+        .bems-tab-pill-active span,
+        .bems-tab-pill-active strong {
+          color: #ffffff !important;
+        }
+      `}</style>
       {/* 1. SEAMLESS EXECUTIVE HEADER (Matching FundingView & BEMS ERP Standard) */}
       <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
@@ -152,6 +159,8 @@ export function FundFlowWorkspace({
               <button
                 key={tab.key}
                 type="button"
+                className={isActive ? 'bems-tab-pill-active' : 'bems-tab-pill'}
+                data-active-pill={isActive ? 'true' : undefined}
                 onClick={() => setActiveTab(tab.key)}
                 style={{
                   display: 'inline-flex',
@@ -172,7 +181,7 @@ export function FundFlowWorkspace({
                 <span style={{ display: 'inline-flex', alignItems: 'center', color: isActive ? '#ffffff' : '#64748b' }}>
                   {tab.icon}
                 </span>
-                <span>{tab.label}</span>
+                <span style={{ color: isActive ? '#ffffff' : '#475569', fontWeight: isActive ? 700 : 600 }}>{tab.label}</span>
                 {tab.count !== null && tab.count > 0 && (
                   <span
                     style={{
@@ -219,6 +228,7 @@ export function FundFlowWorkspace({
           onSelectBusiness={onSelectBusiness}
           filterMode="vendors"
           initialTab="AWAITING_TRANSFER"
+          hideHeader={true}
         />
       )}
 
@@ -233,6 +243,7 @@ export function FundFlowWorkspace({
           onSelectBusiness={onSelectBusiness}
           filterMode="settled"
           initialTab="CLEARED"
+          hideHeader={true}
         />
       )}
 
