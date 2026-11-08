@@ -74,32 +74,69 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
   }, [refreshSessions]);
 
   // Account and workspace changes hydrate atomically before persistence resumes.
+  // Enforces session freshness: returning to the AI after inactivity (>15m) or on a fresh visit opens a new session.
   useEffect(() => {
     if (typeof window === 'undefined' || !accountId) return;
     let cancelled = false;
-    const id = localStorage.getItem(storageKey + '_active') || `conv_${accountId}_${crypto.randomUUID()}`;
-    setActiveSessionId(id);
     const welcome: AiMessage[] = [{ id: 'msg-welcome', sender: 'assistant', timestamp: 'Just now', content: defaultWelcomeText }];
+
     try {
+      const lastActiveRaw = localStorage.getItem(storageKey + '_last_active');
+      const lastActive = lastActiveRaw ? parseInt(lastActiveRaw, 10) : 0;
+      const isStale = !lastActive || (Date.now() - lastActive > 15 * 60 * 1000);
+      const isNewTabSession = typeof sessionStorage !== 'undefined' && !sessionStorage.getItem(storageKey + '_session_active');
+
       const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
-      setMessages(Array.isArray(saved) && saved.length ? saved : welcome);
-      setHydratedStorageKey(storageKey);
-      if (!saved) {
-        fetch(`/api/ai/memory?limit=40&session_id=${encodeURIComponent(id)}&scope=${encodeURIComponent(scopeKey)}`)
-          .then(r => r.ok ? r.json() : null).then(data => {
-            if (cancelled || !Array.isArray(data?.messages) || !data.messages.length) return;
-            setMessages(data.messages.map((m: any) => ({ id: `restored-${m.id}`, sender: m.role === 'assistant' ? 'assistant' : 'user', timestamp: 'Earlier', content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) })));
-          }).catch(() => {});
+      const prevId = localStorage.getItem(storageKey + '_active');
+
+      // If returning on a fresh browser session or after >15m inactivity, archive the previous thread and start fresh
+      if ((isStale || isNewTabSession) && Array.isArray(saved) && saved.length > 1) {
+        try {
+          const existingSessions = JSON.parse(localStorage.getItem(sessionsKey) || '[]');
+          const archiveTitle = saved.find((m: any) => m.sender === 'user')?.content?.slice(0, 45) || 'Executive Financial Oversight';
+          existingSessions.unshift({
+            id: prevId || `conv_${accountId}_${crypto.randomUUID()}`,
+            title: archiveTitle,
+            updatedAt: new Date(lastActive || Date.now()).toISOString(),
+            turnsCount: saved.length,
+            messages: saved,
+          });
+          localStorage.setItem(sessionsKey, JSON.stringify(existingSessions.slice(0, 25)));
+          setSessions(existingSessions.slice(0, 25));
+        } catch (e) {
+          console.warn('Could not archive prior session:', e);
+        }
+        localStorage.removeItem(storageKey);
       }
-    } catch { setMessages(welcome); setHydratedStorageKey(storageKey); }
+
+      if (isStale || isNewTabSession || !saved || !Array.isArray(saved) || saved.length === 0) {
+        const freshId = `conv_${accountId}_${crypto.randomUUID()}`;
+        setActiveSessionId(freshId);
+        setMessages(welcome);
+        localStorage.setItem(storageKey + '_active', freshId);
+        localStorage.setItem(storageKey + '_last_active', Date.now().toString());
+        if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(storageKey + '_session_active', '1');
+      } else {
+        const id = prevId || `conv_${accountId}_${crypto.randomUUID()}`;
+        setActiveSessionId(id);
+        setMessages(saved);
+      }
+      setHydratedStorageKey(storageKey);
+    } catch {
+      const freshId = `conv_${accountId}_${crypto.randomUUID()}`;
+      setActiveSessionId(freshId);
+      setMessages(welcome);
+      setHydratedStorageKey(storageKey);
+    }
     return () => { cancelled = true; };
-  }, [storageKey, accountId]);
+  }, [storageKey, accountId, sessionsKey, defaultWelcomeText]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !accountId || hydratedStorageKey !== storageKey) return;
     try {
       localStorage.setItem(storageKey, JSON.stringify(messages));
       if (activeSessionId !== 'active') localStorage.setItem(storageKey + '_active', activeSessionId);
+      localStorage.setItem(storageKey + '_last_active', Date.now().toString());
     } catch {}
   }, [messages, storageKey, accountId, hydratedStorageKey, activeSessionId]);
 
@@ -121,6 +158,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
           setSessions(existingSessions.slice(0, 25));
         }
         localStorage.removeItem(storageKey);
+        localStorage.setItem(storageKey + '_last_active', Date.now().toString());
       }
     } catch (e) {
       console.warn('Error archiving session:', e);
@@ -136,6 +174,16 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
       },
     ]);
   }, [messages, sessionsKey, storageKey, userName, businessName, accountId, activeSessionId]);
+
+  // Ensure fresh session when opening the AI drawer / returning after a break
+  const ensureFreshSession = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const lastActiveRaw = localStorage.getItem(storageKey + '_last_active');
+    const lastActive = lastActiveRaw ? parseInt(lastActiveRaw, 10) : 0;
+    if (lastActive && (Date.now() - lastActive > 10 * 60 * 1000) && messages.length > 1) {
+      startNewChat();
+    }
+  }, [storageKey, messages.length, startNewChat]);
 
   // Load a past session from history
   const loadSession = useCallback(
@@ -218,6 +266,12 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
           body: JSON.stringify({
             message: text,
             conversation_id: activeSessionId.startsWith(`conv_${accountId}_`) ? activeSessionId : `conv_${accountId}_${crypto.randomUUID()}`,
+            history: messages.slice(-4).map((m) => ({
+              role: m.sender === 'assistant' ? 'assistant' : 'user',
+              content: typeof m.content === 'string' && m.content.length > 350
+                ? m.content.slice(0, 350) + '... [prior context summarized]'
+                : m.content,
+            })),
             context: {
               active_business_id: businessId,
               business_name: businessName,
@@ -632,5 +686,6 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
     deleteSession,
     refreshSessions,
     activeSessionId,
+    ensureFreshSession,
   };
 }

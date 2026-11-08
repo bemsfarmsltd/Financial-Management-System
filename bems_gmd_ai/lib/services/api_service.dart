@@ -304,6 +304,13 @@ class ApiService {
     required List<ChatMessage> history,
     String? conversationId,
   }) async {
+    // Sliding window: send at most the last 4 turns, with text truncated to 350 chars
+    final recentHistory = history.length > 4 ? history.sublist(history.length - 4) : history;
+    final compactHistory = recentHistory.map((m) {
+      final content = m.content.length > 350 ? '${m.content.substring(0, 350)}... [prior context summarized]' : m.content;
+      return {'role': m.sender, 'content': content};
+    }).toList();
+
     final response = await _executeWithFailover(
       (host) => http.post(
         Uri.parse('$host/api/ai/chat'),
@@ -311,8 +318,7 @@ class ApiService {
         body: jsonEncode({
           'message': message,
           'conversation_id': conversationId,
-          'history':
-              history.map((m) => {'role': m.sender, 'content': m.content}).toList(),
+          'history': compactHistory,
         }),
       ),
       timeout: const Duration(seconds: 120),

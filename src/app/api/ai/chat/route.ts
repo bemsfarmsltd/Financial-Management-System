@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
         });
         const authToken = delegationToken;
 
-        // Fetch recent conversation history from BEMS PostgreSQL memory
+        // Fetch compact sliding-window history from BEMS PostgreSQL memory (max 4 turns, max 350 chars each)
         let conversationHistory: any[] = [];
         try {
           const rows = await prisma.$queryRaw<Array<{ id: number; message: any; created_at: Date }>>`
@@ -146,17 +146,30 @@ export async function POST(req: NextRequest) {
             FROM n8n_chat_histories
             WHERE session_id = ${sessionId}
             ORDER BY id DESC
-            LIMIT 10
+            LIMIT 4
           `;
           conversationHistory = rows.reverse().map((r) => {
             let m = r.message;
             if (typeof m === 'string') {
               try { m = JSON.parse(m); } catch {}
             }
+            if (m && typeof m === 'object' && typeof m.content === 'string' && m.content.length > 350) {
+              m = { ...m, content: m.content.slice(0, 350) + '... [prior context summarized]' };
+            }
             return redactUntrustedAndSensitiveFields(m);
           });
         } catch (e) {
           console.warn('Could not load memory history:', e);
+        }
+
+        // Fallback to client history if database memory has no records for this new session
+        if (conversationHistory.length === 0 && Array.isArray(body.history) && body.history.length > 0) {
+          conversationHistory = body.history.slice(-4).map((h: any) => {
+            const role = h.role === 'assistant' || h.sender === 'assistant' ? 'assistant' : 'user';
+            let content = typeof h.content === 'string' ? h.content : JSON.stringify(h.content || '');
+            if (content.length > 350) content = content.slice(0, 350) + '... [prior context summarized]';
+            return { role, content };
+          });
         }
 
         // Persist incoming user turn to memory

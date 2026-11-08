@@ -3208,6 +3208,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
 
   const handleOpenAiDrawer = (prompt?: string) => {
     notifyAiInteraction();
+    aiManager.ensureFreshSession?.();
     setActiveAiPrompt(prompt);
     setAiDrawerOpen(true);
   };
@@ -3218,6 +3219,7 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
         e.preventDefault();
         if (isAiAuthorized) {
           notifyAiInteraction();
+          aiManager.ensureFreshSession?.();
           setAiDrawerOpen((prev) => !prev);
         }
       }
