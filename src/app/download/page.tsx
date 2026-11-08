@@ -10,8 +10,8 @@ export default async function PublicDownloadPage() {
     prisma.mobileAppGate.findUnique({ where: { appId: 'GMD_APP' } }),
   ]);
 
-  const staffVersion = staffGate?.latestVersionAvailable || '1.3.3';
-  const gmdVersion = gmdGate?.latestVersionAvailable || '1.3.3';
+  const staffVersion = staffGate?.latestVersionAvailable || '1.3.4';
+  const gmdVersion = gmdGate?.latestVersionAvailable || '1.3.4';
 
   return (
     <div
@@ -182,7 +182,7 @@ export default async function PublicDownloadPage() {
                   letterSpacing: '0.04em',
                 }}
               >
-                v{gmdVersion} · GMD ONLY
+                v{gmdVersion} · EXECUTIVE
               </span>
             </div>
 
@@ -190,12 +190,12 @@ export default async function PublicDownloadPage() {
               BEMS GMD AI Cockpit
             </h2>
             <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.45, margin: '0 0 18px' }}>
-              Executive authority &amp; autonomous financial intelligence for The Group Managing Director.
+              Executive approvals, wallet management and AI assistance for the GMD and temporarily authorized Super Admins.
             </p>
 
             <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', fontSize: 13, color: '#cbd5e1', fontWeight: 600 }}>
               <li style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: '#10b981', fontWeight: 900 }}>✓</span> 1-Click Requisition Approvals &amp; Direct Bank Deep Links
+                <span style={{ color: '#10b981', fontWeight: 900 }}>✓</span> Secure request approvals &amp; wallet funding
               </li>
               <li style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ color: '#10b981', fontWeight: 900 }}>✓</span> Live Financial Copilot with 120s Deep Ledger Reasoning
@@ -212,7 +212,7 @@ export default async function PublicDownloadPage() {
           <div>
             <a
               href="/download/gmd-app.apk"
-              download="BEMS-GMD-Executive-Cockpit-v1.3.3.apk"
+              download={`BEMS-GMD-Executive-Cockpit-v${gmdVersion}.apk`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -232,7 +232,7 @@ export default async function PublicDownloadPage() {
               <span>📥 Download GMD App APK (v{gmdVersion})</span>
             </a>
             <small style={{ display: 'block', textAlign: 'center', fontSize: 11, color: '#64748b', marginTop: 10 }}>
-              Android 8.0+ · com.bemsgroup.gmd_ai
+              Android 8.0+ · com.bemsgroup.bems_gmd_ai
             </small>
           </div>
         </div>
@@ -296,7 +296,7 @@ export default async function PublicDownloadPage() {
                 <span style={{ color: '#ea580c', fontWeight: 900 }}>✓</span> Fund requests &amp; 72h receipt uploads
               </li>
               <li style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: '#ea580c', fontWeight: 900 }}>✓</span> Real-time disbursement &amp; payslip tracking
+                <span style={{ color: '#ea580c', fontWeight: 900 }}>✓</span> Personal wallet, approved withdrawals &amp; payslips
               </li>
               <li style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ color: '#ea580c', fontWeight: 900 }}>✓</span> Starlink Wi-Fi &amp; GPS geofenced attendance
@@ -310,7 +310,7 @@ export default async function PublicDownloadPage() {
           <div>
             <a
               href="/download/staff-app.apk"
-              download="BEMS-Staff-Portal-v1.3.3.apk"
+              download={`BEMS-Staff-Portal-v${staffVersion}.apk`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -330,7 +330,7 @@ export default async function PublicDownloadPage() {
               <span>📥 Download Staff App APK (v{staffVersion})</span>
             </a>
             <small style={{ display: 'block', textAlign: 'center', fontSize: 11, color: '#64748b', marginTop: 10 }}>
-              Android 8.0+ · com.bemsgroup.staff
+              Android 8.0+ · com.bemsfarms.bems_staff_app
             </small>
           </div>
         </div>
@@ -359,8 +359,9 @@ export default async function PublicDownloadPage() {
           <div style={{ marginBottom: 4 }}>
             <strong style={{ color: '#0f172a' }}>2. Install:</strong> Tap the completed download notification or find it in your Files app and allow package installation.
           </div>
+          <p>When replacing an older debug-signed build, Android may require you to uninstall the old app first. You will need to sign in again; your company records remain on the server.</p>
           <div>
-            <strong style={{ color: '#0f172a' }}>3. Access:</strong> GMD logs in with executive credentials; Staff log in with their work email.
+            <strong style={{ color: '#0f172a' }}>3. Access:</strong> Authorized executives and staff log in with their existing work credentials.
           </div>
         </div>
       </section>

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/chat_storage_service.dart';
+import '../services/api_service.dart';
 import '../services/biometric_service.dart';
 import 'welcome_entry_screen.dart';
 import 'login_screen.dart';
