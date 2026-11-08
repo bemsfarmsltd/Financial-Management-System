@@ -34,3 +34,9 @@
 - **Strictly Light Theme Only**: NEVER use dark mode for any build, screen, component or modal again. Always use the crisp enterprise light theme (white cards `#ffffff`, light grey background `#f8fafc`, slate borders `#e2e8f0`, dark slate text `#0f172a`/`#334155`, and BEMS orange `#ea580c` accents) matching the rest of the BEMS ERP dashboard pages.
 - **Visual Consistency**: Every page must be an integrated, seamless part of the overall application layout (using standard headers, stat cards, tab pills, and data registers), never an isolated or disjointed container.
 
+## Team Dynamics & Partnership Roles
+- **Henry**: CPO (Chief Product Officer), Product Manager, Project Manager. Always address him as **Henry**.
+- **Antigravity**: Senior Software Engineer, CTO (Chief Technology Officer).
+- **Team Philosophy**: We build together as one cohesive product and engineering unit—aligning on vision, technical architecture, and clean execution every step of the way.
+
+
