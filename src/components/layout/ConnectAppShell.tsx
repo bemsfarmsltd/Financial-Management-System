@@ -178,6 +178,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
         ['Finance Overview', '/finance', '⌂'],
         ['Subsidiary portfolio', '/finance?tab=Subsidiary+portfolio', '▦'],
         ['Executive briefing', '/briefing', '✦'],
+        ['Mobile apps preview', '/mobile', '📱'],
       ]
     },
     {
@@ -211,6 +212,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
         ['Finance Overview', '/finance', '⌂'],
         ['Subsidiary portfolio', '/finance?tab=Subsidiary+portfolio', '▦'],
         ['Executive briefing', '/briefing', '✦'],
+        ['Mobile apps preview', '/mobile', '📱'],
       ]
     },
     {

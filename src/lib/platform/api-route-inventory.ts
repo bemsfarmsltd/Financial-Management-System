@@ -144,6 +144,13 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
   },
   {
     group: 'admin',
+    apiPath: '/api/admin/employees/[employeeId]/corporate',
+    relativeFilePath: 'src/app/api/admin/employees/[employeeId]/corporate/route.ts',
+    declaredMethods: ['PATCH'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'admin',
     apiPath: '/api/admin/employees/[employeeId]/request-update',
     relativeFilePath: 'src/app/api/admin/employees/[employeeId]/request-update/route.ts',
     declaredMethods: ['POST'],
