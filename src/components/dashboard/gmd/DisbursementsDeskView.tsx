@@ -23,6 +23,7 @@ import {
   Check,
   RotateCcw
 } from 'lucide-react';
+import { ReleaseToStaffWalletModal, StaffWalletReleaseData } from './ReleaseToStaffWalletModal';
 
 interface RequestItem {
   id: string;
@@ -39,6 +40,7 @@ interface RequestItem {
     legalName: string;
     workEmail: string;
     role: string;
+    employeeNumber?: string;
     bankName?: string | null;
     accountNumber?: string | null;
     accountName?: string | null;
@@ -228,6 +230,24 @@ export function DisbursementsDeskView({
       })
       .catch(() => {});
   }, [activeScope]);
+
+  const [staffWalletModalData, setStaffWalletModalData] = useState<StaffWalletReleaseData | null>(null);
+
+  const openStaffWalletModal = (req: RequestItem) => {
+    setStaffWalletModalData({
+      requestId: req.id,
+      requestNumber: req.requestNumber,
+      title: req.title,
+      amountFormatted: req.amountFormatted,
+      amountMinor: String(req.amountMinor),
+      staffName: req.requester?.legalName || 'Staff Member',
+      staffNumber: req.requester?.employeeNumber || 'STAFF',
+      staffRole: req.requester?.role || 'Staff Member',
+      subsidiaryName: req.subsidiary?.legalName || 'BEMS Group',
+      subsidiaryId: req.subsidiary?.id,
+      brandColor: '#059669',
+    });
+  };
 
   const openMakerModal = (req: RequestItem) => {
     setSelectedRequest(req);
@@ -717,39 +737,75 @@ export function DisbursementsDeskView({
                       <div style={{ fontSize: '11px', fontWeight: 600, color: '#1e293b', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {req.title}
                       </div>
-                      <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>
-                        Beneficiary: {req.vendor?.name || req.requester.legalName} · Bank: {req.vendor?.bankName || 'Not recorded'} · Acc: {req.vendor?.accountNumber || '—'}
-                      </div>
+                      {(!req.vendor && (!req.requester?.role || req.requester.role === 'STAFF')) ? (
+                        <div style={{ fontSize: '9px', color: '#059669', fontWeight: 600, marginTop: '2px' }}>
+                          Beneficiary: {req.requester.legalName} · Staff Wallet: WLT-{req.requester.employeeNumber || 'STAFF'} · {req.subsidiary.legalName}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>
+                          Beneficiary: {req.vendor?.name || req.requester.legalName} · Bank: {req.vendor?.bankName || 'Not recorded'} · Acc: {req.vendor?.accountNumber || '—'}
+                        </div>
+                      )}
                       {req.disbursementAssignee && <div style={{ fontSize: '9px', color: '#ea580c', fontWeight: '600', marginTop: '3px' }}>Payment recording assigned to {req.disbursementAssignee.legalName}</div>}
                     </div>
                   </div>
 
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>{req.amountFormatted}</div>
-                    <span style={{ fontSize: '8px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#fef3c7', color: '#b45309', display: 'inline-block', marginTop: '3px' }}>
-                      Approved · Ready to Pay
+                    <span style={{
+                      fontSize: '8px',
+                      fontWeight: 700,
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      background: (!req.vendor && (!req.requester?.role || req.requester.role === 'STAFF')) ? '#ecfdf5' : '#fef3c7',
+                      color: (!req.vendor && (!req.requester?.role || req.requester.role === 'STAFF')) ? '#059669' : '#b45309',
+                      display: 'inline-block',
+                      marginTop: '3px'
+                    }}>
+                      {(!req.vendor && (!req.requester?.role || req.requester.role === 'STAFF')) ? 'Approved · Ready for Wallet Credit' : 'Approved · Ready to Pay'}
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => openMakerModal(req)}
-                    disabled={req.canRecord === false}
-                    title={req.canRecord === false ? `Assigned to ${req.disbursementAssignee?.legalName || 'another executive'}` : 'Record the off-platform payment and upload its receipt'}
-                    style={{
-                      padding: '5px 10px',
-                      borderRadius: '6px',
-                      border: '1px solid #ea580c',
-                      background: 'linear-gradient(135deg, #f97316, #ea580c)',
-                      color: '#fff',
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      cursor: req.canRecord === false ? 'not-allowed' : 'pointer',
-                      opacity: req.canRecord === false ? 0.55 : 1,
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {req.canRecord === false ? 'Assigned to another executive' : 'Record Transfer ↗'}
-                  </button>
+                  {(!req.vendor && (!req.requester?.role || req.requester.role === 'STAFF')) ? (
+                    <button
+                      onClick={() => openStaffWalletModal(req)}
+                      title="Authorize GMD release and credit to staff internal wallet"
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #059669',
+                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                        color: '#fff',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        boxShadow: '0 1px 3px rgba(5, 150, 105, 0.25)',
+                      }}
+                    >
+                      Release to Staff Wallet →
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => openMakerModal(req)}
+                      disabled={req.canRecord === false}
+                      title={req.canRecord === false ? `Assigned to ${req.disbursementAssignee?.legalName || 'another executive'}` : 'Record the off-platform payment and upload its receipt'}
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid #ea580c',
+                        background: 'linear-gradient(135deg, #f97316, #ea580c)',
+                        color: '#fff',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        cursor: req.canRecord === false ? 'not-allowed' : 'pointer',
+                        opacity: req.canRecord === false ? 0.55 : 1,
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {req.canRecord === false ? 'Assigned to another executive' : 'Record Transfer ↗'}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -1314,6 +1370,19 @@ export function DisbursementsDeskView({
             </div>
           </div>
         </div>
+      )}
+      {staffWalletModalData && (
+        <ReleaseToStaffWalletModal
+          isOpen={Boolean(staffWalletModalData)}
+          onClose={() => setStaffWalletModalData(null)}
+          onSuccess={() => {
+            const num = staffWalletModalData.requestNumber;
+            const staff = staffWalletModalData.staffName;
+            setNotice(`Requisition ${num} authorized and credited to ${staff}'s internal wallet.`);
+            void fetchDisbursements();
+          }}
+          data={staffWalletModalData}
+        />
       )}
     </div>
   );

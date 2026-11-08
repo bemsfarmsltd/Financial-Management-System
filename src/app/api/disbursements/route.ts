@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       },
       include: {
         subsidiary: { select: { id: true, legalName: true, code: true } },
-        requester: { select: { id: true, legalName: true, workEmail: true, role: true, bankName: true, accountNumber: true, accountName: true, salaryBankName: true, salaryAccountNumber: true, salaryAccountName: true } },
+        requester: { select: { id: true, legalName: true, workEmail: true, role: true, employeeNumber: true, bankName: true, accountNumber: true, accountName: true, salaryBankName: true, salaryAccountNumber: true, salaryAccountName: true } },
         disbursementAssignee: { select: { id: true, legalName: true, role: true } },
         vendor: true
       },
