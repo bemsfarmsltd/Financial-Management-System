@@ -84,6 +84,32 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   bool _isProfileUpdateGateActive = false;
   final PageController _priceCardController = PageController();
   int _priceCardPage = 0;
+  Map<String, dynamic>? _walletData;
+
+  void _openProfileScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: const Color(0xFFF8FAFC),
+          appBar: AppBar(
+            title: const Text(
+              'My Profile & Credentials',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF0F172A)),
+            ),
+            backgroundColor: Colors.white,
+            elevation: 0,
+            surfaceTintColor: Colors.transparent,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A)),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          body: SafeArea(child: _buildProfileTab()),
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -171,12 +197,18 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     final data = results[0] as Map<String, dynamic>;
     final attendance = results[1];
 
+    Map<String, dynamic>? wallet;
+    try {
+      wallet = await StaffApiService.getOwnWallet(_currentUser);
+    } catch (_) {}
+
     if (mounted) {
       setState(() {
         _requests = data['requests'] as List<FundRequestItem>;
         _disbursementsAwaiting = data['disbursementsAwaiting'] as List<DisbursementItem>;
         _cases = data['accountabilityCases'] as List<AccountabilityCaseItem>;
         _todayAttendance = attendance;
+        _walletData = wallet;
         _isLoading = false;
       });
       _checkProfileUpdateGate();
@@ -2642,7 +2674,109 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     final formatter = NumberFormat.currency(locale: 'en_NG', symbol: '₦', decimalDigits: 0);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Staff portal'), actions: [TextButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => StaffWalletScreen(user: _currentUser))), icon: const Icon(Icons.account_balance_wallet_outlined), label: const Text('My wallet'))]),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        titleSpacing: 14,
+        leadingWidth: 50,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 14),
+          child: Center(
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(
+                  'assets/images/bems-mark.png',
+                  width: 22,
+                  height: 22,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.business_rounded, color: Color(0xFFEA580C), size: 20),
+                ),
+              ),
+            ),
+          ),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'BEMS Staff Portal',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF0F172A),
+                letterSpacing: -0.2,
+              ),
+            ),
+            Text(
+              _currentUser.subsidiary.isNotEmpty ? _currentUser.subsidiary : 'BEMS Group Operations',
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          // Profile Button at Top Banner
+          Padding(
+            padding: const EdgeInsets.only(right: 14),
+            child: InkWell(
+              onTap: _openProfileScreen,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: const Color(0xFFEA580C).withOpacity(0.12),
+                      backgroundImage: _currentUser.avatarUrl.isNotEmpty && _currentUser.avatarUrl.startsWith('http')
+                          ? NetworkImage(_currentUser.avatarUrl)
+                          : null,
+                      child: _currentUser.avatarUrl.isEmpty || !_currentUser.avatarUrl.startsWith('http')
+                          ? const Icon(Icons.person_rounded, size: 14, color: Color(0xFFEA580C))
+                          : null,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _currentUser.fullName.split(' ').first,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: _isLoading
@@ -2655,7 +2789,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   _buildHomeTab(formatter),
                   _buildRequestsTab(formatter),
                   _buildRetirementTab(formatter),
-                  _buildProfileTab(),
+                  StaffWalletScreen(user: _currentUser, isEmbedded: true),
                 ],
               ),
       ),
@@ -2671,7 +2805,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ],
         ),
         child: BottomNavigationBar(
-          currentIndex: _currentIndex,
+          currentIndex: _currentIndex >= 2 ? _currentIndex + 1 : _currentIndex,
           onTap: (idx) {
             if (idx == 2) {
               // Center FAB: New Request
@@ -2756,9 +2890,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               label: '72h SLA',
             ),
             const BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline_rounded),
-              activeIcon: Icon(Icons.person_rounded),
-              label: 'Profile',
+              icon: Icon(Icons.account_balance_wallet_outlined),
+              activeIcon: Icon(Icons.account_balance_wallet_rounded),
+              label: 'Wallet',
             ),
           ],
         ),
@@ -2776,70 +2910,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
         children: [
-          // Universal Enterprise Hub Switcher Banner
-          InkWell(
-            onTap: _openEnterpriseGallery,
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 14),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEA580C).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.grid_view_rounded, size: 16, color: Color(0xFFFB923C)),
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'ENTERPRISE WORKSTATION HUB',
-                          style: TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF94A3B8),
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                        SizedBox(height: 1),
-                        Text(
-                          'Switch Enterprise Module Gallery',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: Color(0xFF94A3B8)),
-                ],
-              ),
-            ),
-          ),
-
           // Header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -5596,37 +5666,34 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             controller: _priceCardController,
             onPageChanged: (idx) => setState(() => _priceCardPage = idx),
             children: [
-              // Slide 1: Operational Advance Held
+              // Slide 1: BEMS Digital Wallet & Operational Advance
               _buildHeroCardContainer(
                 gradientColors: const [Color(0xFFEA580C), Color(0xFFC2410C), Color(0xFF9A3412)],
                 shadowColor: const Color(0xFFEA580C).withOpacity(0.32),
-                title: 'OPERATIONAL ADVANCE HELD',
+                title: 'BEMS DIGITAL WALLET & ADVANCES',
                 canHideBalance: true,
-                valueText: _hideBalance ? '₦ ••••••••' : formatter.format(activeAdvanceAmount),
-                subText: 'Bank: ${_currentUser.bankName.isNotEmpty ? _currentUser.bankName : "Corporate Primary"} (${_currentUser.accountNumber.isNotEmpty ? _currentUser.accountNumber : "Default"})',
-                statusBadge: _submittedUnderReviewCases.isNotEmpty
-                    ? (_pendingRetirementCases.isEmpty
+                valueText: _hideBalance
+                    ? '₦ ••••••••'
+                    : (_walletData != null && _walletData!['availableMinor'] != null
+                        ? walletMoney(_walletData!['availableMinor'].toString())
+                        : formatter.format(activeAdvanceAmount)),
+                subText: 'Avail: ${_walletData != null ? walletMoney(_walletData!['availableMinor']?.toString() ?? "0") : "₦0"} · Adv. Held: ${formatter.format(activeAdvanceAmount)}',
+                statusBadge: _walletData != null && (BigInt.tryParse(_walletData!['availableMinor']?.toString() ?? '0') ?? BigInt.zero) > BigInt.zero
+                    ? 'Ready for Direct Bank Withdrawal'
+                    : (_submittedUnderReviewCases.isNotEmpty
                         ? 'Evidence Submitted · Awaiting Clearance'
-                        : '${_submittedUnderReviewCases.length} In Review · ${_pendingRetirementCases.length} Pending Retirement')
-                    : (_pendingRetirementCases.isNotEmpty ? '${_pendingRetirementCases.length} Pending 72h Retirement' : null),
-                primaryActionLabel: 'Request Funds',
+                        : (_pendingRetirementCases.isNotEmpty
+                            ? '${_pendingRetirementCases.length} Pending 72h Retirement'
+                            : 'Wallet Active · Company Pays Fees')),
+                primaryActionLabel: 'Withdraw to Bank',
                 primaryActionIcon: Icons.arrow_upward_rounded,
                 primaryActionColor: const Color(0xFFEA580C),
-                onPrimaryAction: _openNewRequestModal,
-                secondaryActionLabel: _pendingRetirementCases.isNotEmpty
-                    ? 'Retire 72h'
-                    : (_submittedUnderReviewCases.isNotEmpty ? 'Evidence In Review' : 'Retire 72h'),
-                secondaryActionIcon: Icons.arrow_downward_rounded,
-                onSecondaryAction: () {
-                  final targetCase = _pendingRetirementCases.isNotEmpty
-                      ? _pendingRetirementCases.first
-                      : (_activeAdvanceCases.isNotEmpty ? _activeAdvanceCases.first : null);
-                  if (targetCase != null) {
-                    _showRetirementEvidenceDialog(targetCase);
-                  } else {
-                    setState(() => _currentIndex = 2);
-                  }
+                onPrimaryAction: () {
+                  setState(() => _currentIndex = 3);
                 },
+                secondaryActionLabel: 'Request Funds',
+                secondaryActionIcon: Icons.add_rounded,
+                onSecondaryAction: _openNewRequestModal,
               ),
 
               // Slide 2: Lifetime Requests Raised

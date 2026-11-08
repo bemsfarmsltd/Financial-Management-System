@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/staff_models.dart';
-import '../services/staff_storage_service.dart';
 import 'staff_main_screen.dart';
-import 'staff_login_screen.dart';
 import 'staff_admin_chat_screen.dart';
 import 'modules/staff_hr_hub_screen.dart';
 import 'modules/staff_module_workstation_screen.dart';
@@ -25,34 +23,6 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _handleLogout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Sign Out of BEMS', style: TextStyle(fontWeight: FontWeight.w900)),
-        content: const Text('Are you sure you want to log out of your corporate session?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
-            child: const Text('Sign Out'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await StaffStorageService.clearUser();
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const StaffLoginScreen()),
-        (route) => false,
-      );
-    }
   }
 
   @override
@@ -89,11 +59,12 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                               width: 38,
                               height: 38,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFEA580C),
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFFEA580C).withOpacity(0.3),
+                                    color: Colors.black.withOpacity(0.04),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
                                   ),
@@ -102,9 +73,10 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                               child: Center(
                                 child: Image.asset(
                                   'assets/images/bems-mark.png',
-                                  width: 22,
-                                  height: 22,
-                                  errorBuilder: (_, __, ___) => const Icon(Icons.business_rounded, color: Colors.white, size: 20),
+                                  width: 24,
+                                  height: 24,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.business_rounded, color: Color(0xFFEA580C), size: 20),
                                 ),
                               ),
                             ),
@@ -140,11 +112,6 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                                   MaterialPageRoute(builder: (_) => StaffAdminChatScreen(currentUser: widget.user)),
                                 );
                               },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.logout_rounded, color: Color(0xFF64748B), size: 22),
-                              tooltip: 'Sign Out',
-                              onPressed: _handleLogout,
                             ),
                           ],
                         ),
