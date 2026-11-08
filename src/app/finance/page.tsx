@@ -1,6 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import FundingView from '@/components/wallet/FundingView';
+import WalletView from '@/components/wallet/WalletView';
+import WalletDashboardSummary from '@/components/wallet/WalletDashboardSummary';
 import { GOVERNANCE_TEMPLATES } from '@/lib/governance-templates';
 
 import { ModernBentoDashboard } from "@/components/dashboard/ModernBentoDashboard";
@@ -189,6 +192,7 @@ const staffNavGroups = [
       ['Overview', '⌂'],
       ['New fund request', '＋'],
       ['My requests', '▱'],
+      ['My wallet', '◈'],
     ]
   },
   {
@@ -223,6 +227,7 @@ const gmdNavGroups = [
       ['Approvals & payments', '✓'],
       ['Budgets & commitments', '◫'],
       ['Treasury accounts', '🏦'],
+      ['Wallets & funded budgets', '◈'],
       ['Recurring commitments', '◌'],
       ['Hybrid payroll', '⌁'],
       ['Receipt archive', '▣'],
@@ -1752,6 +1757,7 @@ function RoleOverviewModule({role,business,user,cases,setActive,setNotice,onRole
           <button className="outline-button" onClick={() => setActive("Subsidiary portfolio")}>Manage Subsidiaries ▦</button>
         </div>
       </div>
+      <WalletDashboardSummary onOpen={() => setActive("Wallets & funded budgets")} />
       <ModernBentoDashboard
         role={role}
         businessName={business.name}
@@ -3274,6 +3280,8 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
       'chat': 'AI Copilot & Chat',
     };
     const target = navAliases[active] || active;
+    if (target === 'Wallets & funded budgets' && ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(safeUser.role)) return <FundingView />;
+    if (target === 'My wallet' && safeUser.role === 'STAFF') return <WalletView />;
 
     if (isStaff) {
       if (target === 'Overview') {
