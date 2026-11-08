@@ -55,7 +55,7 @@ export async function GET(request: Request) {
       }
 
       const totalDaysInMonth = new Date(yearNum, monthNum, 0).getDate();
-      const offDayIndices = (employee.workSchedule?.weeklyOffDays || '0,6')
+      const offDayIndices = (employee.workSchedule?.weeklyOffDays ?? '0,6')
         .split(',')
         .map(s => parseInt(s.trim(), 10))
         .filter(n => !isNaN(n));

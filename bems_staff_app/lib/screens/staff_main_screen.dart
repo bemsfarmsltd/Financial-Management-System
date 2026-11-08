@@ -76,8 +76,21 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   bool _isBiometricEnabled = false;
   bool _isProfileUpdateGateActive = false;
   final PageController _priceCardController = PageController();
+  late final PageController _pageController;
   int _priceCardPage = 0;
   Map<String, dynamic>? _walletData;
+
+  void _navigateToTab(int index) {
+    if (_currentIndex == index) return;
+    setState(() => _currentIndex = index);
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
 
   void _openProfileScreen() {
     Navigator.push(
@@ -107,6 +120,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
     _currentUser = widget.user;
     _loadData();
     _loadBiometricSettings();
@@ -115,6 +129,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   @override
   void dispose() {
     _attendanceReminderTimer?.cancel();
+    _pageController.dispose();
     _priceCardController.dispose();
     super.dispose();
   }
@@ -2992,8 +3007,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             ? const Center(
                 child: CircularProgressIndicator(color: Color(0xFFEA580C), strokeWidth: 2.5),
               )
-            : IndexedStack(
-                index: _currentIndex,
+            : PageView(
+                controller: _pageController,
+                physics: const BouncingScrollPhysics(),
+                onPageChanged: (idx) {
+                  setState(() => _currentIndex = idx);
+                },
                 children: [
                   _buildHomeTab(formatter),
                   _buildRequestsTab(formatter),
@@ -3020,7 +3039,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               // Center FAB: New Request
               _openNewRequestModal();
             } else {
-              setState(() => _currentIndex = idx > 2 ? idx - 1 : idx);
+              final target = idx > 2 ? idx - 1 : idx;
+              _navigateToTab(target);
             }
           },
           backgroundColor: Colors.white,
@@ -3295,18 +3315,18 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   icon: Icons.receipt_long_rounded,
                   iconColor: const Color(0xFF0F172A),
                   iconBgColor: const Color(0xFFF1F5F9),
-                  onTap: () => setState(() => _currentIndex = 2),
+                  onTap: () => _navigateToTab(2),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _buildActionTile(
-                  title: 'My Profile',
-                  subtitle: 'Bank Details',
-                  icon: Icons.person_rounded,
+                  title: 'Digital Wallet',
+                  subtitle: 'Disbursements & Bank',
+                  icon: Icons.account_balance_wallet_rounded,
                   iconColor: const Color(0xFF0F172A),
                   iconBgColor: const Color(0xFFF1F5F9),
-                  onTap: () => setState(() => _currentIndex = 3),
+                  onTap: () => _navigateToTab(3),
                 ),
               ),
             ],
@@ -3341,7 +3361,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   icon: Icons.chat_bubble_outline_rounded,
                   iconColor: const Color(0xFF0F172A),
                   iconBgColor: const Color(0xFFF1F5F9),
-                  onTap: () => setState(() => _currentIndex = 1),
+                  onTap: () => _navigateToTab(1),
                 ),
               ),
             ],
@@ -3391,7 +3411,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             children: [
               const Text('Recent Requisitions', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
               GestureDetector(
-                onTap: () => setState(() => _currentIndex = 1),
+                onTap: () => _navigateToTab(1),
                 child: const Text('See More', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
               ),
             ],
@@ -5639,7 +5659,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 primaryActionIcon: Icons.arrow_upward_rounded,
                 primaryActionColor: const Color(0xFFEA580C),
                 onPrimaryAction: () {
-                  setState(() => _currentIndex = 3);
+                  _navigateToTab(3);
                 },
                 secondaryActionLabel: 'Request Funds',
                 secondaryActionIcon: Icons.add_rounded,
@@ -5661,7 +5681,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 onPrimaryAction: _openNewRequestModal,
                 secondaryActionLabel: 'View History',
                 secondaryActionIcon: Icons.history_rounded,
-                onSecondaryAction: () => setState(() => _currentIndex = 1),
+                onSecondaryAction: () => _navigateToTab(1),
               ),
 
               // Slide 3: Pending Pipeline Value
@@ -5676,7 +5696,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 primaryActionLabel: 'Track Pipeline',
                 primaryActionIcon: Icons.timeline_rounded,
                 primaryActionColor: const Color(0xFF0284C7),
-                onPrimaryAction: () => setState(() => _currentIndex = 1),
+                onPrimaryAction: () => _navigateToTab(1),
                 secondaryActionLabel: 'Confirm Funds',
                 secondaryActionIcon: Icons.price_check_rounded,
                 onSecondaryAction: () {
@@ -5705,7 +5725,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 onPrimaryAction: _showMyPayslipsModal,
                 secondaryActionLabel: 'Update Bank',
                 secondaryActionIcon: Icons.account_balance_wallet_rounded,
-                onSecondaryAction: () => setState(() => _currentIndex = 3),
+                onSecondaryAction: () => _navigateToTab(3),
               ),
             ],
           ),

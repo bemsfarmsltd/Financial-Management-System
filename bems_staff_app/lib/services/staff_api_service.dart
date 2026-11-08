@@ -1045,8 +1045,8 @@ class StaffApiService {
           orElse: () => null,
         );
 
-        final bool isOffDay = todayDay != null && todayDay['isOffDay'] == true
-            ? true
+        final bool isOffDay = todayDay != null
+            ? (todayDay['isOffDay'] == true)
             : (now.weekday == DateTime.saturday || now.weekday == DateTime.sunday);
 
         final bool isExempt = data['employee']?['workSchedule']?['isExempt'] == true;
