@@ -37,7 +37,7 @@ export default function FundingView() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('envelopes');
   const [selectedSubId, setSelectedSubId] = useState<string>('ALL');
 
@@ -90,7 +90,7 @@ export default function FundingView() {
   useEffect(() => {
     let current = true;
     api('banks')
-      .then((d) => {
+      .then((d: any) => {
         if (current && d.banks) setBankList(d.banks);
       })
       .catch(() => {});
@@ -120,7 +120,7 @@ export default function FundingView() {
   async function run(work: () => Promise<void>) {
     setBusy(true);
     setError('');
-    setMessage('');
+    setNotice(null);
     try {
       await work();
       await load();
@@ -248,10 +248,10 @@ export default function FundingView() {
             challengeId: proof.id,
             challengeToken: proof.token,
           });
-          setMessage('Funding control issue acknowledged.');
+          setNotice('Funding control issue acknowledged.');
         } else {
           await api('pool-control', { ...payload, challengeId: proof.id, challengeToken: proof.token });
-          setMessage('Funding pool controls updated successfully.');
+          setNotice('Funding pool controls updated successfully.');
         }
       } else {
         const payload = { id: confirmation.id, confirmationHash: confirmation.confirmationHash };
@@ -261,7 +261,7 @@ export default function FundingView() {
           challengeId: proof.id,
           challengeToken: proof.token,
         });
-        setMessage(
+        setNotice(
           confirmation.category === 'VENDOR'
             ? 'Vendor payment approved and queued for direct Monnify transfer.'
             : 'GMD-approved funds credited once to staff wallets. Staff can withdraw anytime.'
@@ -271,916 +271,1086 @@ export default function FundingView() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-16">
-      {/* Top Banner Navigation / Breadcrumb */}
-      <div className="border-b border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-4 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/finance"
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-orange-400 transition"
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0, paddingBottom: '24px' }}>
+      {/* Toast Notice */}
+      {notice && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: '#e9f7f1',
+            color: '#137b62',
+            border: '1px solid #c2ebd9',
+            padding: '8px 14px',
+            borderRadius: '8px',
+            fontSize: '11px',
+            fontWeight: 600,
+            boxShadow: '0 2px 8px rgba(19, 123, 98, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Check size={14} />
+            <span>{notice}</span>
+          </div>
+          <button
+            onClick={() => setNotice(null)}
+            style={{ background: 'none', border: 0, color: '#137b62', cursor: 'pointer', padding: '2px' }}
           >
-            ← Back to Dashboard
-          </Link>
-          <span className="text-slate-600">/</span>
-          <div className="flex items-center gap-2">
-            <Wallet className="w-5 h-5 text-orange-500" />
-            <span className="text-sm font-bold text-slate-200">Wallet Management & Subsidiary Treasury</span>
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: '#fff1f2',
+            color: '#be123c',
+            border: '1px solid #fecdd3',
+            padding: '8px 14px',
+            borderRadius: '8px',
+            fontSize: '11px',
+            fontWeight: 600,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AlertCircle size={14} />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => setError('')}
+            style={{ background: 'none', border: 0, color: '#be123c', cursor: 'pointer' }}
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
+      {data?.walletMode === false && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: '#fffbeb',
+            color: '#92400e',
+            border: '1px solid #fef3c7',
+            padding: '8px 14px',
+            borderRadius: '8px',
+            fontSize: '11px',
+            fontWeight: 600,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AlertTriangle size={14} color="#d97706" />
+            <span>
+              <strong>Safe Read-Only Review Active:</strong> Live Monnify transfers are safely disabled. All subsidiary budget envelopes, balances, and previews are fully reviewable.
+            </span>
+          </div>
+          <span style={{ fontSize: '9px', fontWeight: 800, background: '#fef3c7', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: '4px', textTransform: 'uppercase' }}>
+            SANDBOX MODE
+          </span>
+        </div>
+      )}
+
+      {/* Executive Header */}
+      <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+        <div>
+          <span style={{ fontSize: '8px', letterSpacing: '1.2px', fontWeight: 800, color: '#7d8ba1', textTransform: 'uppercase' }}>
+            TREASURY & WALLET GOVERNANCE · {activeSubsidiary ? activeSubsidiary.legalName : 'BEMS GROUP HQ'}
+          </span>
+          <h1 style={{ fontSize: '18px', letterSpacing: '-0.3px', fontWeight: 700, margin: '4px 0 2px', color: '#17253d' }}>
+            Wallets & Funded Budgets
+          </h1>
+          <p style={{ fontSize: '11px', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
+            Central Monnify funding account, subsidiary budget envelopes, and sole-GMD release execution.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {/* Subsidiary Workspace Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Building2 size={13} color="#ea580c" />
+            <select
+              value={selectedSubId}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedSubId(val);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('bems_active_org', val);
+                  const url = new URL(window.location.href);
+                  if (val === 'ALL') url.searchParams.delete('org');
+                  else url.searchParams.set('org', val);
+                  window.history.replaceState(null, '', url.toString());
+                }
+              }}
+              style={{
+                background: '#fff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '7px',
+                padding: '5px 10px',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#1e293b',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="ALL">All Subsidiaries (Holding HQ View)</option>
+              {data?.organizations?.map((org: any) => (
+                <option key={org.id} value={org.id}>
+                  {org.type === 'GROUP' ? '🏛️' : '🏢'} {org.legalName} ({org.code})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            disabled={busy}
+            onClick={() =>
+              run(async () => {
+                await api('funding/refresh', {});
+                setNotice('Verified Monnify pool balance refreshed.');
+              })
+            }
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '6px 10px',
+              borderRadius: '7px',
+              fontSize: '10px',
+              fontWeight: 650,
+              background: '#fff',
+              color: '#263c60',
+              border: '1px solid #dce4ef',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+              cursor: 'pointer',
+            }}
+          >
+            <RefreshCw size={12} className={busy ? 'animate-spin' : ''} />
+            Refresh Balance
+          </button>
+
+          <button
+            disabled={busy}
+            onClick={() =>
+              run(async () => {
+                const result = await api('reconcile', {});
+                setNotice(result.message || 'Reconciliation completed.');
+              })
+            }
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '6px 10px',
+              borderRadius: '7px',
+              fontSize: '10px',
+              fontWeight: 650,
+              background: '#fff',
+              color: '#263c60',
+              border: '1px solid #dce4ef',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+              cursor: 'pointer',
+            }}
+          >
+            <ShieldCheck size={12} color="#059669" />
+            Reconcile Provider
+          </button>
+
+          <button
+            onClick={() => {
+              setOrganizationId(activeSubsidiary?.id || '');
+              setLabel('');
+              setAmount('');
+              setParentId('');
+              setShowAllocateModal(true);
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '6px 12px',
+              borderRadius: '7px',
+              fontSize: '11px',
+              fontWeight: 700,
+              background: '#ea580c',
+              color: '#ffffff',
+              border: 0,
+              boxShadow: '0 1px 3px rgba(234, 88, 12, 0.25)',
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={13} /> Allocate Funded Budget
+          </button>
+        </div>
+      </header>
+
+      {/* Top Metric Strip (4 High-Density Sleek White Cards ~75px height) */}
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px' }}>
+        {/* Metric 1: Verified Available */}
+        <div
+          style={{
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            padding: '10px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.6px', color: '#64748b', textTransform: 'uppercase' }}>
+              Monnify Verified Available
+            </span>
+            <Landmark size={13} color="#059669" />
+          </div>
+          <div>
+            <strong style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2, color: '#059669', display: 'block' }}>
+              {data?.funding ? walletMoney(data.funding.availableMinor) : '₦0.00'}
+            </strong>
+            <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#64748b' }}>
+              {data?.funding?.fresh ? '● Real-time verified' : '○ Refresh required'}
+            </p>
           </div>
         </div>
 
-        {/* Subsidiary Workspace Switcher Dropdown */}
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
-            <Building2 className="w-3.5 h-3.5 text-orange-400" /> Workspace:
-          </label>
-          <select
-            value={selectedSubId}
-            onChange={(e) => {
-              const val = e.target.value;
-              setSelectedSubId(val);
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('bems_active_org', val);
-                const url = new URL(window.location.href);
-                if (val === 'ALL') url.searchParams.delete('org');
-                else url.searchParams.set('org', val);
-                window.history.replaceState(null, '', url.toString());
-              }
+        {/* Metric 2: Funded Budget Envelopes */}
+        <div
+          style={{
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            padding: '10px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.6px', color: '#64748b', textTransform: 'uppercase' }}>
+              Funded Budget Envelopes
+            </span>
+            <Layers size={13} color="#2563eb" />
+          </div>
+          <div>
+            <strong style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2, color: '#17253d', display: 'block' }}>
+              {data?.funding ? walletMoney(data.funding.envelopeMinor) : '₦0.00'}
+            </strong>
+            <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#64748b' }}>
+              {data?.envelopes?.length || 0} active subsidiary envelopes
+            </p>
+          </div>
+        </div>
+
+        {/* Metric 3: Staff Liabilities */}
+        <div
+          style={{
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            padding: '10px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.6px', color: '#b45309', textTransform: 'uppercase' }}>
+              Unsettled Staff Liabilities
+            </span>
+            <Wallet size={13} color="#d97706" />
+          </div>
+          <div>
+            <strong style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2, color: '#d97706', display: 'block' }}>
+              {data?.funding ? walletMoney(data.funding.liabilityMinor) : '₦0.00'}
+            </strong>
+            <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#64748b' }}>
+              GMD-approved funds in staff wallets
+            </p>
+          </div>
+        </div>
+
+        {/* Metric 4: Unallocated Capacity */}
+        <div
+          style={{
+            background: '#ffffff',
+            border: '1px solid #fed7aa',
+            borderRadius: '10px',
+            padding: '10px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            boxShadow: '0 1px 4px rgba(234, 88, 12, 0.05)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.6px', color: '#ea580c', textTransform: 'uppercase' }}>
+              Unallocated Capacity
+            </span>
+            <Coins size={13} color="#ea580c" />
+          </div>
+          <div>
+            <strong style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2, color: '#ea580c', display: 'block' }}>
+              {data?.funding ? walletMoney(data.funding.freeMinor) : '₦0.00'}
+            </strong>
+            <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#64748b' }}>
+              Available to allocate to subsidiaries
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Multi-Tab Toolbar & Search (Light Enterprise Styling) */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 10,
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          borderRadius: 10,
+          padding: '8px 12px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {[
+            { key: 'envelopes', label: 'Subsidiary Budget Envelopes', count: filteredEnvelopes.length },
+            { key: 'releases', label: 'Fund Release Previews', count: filteredProposals.length },
+            { key: 'vendors', label: 'Verified Suppliers', count: filteredVendors.length },
+            { key: 'transfers', label: 'Transfers & Ledger', count: filteredTransfers.length },
+            { key: 'staff', label: 'Staff Wallets Directory', count: filteredStaffWallets.length },
+          ].map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key as TabKey)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '5px 12px',
+                  borderRadius: 7,
+                  fontSize: '11px',
+                  fontWeight: isActive ? 700 : 600,
+                  background: isActive ? '#ea580c' : '#f8fafc',
+                  color: isActive ? '#ffffff' : '#475569',
+                  border: isActive ? '1px solid #ea580c' : '1px solid #e2e8f0',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>{tab.label}</span>
+                <span
+                  style={{
+                    fontSize: '9px',
+                    fontWeight: 800,
+                    padding: '1px 5px',
+                    borderRadius: 10,
+                    background: isActive ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+                    color: isActive ? '#ffffff' : '#64748b',
+                  }}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search */}
+        <div style={{ position: 'relative', minWidth: 220 }}>
+          <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <input
+            type="text"
+            placeholder="Search by label, reference, or name…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '5px 10px 5px 30px',
+              borderRadius: 6,
+              border: '1px solid #cbd5e1',
+              fontSize: 11,
+              background: '#ffffff',
+              boxSizing: 'border-box',
+              color: '#1e293b',
             }}
-            className="bg-slate-900 border border-slate-700 text-xs font-semibold rounded-lg px-3 py-1.5 text-slate-200 focus:outline-none focus:border-orange-500 cursor-pointer"
-          >
-            <option value="ALL">🏢 All Subsidiaries (Holding HQ View)</option>
-            {data?.organizations?.map((org: any) => (
-              <option key={org.id} value={org.id}>
-                {org.type === 'GROUP' ? '🏛️' : '🏢'} {org.legalName} ({org.code})
-              </option>
-            ))}
-          </select>
+          />
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 pt-6 space-y-6">
-        {/* Alerts & Notifications */}
-        {error && (
-          <div className="flex items-start gap-3 p-4 rounded-xl border border-rose-500/30 bg-rose-950/40 text-rose-300 text-sm">
-            <AlertCircle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">{error}</div>
-            <button onClick={() => setError('')} className="text-rose-400 hover:text-rose-200">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {message && (
-          <div className="flex items-start gap-3 p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/40 text-emerald-300 text-sm">
-            <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">{message}</div>
-            <button onClick={() => setMessage('')} className="text-emerald-400 hover:text-emerald-200">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {data?.walletMode === false && (
-          <div className="flex items-center justify-between p-4 rounded-xl border border-amber-500/30 bg-amber-950/30 text-amber-200 text-sm">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
-              <div>
-                <strong>Safe Read-Only Review Active:</strong> Monnify live transfer execution is guarded until sandbox testing and opening reconciliation are finalized. All balances, envelopes, and release previews remain 100% reviewable.
-              </div>
+      {/* TAB 1: SUBSIDIARY BUDGET ENVELOPES */}
+      {activeTab === 'envelopes' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {filteredEnvelopes.length === 0 ? (
+            <div style={{ padding: '36px', textAlign: 'center', background: '#fff', borderRadius: 12, border: '1px dashed #cbd5e1', color: '#64748b', fontSize: 12 }}>
+              No funded budget envelopes found for this workspace. Click &ldquo;Allocate Funded Budget&rdquo; above to create one.
             </div>
-            <span className="text-xs font-mono font-semibold bg-amber-900/60 border border-amber-600/40 px-2.5 py-1 rounded-md text-amber-300">
-              SANDBOX MODE
-            </span>
-          </div>
-        )}
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: '12px' }}>
+              {filteredEnvelopes.map((e: any) => {
+                const allocated = BigInt(e.allocatedMinor || '0');
+                const remaining = BigInt(e.remainingMinor || '0');
+                const pct = allocated > BigInt(0) ? Number((remaining * BigInt(100)) / allocated) : 0;
 
-        {/* Central Monnify Master Pool Liquidity Deck */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-orange-600/5 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold tracking-wider uppercase text-orange-400 bg-orange-950/60 border border-orange-800/40 px-2.5 py-0.5 rounded-full">
-                  Central Liquidity Pool
-                </span>
-                <span className="text-xs text-slate-400 font-mono">
-                  {data?.funding ? `Acct •••• ${data.funding.sourceLastFour}` : 'Unconfigured'}
-                </span>
-              </div>
-              <h2 className="text-2xl font-black text-white tracking-tight mt-1 flex items-center gap-2">
-                Monnify Corporate Master Account
-              </h2>
-              <p className="text-xs text-slate-400">
-                One Monnify funding account backs all subsidiary budget envelopes and staff internal wallets.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                disabled={busy}
-                onClick={() =>
-                  run(async () => {
-                    await api('funding/refresh', {});
-                    setMessage('Provider balance verified and updated from Monnify.');
-                  })
-                }
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
-                Refresh Monnify Balance
-              </button>
-
-              <button
-                disabled={busy}
-                onClick={() =>
-                  run(async () => {
-                    const result = await api('reconcile', {});
-                    setMessage(result.message || 'Reconciliation completed.');
-                  })
-                }
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition disabled:opacity-50"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                Reconcile Provider
-              </button>
-
-              {data?.funding && (
-                <button
-                  disabled={busy}
-                  onClick={() => setConfirmation({ operation: data.funding.paused ? 'RESUME' : 'PAUSE' })}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-950/50 hover:bg-amber-900/60 text-amber-300 text-xs font-semibold border border-amber-800/40 transition disabled:opacity-50"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  {data.funding.paused ? 'Resume Pool' : 'Pause Pool'}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Metric Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                Monnify Verified Available
-              </span>
-              <div className="text-xl font-black text-emerald-400 mt-1">
-                {data?.funding ? walletMoney(data.funding.availableMinor) : '₦0.00'}
-              </div>
-              <span className="text-[10px] text-slate-500 mt-1 block">
-                {data?.funding?.fresh ? '● Real-time verified' : '○ Refresh required'}
-              </span>
-            </div>
-
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                Funded Budget Envelopes
-              </span>
-              <div className="text-xl font-black text-slate-200 mt-1">
-                {data?.funding ? walletMoney(data.funding.envelopeMinor) : '₦0.00'}
-              </div>
-              <span className="text-[10px] text-slate-500 mt-1 block">
-                {data?.envelopes?.length || 0} active subsidiary envelopes
-              </span>
-            </div>
-
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                Unsettled Staff Liabilities
-              </span>
-              <div className="text-xl font-black text-amber-400 mt-1">
-                {data?.funding ? walletMoney(data.funding.liabilityMinor) : '₦0.00'}
-              </div>
-              <span className="text-[10px] text-slate-500 mt-1 block">
-                GMD-approved funds in staff wallets
-              </span>
-            </div>
-
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                Company Fee Reserve
-              </span>
-              <div className="text-xl font-black text-slate-300 mt-1">
-                {data?.funding ? walletMoney(data.funding.feeReserveMinor) : '₦0.00'}
-              </div>
-              <span className="text-[10px] text-slate-500 mt-1 block">
-                Monnify transfer fees (Company pays)
-              </span>
-            </div>
-
-            <div className="bg-slate-950/60 border border-orange-500/20 bg-gradient-to-b from-orange-950/20 to-transparent rounded-xl p-4">
-              <span className="text-[11px] font-semibold text-orange-300 uppercase tracking-wider block">
-                Unallocated Capacity
-              </span>
-              <div className="text-xl font-black text-orange-400 mt-1">
-                {data?.funding ? walletMoney(data.funding.freeMinor) : '₦0.00'}
-              </div>
-              <span className="text-[10px] text-orange-300/60 mt-1 block">
-                Available to allocate to subsidiaries
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Active Subsidiary Scope Bar (if filtered) */}
-        {activeSubsidiary && (
-          <div className="bg-gradient-to-r from-orange-950/30 via-slate-900 to-slate-900 border border-orange-500/30 rounded-xl px-5 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-orange-600/20 border border-orange-500/40 flex items-center justify-center font-bold text-orange-400 text-xs">
-                {activeSubsidiary.code?.slice(0, 2) || 'SUB'}
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  {activeSubsidiary.legalName}
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                    {activeSubsidiary.code}
-                  </span>
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Showing budget envelopes, staff liabilities, and payment releases scoped to this entity.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setSelectedSubId('ALL')}
-              className="text-xs font-semibold text-orange-400 hover:text-orange-300 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 transition"
-            >
-              Reset to Group HQ View
-            </button>
-          </div>
-        )}
-
-        {/* Tab Navigation & Search Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-2 overflow-x-auto">
-            {[
-              { key: 'envelopes', label: 'Subsidiary Budget Envelopes', icon: Layers, count: filteredEnvelopes.length },
-              { key: 'releases', label: 'Fund Release Previews', icon: ArrowUpRight, count: filteredProposals.length },
-              { key: 'vendors', label: 'Verified Suppliers', icon: Landmark, count: filteredVendors.length },
-              { key: 'transfers', label: 'Transfers & Ledger', icon: BookOpen, count: filteredTransfers.length },
-              { key: 'staff', label: 'Staff Wallets Directory', icon: Users, count: filteredStaffWallets.length },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key as TabKey)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                    isActive
-                      ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30'
-                      : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-slate-800'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {tab.label}
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      isActive ? 'bg-orange-700 text-orange-100' : 'bg-slate-800 text-slate-500'
-                    }`}
+                return (
+                  <div
+                    key={e.id}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 12,
+                      padding: '14px 16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                    }}
                   >
-                    {tab.count}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                      <div>
+                        <span style={{ fontSize: '8px', fontWeight: 800, color: '#ea580c', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
+                          {e.organizationName}
+                        </span>
+                        <h4 style={{ fontSize: '13px', fontWeight: 700, margin: '2px 0 0', color: '#17253d' }}>
+                          {e.label}
+                        </h4>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '9px',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: 12,
+                          background: e.status === 'ACTIVE' ? '#ecfdf5' : '#f8fafc',
+                          color: e.status === 'ACTIVE' ? '#059669' : '#64748b',
+                          border: e.status === 'ACTIVE' ? '1px solid #a7f3d0' : '1px solid #e2e8f0',
+                        }}
+                      >
+                        {e.status}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '8px 0', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+                      <div>
+                        <span style={{ fontSize: '9px', color: '#64748b', display: 'block' }}>Remaining Buffer</span>
+                        <strong style={{ fontSize: '14px', fontWeight: 800, color: '#059669' }}>{walletMoney(e.remainingMinor)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9px', color: '#64748b', display: 'block' }}>Total Allocated</span>
+                        <strong style={{ fontSize: '13px', fontWeight: 700, color: '#475569' }}>{walletMoney(e.allocatedMinor)}</strong>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#64748b', marginBottom: 4 }}>
+                        <span>Capacity Remaining</span>
+                        <span style={{ fontWeight: 700 }}>{pct}%</span>
+                      </div>
+                      <div style={{ width: '100%', height: 6, borderRadius: 3, background: '#f1f5f9', overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${Math.min(100, Math.max(0, pct))}%`,
+                            background: pct > 30 ? '#10b981' : pct > 10 ? '#f59e0b' : '#ef4444',
+                            borderRadius: 3,
+                            transition: 'width 0.4s ease',
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {e.status === 'ACTIVE' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                        <button
+                          disabled={busy}
+                          onClick={() => {
+                            setAdjustment(e);
+                            setAdjustAmount('');
+                            setTargetEnvelopeId('');
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: '5px 10px',
+                            borderRadius: 6,
+                            background: '#f8fafc',
+                            color: '#334155',
+                            border: '1px solid #cbd5e1',
+                            fontSize: '10px',
+                            fontWeight: 650,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Adjust / Reallocate
+                        </button>
+                        <button
+                          disabled={busy}
+                          onClick={() =>
+                            run(async () => {
+                              await api('envelopes/' + e.id, { operation: 'CLOSE', expectedVersion: e.version }, 'PATCH');
+                              setNotice('Budget closed. Unused funds returned to the central Monnify pool.');
+                            })
+                          }
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: 6,
+                            background: '#fff',
+                            color: '#94a3b8',
+                            border: '1px solid #e2e8f0',
+                            fontSize: '10px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Close
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* TAB 2: FUND RELEASE PREVIEWS */}
+      {activeTab === 'releases' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {filteredProposals.length === 0 ? (
+            <div style={{ padding: '36px', textAlign: 'center', background: '#fff', borderRadius: 12, border: '1px dashed #cbd5e1', color: '#64748b', fontSize: 12 }}>
+              No pending release previews in queue. Prepare a preview below to stage a payment.
+            </div>
+          ) : (
+            filteredProposals.map((p: any) => (
+              <div
+                key={p.id}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 12,
+                  padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: '10px', fontWeight: 800, color: '#475569', fontFamily: 'monospace' }}>
+                        {p.requestNumber}
+                      </span>
+                      <span style={{ fontSize: '9px', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa' }}>
+                        {p.category}
+                      </span>
+                    </div>
+                    <h4 style={{ fontSize: '14px', fontWeight: 700, margin: '4px 0 2px', color: '#17253d' }}>
+                      {p.title}
+                    </h4>
+                    <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>{p.purpose}</p>
+                  </div>
+
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '9px', color: '#64748b', display: 'block' }}>Release Total</span>
+                    <strong style={{ fontSize: '16px', fontWeight: 800, color: '#059669' }}>
+                      {walletMoney(p.amountMinor)}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Beneficiaries List */}
+                <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 12px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '8px', fontWeight: 800, color: '#64748b', letterSpacing: '0.6px', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Beneficiaries & Destination Bank Snapshots ({p.items?.length || 0})
                   </span>
-                </button>
-              );
-            })}
-          </div>
+                  {p.items?.map((item: any) => {
+                    let bankDetails = null;
+                    try {
+                      if (item.bankSnapshot) bankDetails = JSON.parse(item.bankSnapshot);
+                    } catch {}
+                    return (
+                      <div
+                        key={item.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                          fontSize: '11px',
+                          padding: '4px 0',
+                          borderBottom: '1px solid #f1f5f9',
+                        }}
+                      >
+                        <div>
+                          <strong style={{ color: '#1e293b' }}>{item.employeeName}</strong>
+                          <span style={{ color: '#64748b', fontSize: '10px', marginLeft: 4 }}>
+                            ({item.employeeNumber}) · {item.organizationName}
+                          </span>
+                          {bankDetails && (
+                            <div style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>
+                              🏦 {bankDetails.accountName} · ending in •••• {bankDetails.accountNumber?.slice(-4)} ({bankDetails.bankCode})
+                            </div>
+                          )}
+                        </div>
+                        <strong style={{ color: '#334155', fontFamily: 'monospace' }}>{walletMoney(item.amountMinor)}</strong>
+                      </div>
+                    );
+                  })}
+                </div>
 
-          {/* Quick Search */}
-          <div className="relative min-w-[240px]">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Search by label, entity, staff, or reference…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500"
-            />
-          </div>
-        </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <span style={{ fontSize: '10px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Clock size={12} /> Expires {new Date(p.expiresAt).toLocaleTimeString()}
+                  </span>
 
-        {/* TAB 1: SUBSIDIARY BUDGET ENVELOPES */}
-        {activeTab === 'envelopes' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+                  <button
+                    disabled={busy || !data?.canApprove}
+                    onClick={() => setConfirmation(p)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '6px 14px',
+                      borderRadius: 7,
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      background: data?.canApprove ? '#ea580c' : '#f1f5f9',
+                      color: data?.canApprove ? '#ffffff' : '#94a3b8',
+                      border: data?.canApprove ? 0 : '1px solid #e2e8f0',
+                      cursor: data?.canApprove ? 'pointer' : 'not-allowed',
+                      boxShadow: data?.canApprove ? '0 1px 3px rgba(234, 88, 12, 0.25)' : 'none',
+                    }}
+                  >
+                    <ShieldCheck size={13} />
+                    {data?.canApprove ? 'Review & Execute Approval' : 'GMD Authorization Required'}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+
+          {/* Prepare Release Preview */}
+          <div
+            style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: 12,
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <h4 style={{ fontSize: '12px', fontWeight: 700, color: '#17253d', margin: 0 }}>
+              Prepare New Release Preview
+            </h4>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
               <div>
-                <h3 className="text-base font-bold text-white">Subsidiary Funded Budget Envelopes</h3>
-                <p className="text-xs text-slate-400">
-                  Pre-funded allocations backed by the corporate Monnify pool. No disbursements can exceed remaining envelope capacity.
-                </p>
+                <label style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Payment Category</label>
+                <select
+                  value={sourceType}
+                  onChange={(e) => {
+                    setSourceType(e.target.value);
+                    setSourceId('');
+                    setMapping({});
+                  }}
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff' }}
+                >
+                  <option value="REQUEST">Staff Request / Project / Allowance</option>
+                  <option value="PAYROLL_BATCH">Whole Salary Net Batch</option>
+                </select>
               </div>
 
-              <button
-                disabled={busy}
-                onClick={() => {
-                  setOrganizationId(activeSubsidiary?.id || '');
-                  setLabel('');
-                  setAmount('');
-                  setParentId('');
-                  setShowAllocateModal(true);
-                }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold transition shadow-lg shadow-orange-600/20"
-              >
-                <Plus className="w-4 h-4" /> Allocate Funded Budget
-              </button>
+              <div>
+                <label style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Approved Source</label>
+                <select
+                  value={sourceId}
+                  onChange={(e) => {
+                    setSourceId(e.target.value);
+                    setMapping({});
+                  }}
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff' }}
+                >
+                  <option value="">Select approved payment source…</option>
+                  {(sourceType === 'REQUEST' ? data?.requests : data?.payrollBatches)?.map((r: any) => (
+                    <option key={r.id} value={r.id}>
+                      {sourceType === 'REQUEST'
+                        ? `${r.vendor?.name || r.requester?.legalName} — ${r.title} — ${walletMoney(r.amountMinor)}`
+                        : `Salary ${r.period?.year}-${r.period?.month} · ${walletMoney(r.totalNetMinor)}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            {filteredEnvelopes.length === 0 ? (
-              <div className="p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/40 text-slate-400 text-xs">
-                No funded budget envelopes found for this workspace. Click &ldquo;Allocate Funded Budget&rdquo; to create one.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredEnvelopes.map((e: any) => {
-                  const allocated = BigInt(e.allocatedMinor || '0');
-                  const remaining = BigInt(e.remainingMinor || '0');
-                  const utilized = allocated - remaining;
-                  const pct = allocated > BigInt(0) ? Number((remaining * BigInt(100)) / allocated) : 0;
-
+            {releaseOrganizations.length > 0 && (
+              <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <span style={{ fontSize: '10px', fontWeight: 700, color: '#334155' }}>
+                  Map to Subsidiary Budget Envelopes:
+                </span>
+                {releaseOrganizations.map((orgId) => {
+                  const org = data?.organizations?.find((o: any) => o.id === orgId);
+                  const orgEnvelopes = data?.envelopes?.filter(
+                    (e: any) => e.organizationId === orgId && e.status === 'ACTIVE'
+                  );
                   return (
-                    <div
-                      key={e.id}
-                      className="bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 shadow-lg space-y-4 transition"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wider block">
-                            {e.organizationName}
-                          </span>
-                          <h4 className="text-sm font-bold text-white mt-0.5">{e.label}</h4>
-                        </div>
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            e.status === 'ACTIVE'
-                              ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/40'
-                              : 'bg-slate-800 text-slate-400'
-                          }`}
-                        >
-                          {e.status}
-                        </span>
-                      </div>
-
-                      {/* Financial Balances */}
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/60">
-                        <div>
-                          <span className="text-[10px] text-slate-500 block">Remaining Buffer</span>
-                          <span className="text-base font-black text-emerald-400">{walletMoney(e.remainingMinor)}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-500 block">Total Allocated</span>
-                          <span className="text-sm font-bold text-slate-300">{walletMoney(e.allocatedMinor)}</span>
-                        </div>
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div>
-                        <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                          <span>Capacity remaining</span>
-                          <span className="font-mono font-semibold">{pct}%</span>
-                        </div>
-                        <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-                          <div
-                            className={`h-full transition-all duration-500 rounded-full ${
-                              pct > 30 ? 'bg-emerald-500' : pct > 10 ? 'bg-amber-500' : 'bg-rose-500'
-                            }`}
-                            style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      {e.status === 'ACTIVE' && (
-                        <div className="flex items-center gap-2 pt-2">
-                          <button
-                            disabled={busy}
-                            onClick={() => {
-                              setAdjustment(e);
-                              setAdjustAmount('');
-                              setTargetEnvelopeId('');
-                            }}
-                            className="flex-1 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition text-center"
-                          >
-                            Adjust / Reallocate
-                          </button>
-                          <button
-                            disabled={busy}
-                            onClick={() =>
-                              run(async () => {
-                                await api('envelopes/' + e.id, { operation: 'CLOSE', expectedVersion: e.version }, 'PATCH');
-                                setMessage('Budget closed. Unused funds returned to the central Monnify pool.');
-                              })
-                            }
-                            className="px-3 py-1.5 rounded-lg bg-slate-800/60 hover:bg-rose-950/50 hover:text-rose-300 text-slate-400 text-xs font-semibold border border-slate-700/60 transition"
-                          >
-                            Close
-                          </button>
-                        </div>
-                      )}
+                    <div key={orgId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, fontSize: 11 }}>
+                      <span style={{ fontWeight: 600, color: '#475569' }}>{org?.legalName || 'Subsidiary'}:</span>
+                      <select
+                        value={mapping[orgId] || ''}
+                        onChange={(e) => setMapping({ ...mapping, [orgId]: e.target.value })}
+                        style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff', minWidth: 240 }}
+                      >
+                        <option value="">Choose funded budget envelope…</option>
+                        {orgEnvelopes?.map((env: any) => (
+                          <option key={env.id} value={env.id}>
+                            {env.label} · {walletMoney(env.remainingMinor)} remaining
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   );
                 })}
               </div>
             )}
+
+            <button
+              disabled={
+                busy ||
+                !sourceId ||
+                !releaseOrganizations.length ||
+                releaseOrganizations.some((o) => !mapping[o])
+              }
+              onClick={() =>
+                run(async () => {
+                  await api('releases', { sourceType, sourceId, envelopesByOrganization: mapping });
+                  setNotice('Release preview staged. Awaiting designated GMD approval.');
+                  setSourceId('');
+                  setMapping({});
+                })
+              }
+              style={{
+                alignSelf: 'flex-start',
+                padding: '6px 14px',
+                borderRadius: 7,
+                fontSize: 11,
+                fontWeight: 700,
+                background: '#ea580c',
+                color: '#fff',
+                border: 0,
+                cursor: 'pointer',
+              }}
+            >
+              Prepare GMD Preview →
+            </button>
           </div>
-        )}
+        </section>
+      )}
 
-        {/* TAB 2: FUND RELEASE PREVIEWS & QUEUE */}
-        {activeTab === 'releases' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-white">Pending GMD Release Previews</h3>
-                <p className="text-xs text-slate-400">
-                  Exact preview verification required prior to fund credit. Only the designated Group Managing Director can execute release.
-                </p>
-              </div>
+      {/* TAB 3: VERIFIED SUPPLIERS */}
+      {activeTab === 'vendors' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => {
+                setVendorId('');
+                setVendorBankCode('');
+                setVendorAccount('');
+                setVendorPassword('');
+                setShowVendorModal(true);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '6px 12px',
+                borderRadius: 7,
+                fontSize: 11,
+                fontWeight: 650,
+                background: '#fff',
+                color: '#263c60',
+                border: '1px solid #dce4ef',
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={12} color="#ea580c" /> Verify Supplier Bank
+            </button>
+          </div>
+
+          {filteredVendors.length === 0 ? (
+            <div style={{ padding: '36px', textAlign: 'center', background: '#fff', borderRadius: 12, border: '1px dashed #cbd5e1', color: '#64748b', fontSize: 12 }}>
+              No commercial suppliers found matching your search.
             </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+              {filteredVendors.map((v: any) => (
+                <div
+                  key={v.id}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 10,
+                    padding: 14,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+                    <div>
+                      <h4 style={{ fontSize: 13, fontWeight: 700, margin: 0, color: '#17253d' }}>{v.name}</h4>
+                      <span style={{ fontSize: 10, color: '#64748b' }}>{v.accountName || 'No bank recorded'}</span>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 12,
+                        background: v.verifiedBankAt ? '#ecfdf5' : '#fffbeb',
+                        color: v.verifiedBankAt ? '#059669' : '#d97706',
+                        border: v.verifiedBankAt ? '1px solid #a7f3d0' : '1px solid #fde68a',
+                      }}
+                    >
+                      {v.verifiedBankAt ? 'Verified' : 'Pending'}
+                    </span>
+                  </div>
 
-            {filteredProposals.length === 0 ? (
-              <div className="p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/40 text-slate-400 text-xs">
-                No pending release proposals in queue. Generate a preview below to stage a payment.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {filteredProposals.map((p: any) => (
+                  <div style={{ background: '#f8fafc', padding: 8, borderRadius: 6, fontSize: 10, fontFamily: 'monospace', color: '#475569' }}>
+                    <div>Bank Code: {v.bankCode || '—'}</div>
+                    <div>Account: •••• {v.lastFour || '—'}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* TAB 4: TRANSFERS & LEDGER */}
+      {activeTab === 'transfers' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              onClick={() => setLedgerSubTab('transfers')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 6,
+                fontSize: 10,
+                fontWeight: 700,
+                background: ledgerSubTab === 'transfers' ? '#ea580c' : '#f8fafc',
+                color: ledgerSubTab === 'transfers' ? '#fff' : '#64748b',
+                border: ledgerSubTab === 'transfers' ? '1px solid #ea580c' : '1px solid #e2e8f0',
+                cursor: 'pointer',
+              }}
+            >
+              Monnify Bank Transfers
+            </button>
+            <button
+              onClick={() => setLedgerSubTab('journals')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 6,
+                fontSize: 10,
+                fontWeight: 700,
+                background: ledgerSubTab === 'journals' ? '#ea580c' : '#f8fafc',
+                color: ledgerSubTab === 'journals' ? '#fff' : '#64748b',
+                border: ledgerSubTab === 'journals' ? '1px solid #ea580c' : '1px solid #e2e8f0',
+                cursor: 'pointer',
+              }}
+            >
+              Double-Entry General Ledger
+            </button>
+          </div>
+
+          {ledgerSubTab === 'transfers' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {filteredTransfers.length === 0 ? (
+                <div style={{ padding: '36px', textAlign: 'center', background: '#fff', borderRadius: 12, border: '1px dashed #cbd5e1', color: '#64748b', fontSize: 12 }}>
+                  No Monnify bank transfers recorded yet.
+                </div>
+              ) : (
+                filteredTransfers.map((t: any) => (
                   <div
-                    key={p.id}
-                    className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4"
+                    key={t.id}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 8,
+                      padding: '10px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      fontSize: 11,
+                    }}
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/60 pb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-orange-600/20 border border-orange-500/30 flex items-center justify-center font-black text-orange-400">
-                          ₦
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono font-bold text-slate-300">{p.requestNumber}</span>
-                            <span className="text-[10px] font-bold px-2 py-0.2 rounded bg-orange-950 text-orange-300 border border-orange-800/40">
-                              {p.category}
-                            </span>
-                          </div>
-                          <h4 className="text-sm font-bold text-white mt-0.5">{p.title}</h4>
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <span className="text-[10px] text-slate-500 block">Total Release Amount</span>
-                        <span className="text-xl font-black text-emerald-400">{walletMoney(p.amountMinor)}</span>
+                    <div>
+                      <strong style={{ color: '#17253d' }}>{t.beneficiaryName}</strong>
+                      <span style={{ fontSize: 9, marginLeft: 6, padding: '1px 5px', borderRadius: 4, background: '#f1f5f9', color: '#64748b' }}>
+                        {t.targetType}
+                      </span>
+                      <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>
+                        Ref: {t.reference} · Acct ending in •••• {t.lastFour}
                       </div>
                     </div>
 
-                    <p className="text-xs text-slate-300">{p.purpose}</p>
-
-                    {/* Beneficiary Breakdown */}
-                    <div className="bg-slate-950/60 rounded-xl p-3 space-y-2 border border-slate-800/60">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Beneficiaries & Destination Bank Snapshots ({p.items?.length || 0})
+                    <div style={{ textAlign: 'right' }}>
+                      <strong style={{ fontSize: 13, color: '#059669', fontFamily: 'monospace', display: 'block' }}>
+                        {walletMoney(t.amountMinor)}
+                      </strong>
+                      <span style={{ fontSize: 9, color: '#94a3b8' }}>
+                        Fee: {walletMoney(t.feeMinor)} (Company paid)
                       </span>
-                      {p.items?.map((item: any) => {
-                        let bankDetails = null;
-                        try {
-                          if (item.bankSnapshot) bankDetails = JSON.parse(item.bankSnapshot);
-                        } catch {}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {(!data?.journals || data.journals.length === 0) ? (
+                <div style={{ padding: '36px', textAlign: 'center', background: '#fff', borderRadius: 12, border: '1px dashed #cbd5e1', color: '#64748b', fontSize: 12 }}>
+                  No double-entry journal postings found.
+                </div>
+              ) : (
+                data.journals.map((j: any) => (
+                  <div
+                    key={j.id}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 8,
+                      padding: 12,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <strong style={{ color: '#ea580c', fontFamily: 'monospace' }}>{j.kind} · Ref: {j.reference}</strong>
+                      <span style={{ color: '#94a3b8' }}>{new Date(j.createdAt).toLocaleString()}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 10, fontFamily: 'monospace' }}>
+                      {j.entries?.map((entry: any) => {
+                        const amt = BigInt(entry.amountMinor || '0');
+                        const isCredit = amt >= BigInt(0);
                         return (
                           <div
-                            key={item.id}
-                            className="flex flex-wrap items-center justify-between gap-2 text-xs py-1.5 border-b border-slate-900 last:border-0"
+                            key={entry.id}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              background: '#f8fafc',
+                              padding: '4px 8px',
+                              borderRadius: 4,
+                              border: '1px solid #f1f5f9',
+                            }}
                           >
-                            <div>
-                              <strong className="text-slate-200">{item.employeeName}</strong>
-                              <span className="text-slate-500 text-[11px] ml-1.5">
-                                ({item.employeeNumber}) · {item.organizationName}
-                              </span>
-                              {bankDetails && (
-                                <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                                  🏦 {bankDetails.accountName} · ending in •••• {bankDetails.accountNumber?.slice(-4)} (Code: {bankDetails.bankCode})
-                                </div>
-                              )}
-                            </div>
-                            <span className="font-bold font-mono text-slate-300">{walletMoney(item.amountMinor)}</span>
+                            <span style={{ color: '#475569' }}>{entry.accountKey}</span>
+                            <span style={{ color: isCredit ? '#059669' : '#dc2626', fontWeight: 700 }}>
+                              {isCredit ? '+' : ''}{walletMoney(entry.amountMinor)}
+                            </span>
                           </div>
                         );
                       })}
                     </div>
-
-                    {/* Approval Action */}
-                    <div className="flex items-center justify-between pt-2">
-                      <span className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" /> Expires {new Date(p.expiresAt).toLocaleTimeString()}
-                      </span>
-
-                      <button
-                        disabled={busy || !data?.canApprove}
-                        onClick={() => setConfirmation(p)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition shadow-lg ${
-                          data?.canApprove
-                            ? 'bg-orange-600 hover:bg-orange-500 text-white shadow-orange-600/30'
-                            : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-                        }`}
-                      >
-                        <ShieldCheck className="w-4 h-4" />
-                        {data?.canApprove ? 'Review & Execute Approval' : 'GMD Authorization Required'}
-                      </button>
-                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {/* Prepare Release Preview Form */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
-              <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                <Plus className="w-4 h-4 text-orange-400" /> Prepare New Release Preview
-              </h4>
-              <p className="text-xs text-slate-400">
-                Link an approved fund request or salary batch to subsidiary budget envelopes to generate a preview for GMD sign-off.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-medium text-slate-400 block mb-1">Payment Category</label>
-                  <select
-                    value={sourceType}
-                    onChange={(e) => {
-                      setSourceType(e.target.value);
-                      setSourceId('');
-                      setMapping({});
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
-                  >
-                    <option value="REQUEST">Staff Request / Project / Allowance</option>
-                    <option value="PAYROLL_BATCH">Whole Salary Net Batch</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium text-slate-400 block mb-1">Approved Source</label>
-                  <select
-                    value={sourceId}
-                    onChange={(e) => {
-                      setSourceId(e.target.value);
-                      setMapping({});
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
-                  >
-                    <option value="">Select approved payment source…</option>
-                    {(sourceType === 'REQUEST' ? data?.requests : data?.payrollBatches)?.map((r: any) => (
-                      <option key={r.id} value={r.id}>
-                        {sourceType === 'REQUEST'
-                          ? `${r.vendor?.name || r.requester?.legalName} — ${r.title} — ${walletMoney(r.amountMinor)}`
-                          : `Salary ${r.period?.year}-${r.period?.month} · ${walletMoney(r.totalNetMinor)}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Envelope Mapping */}
-              {releaseOrganizations.length > 0 && (
-                <div className="bg-slate-950/60 rounded-xl p-4 border border-slate-800/80 space-y-3">
-                  <span className="text-xs font-bold text-slate-300 block">
-                    Map to Subsidiary Budget Envelopes
-                  </span>
-                  {releaseOrganizations.map((orgId) => {
-                    const org = data?.organizations?.find((o: any) => o.id === orgId);
-                    const orgEnvelopes = data?.envelopes?.filter(
-                      (e: any) => e.organizationId === orgId && e.status === 'ACTIVE'
-                    );
-
-                    return (
-                      <div key={orgId} className="flex flex-wrap items-center justify-between gap-3 text-xs">
-                        <span className="text-slate-300 font-semibold">{org?.legalName || 'Subsidiary'}:</span>
-                        <select
-                          value={mapping[orgId] || ''}
-                          onChange={(e) => setMapping({ ...mapping, [orgId]: e.target.value })}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-orange-500 min-w-[280px]"
-                        >
-                          <option value="">Choose funded budget envelope…</option>
-                          {orgEnvelopes?.map((env: any) => (
-                            <option key={env.id} value={env.id}>
-                              {env.label} · {walletMoney(env.remainingMinor)} available
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    );
-                  })}
-                </div>
+                ))
               )}
-
-              <button
-                disabled={
-                  busy ||
-                  !sourceId ||
-                  !releaseOrganizations.length ||
-                  releaseOrganizations.some((o) => !mapping[o])
-                }
-                onClick={() =>
-                  run(async () => {
-                    await api('releases', { sourceType, sourceId, envelopesByOrganization: mapping });
-                    setMessage('Release preview staged. Awaiting designated GMD approval.');
-                    setSourceId('');
-                    setMapping({});
-                  })
-                }
-                className="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold transition disabled:opacity-50"
-              >
-                Prepare GMD Preview →
-              </button>
             </div>
-          </div>
-        )}
+          )}
+        </section>
+      )}
 
-        {/* TAB 3: VERIFIED SUPPLIERS & VENDORS */}
-        {activeTab === 'vendors' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-white">Verified Supplier Banking Registry</h3>
-                <p className="text-xs text-slate-400">
-                  Approved commercial suppliers with verified NIBSS accounts for direct Monnify settlements.
-                </p>
-              </div>
-
-              <button
-                onClick={() => {
-                  setVendorId('');
-                  setVendorBankCode('');
-                  setVendorAccount('');
-                  setVendorPassword('');
-                  setShowVendorModal(true);
-                }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition"
-              >
-                <Plus className="w-4 h-4 text-orange-400" /> Verify Supplier Bank
-              </button>
+      {/* TAB 5: STAFF WALLETS DIRECTORY */}
+      {activeTab === 'staff' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {filteredStaffWallets.length === 0 ? (
+            <div style={{ padding: '36px', textAlign: 'center', background: '#fff', borderRadius: 12, border: '1px dashed #cbd5e1', color: '#64748b', fontSize: 12 }}>
+              No staff members found in this subsidiary workspace.
             </div>
-
-            {filteredVendors.length === 0 ? (
-              <div className="p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/40 text-slate-400 text-xs">
-                No vendors found matching your filter criteria.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredVendors.map((v: any) => (
-                  <div
-                    key={v.id}
-                    className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h4 className="text-sm font-bold text-white">{v.name}</h4>
-                        <span className="text-[11px] font-mono text-slate-400">
-                          {v.accountName || 'No bank recorded'}
+          ) : (
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 11 }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                    <th style={{ padding: '10px 14px' }}>Employee</th>
+                    <th style={{ padding: '10px 14px' }}>Subsidiary</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'right' }}>Available Balance</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'right' }}>Pending Withdrawals</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'right' }}>Settled Lifetime</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStaffWallets.map((staff: any) => (
+                    <tr key={staff.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ fontWeight: 650, color: '#17253d' }}>{staff.legalName}</div>
+                        <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>
+                          {staff.employeeNumber} · {staff.role}
                         </span>
-                      </div>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          v.verifiedBankAt
-                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/40'
-                            : 'bg-amber-950 text-amber-400 border border-amber-800/40'
-                        }`}
-                      >
-                        {v.verifiedBankAt ? 'Verified' : 'Pending Verification'}
-                      </span>
-                    </div>
-
-                    <div className="bg-slate-950/60 rounded-xl p-3 text-xs space-y-1 font-mono text-slate-300">
-                      <div>Bank Code: {v.bankCode || '—'}</div>
-                      <div>Account: •••• {v.lastFour || '—'}</div>
-                      {v.verifiedBankAt && (
-                        <div className="text-[10px] text-slate-500">
-                          Verified {new Date(v.verifiedBankAt).toLocaleDateString()}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB 4: TRANSFERS & DOUBLE-ENTRY LEDGER */}
-        {activeTab === 'transfers' && (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-white">Financial Audit Trail & Transfer Ledger</h3>
-                <p className="text-xs text-slate-400">
-                  Every disbursement and budget transfer has immutable double-entry journal records.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setLedgerSubTab('transfers')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                    ledgerSubTab === 'transfers'
-                      ? 'bg-slate-800 text-orange-400 border border-orange-500/40'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  Monnify Bank Transfers
-                </button>
-                <button
-                  onClick={() => setLedgerSubTab('journals')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                    ledgerSubTab === 'journals'
-                      ? 'bg-slate-800 text-orange-400 border border-orange-500/40'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  Double-Entry Journal
-                </button>
-              </div>
-            </div>
-
-            {ledgerSubTab === 'transfers' ? (
-              <div className="space-y-3">
-                {filteredTransfers.length === 0 ? (
-                  <div className="p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/40 text-slate-400 text-xs">
-                    No Monnify bank transfers recorded yet.
-                  </div>
-                ) : (
-                  filteredTransfers.map((t: any) => (
-                    <div
-                      key={t.id}
-                      className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 text-xs"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <strong className="text-slate-100 text-sm">{t.beneficiaryName}</strong>
-                          <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                            {t.targetType}
-                          </span>
-                        </div>
-                        <div className="text-[11px] font-mono text-slate-400">
-                          Ref: {t.reference} · Acct ending in •••• {t.lastFour}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-6">
-                        <div className="text-right">
-                          <span className="text-sm font-black text-emerald-400 block font-mono">
-                            {walletMoney(t.amountMinor)}
-                          </span>
-                          <span className="text-[10px] text-slate-500">
-                            Company Fee: {walletMoney(t.feeMinor)}
-                          </span>
-                        </div>
-
-                        <span
-                          className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                            t.status === 'SETTLED'
-                              ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/40'
-                              : t.status === 'HELD'
-                              ? 'bg-amber-950 text-amber-400 border border-amber-800/40'
-                              : 'bg-slate-800 text-slate-400'
-                          }`}
-                        >
-                          {t.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {(!data?.journals || data.journals.length === 0) ? (
-                  <div className="p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/40 text-slate-400 text-xs">
-                    No double-entry journal postings found.
-                  </div>
-                ) : (
-                  data.journals.map((j: any) => (
-                    <div
-                      key={j.id}
-                      className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-2 text-xs"
-                    >
-                      <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-orange-400 font-mono">{j.kind}</span>
-                          <span className="text-[11px] text-slate-500 font-mono">Ref: {j.reference}</span>
-                        </div>
-                        <span className="text-[11px] text-slate-500">
-                          {new Date(j.createdAt).toLocaleString()}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
-                        {j.entries?.map((entry: any) => {
-                          const amt = BigInt(entry.amountMinor || '0');
-                          const isCredit = amt >= BigInt(0);
-                          return (
-                            <div
-                              key={entry.id}
-                              className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800/60"
-                            >
-                              <span className="text-slate-400">{entry.accountKey}</span>
-                              <span className={isCredit ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                                {isCredit ? '+' : ''}{walletMoney(entry.amountMinor)}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB 5: STAFF WALLETS DIRECTORY */}
-        {activeTab === 'staff' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-white">Staff Wallet Balances</h3>
-                <p className="text-xs text-slate-400">
-                  Approved staff wallet balances and lifetime settlements per subsidiary.
-                </p>
-              </div>
-            </div>
-
-            {filteredStaffWallets.length === 0 ? (
-              <div className="p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/40 text-slate-400 text-xs">
-                No staff members found in this subsidiary workspace.
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/60">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
-                    <tr>
-                      <th className="p-4">Employee</th>
-                      <th className="p-4">Subsidiary</th>
-                      <th className="p-4 text-right">Available Balance</th>
-                      <th className="p-4 text-right">Pending Withdrawals</th>
-                      <th className="p-4 text-right">Settled Lifetime</th>
+                      </td>
+                      <td style={{ padding: '10px 14px', color: '#475569' }}>{staff.organizationName}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>
+                        {walletMoney(staff.availableMinor)}
+                      </td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', color: '#d97706', fontFamily: 'monospace' }}>
+                        {walletMoney(staff.heldMinor)}
+                      </td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', color: '#64748b', fontFamily: 'monospace' }}>
+                        {walletMoney(staff.settledMinor)}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 font-mono">
-                    {filteredStaffWallets.map((staff: any) => (
-                      <tr key={staff.id} className="hover:bg-slate-800/40 transition">
-                        <td className="p-4 font-sans font-medium text-slate-200">
-                          <div>{staff.legalName}</div>
-                          <span className="text-[10px] font-mono text-slate-500">
-                            {staff.employeeNumber} · {staff.role}
-                          </span>
-                        </td>
-                        <td className="p-4 font-sans text-slate-400">{staff.organizationName}</td>
-                        <td className="p-4 text-right font-black text-emerald-400">
-                          {walletMoney(staff.availableMinor)}
-                        </td>
-                        <td className="p-4 text-right text-amber-400">
-                          {walletMoney(staff.heldMinor)}
-                        </td>
-                        <td className="p-4 text-right text-slate-300">
-                          {walletMoney(staff.settledMinor)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
 
-      {/* MODAL 1: ALLOCATE FUNDED BUDGET */}
+      {/* ALLOCATE MODAL (LIGHT THEME) */}
       {showAllocateModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-        >
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Plus className="w-4 h-4 text-orange-500" /> Allocate Funded Budget Envelope
+        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ width: '100%', maxWidth: 480, background: '#ffffff', borderRadius: 12, padding: 20, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: '#17253d', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Plus size={14} color="#ea580c" /> Allocate Funded Budget Envelope
               </h3>
-              <button
-                onClick={() => setShowAllocateModal(false)}
-                className="text-slate-400 hover:text-slate-200"
-              >
-                <X className="w-4 h-4" />
+              <button onClick={() => setShowAllocateModal(false)} style={{ background: 'none', border: 0, color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={16} />
               </button>
             </div>
 
-            <p className="text-xs text-slate-400">
-              Allocating a budget locks central Monnify backing to this subsidiary. No staff wallet funds are credited until individual requests are approved.
+            <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>
+              Locks central Monnify backing to a chosen subsidiary budget. Individual requests will draw from this allocation upon GMD sign-off.
             </p>
 
-            <div className="space-y-3 text-xs">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">Target Subsidiary *</label>
+                <label style={{ fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Target Subsidiary *</label>
                 <select
                   value={organizationId}
                   onChange={(e) => setOrganizationId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-orange-500"
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff' }}
                 >
                   <option value="">Select subsidiary…</option>
                   {data?.organizations?.map((org: any) => (
@@ -1192,36 +1362,36 @@ export default function FundingView() {
               </div>
 
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">Budget Envelope Label *</label>
+                <label style={{ fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Budget Envelope Label *</label>
                 <input
                   type="text"
-                  placeholder="e.g. Q4 Logistics & Fleet Fuel Allocation"
+                  placeholder="e.g. Q4 Logistics & Operations Budget"
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-orange-500"
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff', boxSizing: 'border-box' }}
                 />
               </div>
 
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">Allocation Amount (₦) *</label>
+                <label style={{ fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Allocation Amount (₦) *</label>
                 <input
                   type="text"
                   inputMode="decimal"
                   placeholder="e.g. 5000000.00"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 font-mono text-sm focus:outline-none focus:border-orange-500"
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff', boxSizing: 'border-box', fontFamily: 'monospace' }}
                 />
               </div>
 
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">Parent Budget (Optional)</label>
+                <label style={{ fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Parent Budget (Optional)</label>
                 <select
                   value={parentId}
                   onChange={(e) => setParentId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-orange-500"
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff' }}
                 >
-                  <option value="">Allocate directly from Central Unallocated Pool</option>
+                  <option value="">Allocate from Central Unallocated Pool</option>
                   {data?.envelopes
                     ?.filter((e: any) => e.status === 'ACTIVE')
                     ?.map((e: any) => (
@@ -1233,11 +1403,11 @@ export default function FundingView() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
               <button
                 type="button"
                 onClick={() => setShowAllocateModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200"
+                style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
               >
                 Cancel
               </button>
@@ -1259,10 +1429,10 @@ export default function FundingView() {
                     );
                     allocationKey.current = crypto.randomUUID();
                     setShowAllocateModal(false);
-                    setMessage('Funded budget envelope allocated successfully.');
+                    setNotice('Funded budget envelope allocated successfully.');
                   })
                 }
-                className="px-5 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold transition disabled:opacity-50"
+                style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: '#ea580c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
                 Confirm Allocation
               </button>
@@ -1271,32 +1441,30 @@ export default function FundingView() {
         </div>
       )}
 
-      {/* MODAL 2: ADJUST / REALLOCATE ENVELOPE */}
+      {/* ADJUST MODAL (LIGHT THEME) */}
       {adjustment && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-        >
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white">Adjust Budget: {adjustment.label}</h3>
-              <button onClick={() => setAdjustment(null)} className="text-slate-400 hover:text-slate-200">
-                <X className="w-4 h-4" />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ width: '100%', maxWidth: 480, background: '#ffffff', borderRadius: 12, padding: 20, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: '#17253d' }}>
+                Adjust: {adjustment.label}
+              </h3>
+              <button onClick={() => setAdjustment(null)} style={{ background: 'none', border: 0, color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={16} />
               </button>
             </div>
 
-            <p className="text-xs text-slate-400">
-              Current Available Buffer: <strong>{walletMoney(adjustment.remainingMinor)}</strong>
+            <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>
+              Current Remaining Capacity: <strong style={{ color: '#059669' }}>{walletMoney(adjustment.remainingMinor)}</strong>
             </p>
 
-            <div className="space-y-3 text-xs">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">Adjustment Operation</label>
+                <label style={{ fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Operation</label>
                 <select
                   value={adjustOperation}
                   onChange={(e) => setAdjustOperation(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-orange-500"
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff' }}
                 >
                   <option value="INCREASE">Increase from Central Unallocated Pool</option>
                   <option value="REDUCE">Return Unused Funds to Central Pool</option>
@@ -1305,26 +1473,26 @@ export default function FundingView() {
               </div>
 
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">Adjustment Amount (₦) *</label>
+                <label style={{ fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Adjustment Amount (₦) *</label>
                 <input
                   type="text"
                   inputMode="decimal"
-                  placeholder="e.g. 1000000.00"
+                  placeholder="e.g. 500000.00"
                   value={adjustAmount}
                   onChange={(e) => setAdjustAmount(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 font-mono text-sm focus:outline-none focus:border-orange-500"
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff', boxSizing: 'border-box', fontFamily: 'monospace' }}
                 />
               </div>
 
               {adjustOperation === 'REALLOCATE' && (
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">Destination Target Envelope *</label>
+                  <label style={{ fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Target Destination Envelope *</label>
                   <select
                     value={targetEnvelopeId}
                     onChange={(e) => setTargetEnvelopeId(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-orange-500"
+                    style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff' }}
                   >
-                    <option value="">Select destination envelope…</option>
+                    <option value="">Select target envelope…</option>
                     {data?.envelopes
                       ?.filter((e: any) => e.status === 'ACTIVE' && e.id !== adjustment.id)
                       ?.map((e: any) => (
@@ -1337,11 +1505,11 @@ export default function FundingView() {
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
               <button
                 type="button"
                 onClick={() => setAdjustment(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200"
+                style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
               >
                 Cancel
               </button>
@@ -1361,46 +1529,38 @@ export default function FundingView() {
                       'PATCH'
                     );
                     setAdjustment(null);
-                    setMessage('Budget envelope adjusted successfully.');
+                    setNotice('Budget envelope adjusted successfully.');
                   })
                 }
-                className="px-5 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold transition disabled:opacity-50"
+                style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: '#ea580c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
-                Apply Adjustment
+                Apply Change
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL 3: VERIFY SUPPLIER BANK */}
+      {/* VENDOR MODAL (LIGHT THEME) */}
       {showVendorModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-        >
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Landmark className="w-4 h-4 text-orange-500" /> Verify Commercial Supplier Bank Account
+        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ width: '100%', maxWidth: 480, background: '#ffffff', borderRadius: 12, padding: 20, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: '#17253d', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Landmark size={14} color="#ea580c" /> Verify Supplier Bank Account
               </h3>
-              <button onClick={() => setShowVendorModal(false)} className="text-slate-400 hover:text-slate-200">
-                <X className="w-4 h-4" />
+              <button onClick={() => setShowVendorModal(false)} style={{ background: 'none', border: 0, color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={16} />
               </button>
             </div>
 
-            <p className="text-xs text-slate-400">
-              NIBSS bank resolution checks verified legal supplier account names. Executive password verification is required.
-            </p>
-
-            <div className="space-y-3 text-xs">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">Approved Supplier *</label>
+                <label style={{ fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Supplier *</label>
                 <select
                   value={vendorId}
                   onChange={(e) => setVendorId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-orange-500"
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff' }}
                 >
                   <option value="">Select supplier…</option>
                   {data?.vendors?.map((v: any) => (
@@ -1412,23 +1572,21 @@ export default function FundingView() {
               </div>
 
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">Bank *</label>
+                <label style={{ fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Bank *</label>
                 <select
                   value={vendorBankCode}
                   onChange={(e) => setVendorBankCode(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-orange-500"
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff' }}
                 >
                   <option value="">Select bank…</option>
                   {bankList.map((b) => (
-                    <option key={b.code} value={b.code}>
-                      {b.name}
-                    </option>
+                    <option key={b.code} value={b.code}>{b.name}</option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">10-Digit NUBAN Account Number *</label>
+                <label style={{ fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>10-Digit NUBAN Account Number *</label>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -1436,39 +1594,33 @@ export default function FundingView() {
                   placeholder="0123456789"
                   value={vendorAccount}
                   onChange={(e) => setVendorAccount(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 font-mono text-sm focus:outline-none focus:border-orange-500"
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff', boxSizing: 'border-box', fontFamily: 'monospace' }}
                 />
               </div>
 
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">Your Executive Password *</label>
+                <label style={{ fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Executive Password *</label>
                 <input
                   type="password"
                   autoComplete="current-password"
                   value={vendorPassword}
                   onChange={(e) => setVendorPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-orange-500"
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
               <button
                 type="button"
                 onClick={() => setShowVendorModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200"
+                style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={
-                  busy ||
-                  !vendorId ||
-                  !vendorBankCode ||
-                  !vendorPassword ||
-                  !/^\d{10}$/.test(vendorAccount)
-                }
+                disabled={busy || !vendorId || !vendorBankCode || !vendorPassword || !/^\d{10}$/.test(vendorAccount)}
                 onClick={() =>
                   run(async () => {
                     try {
@@ -1478,14 +1630,14 @@ export default function FundingView() {
                         password: vendorPassword,
                       });
                       setShowVendorModal(false);
-                      setMessage('Supplier bank account successfully verified.');
+                      setNotice('Supplier bank account successfully verified.');
                     } finally {
                       setVendorPassword('');
                       setVendorAccount('');
                     }
                   })
                 }
-                className="px-5 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold transition disabled:opacity-50"
+                style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: '#ea580c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
                 Verify & Save
               </button>
@@ -1494,68 +1646,50 @@ export default function FundingView() {
         </div>
       )}
 
-      {/* MODAL 4: GMD SECURE APPROVAL & SIGN-OFF */}
+      {/* CONFIRMATION MODAL (GMD SIGN-OFF, LIGHT THEME) */}
       {confirmation && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
-        >
-          <div className="w-full max-w-xl bg-slate-900 border border-orange-500/40 rounded-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-orange-400" />
-                <h3 className="text-base font-black text-white">
-                  {confirmation.operation ||
-                    (confirmation.category === 'VENDOR'
-                      ? 'Approve Verified Supplier Payment'
-                      : 'Executive Release Approval (GMD)')}
+        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ width: '100%', maxWidth: 520, background: '#ffffff', borderRadius: 12, padding: 20, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', border: '1px solid #fed7aa', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <ShieldCheck size={16} color="#ea580c" />
+                <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: '#17253d' }}>
+                  {confirmation.operation || (confirmation.category === 'VENDOR' ? 'Approve Verified Supplier Payment' : 'Executive Release Approval (GMD)')}
                 </h3>
               </div>
-              <button
-                onClick={() => {
-                  setConfirmation(null);
-                  setPassword('');
-                }}
-                className="text-slate-400 hover:text-slate-200"
-              >
-                <X className="w-4 h-4" />
+              <button onClick={() => { setConfirmation(null); setPassword(''); }} style={{ background: 'none', border: 0, color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={16} />
               </button>
             </div>
 
             {confirmation.amountMinor && (
-              <div className="bg-orange-950/30 border border-orange-500/30 rounded-xl p-4 text-xs space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-300 font-semibold">Exact Total Authorized:</span>
-                  <span className="text-base font-black font-mono text-emerald-400">
+              <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 14px', fontSize: 11, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#475569', fontWeight: 600 }}>Total Authorized Release:</span>
+                  <strong style={{ fontSize: 15, color: '#059669', fontFamily: 'monospace' }}>
                     {walletMoney(confirmation.amountMinor)}
-                  </span>
+                  </strong>
                 </div>
-                <p className="text-[11px] text-slate-400">
+                <p style={{ margin: 0, fontSize: 10, color: '#64748b' }}>
                   {confirmation.category === 'VENDOR'
-                    ? 'Reserves funded envelope capacity and queues direct provider transfer to the verified vendor account.'
-                    : 'GMD-authorized funds will be credited to staff internal wallets. Staff can execute self-service withdrawals anytime without additional approval.'}
+                    ? 'Reserves budget capacity and queues direct provider payout to the verified vendor account.'
+                    : 'GMD-authorized funds will be credited to staff internal wallets. Staff can withdraw anytime.'}
                 </p>
               </div>
             )}
 
             {confirmation.items && (
-              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Beneficiary Breakdown
+              <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                  Beneficiaries Breakdown
                 </span>
                 {confirmation.items.map((i: any) => (
-                  <div
-                    key={i.id}
-                    className="flex justify-between items-center p-2 rounded bg-slate-950/60 border border-slate-800 text-xs"
-                  >
+                  <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', background: '#f8fafc', borderRadius: 6, fontSize: 11, border: '1px solid #f1f5f9' }}>
                     <div>
-                      <strong className="text-slate-200">{i.employeeName}</strong>
-                      <span className="text-slate-500 text-[11px] ml-1">
-                        ({i.employeeNumber}) · {i.organizationName}
-                      </span>
+                      <strong style={{ color: '#17253d' }}>{i.employeeName}</strong>
+                      <span style={{ fontSize: 10, color: '#64748b', marginLeft: 4 }}>({i.employeeNumber}) · {i.organizationName}</span>
                     </div>
-                    <span className="font-mono font-bold text-slate-300">{walletMoney(i.amountMinor)}</span>
+                    <strong style={{ fontFamily: 'monospace', color: '#475569' }}>{walletMoney(i.amountMinor)}</strong>
                   </div>
                 ))}
               </div>
@@ -1563,23 +1697,18 @@ export default function FundingView() {
 
             {confirmation.operation === 'ACKNOWLEDGE_ISSUE' && (
               <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1">
-                  Reconciliation Note (min 10 characters) *
-                </label>
+                <label style={{ fontSize: 10, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Reconciliation Note (min 10 characters) *</label>
                 <input
                   type="text"
                   value={confirmation.note || ''}
                   onChange={(e) => setConfirmation({ ...confirmation, note: e.target.value })}
-                  placeholder="Detail the verified provider resolution…"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff', boxSizing: 'border-box' }}
                 />
               </div>
             )}
 
             <div>
-              <label className="text-xs font-bold text-orange-400 block mb-1">
-                Enter Current GMD Password to Authorize *
-              </label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#ea580c', display: 'block', marginBottom: 4 }}>Enter Current GMD Password to Authorize *</label>
               <input
                 autoFocus
                 type="password"
@@ -1587,33 +1716,25 @@ export default function FundingView() {
                 placeholder="Enter password…"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-950 border border-orange-500/40 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-mono"
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #fed7aa', fontSize: 12, background: '#fff', boxSizing: 'border-box', fontFamily: 'monospace' }}
               />
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
               <button
                 type="button"
-                onClick={() => {
-                  setConfirmation(null);
-                  setPassword('');
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200"
+                onClick={() => { setConfirmation(null); setPassword(''); }}
+                style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={
-                  busy ||
-                  !password ||
-                  (confirmation.operation === 'ACKNOWLEDGE_ISSUE' &&
-                    (confirmation.note || '').trim().length < 10)
-                }
+                disabled={busy || !password || (confirmation.operation === 'ACKNOWLEDGE_ISSUE' && (confirmation.note || '').trim().length < 10)}
                 onClick={handleConfirmAction}
-                className="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold transition disabled:opacity-50 shadow-lg shadow-orange-600/30"
+                style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: '#ea580c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
-                {busy ? 'Authenticating & Signing…' : 'Authorize Release Transaction →'}
+                {busy ? 'Authenticating…' : 'Authorize Release →'}
               </button>
             </div>
           </div>

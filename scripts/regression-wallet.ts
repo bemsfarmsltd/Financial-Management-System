@@ -1,3 +1,4 @@
+import {backedFeeReserve} from '../src/lib/wallet/fees';
 import {runVendorRegressions} from './regression-wallet-vendor';
 import {hashPassword} from '../src/lib/auth';
 import {issueWalletChallenge} from '../src/lib/wallet/security';
@@ -8,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/lib/prisma';
 import {createFundedEnvelope,fundingState,minorUnits,readOwnWallet,readFundingDashboard,walletTransaction} from '../src/lib/wallet/core';
 import {approveWalletRelease,stageWalletRelease} from '../src/lib/wallet/releases';
-import { providerAmountMinor } from '../src/lib/wallet/monnify-balance';
+import { providerAmountMinor, verifiedMonnifyBalance } from '../src/lib/wallet/monnify-balance';
 if (new URL(process.env.DATABASE_URL || '').pathname !== '/bems_corrections_test') throw new Error('Wallet tests require the isolated bems_corrections_test database.');
 if (!new URL(process.env.DATABASE_URL!).searchParams.get('schema')?.startsWith('wallet_regression_')) throw new Error('Use the isolated wallet schema runner.');
 process.env.BEMS_SUPER_ADMIN_GMD_ACCESS='false';
@@ -34,6 +35,11 @@ async function main() {
   assert.throws(() => providerAmountMinor('1.001'));
   assert.throws(() => minorUnits('1.2'));
   assert.throws(() => minorUnits('-1'));
+  assert.equal(verifiedMonnifyBalance({availableBalance:285.32,ledgerBalance:285.32},'9999999999'),BigInt(28532));
+  assert.throws(()=>verifiedMonnifyBalance({availableBalance:1,accountNumber:'1111111111'},'9999999999'),{code:'PROVIDER_SOURCE_MISMATCH'});
+  assert.throws(()=>verifiedMonnifyBalance({availableBalance:1,currency:'USD'},'9999999999'),{code:'PROVIDER_SOURCE_MISMATCH'});
+  assert.equal(backedFeeReserve(BigInt(17457),BigInt(9532),BigInt(9000),BigInt(0)),BigInt(7925),'Spent fees cannot be refilled by inventing an unfunded reserve.');
+  assert.equal(backedFeeReserve(BigInt(10000),BigInt(9000),BigInt(5000),BigInt(2000)),BigInt(2000),'Required future fees must preserve a real backing deficit.');
   console.log('PASS exact money parsing rejects fractions of kobo and invalid values');
   const allocate = (key: string) => createFundedEnvelope(admin, { organizationId: org.id, label: 'Test funded envelope', amountMinor: '600000', idempotencyKey: key });
   const allocations = await Promise.allSettled([allocate('A-' + suffix), allocate('B-' + suffix)]);

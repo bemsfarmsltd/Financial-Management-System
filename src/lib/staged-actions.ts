@@ -1312,7 +1312,10 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'approval:' + req.id}, 0))`;
         const settings = await tx.workspaceSetting.findUnique({ where: { organizationId_key: { organizationId: req.subsidiaryId, key: 'approval.controls' } } });
         const policy = settings ? JSON.parse(settings.value) : {};
-        if (newStatus !== 'APPROVED' && policy.requireDecisionReason !== false && !String(reason || '').trim()) throw new Error('A decision reason is required.');
+        const trimmedReason = String(reason || '').trim();
+        if (newStatus !== 'APPROVED' && policy.requireDecisionReason === true && !trimmedReason) {
+          throw new Error('A decision reason is required by subsidiary approval policy.');
+        }
         const assigneeId = materialPayload.disbursementAssigneeId;
         if (newStatus === 'APPROVED' && policy.requireAssignedDisbursementOwner && !assigneeId) throw new Error('Assign an executive to record the payment.');
         if (assigneeId) {
@@ -1321,7 +1324,7 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
         }
         const now = new Date();
         const pendingStep = req.approvalSteps.find((s) => s.status === 'PENDING');
-        const decisionNote = reason || `Executive decision via AI: ${newStatus}`;
+        const decisionNote = trimmedReason || (newStatus === 'REJECTED' ? 'Declined by executive' : newStatus === 'APPROVED' ? 'Approved by executive' : 'Clarification requested by executive');
 
         if (pendingStep) {
           await tx.approvalStep.update({

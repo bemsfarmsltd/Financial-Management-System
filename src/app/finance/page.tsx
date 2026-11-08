@@ -4373,20 +4373,22 @@ export default function Home() {
     return updated;
   });
 
-  // 1. Session verification in progress: branded loading screen
+  // 1. Session verification in progress: branded light-theme loading screen
   if (authStatus === 'checking') {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0a101d', color: '#fff', fontFamily: 'system-ui, sans-serif' }}>
-        <img src="/bems-group-logo.png?v=20261024" alt="BEMS" style={{ width: 56, height: 56, marginBottom: 16 }} />
-        <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.1em', color: '#f97316' }}>BEMS ENTERPRISE SYSTEM</div>
-        <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>Connecting to workspace session...</p>
-        <button
-          type="button"
-          onClick={() => { setAuthStatus('signed-out'); setUser(null); }}
-          style={{ marginTop: 16, background: 'transparent', border: '1px solid #334155', color: '#94a3b8', padding: '6px 14px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
-        >
-          Sign In Manually →
-        </button>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', color: '#0f172a', fontFamily: 'system-ui, sans-serif', padding: '24px' }}>
+        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', padding: '36px 44px', display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: '380px', width: '100%', textAlign: 'center' }}>
+          <img src="/bems-group-logo.png?v=20261024" alt="BEMS" style={{ width: 56, height: 56, marginBottom: 16 }} />
+          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.12em', color: '#ea580c' }}>BEMS ENTERPRISE SYSTEM</div>
+          <p style={{ fontSize: 12, color: '#64748b', marginTop: 8, marginBottom: 4 }}>Connecting to workspace session...</p>
+          <button
+            type="button"
+            onClick={() => { setAuthStatus('signed-out'); setUser(null); }}
+            style={{ marginTop: 18, background: '#f8fafc', border: '1px solid #cbd5e1', color: '#475569', padding: '7px 16px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease' }}
+          >
+            Sign In Manually →
+          </button>
+        </div>
       </div>
     );
   }

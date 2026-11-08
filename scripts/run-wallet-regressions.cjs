@@ -13,6 +13,7 @@ async function main() {
     execFileSync(process.execPath, ['node_modules/prisma/build/index.js','migrate','deploy'], { env, stdio: 'inherit' });
     execFileSync(process.execPath, ['scripts/run-typescript.cjs','scripts/regression-wallet.ts'], { env, stdio: 'inherit' });
     execFileSync(process.execPath, ['scripts/run-typescript.cjs','scripts/regression-wallet-provider.ts'], { env, stdio: 'inherit' });
+    execFileSync(process.execPath, ['scripts/run-typescript.cjs','scripts/regression-wallet-runtime.ts'], { env, stdio: 'inherit' });
   } finally {
     await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
     await admin.$disconnect();

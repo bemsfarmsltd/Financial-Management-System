@@ -1,5 +1,8 @@
 # Monnify wallet implementation record
 
+> Current owner-authorized exception (8 November 2026): Super Admin temporarily has full GMD-equivalent AI and financial approval access. STAFF/HR remain excluded. See [current authority and activation record](TEMPORARY-SUPER-ADMIN-ACCESS-2026-11-08.md). Earlier GMD-only statements describe the default policy, restored by setting BEMS_SUPER_ADMIN_GMD_ACCESS=false.
+
+
 Updated 8 November 2026. We are implementing and reviewing this together. The [specification](MONNIFY-WALLET-SPECIFICATION-2026-11-07.md) records the agreed business rules. The source implementation covers backend, web, both Flutter applications and GMD AI tools. Production deployment is authorized; its database preparation and release boundaries are recorded in [the production release record](PRODUCTION-RELEASE-2026-11-08.md). Merchant authentication and live payment activation remain unverified.
 
 ## Implemented behavior

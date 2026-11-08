@@ -1,6 +1,6 @@
-import {requiredFeeReserve} from './fees';
+import {requiredFeeReserve,backedFeeReserve} from './fees';
 import { randomUUID } from 'node:crypto';
-import { WalletActor, WalletError, fundingState, liveWalletActor, requireWallet, walletJson, walletTransaction } from './core';
+import { WalletActor, WalletError, fundingState, fundingCommitments, liveWalletActor, requireWallet, walletJson, walletTransaction } from './core';
 
 export function providerAmountMinor(value: unknown): bigint {
   if (typeof value !== 'string' && typeof value !== 'number') throw new WalletError('INVALID_PROVIDER_BALANCE', 'Monnify returned an invalid balance.', 502);
@@ -15,6 +15,13 @@ async function providerJson(url: string, init: RequestInit) {
   const body = await response.json();
   if (body?.requestSuccessful !== true || !body.responseBody) throw new WalletError('PROVIDER_UNAVAILABLE', 'Monnify could not verify funding. No new funds were committed.', 503);
   return body.responseBody;
+}
+// Monnify's live customer-wallet response can omit identity echoes. The
+// authenticated request is bound to the configured NGN source; reject any
+// identity fields when supplied that contradict that exact request.
+export function verifiedMonnifyBalance(body: any, sourceAccount: string): bigint {
+  if (!body || (body.accountNumber != null && String(body.accountNumber) !== sourceAccount) || (body.currency != null && body.currency !== 'NGN')) throw new WalletError('PROVIDER_SOURCE_MISMATCH','Provider funding evidence contradicts the configured NGN source.',502);
+  return providerAmountMinor(body.availableBalance);
 }
 export async function refreshMonnifyFunding(actor: WalletActor, forOwnWithdrawal = false) {
   requireWallet();
@@ -35,8 +42,7 @@ export async function refreshMonnifyFunding(actor: WalletActor, forOwnWithdrawal
   const auth = await providerJson(base + '/api/v1/auth/login', { method: 'POST', headers: { Authorization: 'Basic ' + Buffer.from(key + ':' + secret).toString('base64'), 'Content-Type': 'application/json' } });
   if (typeof auth.accessToken !== 'string' || !auth.accessToken) throw new WalletError('PROVIDER_UNAVAILABLE', 'Monnify authentication failed.', 503);
   const body = await providerJson(base + '/api/v2/disbursements/wallet-balance?accountNumber=' + encodeURIComponent(sourceAccount), { headers: { Authorization: 'Bearer ' + auth.accessToken } });
-  if (body.accountNumber !== sourceAccount || body.currency !== 'NGN') throw new WalletError('PROVIDER_SOURCE_MISMATCH', 'Provider funding evidence does not match the configured NGN source.', 502);
-  const amount = providerAmountMinor(body.availableBalance);
+  const amount = verifiedMonnifyBalance(body,sourceAccount);
   const observedAt = observationStartedAt;
   return walletTransaction(async tx => {
     await liveWalletActor(tx, actor);
@@ -45,7 +51,8 @@ export async function refreshMonnifyFunding(actor: WalletActor, forOwnWithdrawal
     if (existing && (existing.environment !== environment || existing.sourceAccount !== sourceAccount)) throw new WalletError('PROVIDER_SOURCE_MISMATCH', 'Changing the funding source requires a reviewed migration.', 409);
     if (!existing || existing.observedAt <= observedAt) {
       const requiredFees=await requiredFeeReserve(tx);
-      const feeReserve=requiredFees>BigInt(reserve)?requiredFees:BigInt(reserve);
+      const commitments=await fundingCommitments(tx);
+      const feeReserve=backedFeeReserve(amount,commitments.envelopeMinor+commitments.liabilityMinor,BigInt(reserve),requiredFees);
       await tx.$executeRaw`INSERT INTO "WalletBalanceObservation" ("id","environment","sourceAccount","availableMinor","observedAt") VALUES (${randomUUID()},${environment!},${sourceAccount},${amount},${observedAt})`;
       await tx.$executeRaw`INSERT INTO "WalletFundingPool" ("id","environment","sourceAccount","availableMinor","feeReserveMinor","observedAt","observationId","paused")
         VALUES ('MONNIFY_NGN',${environment!},${sourceAccount},${amount},${feeReserve},${observedAt},${randomUUID()},true)

@@ -8,12 +8,12 @@ export async function getAuthenticatedStation(request: Request) {
   const secret = request.headers.get('x-station-secret');
   const actor = await getAuthenticatedEmployee(request, { disallowServiceToken: true });
   const executive = hasAnyRole(actor, ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN']);
-  if (!executive && (!code || !secret)) return null;
+  if (!executive && (!code || !secret || !secret.trim())) return null;
   const station = await prisma.attendanceStation.findFirst({
     where: { status: 'ACTIVE', ...(code ? { code } : {}) },
     include: { organization: { select: { legalName: true } } },
   });
-  if (!station) return null;
+  if (!station || !station.activeSecret || !station.activeSecret.trim()) return null;
   if (!executive) {
     const expected = Buffer.from(station.activeSecret);
     const supplied = Buffer.from(secret!);

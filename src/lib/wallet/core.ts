@@ -1,3 +1,4 @@
+import {walletWorkerStatus} from './runtime-state';
 import { canApproveWalletRelease, financialApproverLabel } from '@/lib/gmd-access';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Prisma } from '@prisma/client';
@@ -46,12 +47,16 @@ export async function walletTransaction<T>(work: (tx: Tx) => Promise<T>) {
   }, { timeout: 60000 });
 }
 type Pool = { id: string; environment: string; sourceAccount: string; availableMinor: bigint; feeReserveMinor: bigint; observedAt: Date; observationId: string; paused: boolean; version: number };
-export async function fundingState(tx: Tx, enforce = false) {
-  const [pool] = await tx.$queryRaw<Pool[]>`SELECT * FROM "WalletFundingPool" WHERE "id" = 'MONNIFY_NGN'`;
-  if (!pool) throw new WalletError('FUNDING_NOT_CONFIGURED', 'Monnify funding has not been configured.', 503);
+export async function fundingCommitments(tx: Tx) {
   const [totals] = await tx.$queryRaw<Array<{ envelopeMinor: bigint; liabilityMinor: bigint }>>`
     SELECT (SELECT COALESCE(sum("remainingMinor"),0)::bigint FROM "WalletBudgetEnvelope") AS "envelopeMinor",
       (SELECT COALESCE(sum("availableMinor" + "heldMinor"),0)::bigint FROM "WalletCreditLot") + (SELECT COALESCE(sum("amountMinor"),0)::bigint FROM "WalletWithdrawal" WHERE "targetType"='VENDOR' AND "status" IN ('HELD','SUBMITTING','PENDING','UNKNOWN')) AS "liabilityMinor"`;
+  return totals;
+}
+export async function fundingState(tx: Tx, enforce = false) {
+  const [pool] = await tx.$queryRaw<Pool[]>`SELECT * FROM "WalletFundingPool" WHERE "id" = 'MONNIFY_NGN'`;
+  if (!pool) throw new WalletError('FUNDING_NOT_CONFIGURED', 'Monnify funding has not been configured.', 503);
+  const totals = await fundingCommitments(tx);
   const freeMinor = pool.availableMinor - pool.feeReserveMinor - totals.envelopeMinor - totals.liabilityMinor;
   const age = Date.now() - pool.observedAt.getTime();
   const fresh = age >= -5000 && age <= 30000;
@@ -117,6 +122,7 @@ export async function readOwnWallet(actor: WalletActor) {
   });
 }
 export async function readFundingDashboard(actor: WalletActor) {
+  if(walletEnabled() && ['GMD','SUPER_ADMIN','SYSTEM_ADMIN'].includes(actor.role))await(await import('./monnify-balance')).ensureWalletFundingFresh(actor);
   // Current-account/role checks below also apply in read-only review mode.
   return prisma.$transaction(async tx => {
     await liveWalletActor(tx, actor);
@@ -135,6 +141,6 @@ export async function readFundingDashboard(actor: WalletActor) {
     const organizations = await tx.organization.findMany({ where: { status: 'ACTIVE', defaultCurrency: 'NGN' }, select: { id: true, code: true, legalName: true, type: true } });
     const staffWallets = await tx.$queryRaw<any[]>`SELECT e."id", e."legalName", e."employeeNumber", e."role", COALESCE(a."subsidiaryId", '') AS "subsidiaryId", COALESCE(o."legalName", 'Unassigned') AS "organizationName", COALESCE(sum(c."availableMinor"),0)::bigint AS "availableMinor", COALESCE(sum(c."heldMinor"),0)::bigint AS "heldMinor", COALESCE(sum(c."settledMinor"),0)::bigint AS "settledMinor" FROM "Employee" e LEFT JOIN "EmployeeAssignment" a ON a."employeeId"=e."id" AND a."status"='ACTIVE' AND a."isPrimary"=true LEFT JOIN "Organization" o ON o."id"=a."subsidiaryId" LEFT JOIN "WalletCreditLot" c ON c."employeeId"=e."id" WHERE e."approvalStatus"='APPROVED' AND e."status" IN ('ACTIVE','ON_LEAVE') GROUP BY e."id", e."legalName", e."employeeNumber", e."role", a."subsidiaryId", o."legalName" ORDER BY "availableMinor" DESC, e."legalName" ASC LIMIT 100`;
     const journals = await tx.$queryRaw<any[]>`SELECT j."id", j."kind", j."reference", j."createdAt", j."actorId", COALESCE(json_agg(json_build_object('id', je."id", 'accountKey', je."accountKey", 'amountMinor', je."amountMinor"::text)) FILTER (WHERE je."id" IS NOT NULL), '[]'::json) AS "entries" FROM "WalletJournal" j LEFT JOIN "WalletJournalEntry" je ON je."journalId"=j."id" GROUP BY j."id", j."kind", j."reference", j."createdAt", j."actorId" ORDER BY j."createdAt" DESC LIMIT 50`;
-    return walletJson({ walletMode:walletEnabled(), funding, envelopes, proposals, requests, organizations, vendors, transfers, payrollBatches, issues, staffWallets, journals, approvalLabel: financialApproverLabel(), canApprove: walletEnabled() && canApproveWalletRelease(actor) });
+    return walletJson({ walletMode:walletEnabled(), processing:walletWorkerStatus(), funding, envelopes, proposals, requests, organizations, vendors, transfers, payrollBatches, issues, staffWallets, journals, approvalLabel: financialApproverLabel(), canApprove: walletEnabled() && canApproveWalletRelease(actor) });
   });
 }

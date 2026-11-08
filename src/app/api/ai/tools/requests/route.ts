@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const authorizedScope = await resolveAuthorizedOrganizationScope(actor as any, searchParams.get('subsidiary_id') || searchParams.get('subsidiary') || searchParams.get('organization_id') || 'ALL');
+
   const mode = (searchParams.get('mode') || '').toLowerCase();
   const status = searchParams.get('status') || undefined;
   const isRecurring =
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
       ? true
       : undefined;
   const subsidiary = searchParams.get('subsidiary') || searchParams.get('organization_id') || undefined;
+  const lookup = (searchParams.get('requestId') || searchParams.get('requestNumber') || searchParams.get('id') || searchParams.get('query') || searchParams.get('search') || '').trim();
 
   const where: any = { subsidiaryId: { in: authorizedScope.organizationIds } };
   if (!actor.isExecutive) {
@@ -35,6 +37,13 @@ export async function GET(request: NextRequest) {
   }
   if (status) where.approvalStatus = status.toUpperCase();
   if (isRecurring !== undefined) where.isRecurring = isRecurring;
+  if (lookup) {
+    where.OR = [
+      { id: lookup },
+      { requestNumber: { equals: lookup, mode: 'insensitive' } },
+      { title: { contains: lookup, mode: 'insensitive' } },
+    ];
+  }
   if (subsidiary && subsidiary !== 'ALL') {
     where.subsidiary = {
       OR: [
@@ -163,8 +172,12 @@ export async function POST(request: NextRequest) {
       if (!reqLookup) {
         return NextResponse.json({ ok: false, error: 'requestId or requestNumber is required.' }, { status: 400 });
       }
+      const authorizedScope = await resolveAuthorizedOrganizationScope(actor as any, actor.scopedOrganizationId || 'ALL');
       const reqItem = await db.expenditureRequest.findFirst({
-        where: { OR: [{ id: reqLookup }, { requestNumber: reqLookup }] },
+        where: {
+          OR: [{ id: reqLookup }, { requestNumber: reqLookup }],
+          subsidiaryId: { in: authorizedScope.organizationIds },
+        },
       });
       if (!reqItem) {
         return NextResponse.json({ ok: false, error: `Request "${reqLookup}" not found.` }, { status: 404 });
@@ -351,6 +364,11 @@ export async function POST(request: NextRequest) {
 
     if (!org) {
       return NextResponse.json({ ok: false, error: `Active subsidiary organization "${subsidiaryLookup}" not found.` }, { status: 404 });
+    }
+
+    const createScope = await resolveAuthorizedOrganizationScope(actor as any, actor.scopedOrganizationId || 'ALL');
+    if (!createScope.organizationIds.includes(org.id)) {
+      return NextResponse.json({ ok: false, error: 'Cannot stage requests outside your authorized subsidiary workspace.' }, { status: 403 });
     }
 
     const isStagedOnBehalf = targetRequester.id !== actor.id;

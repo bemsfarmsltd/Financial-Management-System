@@ -11,3 +11,11 @@ export async function requiredFeeReserve(tx:Prisma.TransactionClient,extraCredit
  // withdrawals. Reserve fees for that worst case, not just the next employee.
  return [...amounts.values()].reduce((n,amount)=>n+(amount/minimum)*fee,held.amount+extraDirectFee);
 }
+
+/** A reserve target can use free cash, never manufacture a deficit by refilling spent fees. */
+export function backedFeeReserve(available:bigint,commitments:bigint,target:bigint,required:bigint){
+ const capacity=available>commitments?available-commitments:BigInt(0);
+ if(required>capacity)return required; // A real shortfall remains visible and blocks commitments.
+ const desired=target>required?target:required;
+ return desired>capacity?capacity:desired;
+}

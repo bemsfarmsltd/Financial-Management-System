@@ -29,3 +29,8 @@
 - Staff withdraw only their own GMD-approved funds without a second business approval. Backend ownership, source provenance and transaction authentication are mandatory. Company pays fees.
 - Implement web dashboard, staff portal and both mobile applications together. Preserve source categories and accounting history. Work collaboratively with reviewable increments; do not silently alter confirmed business policies.
 - Source implementation does not authorize live transfers, deployment or provider security changes. Use isolated database and mocked provider tests until the reviewed rollout.
+
+## UI / Visual Design System
+- **Strictly Light Theme Only**: NEVER use dark mode for any build, screen, component or modal again. Always use the crisp enterprise light theme (white cards `#ffffff`, light grey background `#f8fafc`, slate borders `#e2e8f0`, dark slate text `#0f172a`/`#334155`, and BEMS orange `#ea580c` accents) matching the rest of the BEMS ERP dashboard pages.
+- **Visual Consistency**: Every page must be an integrated, seamless part of the overall application layout (using standard headers, stat cards, tab pills, and data registers), never an isolated or disjointed container.
+

@@ -73,7 +73,13 @@ export async function GET(
     const defaultContentType = MIME_TYPES[ext] || 'application/octet-stream';
 
     const attachment = await prisma.attachment.findFirst({
-      where: { fileUrl: { endsWith: '/' + filename } },
+      where: {
+        OR: [
+          { fileUrl: { endsWith: '/' + filename } },
+          { fileUrl: { endsWith: filename } },
+          { fileName: filename },
+        ],
+      },
       include: { request: { select: { requestedById: true, disbursementAssigneeId: true } } },
     });
     const brand = await prisma.organization.findFirst({ where: { logoUrl: { endsWith: '/' + filename } }, select: { id: true } });

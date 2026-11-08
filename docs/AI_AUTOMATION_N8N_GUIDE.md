@@ -1,5 +1,8 @@
 # BEMS AI and Monnify Wallet Integration Guide
 
+> Current owner-authorized exception (8 November 2026): Super Admin temporarily has full GMD-equivalent AI and financial approval access. STAFF/HR remain excluded. See [current authority and activation record](TEMPORARY-SUPER-ADMIN-ACCESS-2026-11-08.md). Earlier GMD-only statements describe the default policy, restored by setting BEMS_SUPER_ADMIN_GMD_ACCESS=false.
+
+
 Version 3.0 - 7 November 2026
 
 This guide describes the current source contract. It does not certify production deployment or merchant activation. It supersedes the earlier shared-key/actor-header guide. Previously distributed credentials must be rotated; no credential value belongs in this document or a generated PDF.

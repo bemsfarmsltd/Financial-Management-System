@@ -46,7 +46,7 @@ export async function verifyMonnifyDestination(accountNumber:string,bankCode:str
   return {accountNumber,bankCode,accountName:d.accountName.trim()};
 }
 export async function listMonnifyTransfers(page=0) {
-  const d=await request('/api/v2/disbursements/single/list?pageNo='+page+'&pageSize=100',{},await token());
+  const d=await request('/api/v2/disbursements/single/transactions?pageNo='+page+'&pageSize=100',{},await token());
   if(!Array.isArray(d.content))throw new WalletError('INVALID_PROVIDER_RESULT','Provider transfer list cannot be reconciled.',502);
   return {transfers:d.content as any[],last:d.last===true};
 }

@@ -107,6 +107,8 @@ export async function POST(request: NextRequest) {
     const scopeBlocked = await checkAiScopeOrResponse(targetScope, 'write');
     if (scopeBlocked) return scopeBlocked;
 
+    const authorizedScope = await resolveAuthorizedOrganizationScope(actor as any, actor.scopedOrganizationId || 'ALL');
+
     if (subAction === 'REGISTER_OFFLINE') {
       const legalName = String(body.legalName || body.legal_name || '').trim();
       if (!legalName) {
@@ -121,12 +123,16 @@ export async function POST(request: NextRequest) {
                 { code: { equals: subsidiaryQuery, mode: 'insensitive' } },
                 { legalName: { contains: subsidiaryQuery, mode: 'insensitive' } },
               ],
+              id: { in: authorizedScope.organizationIds },
             },
           })
-        : await db.organization.findFirst({ orderBy: { type: 'asc' } });
+        : await db.organization.findFirst({
+            where: { id: { in: authorizedScope.organizationIds } },
+            orderBy: { type: 'asc' },
+          });
 
-      if (!org) {
-        return NextResponse.json({ error: 'Target subsidiary organization not found.' }, { status: 404 });
+      if (!org || !authorizedScope.organizationIds.includes(org.id)) {
+        return NextResponse.json({ error: 'Target subsidiary organization not found or outside authorized scope.' }, { status: 404 });
       }
 
       const jobTitle = String(body.jobTitle || body.job_title || 'Field Staff').trim();
@@ -189,6 +195,7 @@ export async function POST(request: NextRequest) {
           { workEmail: { equals: employeeLookup, mode: 'insensitive' } },
           { legalName: { contains: employeeLookup, mode: 'insensitive' } },
         ],
+        assignments: { some: { subsidiaryId: { in: authorizedScope.organizationIds }, status: 'ACTIVE' } },
       },
       include: {
         assignments: {
@@ -199,10 +206,13 @@ export async function POST(request: NextRequest) {
     });
 
     if (!emp) {
-      return NextResponse.json({ error: `Staff member "${employeeLookup}" not found.` }, { status: 404 });
+      return NextResponse.json({ error: `Staff member "${employeeLookup}" not found or outside authorized workspace.` }, { status: 404 });
     }
 
     let targetSubsidiaryId = body.subsidiaryId || body.subsidiary_id;
+    if (targetSubsidiaryId && !authorizedScope.organizationIds.includes(targetSubsidiaryId)) {
+      return NextResponse.json({ error: 'Cannot reassign staff to a subsidiary outside your authorized workspace.' }, { status: 403 });
+    }
     let targetSubsidiaryLabel: string | undefined;
     if (!targetSubsidiaryId && body.subsidiary) {
       const subOrg = await db.organization.findFirst({

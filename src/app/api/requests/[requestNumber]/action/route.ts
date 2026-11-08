@@ -227,8 +227,9 @@ export async function POST(
       return NextResponse.json({ success: true, approvalStatus: result.approvalStatus });
     }
     return NextResponse.json({ error: 'Invalid action.' }, { status: 400 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Action error:', error);
-    return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });
+    const status = error?.status || (error?.message && !error.message.includes('server') ? 400 : 500);
+    return NextResponse.json({ error: error?.message || 'Internal server error.' }, { status });
   }
 }

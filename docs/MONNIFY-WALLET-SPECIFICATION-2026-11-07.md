@@ -1,5 +1,8 @@
 # BEMS — Monnify-funded staff wallets and subsidiary budget controls
 
+> Current owner-authorized exception (8 November 2026): Super Admin temporarily has full GMD-equivalent AI and financial approval access. STAFF/HR remain excluded. See [current authority and activation record](TEMPORARY-SUPER-ADMIN-ACCESS-2026-11-08.md). Earlier GMD-only statements describe the default policy, restored by setting BEMS_SUPER_ADMIN_GMD_ACCESS=false.
+
+
 **Version:** 2.0 — confirmed requirements and implementation specification  
 **Date:** 7 November 2026, Africa/Lagos  
 **Owners:** Project owner and implementation partner, working together  
