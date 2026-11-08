@@ -1,6 +1,6 @@
 # Production release — 8 November 2026
 
-The owner authorized production deployment and confirmed Hostinger automatically deploys the GitHub main branch.
+The owner authorized production deployment. The Hostinger application currently uses manually uploaded archives; GitHub main stores the release source and runs validation. A GitHub push alone does not update this manually uploaded application.
 
 ## Database preparation completed
 
@@ -32,3 +32,9 @@ Hostinger must supply the dedicated delegation-signing secret and current n8n co
 ## Recovery
 
 If the new application fails its smoke checks, redeploy the previous application commit while investigating. The additive database tables and immutable history should stay in place; do not run destructive down migrations or resume legacy payment writers for a wallet-released source. Any database restore requires provider-reference reconciliation before financial processing resumes.
+
+## Manual Hostinger deployment
+
+Use `scripts/package_hostinger_release.py` to create a clean source ZIP with package.json at its root. Dependencies are installed and the Next.js application is built on the hosting platform; do not upload macOS node_modules or standalone build files. The archive excludes all .env files and database backups. It preserves current static browser entry points and available current APK download aliases; native APKs are not rebuilt or represented as new signed releases. Historical APK archives are excluded. The public AI guide is replaced with the credential-free current guide.
+
+In Hostinger Deployments choose Redeploy, then Source files → Upload new files. Select the new ZIP rather than reusing the previous upload. Use Node.js 20, the existing Next.js framework configuration, npm run build, and npm start (or the existing server.js startup setting). Retain DATABASE_URL, DIRECT_URL, NEXT_PUBLIC_APP_URL, N8N_AI_WEBHOOK_URL and other existing provider settings. Add BEMS_DELEGATION_SIGNING_SECRET from the private environment file. Wallet financial activation flags remain false. Verify the deployed feature endpoint and authenticated wallet review after Hostinger completes.
