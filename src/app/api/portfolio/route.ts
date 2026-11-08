@@ -122,8 +122,14 @@ export async function GET(request: Request) {
         createdAt: r.createdAt.toISOString(),
       }));
 
+      const seenOrgEmpIds = new Set<string>();
       const orgStaff = assignments
         .filter((a) => a.subsidiaryId === org.id)
+        .filter((a) => {
+          if (seenOrgEmpIds.has(a.employee.id)) return false;
+          seenOrgEmpIds.add(a.employee.id);
+          return true;
+        })
         .map((a) => {
           return {
             id: a.employee.id,
@@ -210,9 +216,14 @@ export async function GET(request: Request) {
       },
     }));
 
+    const uniqueStaffIds = new Set(
+      assignments
+        .filter((a) => a.employee.role === 'STAFF')
+        .map((a) => a.employee.id)
+    );
     const totalGroupBudget = portfolio.reduce((acc, p) => acc + p.budget, 0);
     const totalGroupSpent = portfolio.reduce((acc, p) => acc + p.spent, 0);
-    const totalGroupHeadcount = portfolio.reduce((acc, p) => acc + p.headcount, 0);
+    const totalGroupHeadcount = uniqueStaffIds.size > 0 ? uniqueStaffIds.size : portfolio.reduce((acc, p) => acc + p.headcount, 0);
     const totalIntercompanyVolume = serializedNotes.reduce((acc, n) => acc + n.amountNaira, 0);
 
     return NextResponse.json({

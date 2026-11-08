@@ -13,7 +13,11 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   async rewrites() {
-    return { beforeFiles: [{ source: '/uploads/:path*', destination: '/secure-uploads/:path*' }], afterFiles: [
+    return { beforeFiles: [
+      { source: '/uploads/:path*', destination: '/secure-uploads/:path*' },
+      { source: '/staff-app', destination: '/staff-app/index.html' },
+      { source: '/gmd-app', destination: '/gmd-app/index.html' },
+    ], afterFiles: [
       { source: '/api/v1/ai/briefing', destination: '/api/briefing' },
       { source: '/api/v1/staged-actions/:path*', destination: '/api/ai/staged-actions/:path*' },
       { source: '/api/v1/fund-requests', destination: '/api/requests' },

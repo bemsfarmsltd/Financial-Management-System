@@ -336,7 +336,7 @@ export function MobileAppsViewerClient({ userName, userRole }: Props) {
                   <RefreshCw size={11} /> Reload
                 </button>
                 <a
-                  href="/gmd-app/"
+                  href="/gmd-app/index.html"
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Open Fullscreen"
@@ -402,7 +402,7 @@ export function MobileAppsViewerClient({ userName, userRole }: Props) {
               >
                 <iframe
                   key={gmdKey}
-                  src="/gmd-app/"
+                  src="/gmd-app/index.html"
                   title="BEMS GMD AI Mobile App"
                   style={{
                     width: '100%',
@@ -474,7 +474,7 @@ export function MobileAppsViewerClient({ userName, userRole }: Props) {
                   <RefreshCw size={11} /> Reload
                 </button>
                 <a
-                  href="/staff-app/"
+                  href="/staff-app/index.html"
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Open Fullscreen"
@@ -540,7 +540,7 @@ export function MobileAppsViewerClient({ userName, userRole }: Props) {
               >
                 <iframe
                   key={staffKey}
-                  src="/staff-app/"
+                  src="/staff-app/index.html"
                   title="BEMS Staff Mobile App"
                   style={{
                     width: '100%',
@@ -573,3 +573,4 @@ export function MobileAppsViewerClient({ userName, userRole }: Props) {
     </div>
   );
 }
+
