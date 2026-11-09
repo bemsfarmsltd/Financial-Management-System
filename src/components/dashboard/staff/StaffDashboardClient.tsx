@@ -8,6 +8,7 @@ import { StaffAdminChatModal } from '@/components/chat/StaffAdminChatModal';
 import { InAppChatPushToast } from '@/components/chat/InAppChatPushToast';
 import { StaffInformationUpdateGateModal } from '@/components/dashboard/staff/StaffInformationUpdateGateModal';
 import { StaffWalletTab } from '@/components/dashboard/staff/StaffWalletTab';
+import { walletApi } from '@/lib/wallet/client';
 import {
   Home,
   LayoutGrid,
@@ -193,8 +194,13 @@ export function StaffDashboardClient({
   const [punching, setPunching] = useState(false);
   const [punchStatusMessage, setPunchStatusMessage] = useState<string | null>(null);
 
+  // Wallet Live State (Matching Mobile Digital Wallet)
+  const [walletData, setWalletData] = useState<any>(null);
+
   // Mobile-grade Scanner Modal State
   const [isAttendanceScanModalOpen, setIsAttendanceScanModalOpen] = useState(false);
+  const [scannerMode, setScannerMode] = useState<'CAMERA' | 'PIN'>('CAMERA');
+  const [kioskPinInput, setKioskPinInput] = useState('');
   const [scannerCameraError, setScannerCameraError] = useState<string | null>(null);
   const [scannerFacingMode, setScannerFacingMode] = useState<'environment' | 'user'>('environment');
   const [scannerTorchOn, setScannerTorchOn] = useState(false);
@@ -430,6 +436,14 @@ export function StaffDashboardClient({
           (attRes.days && attRes.days.find((d: any) => d.date === todayPrefix && (d.checkInTime || d.status !== 'UPCOMING')));
         setTodayAttendance(match || null);
       }
+
+      // Load wallet balance & accounts
+      try {
+        const wRes = await walletApi('me');
+        if (wRes) setWalletData(wRes);
+      } catch (e) {
+        // wallet load optional
+      }
     } catch (err) {
       console.error('Failed to load staff data:', err);
     } finally {
@@ -441,6 +455,17 @@ export function StaffDashboardClient({
   useEffect(() => {
     loadData();
   }, [user.id]);
+
+  // Auto-prompt attendance modal if staff is not clocked in today (Strictly Staff only, never Executive)
+  useEffect(() => {
+    const role = String(user?.role || '').toUpperCase();
+    if (role === 'STAFF' && !todayAttendance && !loading) {
+      const timer = setTimeout(() => {
+        setIsAttendanceScanModalOpen(true);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [todayAttendance, loading, user?.role]);
 
   // Load Attendance
   const loadAttendance = async (m: number, y: number) => {
@@ -1147,6 +1172,49 @@ export function StaffDashboardClient({
     }
   };
 
+  const handleKioskPinPunch = async () => {
+    if (!kioskPinInput || kioskPinInput.trim().length < 4) {
+      setPunchStatusMessage('✕ Please enter your 4-digit Kiosk PIN.');
+      return;
+    }
+    setPunching(true);
+    setPunchStatusMessage(null);
+    try {
+      const res = await fetch('/api/attendance/kiosk-punch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeNumber: displayEmployeeNumber,
+          pin: kioskPinInput.trim(),
+          type: todayAttendance ? 'CHECK_OUT' : 'CHECK_IN',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to punch attendance with PIN.');
+      }
+      const record = data.record || {};
+      const statusText = record.status || (todayAttendance ? 'COMPLETED' : 'PRESENT');
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setScannerPunchSuccessRecord({
+        type: todayAttendance ? 'CHECK_OUT' : 'CHECK_IN',
+        status: statusText,
+        time: timeStr,
+        date: new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+      });
+      setTodayAttendance({
+        status: statusText,
+        checkInTime: record.checkInTime || new Date().toISOString(),
+        checkOutTime: todayAttendance ? (record.checkOutTime || new Date().toISOString()) : null,
+      });
+      setKioskPinInput('');
+    } catch (err: any) {
+      setPunchStatusMessage(`✕ ${err.message || 'Failed to verify PIN'}`);
+    } finally {
+      setPunching(false);
+    }
+  };
+
   const handleSaveBanking = async () => {
     setSavingBanking(true);
     setBankingNotice(null);
@@ -1460,39 +1528,41 @@ export function StaffDashboardClient({
 
           {/* Right: Actions */}
           <div className="flex items-center gap-2">
-            {/* Shift Attendance Top-Bar Pill */}
-            {todayAttendance ? (
-              <button
-                onClick={() => {
-                  setPunchStatusMessage(null);
-                  setScannerPunchSuccessRecord(null);
-                  setIsAttendanceScanModalOpen(true);
-                }}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black shadow-sm hover:bg-emerald-100 transition-all active:scale-[0.98]"
-                title="Shift Active - Click to Check Out"
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="hidden sm:inline">
-                  {todayAttendance.checkInTime
-                    ? `${new Date(todayAttendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · Check Out`
-                    : 'Active Shift · Check Out'}
-                </span>
-                <span className="sm:hidden">Check Out</span>
-                <LogOut className="w-3.5 h-3.5 text-emerald-600" />
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setPunchStatusMessage(null);
-                  setScannerPunchSuccessRecord(null);
-                  setIsAttendanceScanModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 border border-orange-200 hover:bg-orange-100 text-[#EA580C] text-xs font-black shadow-sm transition-all active:scale-[0.98]"
-                title="Clock in via reception kiosk scanner"
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                <span>Clock In</span>
-              </button>
+            {/* Shift Attendance Top-Bar Pill (Staff Only, Executives Exempt) */}
+            {String(user?.role || '').toUpperCase() === 'STAFF' && (
+              todayAttendance ? (
+                <button
+                  onClick={() => {
+                    setPunchStatusMessage(null);
+                    setScannerPunchSuccessRecord(null);
+                    setIsAttendanceScanModalOpen(true);
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black shadow-sm hover:bg-emerald-100 transition-all active:scale-[0.98] cursor-pointer"
+                  title="Shift Active - Click to Check Out"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="hidden sm:inline">
+                    {todayAttendance.checkInTime
+                      ? `${new Date(todayAttendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · Check Out`
+                      : 'Active Shift · Check Out'}
+                  </span>
+                  <span className="sm:hidden">Check Out</span>
+                  <LogOut className="w-3.5 h-3.5 text-emerald-600" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setPunchStatusMessage(null);
+                    setScannerPunchSuccessRecord(null);
+                    setIsAttendanceScanModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 hover:opacity-95 text-white text-xs font-black shadow-md shadow-orange-500/20 transition-all active:scale-[0.98] cursor-pointer"
+                  title="Clock in via reception kiosk scanner or PIN"
+                >
+                  <Clock className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Clock In</span>
+                </button>
+              )
             )}
 
             {/* Notification Bell */}
@@ -1545,107 +1615,542 @@ export function StaffDashboardClient({
       {/* MAIN BODY AREA: FULL WIDTH ACROSS SCREEN FROM LEFT TO RIGHT */}
       {/* ========================================================= */}
       <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-28 md:pb-12">
-        {/* Mobile App Download Notification Banner */}
-        {!hideAppBanner && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-3.5 px-4 sm:px-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0 text-[#EA580C]">
-                <Smartphone className="w-5 h-5 text-[#EA580C]" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-[#0F172A] tracking-wide">BEMS STAFF APP v1.3.8 AVAILABLE</span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">Latest</span>
-                </div>
-                <p className="text-[11.5px] text-slate-500">
-                  Updated with Conglomerate-wide Enterprise Workstations across Smartairs, Oil &amp; Gas, Education, Real Estate &amp; Agribusiness.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
-              <a
-                href="/api/download/staff-app"
-                download="BEMS-Staff-Portal-v1.3.8.apk"
-                className="px-3.5 py-1.5 rounded-xl bg-[#EA580C] hover:bg-[#C2410C] text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all flex items-center gap-1.5"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Download App (v1.3.8)
-              </a>
-              <button
-                onClick={() => setHideAppBanner(true)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
-                title="Dismiss"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
           {/* ========================================================= */}
-          {/* TAB 0: HOME SCREEN                                        */}
+          {/* TAB 0: HOME SCREEN (Exact Mobile Replica: Carousel & Actions) */}
           {/* ========================================================= */}
           {activeTab === 'HOME' && (
             <div className="animate-fade-in space-y-6">
-
-              {/* --------------------------------------------------------- */}
-              {/* VIEW 0: ENTERPRISE MODULE GALLERY (OUTSIDE FINANCIAL HUB) */}
-              {/* --------------------------------------------------------- */}
               {activeWorkstation === 'HUB' && (
                 <div className="space-y-6 animate-fade-in">
-                  {/* Clean Portal Welcome Hero */}
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 sm:p-6 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-sm relative overflow-hidden">
-                    <div className="relative z-10 space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-black text-[#EA580C] uppercase tracking-wider">
-                          BEMS Enterprise Gateway
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          ● System Active
-                        </span>
-                      </div>
-                      <h2 className="text-xl sm:text-2xl font-black text-[#0F172A] tracking-tight">
-                        Welcome, {user.fullName?.split(' ')[0] || 'Staff'} 👋
-                      </h2>
-                      <p className="text-xs text-slate-500 max-w-xl">
-                        Select a department workstation from the gallery below to access your dedicated workspace without clutter.
-                      </p>
-                    </div>
 
-                    <div className="relative z-10 flex items-center gap-3">
-                      {todayAttendance ? (
-                        <div className="px-4 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 shadow-sm">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                          <span>Clocked In · {todayAttendance.checkInTime ? new Date(todayAttendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active'}</span>
-                        </div>
-                      ) : (
+              {/* CARD 1: 4-SLIDE FINANCIAL CAROUSEL (Exact 1-to-1 Replica of Flutter Mobile _buildMultiMetricFinancialCarousel) */}
+              <div className="relative rounded-[26px] overflow-hidden shadow-xl border border-slate-800/10">
+                {/* SLIDE 0: BEMS DIGITAL WALLET & ADVANCES (Vibrant Orange Gradient) */}
+                {financialSlideIndex === 0 && (
+                  <div className="rounded-t-[26px] bg-gradient-to-br from-[#EA580C] via-[#C2410C] to-[#9A3412] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300">
+                    <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+                    <div className="relative z-10 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-white/95 flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                          SLIDE 1/4 · BEMS DIGITAL WALLET &amp; ADVANCES
+                        </span>
                         <button
-                          onClick={() => {
-                            setPunchStatusMessage(null);
-                            setScannerPunchSuccessRecord(null);
-                            setIsAttendanceScanModalOpen(true);
-                          }}
-                          className="px-4 py-2 rounded-2xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white text-xs font-black flex items-center gap-2 shadow-sm shadow-orange-500/25 transition-all active:scale-[0.98]"
+                          onClick={() => setHideBalance(!hideBalance)}
+                          className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white cursor-pointer"
+                          title={hideBalance ? 'Show Balance' : 'Hide Balance'}
                         >
-                          <MapPin className="w-4 h-4" />
-                          <span>Clock In (Scanner)</span>
+                          {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
-                      )}
+                      </div>
+
+                      <div>
+                        <span className="text-xs font-semibold text-white/80 block mb-1">
+                          Available Wallet Balance &amp; Held Operational Advances
+                        </span>
+                        <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                          {hideBalance
+                            ? '₦ ••••••••'
+                            : (walletData?.balance?.availableMinor != null
+                                ? formatNaira(Number(walletData.balance.availableMinor) / 100)
+                                : formatNaira(activeAdvanceAmount))}
+                        </h2>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-white/90">
+                          <span className="px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-sm font-bold border border-white/20">
+                            Avail: {walletData?.balance?.availableMinor != null ? formatNaira(Number(walletData.balance.availableMinor) / 100) : '₦0'}
+                          </span>
+                          <span className="text-white/80">· Adv. Held: {formatNaira(activeAdvanceAmount)}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <button
+                          onClick={() => setActiveTab('WALLET')}
+                          className="py-3 px-3 bg-white hover:bg-slate-50 text-[#EA580C] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
+                        >
+                          <ArrowRight className="w-4 h-4 -rotate-45 text-[#EA580C]" />
+                          <span>Withdraw to Bank</span>
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('WALLET')}
+                          className="py-3 px-3 bg-white/15 hover:bg-white/25 text-white font-black text-xs rounded-xl border border-white/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
+                        >
+                          <Wallet className="w-4 h-4 text-white" />
+                          <span>Digital Wallet</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
+                )}
 
-                  {/* Enterprise Module Gallery */}
-                  <div className="space-y-4 pt-1">
-                    <div className="flex items-center justify-between">
+                {/* SLIDE 1: LIFETIME REQUISITIONS RAISED (Slate Gradient) */}
+                {financialSlideIndex === 1 && (
+                  <div className="rounded-t-[26px] bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#334155] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300">
+                    <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-slate-400/10 rounded-full blur-2xl pointer-events-none" />
+                    <div className="relative z-10 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-slate-300 animate-pulse" />
+                          SLIDE 2/4 · LIFETIME REQUISITIONS RAISED
+                        </span>
+                        <button
+                          onClick={() => setHideBalance(!hideBalance)}
+                          className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white cursor-pointer"
+                          title={hideBalance ? 'Show Balance' : 'Hide Balance'}
+                        >
+                          {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+
                       <div>
-                        <h3 className="text-xl font-black text-[#0F172A] tracking-tight">
-                          Enterprise Module Gallery
-                        </h3>
-                        <p className="text-xs text-slate-500">
-                          Select a department module workstation to enter your dedicated workstation without clutter
-                        </p>
+                        <span className="text-xs font-semibold text-slate-300 block mb-1">
+                          All-Time Operational &amp; Expense Requisitions
+                        </span>
+                        <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                          {hideBalance ? '₦ ••••••••' : formatNaira(financialSlideMetrics.totalEverRequestedAmount)}
+                        </h2>
+                        <div className="mt-2 flex items-center gap-2 text-xs text-slate-300">
+                          <span className="px-2.5 py-0.5 rounded-full bg-slate-500/30 backdrop-blur-sm font-bold border border-slate-400/30">
+                            {financialSlideMetrics.totalEverRequestedCount} Requisitions
+                          </span>
+                          <span className="text-slate-300/80">· Lifetime Submissions in Career</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <button
+                          onClick={() => setIsNewRequestOpen(true)}
+                          className="py-3 px-3 bg-white hover:bg-slate-50 text-[#0F172A] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4 text-[#0F172A]" />
+                          <span>New Request</span>
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('REQUESTS')}
+                          className="py-3 px-3 bg-white/15 hover:bg-white/25 text-white font-black text-xs rounded-xl border border-white/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
+                        >
+                          <span>View History →</span>
+                        </button>
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* SLIDE 2: PENDING PIPELINE VALUE (Ocean Blue Gradient) */}
+                {financialSlideIndex === 2 && (
+                  <div className="rounded-t-[26px] bg-gradient-to-br from-[#0369A1] via-[#0284C7] to-[#0EA5E9] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300">
+                    <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-sky-400/10 rounded-full blur-2xl pointer-events-none" />
+                    <div className="relative z-10 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-sky-200 flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-sky-300 animate-pulse" />
+                          SLIDE 3/4 · PENDING PIPELINE VALUE
+                        </span>
+                        <button
+                          onClick={() => setHideBalance(!hideBalance)}
+                          className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white cursor-pointer"
+                          title={hideBalance ? 'Show Balance' : 'Hide Balance'}
+                        >
+                          {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+
+                      <div>
+                        <span className="text-xs font-semibold text-sky-200 block mb-1">
+                          In Transit Awaiting GMD / Treasury Action
+                        </span>
+                        <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                          {hideBalance ? '₦ ••••••••' : formatNaira(financialSlideMetrics.pendingApprovalAmount)}
+                        </h2>
+                        <div className="mt-2 flex items-center gap-2 text-xs text-sky-200">
+                          <span className="px-2.5 py-0.5 rounded-full bg-sky-500/30 backdrop-blur-sm font-bold border border-sky-400/30">
+                            {financialSlideMetrics.pendingApprovalCount} Requisitions In Review
+                          </span>
+                          <span className="text-sky-300/80">· Workflow In Progress</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <button
+                          onClick={() => setActiveTab('REQUESTS')}
+                          className="py-3 px-3 bg-white hover:bg-slate-50 text-[#0284C7] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
+                        >
+                          <span>Track Pipeline</span>
+                        </button>
+                        <button
+                          onClick={() => setIsAdminChatOpen(true)}
+                          className="py-3 px-3 bg-white/15 hover:bg-white/25 text-white font-black text-xs rounded-xl border border-white/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
+                        >
+                          <span>Finance Chat →</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SLIDE 3: MONTHLY REMUNERATION & PAYROLL (Emerald Gradient) */}
+                {financialSlideIndex === 3 && (
+                  <div className="rounded-t-[26px] bg-gradient-to-br from-[#065F46] via-[#047857] to-[#059669] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300">
+                    <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none" />
+                    <div className="relative z-10 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-200 flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-300 animate-pulse" />
+                          SLIDE 4/4 · MONTHLY REMUNERATION &amp; PAYROLL
+                        </span>
+                        <button
+                          onClick={() => setHideBalance(!hideBalance)}
+                          className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white cursor-pointer"
+                          title={hideBalance ? 'Show Balance' : 'Hide Balance'}
+                        >
+                          {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+
+                      <div>
+                        <span className="text-xs font-semibold text-emerald-200 block mb-1">
+                          Verified Monthly Payroll &amp; Scheduled Payday
+                        </span>
+                        <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                          Payday: 3rd
+                        </h2>
+                        <div className="mt-2 flex items-center gap-2 text-xs text-emerald-200">
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/30 backdrop-blur-sm font-bold border border-emerald-400/30">
+                            Bank: {user.salaryBankName || user.bankName || 'Verified Payroll Account'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <button
+                          onClick={() => setIsPayslipsModalOpen(true)}
+                          className="py-3 px-3 bg-white hover:bg-slate-50 text-[#047857] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
+                        >
+                          <span>View Payslips</span>
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('WALLET')}
+                          className="py-3 px-3 bg-white/15 hover:bg-white/25 text-white font-black text-xs rounded-xl border border-white/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
+                        >
+                          <span>Update Bank →</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* CAROUSEL BOTTOM CONTROLS: PREV / NEXT ARROWS & 4 DOTS */}
+                <div className="px-5 py-3 bg-white text-slate-700 flex items-center justify-between border-t border-slate-200">
+                  <button
+                    onClick={() => setFinancialSlideIndex((prev) => (prev > 0 ? prev - 1 : 3))}
+                    className="p-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 transition-all text-slate-700 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    <span className="hidden sm:inline">Prev</span>
+                  </button>
+
+                  {/* 4 Interactive Dot Indicators */}
+                  <div className="flex items-center gap-2">
+                    {[0, 1, 2, 3].map((idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setFinancialSlideIndex(idx)}
+                        className={`transition-all rounded-full cursor-pointer ${
+                          financialSlideIndex === idx
+                            ? 'w-6 h-2 bg-[#EA580C]'
+                            : 'w-2 h-2 bg-slate-200 hover:bg-slate-300'
+                        }`}
+                        title={`Slide ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => setFinancialSlideIndex((prev) => (prev < 3 ? prev + 1 : 0))}
+                    className="p-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 transition-all text-slate-700 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+                  >
+                    <span className="hidden sm:inline">Next</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* CARD 2: MONTHLY SALARY & PAYSLIPS QUICK CARD (Exact Mobile Replica) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-orange-50 border border-orange-200 text-[#EA580C] flex items-center justify-center shrink-0 shadow-sm">
+                    <Wallet className="w-5 h-5 text-[#EA580C]" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-[#0F172A]">Monthly Salary &amp; Payslips</h4>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      Scheduled Payday: 3rd · Bank: {user.salaryBankName || user.bankName || 'Corporate Payroll'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsPayslipsModalOpen(true)}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>View Breakdown</span>
+                </button>
+              </div>
+
+              {/* CARD 3: QUICK ACTIONS GRID (Exact 8 Executive Cards matching Flutter Mobile) */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-black text-[#0F172A] tracking-tight">Quick Actions</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {/* 1. New Request */}
+                  <button
+                    onClick={() => setIsNewRequestOpen(true)}
+                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-orange-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                      <Plus className="w-5 h-5 stroke-[2.5]" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-[#0F172A]">New Request</div>
+                      <div className="text-[10.5px] text-slate-500 font-medium">Operational</div>
+                    </div>
+                  </button>
+
+                  {/* 2. Confirm Funds */}
+                  <button
+                    onClick={() => {
+                      if (disbursementsAwaiting.length > 0) {
+                        handleConfirmDisbursement(disbursementsAwaiting[0].id);
+                      } else {
+                        setAlertNotice('No pending disbursements to confirm at this time.');
+                      }
+                    }}
+                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-orange-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                      <ShieldCheck className="w-5 h-5 text-[#EA580C]" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-[#0F172A]">Confirm Funds</div>
+                      <div className="text-[10.5px] text-slate-500 font-medium">Dual-Key Auth</div>
+                    </div>
+                  </button>
+
+                  {/* 3. 72h Evidence */}
+                  <button
+                    onClick={() => setActiveTab('RETIREMENT')}
+                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 text-slate-800 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                      <Receipt className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-[#0F172A]">72h Evidence</div>
+                      <div className="text-[10.5px] text-slate-500 font-medium">Retire Advance</div>
+                    </div>
+                  </button>
+
+                  {/* 4. Digital Wallet */}
+                  <button
+                    onClick={() => setActiveTab('WALLET')}
+                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 text-slate-800 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                      <Wallet className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-[#0F172A]">Digital Wallet</div>
+                      <div className="text-[10.5px] text-slate-500 font-medium">Disbursements &amp; Bank</div>
+                    </div>
+                  </button>
+
+                  {/* 5. Admin Helpdesk */}
+                  <button
+                    onClick={() => setIsAdminChatOpen(true)}
+                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-orange-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                      <MessageSquare className="w-5 h-5 text-[#EA580C]" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-[#0F172A]">Admin Helpdesk</div>
+                      <div className="text-[10.5px] text-slate-500 font-medium">Chat With Admin</div>
+                    </div>
+                  </button>
+
+                  {/* 6. Requisitions */}
+                  <button
+                    onClick={() => setActiveTab('REQUESTS')}
+                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 text-slate-800 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                      <FileText className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-[#0F172A]">Requisitions</div>
+                      <div className="text-[10.5px] text-slate-500 font-medium">View All &amp; Chat</div>
+                    </div>
+                  </button>
+
+                  {/* 7. Enterprise Hub */}
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById('workstation-gallery');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-orange-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                      <LayoutGrid className="w-5 h-5 text-[#EA580C]" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-[#0F172A]">Enterprise Hub</div>
+                      <div className="text-[10.5px] text-slate-500 font-medium">All 8 Workstations</div>
+                    </div>
+                  </button>
+
+                  {/* 8. Monthly Payslips */}
+                  <button
+                    onClick={() => setIsPayslipsModalOpen(true)}
+                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                      <Receipt className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-[#0F172A]">Monthly Payslips</div>
+                      <div className="text-[10.5px] text-slate-500 font-medium">Voucher &amp; Breakdown</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* DUAL-KEY MAKER-CHECKER (If disbursements awaiting confirmation) */}
+              {disbursementsAwaiting.length > 0 && (
+                <div className="space-y-2.5">
+                  {disbursementsAwaiting.map((disb: any) => (
+                    <div
+                      key={disb.id}
+                      className="p-4 bg-[#ECFDF5] border border-[#A7F3D0] rounded-[20px] space-y-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-[#065F46] text-xs">
+                          Treasury Payout Received
+                        </span>
+                        <span className="font-black text-[#065F46] text-sm">
+                          {formatNaira(Number(disb.amountMinor || 0) / 100)}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#047857] font-medium">
+                        {disb.request?.title || 'Advance Disbursement'} (Ref: {disb.externalReference})
+                      </p>
+                      <div className="pt-2 flex gap-2">
+                        <button
+                          disabled={confirmingDisbursementId === disb.id}
+                          onClick={() => handleConfirmDisbursement(disb.id)}
+                          className="flex-1 py-2 bg-[#059669] hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs cursor-pointer"
+                        >
+                          {confirmingDisbursementId === disb.id ? 'Confirming...' : 'Confirm Received'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* SECTION: REQUISITIONS & SPEND ANALYTICS */}
+              <div className="p-5 bg-white rounded-[24px] border border-[#E2E8F0] shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-black text-[#0F172A]">Requisitions &amp; Spend Analytics</h3>
+                    <p className="text-[11px] text-[#64748B]">Dynamic Requisition Volume &amp; Spend Trend</p>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-lg text-[9.5px] font-black bg-slate-100 text-slate-700 border border-slate-200">
+                    ANALYTICS
+                  </span>
+                </div>
+
+                {requests.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate-400">
+                    <BarChart2 className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                    No requisition data recorded yet.
+                  </div>
+                ) : (
+                  <div className="space-y-4 pt-2">
+                    {/* Bar Chart */}
+                    <div className="h-40 flex items-end justify-around gap-2 px-2 pb-2 border-b border-slate-100">
+                      {requests.slice(0, 5).reverse().map((r: any, idx: number, arr: any[]) => {
+                        const amt = Number(r.amountMinor || 0) / 100;
+                        const maxVal = Math.max(...arr.map((item) => Number(item.amountMinor || 0) / 100), 1);
+                        const heightPct = Math.max(20, Math.min(100, Math.round((amt / maxVal) * 100)));
+                        const isLast = idx === arr.length - 1;
+                        const labelAmt =
+                          amt >= 1000000
+                            ? `₦${(amt / 1000000).toFixed(1)}M`
+                            : amt >= 1000
+                            ? `₦${Math.round(amt / 1000)}k`
+                            : `₦${amt}`;
+
+                        return (
+                          <div key={r.id || idx} className="flex-1 flex flex-col items-center justify-end h-full">
+                            <span className={`text-[9px] font-black mb-1 truncate max-w-[70px] ${
+                              isLast ? 'text-[#EA580C]' : 'text-slate-400'
+                            }`}>
+                              {labelAmt}
+                            </span>
+                            <div
+                              style={{ height: `${heightPct}%` }}
+                              className={`w-full max-w-[36px] rounded-t-lg transition-all ${
+                                isLast
+                                  ? 'bg-gradient-to-t from-[#EA580C] to-[#FB923C] shadow-sm shadow-orange-800/20'
+                                  : 'bg-gradient-to-t from-slate-400 to-slate-300'
+                              }`}
+                            />
+                            <span className={`text-[10px] font-black mt-1.5 truncate max-w-[60px] ${
+                              isLast ? 'text-[#EA580C]' : 'text-slate-500'
+                            }`}>
+                              {r.requestNumber ? r.requestNumber.slice(-4) : `REQ-${idx + 1}`}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Category Distribution Bar */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        <span>Category Distribution</span>
+                        <span className="text-[#0F172A] font-extrabold">{formatNaira(totalExpenditureValue)}</span>
+                      </div>
+                      <div className="h-2.5 rounded-full overflow-hidden flex bg-slate-100">
+                        {expenditureSegments.map((seg, i) => {
+                          const pct = totalExpenditureValue > 0 ? (seg.value / totalExpenditureValue) * 100 : 0;
+                          return (
+                            <div
+                              key={i}
+                              style={{ width: `${pct}%` }}
+                              className={seg.color}
+                              title={`${seg.label}: ${pct.toFixed(1)}%`}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ENTERPRISE MODULE GALLERY (Dedicated Workstations Anchor) */}
+              <div id="workstation-gallery" className="space-y-4 pt-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-black text-[#0F172A] tracking-tight">
+                      Enterprise Module Gallery
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Select a department module workstation to enter your dedicated workspace
+                    </p>
+                  </div>
+                </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                       {/* CARD 1: FINANCE & REQUISITIONS */}
@@ -1853,309 +2358,6 @@ export function StaffDashboardClient({
               {/* --------------------------------------------------------- */}
               {activeWorkstation === 'FINANCE' && (
                 <div className="space-y-6 animate-fade-in">
-                  {/* Financial Hub Workstation Top Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => {
-                          setActiveWorkstation('HUB');
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all border border-slate-200"
-                        title="Back to Module Gallery"
-                      >
-                        <ArrowLeft className="w-4 h-4" />
-                        <span>Module Gallery</span>
-                      </button>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-orange-50 text-orange-700 border border-orange-200">
-                            💰 FINANCIAL HUB
-                          </span>
-                        </div>
-                        <h2 className="text-lg sm:text-xl font-black text-[#0F172A] tracking-tight mt-1">
-                          Financial Hub &amp; Requisitions Desk
-                        </h2>
-                        <p className="text-xs text-slate-500">
-                          Multi-metric price card, historical spend analytics &amp; treasury release tracking.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setIsNewRequestOpen(true)}
-                        className="px-4 py-2.5 bg-gradient-to-r from-orange-600 to-amber-500 hover:opacity-95 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-orange-500/20 active:scale-[0.98] transition-all"
-                      >
-                        <Plus className="w-4 h-4 stroke-[3]" />
-                        <span>+ New Request</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* CARD 2: 4-SLIDE FINANCIAL CAROUSEL (Ever Requested, Approved Not Disbursed, Pending Approval, Salary Collected) */}
-                  <div className="relative rounded-[26px] overflow-hidden shadow-xl border border-slate-800/10">
-                    {/* SLIDE 0: TOTAL AMOUNT EVER REQUESTED */}
-                    {financialSlideIndex === 0 && (
-                      <div className="rounded-t-[26px] bg-gradient-to-br from-[#EA580C] via-[#C2410C] to-[#9A3412] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300">
-                        <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-                        <div className="relative z-10 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-extrabold uppercase tracking-wider text-white/95 flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
-                              SLIDE 1/4 · TOTAL AMOUNT EVER REQUESTED
-                            </span>
-                            <button
-                              onClick={() => setHideBalance(!hideBalance)}
-                              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white"
-                              title={hideBalance ? 'Show Balance' : 'Hide Balance'}
-                            >
-                              {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </button>
-                          </div>
-
-                          <div>
-                            <span className="text-xs font-semibold text-white/80 block mb-1">
-                              All-Time Operational & Expense Requisitions
-                            </span>
-                            <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-                              {hideBalance ? '₦ ••••••••' : formatNaira(financialSlideMetrics.totalEverRequestedAmount)}
-                            </h2>
-                            <div className="mt-2 flex items-center gap-2 text-xs text-white/90">
-                              <span className="px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-sm font-bold border border-white/20">
-                                {financialSlideMetrics.totalEverRequestedCount} Requisitions
-                              </span>
-                              <span className="text-white/75">· Lifetime Submissions</span>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3 pt-1">
-                            <button
-                              onClick={() => setIsNewRequestOpen(true)}
-                              className="py-3 px-3 bg-white hover:bg-slate-50 text-[#EA580C] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-                            >
-                              <Plus className="w-4 h-4 text-[#EA580C]" />
-                              <span>New Request</span>
-                            </button>
-                            <button
-                              onClick={() => setIsAdminChatOpen(true)}
-                              className="py-3 px-3 bg-white/15 hover:bg-white/25 text-white font-black text-xs rounded-xl border border-white/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-                            >
-                              <span>Finance Chat →</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* SLIDE 1: APPROVED YET TO BE DISBURSED */}
-                    {financialSlideIndex === 1 && (
-                      <div className="rounded-t-[26px] bg-gradient-to-br from-[#4338CA] via-[#3730A3] to-[#1E1B4B] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300">
-                        <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-indigo-400/10 rounded-full blur-2xl pointer-events-none" />
-                        <div className="relative z-10 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-200 flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-full bg-indigo-300 animate-pulse" />
-                              SLIDE 2/4 · APPROVED (YET TO BE DISBURSED)
-                            </span>
-                            <button
-                              onClick={() => setHideBalance(!hideBalance)}
-                              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white"
-                              title={hideBalance ? 'Show Balance' : 'Hide Balance'}
-                            >
-                              {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </button>
-                          </div>
-
-                          <div>
-                            <span className="text-xs font-semibold text-indigo-200 block mb-1">
-                              Approved by GMD · Awaiting Treasury Release
-                            </span>
-                            <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-                              {hideBalance ? '₦ ••••••••' : formatNaira(financialSlideMetrics.approvedUndisbursedAmount)}
-                            </h2>
-                            <div className="mt-2 flex items-center gap-2 text-xs text-indigo-200">
-                              <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/30 backdrop-blur-sm font-bold border border-indigo-400/30">
-                                {financialSlideMetrics.approvedUndisbursedCount} Approved Claims
-                              </span>
-                              <span className="text-indigo-300/80">· Enqueued for Payout</span>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3 pt-1">
-                            <button
-                              onClick={() => {
-                                setStatusFilter('APPROVED');
-                              }}
-                              className="py-3 px-3 bg-white hover:bg-slate-50 text-[#4338CA] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-                            >
-                              <span>Filter Approved</span>
-                            </button>
-                            <button
-                              onClick={() => setIsAdminChatOpen(true)}
-                              className="py-3 px-3 bg-white/15 hover:bg-white/25 text-white font-black text-xs rounded-xl border border-white/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-                            >
-                              <span>Treasury Chat</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* SLIDE 2: TOTAL AMOUNT YET TO BE APPROVED */}
-                    {financialSlideIndex === 2 && (
-                      <div className="rounded-t-[26px] bg-gradient-to-br from-[#D97706] via-[#B45309] to-[#78350F] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300">
-                        <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-amber-400/10 rounded-full blur-2xl pointer-events-none" />
-                        <div className="relative z-10 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-200 flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-full bg-amber-300 animate-pulse" />
-                              SLIDE 3/4 · TOTAL AMOUNT YET TO BE APPROVED
-                            </span>
-                            <button
-                              onClick={() => setHideBalance(!hideBalance)}
-                              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white"
-                              title={hideBalance ? 'Show Balance' : 'Hide Balance'}
-                            >
-                              {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </button>
-                          </div>
-
-                          <div>
-                            <span className="text-xs font-semibold text-amber-200 block mb-1">
-                              Under Management Review & Verification
-                            </span>
-                            <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-                              {hideBalance ? '₦ ••••••••' : formatNaira(financialSlideMetrics.pendingApprovalAmount)}
-                            </h2>
-                            <div className="mt-2 flex items-center gap-2 text-xs text-amber-200">
-                              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/30 backdrop-blur-sm font-bold border border-amber-400/30">
-                                {financialSlideMetrics.pendingApprovalCount} Requisitions In Review
-                              </span>
-                              <span className="text-amber-300/80">· Workflow In Progress</span>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3 pt-1">
-                            <button
-                              onClick={() => setStatusFilter('PENDING')}
-                              className="py-3 px-3 bg-white hover:bg-slate-50 text-[#D97706] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-                            >
-                              <span>Filter Pending</span>
-                            </button>
-                            <button
-                              onClick={() => setIsNewRequestOpen(true)}
-                              className="py-3 px-3 bg-white/15 hover:bg-white/25 text-white font-black text-xs rounded-xl border border-white/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-                            >
-                              <span>+ New Request</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* SLIDE 3: TOTAL SALARY EVER COLLECTED & NEXT PENDING SALARY */}
-                    {financialSlideIndex === 3 && (
-                      <div className="rounded-t-[26px] bg-gradient-to-br from-[#059669] via-[#047857] to-[#064E3B] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300">
-                        <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none" />
-                        <div className="relative z-10 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-200 flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-300 animate-pulse" />
-                              SLIDE 4/4 · TOTAL SALARY EVER COLLECTED
-                            </span>
-                            <button
-                              onClick={() => setHideBalance(!hideBalance)}
-                              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white"
-                              title={hideBalance ? 'Show Balance' : 'Hide Balance'}
-                            >
-                              {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </button>
-                          </div>
-
-                          <div>
-                            <span className="text-xs font-semibold text-emerald-200 block mb-1">
-                              Accumulated Staff Payroll Disbursed to Date
-                            </span>
-                            <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-                              {hideBalance ? '₦ ••••••••' : formatNaira(financialSlideMetrics.salaryCollected)}
-                            </h2>
-
-                            {/* UNDER IT: NEXT PENDING SALARY SUB-CARD */}
-                            <div className="mt-3 p-3 bg-emerald-950/60 border border-emerald-400/40 rounded-xl backdrop-blur-sm flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                              <div>
-                                <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider block">
-                                  NEXT PENDING SALARY (EST.)
-                                </span>
-                                <span className="text-base sm:text-lg font-black text-white">
-                                  {hideBalance ? '₦ ••••••••' : formatNaira(financialSlideMetrics.nextPendingSalary)}
-                                </span>
-                              </div>
-                              <div className="text-left sm:text-right text-[11px] text-emerald-200 font-medium">
-                                <span>Monthly Base: {formatNaira(financialSlideMetrics.baseMonthly)}</span>
-                                {todayAttendance?.deductionPercent > 0 && (
-                                  <span className="block text-red-300 font-bold">-{todayAttendance.deductionPercent}% Lateness Penalty</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3 pt-1">
-                            <button
-                              onClick={() => setIsPayslipsModalOpen(true)}
-                              className="py-3 px-3 bg-white hover:bg-slate-50 text-[#059669] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-                            >
-                              <span>View Payslips</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setActiveWorkstation('HR');
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                              }}
-                              className="py-3 px-3 bg-white/15 hover:bg-white/25 text-white font-black text-xs rounded-xl border border-white/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-                            >
-                              <span>HR Desk →</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* CAROUSEL BOTTOM CONTROLS: PREV / NEXT ARROWS & 4 DOTS */}
-                    <div className="px-5 py-3 bg-white text-slate-700 flex items-center justify-between border-t border-slate-200">
-                      <button
-                        onClick={() => setFinancialSlideIndex((prev) => (prev > 0 ? prev - 1 : 3))}
-                        className="p-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 transition-all text-slate-700 flex items-center gap-1.5 text-xs font-bold"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                        <span className="hidden sm:inline">Prev</span>
-                      </button>
-
-                      {/* 4 Interactive Dot Indicators */}
-                      <div className="flex items-center gap-2">
-                        {[0, 1, 2, 3].map((idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => setFinancialSlideIndex(idx)}
-                            className={`transition-all rounded-full ${
-                              financialSlideIndex === idx
-                                ? 'w-6 h-2 bg-[#EA580C]'
-                                : 'w-2 h-2 bg-slate-200 hover:bg-slate-300'
-                            }`}
-                            title={`Slide ${idx + 1}`}
-                          />
-                        ))}
-                      </div>
-
-                      <button
-                        onClick={() => setFinancialSlideIndex((prev) => (prev < 3 ? prev + 1 : 0))}
-                        className="p-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 transition-all text-slate-700 flex items-center gap-1.5 text-xs font-bold"
-                      >
-                        <span className="hidden sm:inline">Next</span>
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
 
                   {/* DUAL-KEY MAKER-CHECKER (If disbursements awaiting confirmation) */}
                   {disbursementsAwaiting.length > 0 && (
@@ -3792,9 +3994,9 @@ export function StaffDashboardClient({
         {/* ALL MODALS & DRAWERS (ATTENDANCE, CHAT, PAYSLIPS, ETC)    */}
         {/* ========================================================= */}
 
-        {/* Modal: Full Attendance Scanner (Matches Mobile Flutter AttendanceScanScreen 1-to-1) */}
+        {/* Modal: Full Attendance Scanner & Quick Web Punch (Matches Mobile Flutter AttendanceScanScreen 1-to-1) */}
         {isAttendanceScanModalOpen && (
-          <div className="fixed inset-0 z-50 bg-[#0F172A]/75 backdrop-blur-md flex items-center justify-center p-3 md:p-6 overflow-y-auto animate-fade-in">
+          <div className="fixed inset-0 z-[9999] bg-[#0F172A]/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 overflow-y-auto animate-fade-in">
             <div className="w-full max-w-sm bg-[#F1F5F9] rounded-[32px] p-5 shadow-2xl border border-slate-200/80 space-y-4 relative overflow-hidden">
               {/* Header Bar */}
               <div className="flex items-center justify-between">
@@ -3804,14 +4006,14 @@ export function StaffDashboardClient({
                     setScannerPunchSuccessRecord(null);
                     setScannerManualTokenOpen(false);
                   }}
-                  className="w-9 h-9 rounded-xl bg-white border border-[#E2E8F0] shadow-sm flex items-center justify-center text-[#0F172A] hover:bg-slate-50 transition-all"
+                  className="w-9 h-9 rounded-xl bg-white border border-[#E2E8F0] shadow-sm flex items-center justify-center text-[#0F172A] hover:bg-slate-50 transition-all cursor-pointer"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
 
                 <div className="text-center">
                   <h3 className="text-sm font-extrabold text-[#0F172A] leading-tight">
-                    {todayAttendance ? 'Check-Out Scanner' : 'Attendance Scanner'}
+                    {todayAttendance ? 'Check-Out Desk' : 'Attendance Clock-In'}
                   </h3>
                   <p className="text-[10px] font-medium text-[#64748B]">
                     BEMS Enterprise Timekeeping
@@ -3823,114 +4025,227 @@ export function StaffDashboardClient({
                 </div>
               </div>
 
-              {/* Airplane Window Squircle Viewport */}
-              <div className="flex flex-col items-center pt-2">
-                <div className="relative flex items-center justify-center">
-                  {/* Outer Aircraft Beveled Rim */}
-                  <div className="w-[260px] h-[330px] rounded-[78px] p-3.5 bg-gradient-to-br from-white via-[#E2E8F0] to-[#CBD5E1] shadow-[0_20px_45px_rgba(15,23,42,0.2)] flex items-center justify-center relative">
-                    {/* Inner Aircraft Dark Chamber */}
-                    <div className="w-full h-full rounded-[66px] bg-[#040711] shadow-inner relative overflow-hidden flex items-center justify-center">
-                      {/* Live Camera Stream */}
-                      <video
-                        ref={scannerVideoRef}
-                        playsInline
-                        muted
-                        autoPlay
-                        className="w-full h-full object-cover rounded-[66px]"
-                      />
+              {/* Mode Switcher: QR Camera vs Quick Web Punch */}
+              <div className="flex bg-slate-200/90 p-1 rounded-2xl gap-1 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setScannerMode('CAMERA')}
+                  className={`flex-1 py-1.5 rounded-xl transition-all cursor-pointer ${
+                    scannerMode === 'CAMERA'
+                      ? 'bg-white text-[#EA580C] shadow-sm font-black'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  📷 Kiosk Scanner
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScannerMode('PIN')}
+                  className={`flex-1 py-1.5 rounded-xl transition-all cursor-pointer ${
+                    scannerMode === 'PIN'
+                      ? 'bg-white text-[#EA580C] shadow-sm font-black'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  ⚡ Quick Web Punch
+                </button>
+              </div>
 
-                      {/* Camera Fallback Viewport */}
-                      {scannerCameraError && (
-                        <div className="absolute inset-0 bg-[#0F172A] p-4 flex flex-col items-center justify-center text-center">
-                          <Camera className="w-9 h-9 text-white/50 mb-2" />
-                          <span className="text-xs font-bold text-white">Camera Viewfinder</span>
-                          <span className="text-[10px] text-white/60 mt-1 max-w-[190px]">
-                            {scannerCameraError}
-                          </span>
+              {scannerMode === 'CAMERA' ? (
+                /* Mode 1: Camera Scanner */
+                <div className="space-y-4">
+                  {/* Airplane Window Squircle Viewport */}
+                  <div className="flex flex-col items-center pt-1">
+                    <div className="relative flex items-center justify-center">
+                      {/* Outer Aircraft Beveled Rim */}
+                      <div className="w-[260px] h-[310px] rounded-[78px] p-3.5 bg-gradient-to-br from-white via-[#E2E8F0] to-[#CBD5E1] shadow-[0_20px_45px_rgba(15,23,42,0.2)] flex items-center justify-center relative">
+                        {/* Inner Aircraft Dark Chamber */}
+                        <div className="w-full h-full rounded-[66px] bg-[#040711] shadow-inner relative overflow-hidden flex items-center justify-center">
+                          {/* Live Camera Stream */}
+                          <video
+                            ref={scannerVideoRef}
+                            playsInline
+                            muted
+                            autoPlay
+                            className="w-full h-full object-cover rounded-[66px]"
+                          />
+
+                          {/* Camera Fallback Viewport */}
+                          {scannerCameraError && (
+                            <div className="absolute inset-0 bg-[#0F172A] p-4 flex flex-col items-center justify-center text-center">
+                              <Camera className="w-9 h-9 text-white/50 mb-2" />
+                              <span className="text-xs font-bold text-white">Camera Viewfinder</span>
+                              <span className="text-[10px] text-white/60 mt-1 max-w-[190px]">
+                                {scannerCameraError}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Animated Laser Beam (Active while scanning) */}
+                          {scannerIsScanning && !scannerDetectedCode && (
+                            <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#EA580C] to-transparent shadow-[0_0_14px_3px_rgba(234,88,12,0.8)] animate-pulse pointer-events-none" style={{ top: '45%' }} />
+                          )}
+
+                          {/* Corner Reticles */}
+                          <div className={`absolute w-36 h-36 rounded-2xl pointer-events-none transition-all duration-300 flex items-center justify-center ${
+                            scannerDetectedCode
+                              ? 'border-2 border-emerald-400 bg-emerald-500/20 shadow-[0_0_24px_rgba(16,185,129,0.7)]'
+                              : 'border-2 border-white/40 shadow-[0_0_0_9999px_rgba(0,0,0,0.22)]'
+                          }`}>
+                            {scannerDetectedCode && (
+                              <CheckCircle2 className="w-10 h-10 text-emerald-400 animate-bounce" />
+                            )}
+                          </div>
+
+                          {/* Upper Aircraft Glass Glare */}
+                          <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-t-[66px]" />
+
+                          {/* Punching Overlay */}
+                          {punching && (
+                            <div className="absolute inset-0 bg-black/65 backdrop-blur-[2px] flex flex-col items-center justify-center text-white z-20">
+                              <RefreshCw className="w-7 h-7 text-[#EA580C] animate-spin mb-2" />
+                              <span className="text-xs font-black">
+                                {scannerDetectedCode ? 'QR Recognized! Clocking In...' : 'Verifying Dynamic QR...'}
+                              </span>
+                              <span className="text-[10px] text-white/70 mt-0.5">Matching Office Geofence & Starlink</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-
-                      {/* Animated Laser Beam (Active while scanning) */}
-                      {scannerIsScanning && !scannerDetectedCode && (
-                        <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#EA580C] to-transparent shadow-[0_0_14px_3px_rgba(234,88,12,0.8)] animate-pulse pointer-events-none" style={{ top: '45%' }} />
-                      )}
-
-                      {/* Corner Reticles (Transitions to glowing emerald on QR detection) */}
-                      <div className={`absolute w-36 h-36 rounded-2xl pointer-events-none transition-all duration-300 flex items-center justify-center ${
-                        scannerDetectedCode
-                          ? 'border-2 border-emerald-400 bg-emerald-500/20 shadow-[0_0_24px_rgba(16,185,129,0.7)]'
-                          : 'border-2 border-white/40 shadow-[0_0_0_9999px_rgba(0,0,0,0.22)]'
-                      }`}>
-                        {scannerDetectedCode && (
-                          <CheckCircle2 className="w-10 h-10 text-emerald-400 animate-bounce" />
-                        )}
                       </div>
 
-                      {/* Upper Aircraft Glass Glare */}
-                      <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-t-[66px]" />
+                      {/* Hidden file input for Photo / Image QR Scan */}
+                      <input
+                        ref={scannerFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageFileScan}
+                      />
 
-                      {/* Punching Overlay */}
-                      {punching && (
-                        <div className="absolute inset-0 bg-black/65 backdrop-blur-[2px] flex flex-col items-center justify-center text-white z-20">
-                          <RefreshCw className="w-7 h-7 text-[#EA580C] animate-spin mb-2" />
-                          <span className="text-xs font-black">
-                            {scannerDetectedCode ? 'QR Recognized! Clocking In...' : 'Verifying Dynamic QR...'}
-                          </span>
-                          <span className="text-[10px] text-white/70 mt-0.5">Matching Office Geofence & Starlink</span>
-                        </div>
-                      )}
+                      {/* Camera Controls Overlapping the Rim */}
+                      <div className="absolute -bottom-3 flex items-center gap-3 z-10">
+                        <button
+                          onClick={toggleScannerTorch}
+                          className={`w-9 h-9 rounded-full border-2 border-white shadow-md flex items-center justify-center transition-all ${
+                            scannerTorchOn ? 'bg-[#EA580C] text-white' : 'bg-white text-slate-700'
+                          }`}
+                          title="Torch"
+                        >
+                          <Zap className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setScannerFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'))}
+                          className="w-9 h-9 rounded-full border-2 border-white shadow-md bg-white text-slate-700 flex items-center justify-center hover:bg-slate-50 transition-all cursor-pointer"
+                          title="Flip Camera"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => scannerFileInputRef.current?.click()}
+                          className="w-9 h-9 rounded-full border-2 border-white shadow-md bg-white text-slate-700 flex items-center justify-center hover:bg-slate-50 transition-all cursor-pointer"
+                          title="Scan QR from Photo / Upload"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Hidden file input for Photo / Image QR Scan */}
-                  <input
-                    ref={scannerFileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageFileScan}
-                  />
-
-                  {/* Camera Controls Overlapping the Rim */}
-                  <div className="absolute -bottom-4 flex items-center gap-3 z-10">
-                    <button
-                      onClick={toggleScannerTorch}
-                      className={`w-10 h-10 rounded-full border-2 border-white shadow-md flex items-center justify-center transition-all ${
-                        scannerTorchOn ? 'bg-[#EA580C] text-white' : 'bg-white text-slate-700'
-                      }`}
-                      title="Torch"
-                    >
-                      <Zap className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setScannerFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'))}
-                      className="w-10 h-10 rounded-full border-2 border-white shadow-md bg-white text-slate-700 flex items-center justify-center hover:bg-slate-50 transition-all"
-                      title="Flip Camera"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => scannerFileInputRef.current?.click()}
-                      className="w-10 h-10 rounded-full border-2 border-white shadow-md bg-white text-slate-700 flex items-center justify-center hover:bg-slate-50 transition-all"
-                      title="Scan QR from Photo / Upload"
-                    >
-                      <Upload className="w-4 h-4" />
-                    </button>
+                  {/* Title & Instructions */}
+                  <div className="text-center pt-4 space-y-1">
+                    <h4 className="text-sm font-black text-[#0F172A] tracking-tight">
+                      {scannerDetectedCode ? 'QR Code Recognized!' : 'Align Reception Kiosk QR'}
+                    </h4>
+                    <p className="text-[11px] text-[#64748B] max-w-[260px] mx-auto leading-relaxed">
+                      {scannerDetectedCode
+                        ? 'Submitting high-precision geofence verification...'
+                        : 'Point camera at reception lobby screen or switch to Quick Web Punch.'}
+                    </p>
                   </div>
                 </div>
-              </div>
+              ) : (
+                /* Mode 2: Quick Web Punch & PIN */
+                <div className="space-y-4 py-2">
+                  <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-3 text-center shadow-sm">
+                    <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-200 text-[#EA580C] flex items-center justify-center mx-auto shadow-sm">
+                      <Clock className="w-6 h-6 stroke-[2.2]" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-[#0F172A]">{user.fullName}</h4>
+                      <p className="text-xs text-slate-500 font-bold">{displayEmployeeNumber} · {displaySubsidiary}</p>
+                    </div>
 
-              {/* Title & Instructions */}
-              <div className="text-center pt-5 space-y-1">
-                <h4 className="text-base font-black text-[#0F172A] tracking-tight">
-                  {scannerDetectedCode ? 'QR Code Recognized!' : 'Align Reception Kiosk QR'}
-                </h4>
-                <p className="text-[11px] text-[#64748B] max-w-[260px] mx-auto leading-relaxed">
-                  {scannerDetectedCode
-                    ? 'Submitting high-precision geofence verification...'
-                    : 'Point camera at the reception kiosk screen to automatically register attendance.'}
-                </p>
-              </div>
+                    <div className={`p-3 rounded-xl text-xs font-black ${
+                      todayAttendance
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}>
+                      {todayAttendance ? (
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          <span>Shift Active · Clocked In at {todayAttendance.checkInTime ? new Date(todayAttendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '07:45 AM'}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span>🕒 Shift Not Started · Ready to Clock In</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Direct 1-Click Office Web Punch Button */}
+                    <button
+                      disabled={punching}
+                      onClick={() => handlePunchAttendance(todayAttendance ? 'CHECK_OUT' : 'CHECK_IN')}
+                      className={`w-full py-3.5 rounded-2xl font-black text-xs text-white flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98] cursor-pointer ${
+                        todayAttendance
+                          ? 'bg-gradient-to-r from-red-600 to-rose-700 shadow-rose-500/25'
+                          : 'bg-gradient-to-r from-orange-600 to-amber-500 shadow-orange-500/25'
+                      }`}
+                    >
+                      {punching ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <MapPin className="w-4 h-4" />
+                      )}
+                      <span>
+                        {punching
+                          ? 'Verifying Geofence...'
+                          : todayAttendance
+                          ? 'Check Out Now (Office Perimeter)'
+                          : 'Clock In Now (Office Perimeter)'}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Kiosk PIN Form */}
+                  <div className="p-3.5 bg-white rounded-2xl border border-slate-200 space-y-2 shadow-sm">
+                    <span className="text-[11px] font-black text-[#0F172A] block">
+                      Or Punch With Kiosk PIN
+                    </span>
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      Enter your 4-digit staff kiosk PIN to check in or out instantly.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        maxLength={6}
+                        placeholder="4-digit PIN"
+                        value={kioskPinInput}
+                        onChange={(e) => setKioskPinInput(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-center text-sm font-mono font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
+                      />
+                      <button
+                        type="button"
+                        disabled={punching || kioskPinInput.trim().length < 4}
+                        onClick={handleKioskPinPunch}
+                        className="px-4 py-2 bg-[#0F172A] hover:bg-slate-800 disabled:opacity-50 text-white rounded-xl text-xs font-black transition-all cursor-pointer"
+                      >
+                        {punching ? '...' : 'Submit PIN'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Real-Time Security Telemetry Status Pills */}
               <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
@@ -3975,7 +4290,7 @@ export function StaffDashboardClient({
                         setScannerDetectedCode(null);
                         setScannerIsScanning(true);
                       }}
-                      className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-rose-200 rounded-lg text-rose-700 font-extrabold hover:bg-rose-100 transition-all text-[10px] shadow-sm"
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-rose-200 rounded-lg text-rose-700 font-extrabold hover:bg-rose-100 transition-all text-[10px] shadow-sm cursor-pointer"
                     >
                       <RefreshCw className="w-3 h-3" />
                       <span>Scan Again</span>
@@ -3984,65 +4299,67 @@ export function StaffDashboardClient({
                 </div>
               )}
 
-              {/* Primary Action Button: Verify Dynamic QR & Clock In/Out */}
-              <div className="space-y-2 pt-1">
-                <button
-                  disabled={punching}
-                  onClick={() => handlePunchAttendance(todayAttendance ? 'CHECK_OUT' : 'CHECK_IN')}
-                  className={`w-full py-3.5 rounded-2xl font-extrabold text-xs text-white flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98] ${
-                    todayAttendance
-                      ? 'bg-gradient-to-r from-[#EA580C] to-orange-700 shadow-orange-500/25'
-                      : 'bg-gradient-to-r from-[#059669] to-emerald-700 shadow-emerald-500/25'
-                  }`}
-                >
-                  {punching ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <QrCode className="w-4 h-4" />
-                  )}
-                  <span>
-                    {punching
-                      ? 'Cryptographic Verification...'
-                      : scannerDetectedCode
-                      ? 'Re-submit Scanned QR'
-                      : todayAttendance
-                      ? 'Verify Dynamic QR & Clock Out'
-                      : 'Verify Dynamic QR & Clock In'}
-                  </span>
-                </button>
-
-                {/* Manual Token Trigger */}
-                <div className="text-center pt-1">
+              {/* Camera Mode Action Buttons */}
+              {scannerMode === 'CAMERA' && (
+                <div className="space-y-2 pt-1">
                   <button
-                    onClick={() => setScannerManualTokenOpen(!scannerManualTokenOpen)}
-                    className="text-[11px] font-bold text-[#64748B] hover:text-[#0F172A] transition-colors"
+                    disabled={punching}
+                    onClick={() => handlePunchAttendance(todayAttendance ? 'CHECK_OUT' : 'CHECK_IN')}
+                    className={`w-full py-3.5 rounded-2xl font-extrabold text-xs text-white flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98] cursor-pointer ${
+                      todayAttendance
+                        ? 'bg-gradient-to-r from-[#EA580C] to-orange-700 shadow-orange-500/25'
+                        : 'bg-gradient-to-r from-[#059669] to-emerald-700 shadow-emerald-500/25'
+                    }`}
                   >
-                    Camera issue? Enter token manually
+                    {punching ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <QrCode className="w-4 h-4" />
+                    )}
+                    <span>
+                      {punching
+                        ? 'Cryptographic Verification...'
+                        : scannerDetectedCode
+                        ? 'Re-submit Scanned QR'
+                        : todayAttendance
+                        ? 'Verify Dynamic QR & Clock Out'
+                        : 'Verify Dynamic QR & Clock In'}
+                    </span>
                   </button>
-                </div>
 
-                {/* Manual Token Drawer */}
-                {scannerManualTokenOpen && (
-                  <div className="p-3 bg-white rounded-2xl border border-slate-200 space-y-2 mt-2 animate-fade-in shadow-sm">
-                    <span className="text-[11px] font-extrabold text-[#0F172A] block">Manual Token Entry</span>
-                    <p className="text-[10px] text-[#64748B]">Enter or paste the rotating code from the kiosk.</p>
-                    <input
-                      type="text"
-                      placeholder="e.g. BEMSQR:STATION:..."
-                      value={scannerManualTokenInput}
-                      onChange={(e) => setScannerManualTokenInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
-                    />
+                  {/* Manual Token Trigger */}
+                  <div className="text-center pt-1">
                     <button
-                      disabled={punching || !scannerManualTokenInput.trim()}
-                      onClick={() => handlePunchAttendance(todayAttendance ? 'CHECK_OUT' : 'CHECK_IN', scannerManualTokenInput.trim())}
-                      className="w-full py-2 bg-[#EA580C] hover:bg-orange-700 text-white rounded-xl text-xs font-extrabold transition-all"
+                      onClick={() => setScannerManualTokenOpen(!scannerManualTokenOpen)}
+                      className="text-[11px] font-bold text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
                     >
-                      Submit Token
+                      Camera issue? Enter token manually
                     </button>
                   </div>
-                )}
-              </div>
+
+                  {/* Manual Token Drawer */}
+                  {scannerManualTokenOpen && (
+                    <div className="p-3 bg-white rounded-2xl border border-slate-200 space-y-2 mt-2 animate-fade-in shadow-sm">
+                      <span className="text-[11px] font-extrabold text-[#0F172A] block">Manual Token Entry</span>
+                      <p className="text-[10px] text-[#64748B]">Enter or paste the rotating code from the kiosk.</p>
+                      <input
+                        type="text"
+                        placeholder="e.g. BEMSQR:STATION:..."
+                        value={scannerManualTokenInput}
+                        onChange={(e) => setScannerManualTokenInput(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
+                      />
+                      <button
+                        disabled={punching || !scannerManualTokenInput.trim()}
+                        onClick={() => handlePunchAttendance(todayAttendance ? 'CHECK_OUT' : 'CHECK_IN', scannerManualTokenInput.trim())}
+                        className="w-full py-2 bg-[#EA580C] hover:bg-orange-700 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer"
+                      >
+                        Submit Token
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Attendance Punch Success Sheet (Matches Mobile Sheet 1-to-1) */}
