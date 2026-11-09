@@ -3169,7 +3169,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     );
   }
 
-  Widget _buildHomeShiftBanner() {
+  Widget _buildShiftAttendanceCard() {
     final role = widget.user.role.toUpperCase();
     if (role == 'GMD' || role == 'SUPER_ADMIN' || role == 'SYSTEM_ADMIN') {
       return const SizedBox.shrink();
@@ -3364,77 +3364,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
         children: [
-          // Shift Attendance Status Banner
-          _buildHomeShiftBanner(),
-          // Web APK Download Banner
-          if (kIsWeb)
-            Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFFF7ED), Color(0xFFFFFBEB)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFFFED7AA)),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFEA580C).withOpacity(0.06),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEA580C),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.android_rounded, color: Colors.white, size: 26),
-                  ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Download BEMS Staff Mobile App',
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Install Android APK for real-time phone status bar push notifications.',
-                          style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  FilledButton.icon(
-                    onPressed: _downloadAndroidApk,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFEA580C),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      elevation: 0,
-                    ),
-                    icon: const Icon(Icons.download_rounded, size: 16),
-                    label: const Text('Download APK', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
-                  ),
-                ],
-              ),
-            ),
-
           // Multi-Metric Financial Carousel (Replaces Single Hero Card)
           _buildMultiMetricFinancialCarousel(formatter, activeAdvanceAmount),
 
@@ -3564,7 +3493,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             }),
           ],
 
-          // Quick Actions Grid (Clean, unified executive cards)
+          // Quick Actions Grid (6 clean, balanced executive cards)
           const Text('Quick Actions', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
           const SizedBox(height: 12),
 
@@ -3617,41 +3546,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: _buildActionTile(
-                  title: 'Digital Wallet',
-                  subtitle: 'Disbursements & Bank',
-                  icon: Icons.account_balance_wallet_rounded,
-                  iconColor: const Color(0xFF0F172A),
-                  iconBgColor: const Color(0xFFF1F5F9),
-                  onTap: () => _navigateToTab(3),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              Expanded(
-                child: _buildActionTile(
-                  title: 'Admin Helpdesk',
-                  subtitle: 'Chat With Admin',
-                  icon: Icons.support_agent_rounded,
-                  iconColor: const Color(0xFFEA580C),
-                  iconBgColor: const Color(0xFFFFF7ED),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => StaffAdminChatScreen(currentUser: _currentUser),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildActionTile(
                   title: 'Requisitions',
                   subtitle: 'View All & Chat',
                   icon: Icons.chat_bubble_outline_rounded,
@@ -3680,12 +3574,19 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: _buildActionTile(
-                  title: 'Monthly Payslips',
-                  subtitle: 'Voucher & Breakdown',
-                  icon: Icons.receipt_long_rounded,
-                  iconColor: const Color(0xFF2563EB),
-                  iconBgColor: const Color(0xFFEFF6FF),
-                  onTap: _showMyPayslipsModal,
+                  title: 'Admin Helpdesk',
+                  subtitle: 'Chat With Admin',
+                  icon: Icons.support_agent_rounded,
+                  iconColor: const Color(0xFFEA580C),
+                  iconBgColor: const Color(0xFFFFF7ED),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => StaffAdminChatScreen(currentUser: _currentUser),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -5520,6 +5421,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ),
         ),
 
+        const SizedBox(height: 16),
+
+        // Shift Attendance Card (Moved from Home under Profile)
+        _buildShiftAttendanceCard(),
+
         const SizedBox(height: 20),
 
         // 2. Personal Information Section
@@ -5854,6 +5760,22 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
         const SizedBox(height: 14),
 
+        // Download Android APK (Available under profile for web users)
+        if (kIsWeb) ...[
+          OutlinedButton.icon(
+            onPressed: _downloadAndroidApk,
+            icon: const Icon(Icons.download_rounded, size: 16, color: Color(0xFFEA580C)),
+            label: const Text('Download Android Mobile App (v1.3.8)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFFEA580C))),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFFFED7AA)),
+              backgroundColor: const Color(0xFFFFF7ED),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+
         // Logout
         OutlinedButton.icon(
           onPressed: _handleLogout,
@@ -5957,9 +5879,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 onPrimaryAction: () {
                   _navigateToTab(3);
                 },
-                secondaryActionLabel: 'Digital Wallet',
-                secondaryActionIcon: Icons.account_balance_wallet_rounded,
-                onSecondaryAction: () => _navigateToTab(3),
               ),
 
               // Slide 2: Lifetime Requests Raised
@@ -6060,9 +5979,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     required IconData primaryActionIcon,
     required Color primaryActionColor,
     required VoidCallback onPrimaryAction,
-    required String secondaryActionLabel,
-    required IconData secondaryActionIcon,
-    required VoidCallback onSecondaryAction,
+    String? secondaryActionLabel,
+    IconData? secondaryActionIcon,
+    VoidCallback? onSecondaryAction,
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 2),
@@ -6227,35 +6146,37 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           icon: Icon(primaryActionIcon, size: 16, color: primaryActionColor),
                           label: Text(
                             primaryActionLabel,
-                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11.5, color: primaryActionColor),
+                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: primaryActionColor),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             elevation: 2,
                             shadowColor: Colors.black.withOpacity(0.2),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: onSecondaryAction,
-                          icon: Icon(secondaryActionIcon, size: 16, color: Colors.white),
-                          label: Text(
-                            secondaryActionLabel,
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5, color: Colors.white),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white.withOpacity(0.22),
-                            elevation: 0,
-                            side: BorderSide(color: Colors.white.withOpacity(0.35)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      if (secondaryActionLabel != null && onSecondaryAction != null) ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: onSecondaryAction,
+                            icon: Icon(secondaryActionIcon ?? Icons.arrow_forward_rounded, size: 16, color: Colors.white),
+                            label: Text(
+                              secondaryActionLabel,
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5, color: Colors.white),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white.withOpacity(0.22),
+                              elevation: 0,
+                              side: BorderSide(color: Colors.white.withOpacity(0.35)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ],

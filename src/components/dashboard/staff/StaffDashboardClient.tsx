@@ -1407,19 +1407,14 @@ export function StaffDashboardClient({
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col selection:bg-orange-100 selection:text-orange-900 font-sans w-full">
       {/* ========================================================= */}
+      {/* TOP HEADER: SPANS FROM LEFT TO RIGHT ACROSS ENTIRE SCREEN */}
       {/* ========================================================= */}
-      {/* TOP HEADER: MINIMAL & UNCLUTTERED EXECUTIVE BAR           */}
-      {/* ========================================================= */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 py-3 shadow-sm w-full">
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-4">
-          {/* Left: Avatar + Identity (Clickable to Profile) */}
-          <button
-            onClick={() => setActiveTab('PROFILE')}
-            className="flex items-center gap-3 p-1 -ml-1 rounded-2xl hover:bg-slate-50 transition-all text-left cursor-pointer group"
-            title="View My Profile & Settings"
-          >
-            <div className="relative shrink-0">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-400 text-white font-black text-sm flex items-center justify-center shadow-md shadow-orange-500/20 overflow-hidden group-hover:scale-105 transition-transform">
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 py-3.5 shadow-sm w-full">
+        <div className="max-w-[1600px] mx-auto flex items-center justify-between">
+          {/* Left: Avatar + Identity */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-400 text-white font-black text-base flex items-center justify-center shadow-md shadow-orange-500/20 overflow-hidden">
                 {user.avatarUrl && user.avatarUrl.startsWith('http') ? (
                   <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
                 ) : (
@@ -1428,23 +1423,111 @@ export function StaffDashboardClient({
               </div>
             </div>
 
-            <div className="min-w-0">
+            <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="text-xs sm:text-sm font-black text-[#0F172A] tracking-tight truncate group-hover:text-[#EA580C] transition-colors">
+                <h1 className="text-sm font-black text-[#0F172A] tracking-tight">
                   {user.fullName}
                 </h1>
-                <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-orange-600 text-white text-[8px] font-black shrink-0">
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-orange-600 text-white text-[9px] font-black">
                   ✓
                 </span>
               </div>
-              <p className="text-[10.5px] font-bold text-[#64748B] tracking-tight truncate">
+              <p className="text-[11px] font-bold text-[#64748B] tracking-tight">
                 {displayEmployeeNumber} · {displaySubsidiary}
               </p>
             </div>
-          </button>
+          </div>
 
-          {/* Right: Clean Action Controls */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Center: Desktop Navigation Tabs (Spreads Across from Left to Right) */}
+          <nav className="hidden md:flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200">
+            <button
+              onClick={() => {
+                setActiveTab('HOME');
+                setActiveWorkstation('HUB');
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                activeTab === 'HOME' && activeWorkstation === 'HUB'
+                  ? 'bg-white text-[#EA580C] shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              <span>Module Gallery</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('HOME');
+                setActiveWorkstation('FINANCE');
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all relative ${
+                activeTab === 'HOME' && activeWorkstation === 'FINANCE'
+                  ? 'bg-white text-[#EA580C] shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Wallet className="w-4 h-4" />
+              <span>Financial Hub</span>
+              {requests.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-black">
+                  {requests.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setIsNewRequestOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-orange-600 to-amber-500 text-white shadow-md shadow-orange-500/25 hover:opacity-95 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Request</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('HOME');
+                setActiveWorkstation('ACCOUNTABILITY');
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                activeTab === 'HOME' && activeWorkstation === 'ACCOUNTABILITY'
+                  ? 'bg-white text-[#EA580C] shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>72h SLA</span>
+              {pendingRetirements.length > 0 && (
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('WALLET')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                activeTab === 'WALLET'
+                  ? 'bg-white text-[#EA580C] shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Wallet className="w-4 h-4" />
+              <span>Wallet</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('PROFILE')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                activeTab === 'PROFILE'
+                  ? 'bg-white text-[#EA580C] shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <User className="w-4 h-4" />
+              <span>Profile</span>
+            </button>
+          </nav>
+
+          {/* Right: Actions */}
+          <div className="flex items-center gap-2">
             {/* Shift Attendance Top-Bar Pill (Staff Only, Executives Exempt) */}
             {String(user?.role || '').toUpperCase() === 'STAFF' && (
               todayAttendance ? (
@@ -1463,7 +1546,7 @@ export function StaffDashboardClient({
                       ? `${new Date(todayAttendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · Check Out`
                       : 'Active Shift · Check Out'}
                   </span>
-                  <span className="sm:hidden text-[11px]">Check Out</span>
+                  <span className="sm:hidden">Check Out</span>
                   <LogOut className="w-3.5 h-3.5 text-emerald-600" />
                 </button>
               ) : (
@@ -1482,29 +1565,10 @@ export function StaffDashboardClient({
               )
             )}
 
-            {/* Module Gallery Quick Switcher (Icon Only) */}
-            <button
-              onClick={() => {
-                setActiveTab('HOME');
-                setActiveWorkstation('HUB');
-                const el = document.getElementById('workstation-gallery');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-                else window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
-                activeTab === 'HOME' && activeWorkstation === 'HUB'
-                  ? 'bg-orange-50 border-orange-200 text-[#EA580C] shadow-sm'
-                  : 'bg-white border-[#E2E8F0] text-[#0F172A] hover:bg-slate-50 hover:text-[#EA580C]'
-              }`}
-              title="Enterprise Module Gallery"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-
             {/* Notification Bell */}
             <button
               onClick={() => setIsNotificationsOpen(true)}
-              className="w-9 h-9 rounded-xl bg-white border border-[#E2E8F0] text-[#0F172A] flex items-center justify-center hover:bg-slate-50 transition-all relative cursor-pointer"
+              className="w-9 h-9 rounded-full bg-white border border-[#E2E8F0] text-[#0F172A] flex items-center justify-center hover:bg-slate-50 transition-all relative"
               title="Notifications"
             >
               <Bell className="w-4 h-4" />
@@ -1515,7 +1579,7 @@ export function StaffDashboardClient({
             <button
               onClick={() => loadData(true)}
               disabled={refreshing}
-              className="w-9 h-9 rounded-xl bg-white border border-[#E2E8F0] text-[#0F172A] flex items-center justify-center hover:bg-slate-50 transition-all cursor-pointer"
+              className="w-9 h-9 rounded-full bg-white border border-[#E2E8F0] text-[#0F172A] flex items-center justify-center hover:bg-slate-50 transition-all"
               title="Refresh Data"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-orange-600' : ''}`} />
@@ -1599,20 +1663,13 @@ export function StaffDashboardClient({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div className="pt-1">
                         <button
                           onClick={() => setActiveTab('WALLET')}
-                          className="py-3 px-3 bg-white hover:bg-slate-50 text-[#EA580C] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
+                          className="w-full py-3 px-4 bg-white hover:bg-slate-50 text-[#EA580C] font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
                         >
                           <ArrowRight className="w-4 h-4 -rotate-45 text-[#EA580C]" />
                           <span>Withdraw to Bank</span>
-                        </button>
-                        <button
-                          onClick={() => setActiveTab('WALLET')}
-                          className="py-3 px-3 bg-white/15 hover:bg-white/25 text-white font-black text-xs rounded-xl border border-white/20 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
-                        >
-                          <Wallet className="w-4 h-4 text-white" />
-                          <span>Digital Wallet</span>
                         </button>
                       </div>
                     </div>
@@ -1833,10 +1890,10 @@ export function StaffDashboardClient({
                 </button>
               </div>
 
-              {/* CARD 3: QUICK ACTIONS GRID (Exact 8 Executive Cards matching Flutter Mobile) */}
+              {/* CARD 3: QUICK ACTIONS GRID (6 Core Executive Cards matching Mobile) */}
               <div className="space-y-3">
                 <h4 className="text-sm font-black text-[#0F172A] tracking-tight">Quick Actions</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {/* 1. New Request */}
                   <button
                     onClick={() => setIsNewRequestOpen(true)}
@@ -1885,35 +1942,7 @@ export function StaffDashboardClient({
                     </div>
                   </button>
 
-                  {/* 4. Digital Wallet */}
-                  <button
-                    onClick={() => setActiveTab('WALLET')}
-                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 text-slate-800 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-                      <Wallet className="w-5 h-5 text-slate-700" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-black text-[#0F172A]">Digital Wallet</div>
-                      <div className="text-[10.5px] text-slate-500 font-medium">Disbursements &amp; Bank</div>
-                    </div>
-                  </button>
-
-                  {/* 5. Admin Helpdesk */}
-                  <button
-                    onClick={() => setIsAdminChatOpen(true)}
-                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-orange-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-                      <MessageSquare className="w-5 h-5 text-[#EA580C]" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-black text-[#0F172A]">Admin Helpdesk</div>
-                      <div className="text-[10.5px] text-slate-500 font-medium">Chat With Admin</div>
-                    </div>
-                  </button>
-
-                  {/* 6. Requisitions */}
+                  {/* 4. Requisitions */}
                   <button
                     onClick={() => setActiveTab('REQUESTS')}
                     className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
@@ -1927,7 +1956,7 @@ export function StaffDashboardClient({
                     </div>
                   </button>
 
-                  {/* 7. Enterprise Hub */}
+                  {/* 5. Enterprise Hub */}
                   <button
                     onClick={() => {
                       const el = document.getElementById('workstation-gallery');
@@ -1944,17 +1973,17 @@ export function StaffDashboardClient({
                     </div>
                   </button>
 
-                  {/* 8. Monthly Payslips */}
+                  {/* 6. Admin Helpdesk */}
                   <button
-                    onClick={() => setIsPayslipsModalOpen(true)}
-                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
+                    onClick={() => setIsAdminChatOpen(true)}
+                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-orange-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-                      <Receipt className="w-5 h-5 text-blue-600" />
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                      <MessageSquare className="w-5 h-5 text-[#EA580C]" />
                     </div>
                     <div>
-                      <div className="text-xs font-black text-[#0F172A]">Monthly Payslips</div>
-                      <div className="text-[10.5px] text-slate-500 font-medium">Voucher &amp; Breakdown</div>
+                      <div className="text-xs font-black text-[#0F172A]">Admin Helpdesk</div>
+                      <div className="text-[10.5px] text-slate-500 font-medium">Chat With Admin</div>
                     </div>
                   </button>
                 </div>
@@ -3523,6 +3552,53 @@ export function StaffDashboardClient({
                   </span>
                 </div>
               </div>
+
+              {/* SHIFT ATTENDANCE CARD (Image 2 Replica - Placed Under Profile) */}
+              {String(user?.role || '').toUpperCase() === 'STAFF' && (
+                todayAttendance ? (
+                  <div className="p-4 sm:p-5 bg-[#F0FDF4] rounded-[22px] border border-[#BBF7D0] flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-600/12 text-[#16A34A] flex items-center justify-center shrink-0">
+                        <ShieldCheck className="w-5 h-5 text-[#16A34A]" />
+                      </div>
+                      <div>
+                        <h4 className="text-[13px] font-black text-[#15803D]">Shift Active - Clocked In</h4>
+                        <p className="text-[11px] text-[#166534] font-medium">
+                          {todayAttendance.checkInTime
+                            ? `Registered at ${new Date(todayAttendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · Office station verified`
+                            : 'Registered · Office station verified'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setIsAttendanceScanModalOpen(true)}
+                      className="px-4 py-2 bg-white border border-[#86EFAC] text-[#15803D] hover:bg-emerald-50 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-sm shrink-0 cursor-pointer"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Check Out</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-4 sm:p-5 bg-[#FFF7ED] rounded-[22px] border border-[#FED7AA] flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-orange-600/12 text-[#EA580C] flex items-center justify-center shrink-0">
+                        <Clock className="w-5 h-5 text-[#EA580C]" />
+                      </div>
+                      <div>
+                        <h4 className="text-[13px] font-black text-[#0F172A]">Shift Attendance Pending</h4>
+                        <p className="text-[11px] text-[#64748B] font-medium">Clock in to verify physical presence</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setIsAttendanceScanModalOpen(true)}
+                      className="px-4 py-2 bg-[#EA580C] text-white hover:bg-orange-700 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-orange-500/20 shrink-0 cursor-pointer"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Clock In</span>
+                    </button>
+                  </div>
+                )
+              )}
 
               {/* 2-COLUMN PROFILE DESKTOP GRID (Exact Flutter Mobile Replica) */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
