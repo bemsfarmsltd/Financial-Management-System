@@ -1465,31 +1465,34 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                   ),
                 ],
               ),
-              // OPay style "+ Add Money" -> BEMS "+ Request Funds" button
-              InkWell(
-                onTap: () {
-                  if (widget.onRequestFunds != null) {
-                    widget.onRequestFunds!();
-                  }
-                },
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.22),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withOpacity(0.35)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.add_rounded, size: 14, color: Colors.white),
-                      SizedBox(width: 4),
-                      Text(
-                        'Request Funds',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF4ADE80),
+                        shape: BoxShape.circle,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Monnify Backed',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1593,7 +1596,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
       ),
       child: Column(
         children: [
-          // Row 1: Primary Banking Actions
+          // Row 1: Primary Banking Actions (3 items)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -1618,21 +1621,10 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                 bgColor: const Color(0xFFECFDF5),
                 onTap: () => _returnFunds(wallet),
               ),
-              _buildGridServiceItem(
-                label: 'Request Funds',
-                icon: Icons.add_circle_outline_rounded,
-                iconColor: const Color(0xFFD97706),
-                bgColor: const Color(0xFFFEF3C7),
-                onTap: () {
-                  if (widget.onRequestFunds != null) {
-                    widget.onRequestFunds!();
-                  }
-                },
-              ),
             ],
           ),
-          const SizedBox(height: 18),
-          // Row 2: Enterprise Utility Actions (matching OPay's second row)
+          const SizedBox(height: 20),
+          // Row 2: Financial Utility & Support (3 items)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -1648,15 +1640,11 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                 },
               ),
               _buildGridServiceItem(
-                label: '72h SLA',
-                icon: Icons.timer_outlined,
+                label: 'Statement',
+                icon: Icons.description_outlined,
                 iconColor: const Color(0xFF0D9488),
                 bgColor: const Color(0xFFF0FDFA),
-                onTap: () {
-                  if (widget.onNavigateToTab != null) {
-                    widget.onNavigateToTab!(2);
-                  }
-                },
+                onTap: () => _showStatementModal(wallet),
               ),
               _buildGridServiceItem(
                 label: 'Helpdesk',
@@ -1669,13 +1657,6 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                     MaterialPageRoute(builder: (_) => StaffAdminChatScreen(currentUser: widget.user)),
                   );
                 },
-              ),
-              _buildGridServiceItem(
-                label: 'Statement',
-                icon: Icons.description_outlined,
-                iconColor: const Color(0xFF475569),
-                bgColor: const Color(0xFFF1F5F9),
-                onTap: () => _showStatementModal(wallet),
               ),
             ],
           ),
@@ -1695,7 +1676,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: SizedBox(
-        width: 74,
+        width: 86,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
