@@ -366,47 +366,66 @@ export function MobileAppsViewerClient({ userName, userRole }: Props) {
                 height: dimensions.height,
                 background: '#0f172a',
                 borderRadius: 44,
-                padding: '12px 10px',
+                padding: '10px 8px',
                 boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.1)',
                 display: 'flex',
                 flexDirection: 'column',
                 position: 'relative',
               }}
             >
-              {/* Dynamic Island / Notch */}
-              <div
-                style={{
-                  width: 100,
-                  height: 22,
-                  background: '#000000',
-                  borderRadius: 14,
-                  position: 'absolute',
-                  top: 18,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  zIndex: 20,
-                  pointerEvents: 'none',
-                }}
-              />
-
               {/* Iframe Viewport */}
               <div
                 style={{
                   width: '100%',
                   height: '100%',
-                  borderRadius: 34,
+                  borderRadius: 36,
                   overflow: 'hidden',
                   background: '#ffffff',
                   position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
                 }}
               >
+                {/* Realistic Phone Status Bar with Dynamic Island */}
+                <div
+                  style={{
+                    height: 36,
+                    background: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0 22px',
+                    position: 'relative',
+                    flexShrink: 0,
+                    zIndex: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a' }}>9:41</span>
+                  {/* Dynamic Island Pill */}
+                  <div
+                    style={{
+                      width: 86,
+                      height: 18,
+                      background: '#000000',
+                      borderRadius: 10,
+                      position: 'absolute',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color: '#0f172a' }}>
+                    <span style={{ fontSize: 9 }}>5G</span>
+                    <span style={{ width: 13, height: 7, border: '1px solid #0f172a', borderRadius: 2, display: 'inline-block' }} />
+                  </div>
+                </div>
+
                 <iframe
                   key={gmdKey}
                   src="/gmd-app/index.html"
                   title="BEMS GMD AI Mobile App"
                   style={{
                     width: '100%',
-                    height: '100%',
+                    flex: 1,
                     border: 0,
                     display: 'block',
                   }}
@@ -421,7 +440,7 @@ export function MobileAppsViewerClient({ userName, userRole }: Props) {
                   background: 'rgba(255, 255, 255, 0.5)',
                   borderRadius: 2,
                   position: 'absolute',
-                  bottom: 16,
+                  bottom: 14,
                   left: '50%',
                   transform: 'translateX(-50%)',
                   pointerEvents: 'none',
@@ -449,7 +468,7 @@ export function MobileAppsViewerClient({ userName, userRole }: Props) {
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2563eb', display: 'inline-block' }} />
                 <span style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>BEMS Staff App</span>
                 <span style={{ fontSize: 10, background: '#eff6ff', color: '#2563eb', padding: '1px 6px', borderRadius: 4, fontWeight: 700, border: '1px solid #bfdbfe' }}>
-                  v1.3.5
+                  v1.3.8
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -504,47 +523,66 @@ export function MobileAppsViewerClient({ userName, userRole }: Props) {
                 height: dimensions.height,
                 background: '#0f172a',
                 borderRadius: 44,
-                padding: '12px 10px',
+                padding: '10px 8px',
                 boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.1)',
                 display: 'flex',
                 flexDirection: 'column',
                 position: 'relative',
               }}
             >
-              {/* Dynamic Island / Notch */}
-              <div
-                style={{
-                  width: 100,
-                  height: 22,
-                  background: '#000000',
-                  borderRadius: 14,
-                  position: 'absolute',
-                  top: 18,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  zIndex: 20,
-                  pointerEvents: 'none',
-                }}
-              />
-
               {/* Iframe Viewport */}
               <div
                 style={{
                   width: '100%',
                   height: '100%',
-                  borderRadius: 34,
+                  borderRadius: 36,
                   overflow: 'hidden',
                   background: '#ffffff',
                   position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
                 }}
               >
+                {/* Realistic Phone Status Bar with Dynamic Island */}
+                <div
+                  style={{
+                    height: 36,
+                    background: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0 22px',
+                    position: 'relative',
+                    flexShrink: 0,
+                    zIndex: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a' }}>9:41</span>
+                  {/* Dynamic Island Pill */}
+                  <div
+                    style={{
+                      width: 86,
+                      height: 18,
+                      background: '#000000',
+                      borderRadius: 10,
+                      position: 'absolute',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color: '#0f172a' }}>
+                    <span style={{ fontSize: 9 }}>5G</span>
+                    <span style={{ width: 13, height: 7, border: '1px solid #0f172a', borderRadius: 2, display: 'inline-block' }} />
+                  </div>
+                </div>
+
                 <iframe
                   key={staffKey}
                   src="/staff-app/index.html"
                   title="BEMS Staff Mobile App"
                   style={{
                     width: '100%',
-                    height: '100%',
+                    flex: 1,
                     border: 0,
                     display: 'block',
                   }}
@@ -559,7 +597,7 @@ export function MobileAppsViewerClient({ userName, userRole }: Props) {
                   background: 'rgba(255, 255, 255, 0.5)',
                   borderRadius: 2,
                   position: 'absolute',
-                  bottom: 16,
+                  bottom: 14,
                   left: '50%',
                   transform: 'translateX(-50%)',
                   pointerEvents: 'none',

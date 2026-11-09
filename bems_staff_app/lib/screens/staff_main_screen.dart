@@ -2997,28 +2997,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ),
         ),
         actions: [
-          // Top Bar Shift Attendance Action (Clock In / Check Out)
-          _buildTopBarAttendanceButton(),
-          const SizedBox(width: 6),
-          // Download Android App (Web Only)
-          if (kIsWeb)
-            Container(
-              width: 38,
-              height: 38,
-              margin: const EdgeInsets.only(right: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFED7AA)),
-              ),
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                tooltip: 'Download Android App (APK)',
-                icon: const Icon(Icons.download_rounded, size: 20, color: Color(0xFFEA580C)),
-                onPressed: _downloadAndroidApk,
-              ),
-            ),
-          const SizedBox(width: 4),
           // Modules Hub (Icon Only)
           InkWell(
             onTap: _openEnterpriseGallery,
@@ -3191,11 +3169,13 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     );
   }
 
-  Widget _buildTopBarAttendanceButton() {
+  Widget _buildHomeShiftBanner() {
     final role = widget.user.role.toUpperCase();
     if (role == 'GMD' || role == 'SUPER_ADMIN' || role == 'SYSTEM_ADMIN') {
       return const SizedBox.shrink();
     }
+    if (_isTodayOffDay) return const SizedBox.shrink();
+
     final isPunchedIn = _todayAttendance != null && _todayAttendance!['checkInTime'] != null;
     final checkInStr = _todayAttendance?['checkInTime']?.toString();
     final checkOutStr = _todayAttendance?['checkOutTime']?.toString();
@@ -3209,115 +3189,162 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     final timeFormatted = checkInDt != null ? DateFormat('hh:mm a').format(checkInDt) : '';
 
     if (!isPunchedIn) {
-      return InkWell(
-        onTap: () async {
-          final result = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AttendanceScanScreen(
-                currentUser: _currentUser,
-                isCheckIn: true,
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF7ED),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFFED7AA)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEA580C).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFFEA580C), size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Shift Attendance Pending',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Clock in to verify physical presence',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  ),
+                ],
               ),
             ),
-          );
-          if (result == true) _loadData();
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          height: 38,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF7ED),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFFED7AA)),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.qr_code_scanner_rounded, size: 16, color: Color(0xFFEA580C)),
-              SizedBox(width: 5),
-              Text(
-                'Clock In',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFFEA580C),
-                ),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: () async {
+                final result = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AttendanceScanScreen(
+                      currentUser: _currentUser,
+                      isCheckIn: true,
+                    ),
+                  ),
+                );
+                if (result == true) _loadData();
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFEA580C),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
               ),
-            ],
-          ),
+              icon: const Icon(Icons.touch_app_rounded, size: 14),
+              label: const Text('Clock In', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+            ),
+          ],
         ),
       );
     }
 
     if (checkOutStr == null) {
-      return InkWell(
-        onTap: () async {
-          final result = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AttendanceScanScreen(
-                currentUser: _currentUser,
-                isCheckIn: false,
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FDF4),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFBBF7D0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFF16A34A).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.shield_outlined, color: Color(0xFF16A34A), size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Shift Active - Clocked In',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF15803D),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    timeFormatted.isNotEmpty
+                        ? 'Registered at $timeFormatted · Office station verified'
+                        : 'Shift verified · Office station active',
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF166534)),
+                  ),
+                ],
               ),
             ),
-          );
-          if (result == true) _loadData();
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          height: 38,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF0FDF4),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFBBF7D0)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 7,
-                height: 7,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF16A34A),
-                  shape: BoxShape.circle,
-                ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final result = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AttendanceScanScreen(
+                      currentUser: _currentUser,
+                      isCheckIn: false,
+                    ),
+                  ),
+                );
+                if (result == true) _loadData();
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF15803D),
+                side: const BorderSide(color: Color(0xFF86EFAC)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                backgroundColor: Colors.white,
               ),
-              const SizedBox(width: 6),
-              Text(
-                timeFormatted.isNotEmpty ? '$timeFormatted · Out' : 'Check Out',
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF15803D),
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(Icons.logout_rounded, size: 14, color: Color(0xFF15803D)),
-            ],
-          ),
+              icon: const Icon(Icons.logout_rounded, size: 14),
+              label: const Text('Check Out', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+            ),
+          ],
         ),
       );
     }
 
     return Container(
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: const Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF64748B)),
-          SizedBox(width: 5),
+          Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF64748B)),
+          SizedBox(width: 8),
           Text(
-            'Shift Ended',
+            'Shift Completed for Today · Verified Check-Out',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 11.5,
               fontWeight: FontWeight.w700,
               color: Color(0xFF64748B),
             ),
@@ -3337,6 +3364,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
         children: [
+          // Shift Attendance Status Banner
+          _buildHomeShiftBanner(),
           // Web APK Download Banner
           if (kIsWeb)
             Container(
