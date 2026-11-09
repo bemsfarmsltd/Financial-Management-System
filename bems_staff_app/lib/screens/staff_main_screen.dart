@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/staff_models.dart';
 import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
@@ -91,6 +93,64 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         duration: const Duration(milliseconds: 280),
         curve: Curves.easeInOut,
       );
+    }
+  }
+
+  void _showRetirementModal(NumberFormat formatter) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(ctx).size.height * 0.85,
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(child: _buildRetirementTab(formatter)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _downloadAndroidApk() async {
+    final uri = Uri.parse('/download/staff-app.apk');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      } else {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {
+      try {
+        final fallbackUri = Uri.parse('/download');
+        await launchUrl(fallbackUri, mode: LaunchMode.platformDefault);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Please navigate to /download to get the APK: $e'),
+              backgroundColor: const Color(0xFFEA580C),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -2967,6 +3027,25 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ),
         ),
         actions: [
+          // Download Android App (Web Only)
+          if (kIsWeb)
+            Container(
+              width: 38,
+              height: 38,
+              margin: const EdgeInsets.only(right: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFED7AA)),
+              ),
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                tooltip: 'Download Android App (APK)',
+                icon: const Icon(Icons.download_rounded, size: 20, color: Color(0xFFEA580C)),
+                onPressed: _downloadAndroidApk,
+              ),
+            ),
+          const SizedBox(width: 4),
           // Modules Hub (Icon Only)
           InkWell(
             onTap: _openEnterpriseGallery,
@@ -3020,7 +3099,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 children: [
                   _buildHomeTab(formatter),
                   _buildRequestsTab(formatter),
-                  _buildRetirementTab(formatter),
                   StaffWalletScreen(
                     user: _currentUser,
                     isEmbedded: true,
@@ -3043,13 +3121,13 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ],
         ),
         child: BottomNavigationBar(
-          currentIndex: _currentIndex >= 2 ? _currentIndex + 1 : _currentIndex,
+          currentIndex: _currentIndex >= 2 ? 3 : _currentIndex,
           onTap: (idx) {
             if (idx == 2) {
               // Center FAB: New Request
               _openNewRequestModal();
             } else {
-              final target = idx > 2 ? idx - 1 : idx;
+              final target = idx == 3 ? 2 : idx;
               _navigateToTab(target);
             }
           },
@@ -3109,25 +3187,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               ),
               label: '',
             ),
-            BottomNavigationBarItem(
-              icon: Stack(
-                children: [
-                  const Icon(Icons.timer_outlined),
-                  if (_pendingRetirementCases.isNotEmpty)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
-                        constraints: const BoxConstraints(minWidth: 8, minHeight: 8),
-                      ),
-                    ),
-                ],
-              ),
-              activeIcon: const Icon(Icons.timer_rounded),
-              label: '72h SLA',
-            ),
             const BottomNavigationBarItem(
               icon: Icon(Icons.account_balance_wallet_outlined),
               activeIcon: Icon(Icons.account_balance_wallet_rounded),
@@ -3149,6 +3208,75 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
         children: [
+          // Web APK Download Banner
+          if (kIsWeb)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFF7ED), Color(0xFFFFFBEB)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFFED7AA)),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFEA580C).withOpacity(0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEA580C),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.android_rounded, color: Colors.white, size: 26),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Download BEMS Staff Mobile App',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Install Android APK for real-time phone status bar push notifications.',
+                          style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  FilledButton.icon(
+                    onPressed: _downloadAndroidApk,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFEA580C),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                    icon: const Icon(Icons.download_rounded, size: 16),
+                    label: const Text('Download APK', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+                  ),
+                ],
+              ),
+            ),
+
           // Multi-Metric Financial Carousel (Replaces Single Hero Card)
           _buildMultiMetricFinancialCarousel(formatter, activeAdvanceAmount),
 
@@ -3325,7 +3453,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   icon: Icons.receipt_long_rounded,
                   iconColor: const Color(0xFF0F172A),
                   iconBgColor: const Color(0xFFF1F5F9),
-                  onTap: () => _navigateToTab(2),
+                  onTap: () => _showRetirementModal(formatter),
                 ),
               ),
               const SizedBox(width: 12),
@@ -3336,7 +3464,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   icon: Icons.account_balance_wallet_rounded,
                   iconColor: const Color(0xFF0F172A),
                   iconBgColor: const Color(0xFFF1F5F9),
-                  onTap: () => _navigateToTab(3),
+                  onTap: () => _navigateToTab(2),
                 ),
               ),
             ],
@@ -5669,11 +5797,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 primaryActionIcon: Icons.arrow_upward_rounded,
                 primaryActionColor: const Color(0xFFEA580C),
                 onPrimaryAction: () {
-                  _navigateToTab(3);
+                  _navigateToTab(2);
                 },
-                secondaryActionLabel: 'Request Funds',
-                secondaryActionIcon: Icons.add_rounded,
-                onSecondaryAction: _openNewRequestModal,
+                secondaryActionLabel: 'Digital Wallet',
+                secondaryActionIcon: Icons.account_balance_wallet_rounded,
+                onSecondaryAction: () => _navigateToTab(2),
               ),
 
               // Slide 2: Lifetime Requests Raised
@@ -5735,7 +5863,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 onPrimaryAction: _showMyPayslipsModal,
                 secondaryActionLabel: 'Update Bank',
                 secondaryActionIcon: Icons.account_balance_wallet_rounded,
-                onSecondaryAction: () => _navigateToTab(3),
+                onSecondaryAction: () => _navigateToTab(2),
               ),
             ],
           ),

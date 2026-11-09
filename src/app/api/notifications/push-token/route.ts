@@ -75,3 +75,4 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Could not unregister push token.' }, { status: 500 });
   }
 }
+

@@ -766,7 +766,13 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
       final amountMinor = _minor(rawAmount);
       final amountInt = BigInt.tryParse(amountMinor) ?? BigInt.zero;
 
-      // Graceful Insufficient Balance Handling at End Stage
+      final password = await _password(
+        'Authorize Transfer',
+        'Transfer ${walletMoney(amountMinor)} to ${bank['accountName']} (•••• ${bank['lastFour']}). Instant Monnify settlement.',
+      );
+      if (password == null || !mounted) return;
+
+      // Graceful Insufficient Balance Handling at End Stage (like OPay banking app)
       if (amountInt > availableInt || availableInt <= BigInt.zero) {
         _showInsufficientBalanceDialog(
           requestedAmount: amountMinor,
@@ -774,12 +780,6 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
         );
         return;
       }
-
-      final password = await _password(
-        'Confirm Monnify Payout',
-        'Transfer ${walletMoney(amountMinor)} to ${bank['accountName']} (•••• ${bank['lastFour']}). Instant settlement.',
-      );
-      if (password == null || !mounted) return;
 
       setState(() => _busy = true);
 
@@ -882,30 +882,16 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(c);
-                    if (widget.onRequestFunds != null) {
-                      widget.onRequestFunds!();
-                    }
-                  },
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('Raise Fund Requisition', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEA580C),
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(c),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F172A),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(c),
-                  child: const Text('Dismiss', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+                  child: const Text('Understood', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                 ),
               ),
             ],
