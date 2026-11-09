@@ -160,6 +160,7 @@ model Employee {
   createdProfileUpdateRequests StaffProfileUpdateRequest[] @relation("RequestedByAdmin")
   salaryChangeProposals SalaryChangeProposal[]
   leaveRequests         LeaveRequest[]
+  deviceTokens          DevicePushToken[]
 }
 
 model SalaryChangeProposal {
@@ -718,6 +719,21 @@ model OutboundNotification {
   status     String   // SENT | FAILED | DELIVERED
   externalId String?  // message ts or wamid
   createdAt  DateTime @default(now())
+}
+
+model DevicePushToken {
+  id          String   @id @default(uuid())
+  employeeId  String
+  token       String   @unique
+  platform    String   @default("ANDROID") // ANDROID | IOS | WEB
+  deviceModel String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([token])
 }
 
 model StagedAction {

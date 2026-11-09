@@ -6,11 +6,13 @@ import 'screens/app_upgrade_screen.dart';
 import 'screens/staff_login_screen.dart';
 import 'services/staff_api_service.dart';
 import 'services/staff_storage_service.dart';
+import 'services/staff_notification_service.dart';
 
 final GlobalKey<NavigatorState> staffNavigatorKey = GlobalKey<NavigatorState>();
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await StaffNotificationService().initialize();
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,

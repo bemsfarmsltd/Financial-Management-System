@@ -15,6 +15,7 @@ import 'attendance_scan_screen.dart';
 import 'attendance_monthly_screen.dart';
 import '../widgets/bems_pie_chart.dart';
 import '../services/staff_biometric_service.dart';
+import '../services/staff_notification_service.dart';
 import 'staff_module_gallery_screen.dart';
 
 class StaffMainScreen extends StatefulWidget {
@@ -125,10 +126,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     _currentUser = widget.user;
     _loadData();
     _loadBiometricSettings();
+    StaffNotificationService().startPeriodicSync(_currentUser);
   }
 
   @override
   void dispose() {
+    StaffNotificationService().stopPeriodicSync();
     _attendanceReminderTimer?.cancel();
     _pageController.dispose();
     _priceCardController.dispose();
@@ -228,6 +231,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       });
       _checkProfileUpdateGate();
       _evaluateAttendancePrompt();
+      StaffNotificationService().syncAndNotify(refreshedUser);
     }
   }
 

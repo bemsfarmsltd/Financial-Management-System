@@ -895,13 +895,20 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     classification: 'READ',
   },
 
-  // notifications (1)
+  // notifications (2)
   {
     group: 'notifications',
     apiPath: '/api/notifications',
     relativeFilePath: 'src/app/api/notifications/route.ts',
     declaredMethods: ['GET', 'PATCH'],
     classification: 'READ_AND_MUTATION',
+  },
+  {
+    group: 'notifications',
+    apiPath: '/api/notifications/push-token',
+    relativeFilePath: 'src/app/api/notifications/push-token/route.ts',
+    declaredMethods: ['POST', 'DELETE'],
+    classification: 'MUTATION',
   },
 
   // organizations (2)
