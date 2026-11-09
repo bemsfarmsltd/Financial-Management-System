@@ -27,3 +27,4 @@ export async function GET() {
     return NextResponse.json({ error: 'GMD app APK currently unavailable' }, { status: 404 });
   }
 }
+

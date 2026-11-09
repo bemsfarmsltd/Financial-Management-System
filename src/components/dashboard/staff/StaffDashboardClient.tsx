@@ -7,6 +7,7 @@ import { StaffNewFundRequestModal } from '@/components/requests/StaffNewFundRequ
 import { StaffAdminChatModal } from '@/components/chat/StaffAdminChatModal';
 import { InAppChatPushToast } from '@/components/chat/InAppChatPushToast';
 import { StaffInformationUpdateGateModal } from '@/components/dashboard/staff/StaffInformationUpdateGateModal';
+import { StaffWalletTab } from '@/components/dashboard/staff/StaffWalletTab';
 import {
   Home,
   LayoutGrid,
@@ -114,7 +115,7 @@ interface StaffDashboardClientProps {
   currentStaff?: any;
 }
 
-type TabType = 'HOME' | 'REQUESTS' | 'RETIREMENT' | 'PROFILE';
+type TabType = 'HOME' | 'REQUESTS' | 'WALLET' | 'RETIREMENT' | 'PROFILE';
 export type ModuleWorkstation = 'HUB' | 'FINANCE' | 'HR' | 'ACCOUNTABILITY' | 'OPERATIONS' | 'INNOVATION' | 'PROJECTS';
 
 export function StaffDashboardClient({
@@ -1340,7 +1341,6 @@ export function StaffDashboardClient({
       {/* ========================================================= */}
       {/* TOP HEADER: SPANS FROM LEFT TO RIGHT ACROSS ENTIRE SCREEN */}
       {/* ========================================================= */}
-      <Link href="/wallet" className="block bg-orange-700 px-6 py-3 text-center font-bold text-white">My wallet · approved funds and payment history</Link>
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 py-3.5 shadow-sm w-full">
         <div className="max-w-[1600px] mx-auto flex items-center justify-between">
           {/* Left: Avatar + Identity */}
@@ -1434,6 +1434,18 @@ export function StaffDashboardClient({
             </button>
 
             <button
+              onClick={() => setActiveTab('WALLET')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                activeTab === 'WALLET'
+                  ? 'bg-white text-[#EA580C] shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Wallet className="w-4 h-4" />
+              <span>Wallet</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('PROFILE')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
                 activeTab === 'PROFILE'
@@ -1500,33 +1512,33 @@ export function StaffDashboardClient({
       <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-28 md:pb-12">
         {/* Mobile App Download Notification Banner */}
         {!hideAppBanner && (
-          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-orange-500/30 rounded-2xl p-3.5 px-4 sm:px-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+          <div className="bg-white border border-slate-200 rounded-2xl p-3.5 px-4 sm:px-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/40 flex items-center justify-center shrink-0 text-[#EA580C]">
-                <Smartphone className="w-5 h-5 text-orange-400" />
+              <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0 text-[#EA580C]">
+                <Smartphone className="w-5 h-5 text-[#EA580C]" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-white tracking-wide">BEMS STAFF APP v1.3.3 AVAILABLE</span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Latest</span>
+                  <span className="text-xs font-black text-[#0F172A] tracking-wide">BEMS STAFF APP v1.3.8 AVAILABLE</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">Latest</span>
                 </div>
-                <p className="text-[11.5px] text-slate-300">
-                  Updated with Conglomerate-wide Enterprise Workstations across Smartairs, Oil & Gas, Education, Real Estate & Agribusiness.
+                <p className="text-[11.5px] text-slate-500">
+                  Updated with Conglomerate-wide Enterprise Workstations across Smartairs, Oil &amp; Gas, Education, Real Estate &amp; Agribusiness.
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
               <a
-                href="/downloads/BEMS-Staff-Portal-v1.3.3.apk"
-                download="BEMS-Staff-App-v1.3.3.apk"
-                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#EA580C] to-[#C2410C] hover:from-[#C2410C] hover:to-[#9A3412] text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all flex items-center gap-1.5"
+                href="/api/download/staff-app"
+                download="BEMS-Staff-Portal-v1.3.8.apk"
+                className="px-3.5 py-1.5 rounded-xl bg-[#EA580C] hover:bg-[#C2410C] text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all flex items-center gap-1.5"
               >
                 <Download className="w-3.5 h-3.5" />
-                Download App (v1.3.3)
+                Download App (v1.3.8)
               </a>
               <button
                 onClick={() => setHideAppBanner(true)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
                 title="Dismiss"
               >
                 <X className="w-4 h-4" />
@@ -1547,21 +1559,20 @@ export function StaffDashboardClient({
               {activeWorkstation === 'HUB' && (
                 <div className="space-y-6 animate-fade-in">
                   {/* Clean Portal Welcome Hero */}
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border border-slate-700/60 shadow-xl relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 sm:p-6 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-sm relative overflow-hidden">
                     <div className="relative z-10 space-y-1.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-black text-orange-400 uppercase tracking-wider">
+                        <span className="text-[11px] font-black text-[#EA580C] uppercase tracking-wider">
                           BEMS Enterprise Gateway
                         </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
                           ● System Active
                         </span>
                       </div>
-                      <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                      <h2 className="text-xl sm:text-2xl font-black text-[#0F172A] tracking-tight">
                         Welcome, {user.fullName?.split(' ')[0] || 'Staff'} 👋
                       </h2>
-                      <p className="text-xs text-slate-300 max-w-xl">
+                      <p className="text-xs text-slate-500 max-w-xl">
                         Select a department workstation from the gallery below to access your dedicated workspace without clutter.
                       </p>
                     </div>
@@ -1808,14 +1819,14 @@ export function StaffDashboardClient({
               {activeWorkstation === 'FINANCE' && (
                 <div className="space-y-6 animate-fade-in">
                   {/* Financial Hub Workstation Top Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900 text-white border border-orange-500/30 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => {
                           setActiveWorkstation('HUB');
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all border border-white/10"
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all border border-slate-200"
                         title="Back to Module Gallery"
                       >
                         <ArrowLeft className="w-4 h-4" />
@@ -1823,15 +1834,15 @@ export function StaffDashboardClient({
                       </button>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-orange-50 text-orange-700 border border-orange-200">
                             💰 FINANCIAL HUB
                           </span>
                         </div>
-                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1">
-                          Financial Hub & Requisitions Desk
+                        <h2 className="text-lg sm:text-xl font-black text-[#0F172A] tracking-tight mt-1">
+                          Financial Hub &amp; Requisitions Desk
                         </h2>
-                        <p className="text-xs text-slate-300">
-                          Multi-metric price card, historical spend analytics & treasury release tracking.
+                        <p className="text-xs text-slate-500">
+                          Multi-metric price card, historical spend analytics &amp; treasury release tracking.
                         </p>
                       </div>
                     </div>
@@ -2076,10 +2087,10 @@ export function StaffDashboardClient({
                     )}
 
                     {/* CAROUSEL BOTTOM CONTROLS: PREV / NEXT ARROWS & 4 DOTS */}
-                    <div className="px-5 py-3 bg-slate-950 text-white flex items-center justify-between border-t border-white/10">
+                    <div className="px-5 py-3 bg-white text-slate-700 flex items-center justify-between border-t border-slate-200">
                       <button
                         onClick={() => setFinancialSlideIndex((prev) => (prev > 0 ? prev - 1 : 3))}
-                        className="p-1.5 px-3 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-white flex items-center gap-1.5 text-xs font-bold"
+                        className="p-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 transition-all text-slate-700 flex items-center gap-1.5 text-xs font-bold"
                       >
                         <ChevronLeft className="w-4 h-4" />
                         <span className="hidden sm:inline">Prev</span>
@@ -2094,7 +2105,7 @@ export function StaffDashboardClient({
                             className={`transition-all rounded-full ${
                               financialSlideIndex === idx
                                 ? 'w-6 h-2 bg-[#EA580C]'
-                                : 'w-2 h-2 bg-white/40 hover:bg-white/70'
+                                : 'w-2 h-2 bg-slate-200 hover:bg-slate-300'
                             }`}
                             title={`Slide ${idx + 1}`}
                           />
@@ -2103,7 +2114,7 @@ export function StaffDashboardClient({
 
                       <button
                         onClick={() => setFinancialSlideIndex((prev) => (prev < 3 ? prev + 1 : 0))}
-                        className="p-1.5 px-3 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-white flex items-center gap-1.5 text-xs font-bold"
+                        className="p-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 transition-all text-slate-700 flex items-center gap-1.5 text-xs font-bold"
                       >
                         <span className="hidden sm:inline">Next</span>
                         <ChevronRight className="w-4 h-4" />
@@ -2448,14 +2459,14 @@ export function StaffDashboardClient({
               {/* --------------------------------------------------------- */}
               {activeWorkstation === 'HR' && (
                 <div className="space-y-6 animate-fade-in">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900 text-white border border-emerald-500/30 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => {
                           setActiveWorkstation('HUB');
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all border border-white/10"
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all border border-slate-200"
                         title="Back to Module Gallery"
                       >
                         <ArrowLeft className="w-4 h-4" />
@@ -2463,15 +2474,15 @@ export function StaffDashboardClient({
                       </button>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                            👥 HR & TIMEKEEPING
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            👥 HR &amp; TIMEKEEPING
                           </span>
                         </div>
-                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1">
-                          HR & Attendance Desk
+                        <h2 className="text-lg sm:text-xl font-black text-[#0F172A] tracking-tight mt-1">
+                          HR &amp; Attendance Desk
                         </h2>
-                        <p className="text-xs text-slate-300">
-                          Starlink Wi-Fi & GPS geofenced clock-in, shift calendar, and monthly payslips.
+                        <p className="text-xs text-slate-500">
+                          Starlink Wi-Fi &amp; GPS geofenced clock-in, shift calendar, and monthly payslips.
                         </p>
                       </div>
                     </div>
@@ -2520,14 +2531,14 @@ export function StaffDashboardClient({
               {/* --------------------------------------------------------- */}
               {activeWorkstation === 'ACCOUNTABILITY' && (
                 <div className="space-y-6 animate-fade-in">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900 text-white border border-rose-500/30 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => {
                           setActiveWorkstation('HUB');
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all border border-white/10"
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all border border-slate-200"
                         title="Back to Module Gallery"
                       >
                         <ArrowLeft className="w-4 h-4" />
@@ -2535,15 +2546,15 @@ export function StaffDashboardClient({
                       </button>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200">
                             🛡️ ACCOUNTABILITY VAULT
                           </span>
                         </div>
-                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1">
-                          Accountability & 72h SLA Vault
+                        <h2 className="text-lg sm:text-xl font-black text-[#0F172A] tracking-tight mt-1">
+                          Accountability &amp; 72h SLA Vault
                         </h2>
-                        <p className="text-xs text-slate-300">
-                          Retire operational cash advances, photograph store receipts & vendor invoices.
+                        <p className="text-xs text-slate-500">
+                          Retire operational cash advances, photograph store receipts &amp; vendor invoices.
                         </p>
                       </div>
                     </div>
@@ -2594,14 +2605,14 @@ export function StaffDashboardClient({
               {/* --------------------------------------------------------- */}
               {activeWorkstation === 'OPERATIONS' && (
                 <div className="space-y-6 animate-fade-in">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900 text-white border border-sky-500/30 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => {
                           setActiveWorkstation('HUB');
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all border border-white/10"
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all border border-slate-200"
                         title="Back to Module Gallery"
                       >
                         <ArrowLeft className="w-4 h-4" />
@@ -2609,14 +2620,14 @@ export function StaffDashboardClient({
                       </button>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-50 text-sky-700 border border-sky-200">
                             ⚡ OPERATIONS & FLEET
                           </span>
                         </div>
-                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1">
+                        <h2 className="text-lg sm:text-xl font-black text-[#0F172A] tracking-tight mt-1">
                           Operations & Fleet Desk
                         </h2>
-                        <p className="text-xs text-slate-300">
+                        <p className="text-xs text-slate-500">
                           Field task assignments, equipment allocation, fleet vehicle tracking & operational checklists.
                         </p>
                       </div>
@@ -2647,14 +2658,14 @@ export function StaffDashboardClient({
               {/* --------------------------------------------------------- */}
               {activeWorkstation === 'INNOVATION' && (
                 <div className="space-y-6 animate-fade-in">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900 text-white border border-purple-500/30 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => {
                           setActiveWorkstation('HUB');
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all border border-white/10"
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all border border-slate-200"
                         title="Back to Module Gallery"
                       >
                         <ArrowLeft className="w-4 h-4" />
@@ -2662,14 +2673,14 @@ export function StaffDashboardClient({
                       </button>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-50 text-purple-700 border border-purple-200">
                             💡 INNOVATION INCUBATOR
                           </span>
                         </div>
-                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1">
+                        <h2 className="text-lg sm:text-xl font-black text-[#0F172A] tracking-tight mt-1">
                           Innovation & R&D Incubator
                         </h2>
-                        <p className="text-xs text-slate-300">
+                        <p className="text-xs text-slate-500">
                           Pitch disruptive ideas and operational optimizations directly to Group Leadership.
                         </p>
                       </div>
@@ -2718,14 +2729,14 @@ export function StaffDashboardClient({
               {/* --------------------------------------------------------- */}
               {activeWorkstation === 'PROJECTS' && (
                 <div className="space-y-6 animate-fade-in">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900 text-white border border-teal-500/30 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => {
                           setActiveWorkstation('HUB');
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all border border-white/10"
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all border border-slate-200"
                         title="Back to Module Gallery"
                       >
                         <ArrowLeft className="w-4 h-4" />
@@ -2733,14 +2744,14 @@ export function StaffDashboardClient({
                       </button>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-teal-500/20 text-teal-400 border border-teal-500/30">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-teal-50 text-teal-700 border border-teal-200">
                             🎯 PROJECTS & DELIVERABLES
                           </span>
                         </div>
-                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1">
+                        <h2 className="text-lg sm:text-xl font-black text-[#0F172A] tracking-tight mt-1">
                           Projects & Deliverables Desk
                         </h2>
-                        <p className="text-xs text-slate-300">
+                        <p className="text-xs text-slate-500">
                           Client engagements, task deadlines, cross-subsidiary milestones & deliverable sign-offs.
                         </p>
                       </div>
@@ -3294,7 +3305,19 @@ export function StaffDashboardClient({
           )}
 
           {/* ========================================================= */}
-          {/* TAB 3: COMPLETE STAFF PROFILE (Exact Flutter Replica)     */}
+          {/* TAB 3: ENTERPRISE WALLET & LEDGER (Exact Mobile Replica)   */}
+          {/* ========================================================= */}
+          {activeTab === 'WALLET' && (
+            <StaffWalletTab
+              user={user}
+              payslips={payslips}
+              onRequestFunds={() => setIsNewRequestOpen(true)}
+              onNavigateToTab={setActiveTab}
+            />
+          )}
+
+          {/* ========================================================= */}
+          {/* TAB 4: COMPLETE STAFF PROFILE (Exact Flutter Replica)     */}
           {/* ========================================================= */}
           {activeTab === 'PROFILE' && (
             <div className="space-y-4 animate-fade-in">
@@ -3666,33 +3689,30 @@ export function StaffDashboardClient({
         {/* ========================================================= */}
         {/* BOTTOM NAVIGATION BAR (Exact Flutter Replica)              */}
         {/* ========================================================= */}
-        <nav className="fixed md:hidden bottom-0 left-0 right-0 bg-white border-t border-[#E2E8F0] px-4 py-2 flex items-center justify-around z-40 shadow-lg">
-          {/* Module Gallery (Home) */}
+        <nav className="fixed md:hidden bottom-0 left-0 right-0 bg-white border-t border-[#E2E8F0] px-3 py-2 flex items-center justify-around z-40 shadow-lg">
+          {/* Home */}
           <button
             onClick={() => {
               setActiveTab('HOME');
               setActiveWorkstation('HUB');
             }}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
-              activeTab === 'HOME' && activeWorkstation === 'HUB' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
+            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all ${
+              activeTab === 'HOME' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
             }`}
           >
-            <LayoutGrid className="w-5 h-5" />
-            <span className="text-[11px]">Gallery</span>
+            <Home className="w-5 h-5" />
+            <span className="text-[10.5px]">Home</span>
           </button>
 
-          {/* Financial Hub */}
+          {/* Requisitions */}
           <button
-            onClick={() => {
-              setActiveTab('HOME');
-              setActiveWorkstation('FINANCE');
-            }}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all relative ${
-              activeTab === 'HOME' && activeWorkstation === 'FINANCE' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
+            onClick={() => setActiveTab('REQUESTS')}
+            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all relative ${
+              activeTab === 'REQUESTS' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
             }`}
           >
-            <Wallet className="w-5 h-5" />
-            <span className="text-[11px]">Finance</span>
+            <Receipt className="w-5 h-5" />
+            <span className="text-[10.5px]">Requisitions</span>
             {requests.length > 0 && (
               <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-[#EA580C]"></span>
             )}
@@ -3709,30 +3729,27 @@ export function StaffDashboardClient({
 
           {/* 72h SLA */}
           <button
-            onClick={() => {
-              setActiveTab('HOME');
-              setActiveWorkstation('ACCOUNTABILITY');
-            }}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all relative ${
-              activeTab === 'HOME' && activeWorkstation === 'ACCOUNTABILITY' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
+            onClick={() => setActiveTab('RETIREMENT')}
+            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all relative ${
+              activeTab === 'RETIREMENT' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
             }`}
           >
             <Timer className="w-5 h-5" />
-            <span className="text-[11px]">72h SLA</span>
+            <span className="text-[10.5px]">72h SLA</span>
             {pendingRetirements.length > 0 && (
               <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-[#EF4444] animate-pulse"></span>
             )}
           </button>
 
-          {/* Profile */}
+          {/* Wallet */}
           <button
-            onClick={() => setActiveTab('PROFILE')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
-              activeTab === 'PROFILE' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
+            onClick={() => setActiveTab('WALLET')}
+            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all relative ${
+              activeTab === 'WALLET' ? 'text-[#EA580C] font-black' : 'text-[#94A3B8] font-bold hover:text-slate-600'
             }`}
           >
-            <User className="w-5 h-5" />
-            <span className="text-[11px]">Profile</span>
+            <Wallet className="w-5 h-5" />
+            <span className="text-[10.5px]">Wallet</span>
           </button>
         </nav>
 
