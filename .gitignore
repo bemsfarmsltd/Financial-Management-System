@@ -32,6 +32,8 @@ dist/
 next-env.d.ts
 
 # OS & Editor files
+# Uploaded references
+wallet template/
 .DS_Store
 *.pem
 .vscode/

@@ -41,6 +41,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   bool _isAttendanceExempt = false;
   Timer? _attendanceReminderTimer;
   bool _isAttendanceModalOpen = false;
+  bool _attendanceModalDismissed = false;
 
   List<AccountabilityCaseItem> get _activeAdvanceCases => _cases.where((c) {
     final s = c.status.toUpperCase();
@@ -231,25 +232,19 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   }
 
   void _evaluateAttendancePrompt() {
+    final role = _currentUser.role.toUpperCase();
+    final isExecutive = role == 'GMD' || role == 'SUPER_ADMIN' || role == 'SYSTEM_ADMIN' || _currentUser.employeeNumber == 'BEMS-GRO-2026-0001';
     final isPunchedIn = _todayAttendance != null && _todayAttendance!['checkInTime'] != null;
-    if (isPunchedIn || _isTodayOffDay || _isAttendanceExempt) {
+    if (isPunchedIn || _isTodayOffDay || _isAttendanceExempt || isExecutive || _attendanceModalDismissed) {
       _attendanceReminderTimer?.cancel();
       _attendanceReminderTimer = null;
       return;
     }
 
-    // Set up 3-minute recurring reminder timer
-    _attendanceReminderTimer?.cancel();
-    _attendanceReminderTimer = Timer.periodic(const Duration(minutes: 3), (_) {
-      if (mounted) {
-        _checkAndShowAttendanceModal();
-      }
-    });
-
-    // Auto-display modal upon initial load/login if not checked in today
+    // Auto-display modal once upon initial load if not checked in today and not dismissed
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 600), () {
-        if (mounted) {
+        if (mounted && !_attendanceModalDismissed) {
           _checkAndShowAttendanceModal();
         }
       });
@@ -257,8 +252,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   }
 
   void _checkAndShowAttendanceModal() {
+    final role = _currentUser.role.toUpperCase();
+    final isExecutive = role == 'GMD' || role == 'SUPER_ADMIN' || role == 'SYSTEM_ADMIN' || _currentUser.employeeNumber == 'BEMS-GRO-2026-0001';
     final isPunchedIn = _todayAttendance != null && _todayAttendance!['checkInTime'] != null;
-    if (isPunchedIn || _isTodayOffDay || _isAttendanceExempt) return;
+    if (isPunchedIn || _isTodayOffDay || _isAttendanceExempt || isExecutive || _attendanceModalDismissed) return;
     if (_isAttendanceModalOpen) return;
     if (!mounted) return;
 
@@ -329,7 +326,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFF64748B)),
-                    onPressed: () => Navigator.pop(dialogCtx),
+                    onPressed: () {
+                      _attendanceModalDismissed = true;
+                      Navigator.pop(dialogCtx);
+                    },
                     tooltip: 'Dismiss',
                   ),
                 ],
@@ -3017,7 +3017,13 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   _buildHomeTab(formatter),
                   _buildRequestsTab(formatter),
                   _buildRetirementTab(formatter),
-                  StaffWalletScreen(user: _currentUser, isEmbedded: true),
+                  StaffWalletScreen(
+                    user: _currentUser,
+                    isEmbedded: true,
+                    onRequestFunds: _openNewRequestModal,
+                    onNavigateToTab: _navigateToTab,
+                    onShowPayslips: _showMyPayslipsModal,
+                  ),
                 ],
               ),
       ),

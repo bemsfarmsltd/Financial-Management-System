@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../models/staff_models.dart';
 import '../../services/staff_api_service.dart';
 import '../../services/staff_storage_service.dart';
+import '../staff_admin_chat_screen.dart';
 
 String walletMoney(String value) {
   final amount = BigInt.tryParse(value) ?? BigInt.zero;
@@ -28,11 +29,17 @@ String _minor(String value) {
 class StaffWalletScreen extends StatefulWidget {
   final StaffUser user;
   final bool isEmbedded;
+  final VoidCallback? onRequestFunds;
+  final void Function(int tabIndex)? onNavigateToTab;
+  final VoidCallback? onShowPayslips;
 
   const StaffWalletScreen({
     super.key,
     required this.user,
     this.isEmbedded = false,
+    this.onRequestFunds,
+    this.onNavigateToTab,
+    this.onShowPayslips,
   });
 
   @override
@@ -473,17 +480,10 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
     }
   }
 
-  // --- BANK-GRADE WITHDRAWAL MODAL ---
+  // --- BANK-GRADE WITHDRAWAL MODAL (UNINTERRUPTED FLOW) ---
   Future<void> _withdraw(Map<String, dynamic> wallet) async {
     final availableMinor = wallet['availableMinor']?.toString() ?? '0';
     final availableInt = BigInt.tryParse(availableMinor) ?? BigInt.zero;
-
-    if (availableInt <= BigInt.zero) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No available approved funds to withdraw at this time.')),
-      );
-      return;
-    }
 
     final banks = wallet['banks'] as List<dynamic>? ?? [];
     dynamic selectedBank = banks.isNotEmpty ? banks[0] : null;
@@ -764,6 +764,17 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
 
     try {
       final amountMinor = _minor(rawAmount);
+      final amountInt = BigInt.tryParse(amountMinor) ?? BigInt.zero;
+
+      // Graceful Insufficient Balance Handling at End Stage
+      if (amountInt > availableInt || availableInt <= BigInt.zero) {
+        _showInsufficientBalanceDialog(
+          requestedAmount: amountMinor,
+          availableAmount: availableMinor,
+        );
+        return;
+      }
+
       final password = await _password(
         'Confirm Monnify Payout',
         'Transfer ${walletMoney(amountMinor)} to ${bank['accountName']} (•••• ${bank['lastFour']}). Instant settlement.',
@@ -808,6 +819,100 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  // --- BANK-GRADE INSUFFICIENT BALANCE DIALOG ---
+  void _showInsufficientBalanceDialog({
+    required String requestedAmount,
+    required String availableAmount,
+  }) {
+    showDialog(
+      context: context,
+      builder: (c) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFFBEB),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.account_balance_wallet_outlined, color: Color(0xFFF59E0B), size: 34),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Insufficient Available Balance',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'You requested ${walletMoney(requestedAmount)}, but your available GMD-approved wallet balance is ${walletMoney(availableAmount)}.',
+                style: const TextStyle(fontSize: 13, color: Color(0xFF475569), height: 1.45),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF64748B)),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Wallet disbursements require available funds backed by an executed GMD release proposal.',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(c);
+                    if (widget.onRequestFunds != null) {
+                      widget.onRequestFunds!();
+                    }
+                  },
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Raise Fund Requisition', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEA580C),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(c),
+                  child: const Text('Dismiss', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildChip(String label, VoidCallback onTap) {
@@ -1043,6 +1148,55 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
     }
   }
 
+  // --- STATEMENT SUMMARY MODAL ---
+  void _showStatementModal(Map<String, dynamic> wallet) {
+    final availableMinor = wallet['availableMinor']?.toString() ?? '0';
+    final heldMinor = wallet['heldMinor']?.toString() ?? '0';
+    final settledMinor = wallet['settledMinor']?.toString() ?? '0';
+    showDialog(
+      context: context,
+      builder: (c) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Wallet Financial Summary', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  IconButton(icon: const Icon(Icons.close_rounded, size: 20), onPressed: () => Navigator.pop(c)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _receiptRow('Available Balance', walletMoney(availableMinor)),
+              const SizedBox(height: 8),
+              _receiptRow('Held in Transit', walletMoney(heldMinor)),
+              const SizedBox(height: 8),
+              _receiptRow('Total Bank Settled', walletMoney(settledMinor)),
+              const SizedBox(height: 8),
+              _receiptRow('Currency', 'Nigerian Naira (NGN)'),
+              const SizedBox(height: 8),
+              _receiptRow('Banking Infrastructure', 'Monnify / BEMS Treasury'),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(c),
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEA580C)),
+                  child: const Text('Close'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // --- TRANSACTION DETAIL BOTTOM SHEET ---
   void _showTransactionDetails(dynamic txItem, bool isCredit) {
     showModalBottomSheet(
@@ -1202,20 +1356,20 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
           onRefresh: () async => _reload(),
           color: const Color(0xFFEA580C),
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 40),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
             children: [
-              // 1. HERO BANKING CARD (Enterprise Light Theme - BEMS Orange Gradient)
+              // 1. HERO BANKING CARD (OPay Style - Available Balance + Add Funds Button)
               _buildHeroBankingCard(wallet, primaryBank),
 
               const SizedBox(height: 16),
 
-              // 2. QUICK ACTIONS ROW (Withdraw, Beneficiaries, Return Surplus)
-              _buildQuickActionsBar(wallet, primaryBank),
+              // 2. OPAY-STYLE 4-COLUMN SERVICES GRID
+              _buildServicesGrid(wallet),
 
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
 
-              // 3. STATISTICAL METRICS ROW
-              _buildMetricsRow(wallet),
+              // 3. SAFEBOX-STYLE TREASURY ASSURANCE BANNER
+              _buildTreasuryAssuranceBanner(),
 
               const SizedBox(height: 20),
 
@@ -1253,13 +1407,15 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
     );
   }
 
-  // 1. HERO VIRTUAL BANKING CARD (Enterprise Light Theme)
+  // 1. HERO VIRTUAL BANKING CARD (OPay Template)
   Widget _buildHeroBankingCard(Map<String, dynamic> wallet, Map<String, dynamic>? primaryBank) {
     final availableMinor = wallet['availableMinor']?.toString() ?? '0';
+    final heldMinor = wallet['heldMinor']?.toString() ?? '0';
+    final settledMinor = wallet['settledMinor']?.toString() ?? '0';
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFFEA580C), Color(0xFFC2410C), Color(0xFF9A3412)],
@@ -1278,85 +1434,74 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Card Header Row: Chip & Brand
+          // Row 1: Header (Available Balance + Eye Toggle ON LEFT, Request Funds Pill ON RIGHT)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  Container(
-                    width: 32,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.22),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: const Icon(Icons.credit_card_rounded, size: 15, color: Colors.white),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'BEMS DIGITAL WALLET',
+                  const Icon(Icons.shield_outlined, size: 16, color: Colors.white),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Available Balance',
                     style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: 1.2,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: () => setState(() => _hideBalance = !_hideBalance),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Icon(
+                        _hideBalance ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                        color: Colors.white.withOpacity(0.9),
+                        size: 18,
+                      ),
                     ),
                   ),
                 ],
               ),
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () => setState(() => _hideBalance = !_hideBalance),
-                    icon: Icon(
-                      _hideBalance ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-                      color: Colors.white.withOpacity(0.85),
-                      size: 20,
-                    ),
-                    tooltip: 'Toggle balance visibility',
-                    visualDensity: VisualDensity.compact,
+              // OPay style "+ Add Money" -> BEMS "+ Request Funds" button
+              InkWell(
+                onTap: () {
+                  if (widget.onRequestFunds != null) {
+                    widget.onRequestFunds!();
+                  }
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.22),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.35)),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircleAvatar(radius: 3, backgroundColor: Color(0xFF4ADE80)),
-                        SizedBox(width: 4),
-                        Text(
-                          'Active',
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white),
-                        ),
-                      ],
-                    ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.add_rounded, size: 14, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text(
+                        'Request Funds',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ],
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
 
-          // Balance Display
-          Text(
-            'AVAILABLE APPROVED FUNDS',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: Colors.white.withOpacity(0.85),
-              letterSpacing: 0.8,
-            ),
-          ),
-          const SizedBox(height: 4),
+          // Row 2: Large Balance Typography
           Text(
             _hideBalance ? '₦ ••••••••••' : walletMoney(availableMinor),
             style: const TextStyle(
-              fontSize: 32,
+              fontSize: 34,
               fontWeight: FontWeight.w900,
               color: Colors.white,
               letterSpacing: -0.5,
@@ -1364,17 +1509,34 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
             ),
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
 
-          // Divider Line
-          Container(
-            height: 1,
-            color: Colors.white.withOpacity(0.2),
+          // Row 3: Sub-metrics (Held in Transit & Bank Settled)
+          Row(
+            children: [
+              Text(
+                'Held in Transit: ${_hideBalance ? "••••" : walletMoney(heldMinor)}',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.85)),
+              ),
+              Text(
+                '  ·  ',
+                style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.6)),
+              ),
+              Text(
+                'Settled: ${_hideBalance ? "••••" : walletMoney(settledMinor)}',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.85)),
+              ),
+            ],
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
 
-          // Card Footer Row: Payout Bank & Fee Protection
+          // Divider
+          Container(height: 1, color: Colors.white.withOpacity(0.2)),
+
+          const SizedBox(height: 12),
+
+          // Row 4: Payout Ticker Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1389,11 +1551,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                             ? '${primaryBank['accountName']} · ${primaryBank['bankName'] ?? 'Bank'} (•••• ${primaryBank['lastFour']})'
                             : 'No verified bank account linked',
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
                       ),
                     ),
                   ],
@@ -1402,18 +1560,12 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(10),
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.shield_outlined, size: 12, color: Colors.white),
-                    SizedBox(width: 4),
-                    Text(
-                      'Company Pays Fees',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white),
-                    ),
-                  ],
+                child: const Text(
+                  'Zero Fee Guarantee',
+                  style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Colors.white),
                 ),
               ),
             ],
@@ -1423,95 +1575,150 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
     );
   }
 
-  // 2. QUICK ACTIONS BAR
-  Widget _buildQuickActionsBar(Map<String, dynamic> wallet, Map<String, dynamic>? primaryBank) {
-    return Row(
-      children: [
-        // Action 1: Withdraw
-        Expanded(
-          child: _buildActionButton(
-            label: 'Withdraw',
-            icon: Icons.arrow_upward_rounded,
-            backgroundColor: const Color(0xFFEA580C),
-            iconColor: Colors.white,
-            textColor: const Color(0xFF0F172A),
-            isPrimary: true,
-            onTap: _busy ? null : () => _withdraw(wallet),
+  // 2. OPAY-STYLE 4-COLUMN SERVICES GRID
+  Widget _buildServicesGrid(Map<String, dynamic> wallet) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-        ),
-        const SizedBox(width: 10),
-        // Action 2: Beneficiaries
-        Expanded(
-          child: _buildActionButton(
-            label: 'Beneficiaries',
-            icon: Icons.account_balance_rounded,
-            backgroundColor: Colors.white,
-            iconColor: const Color(0xFF2563EB),
-            textColor: const Color(0xFF0F172A),
-            onTap: _busy ? null : () => _showBeneficiariesModal(wallet),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Row 1: Primary Banking Actions
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildGridServiceItem(
+                label: 'To Bank',
+                icon: Icons.account_balance_rounded,
+                iconColor: const Color(0xFFEA580C),
+                bgColor: const Color(0xFFFFF7ED),
+                onTap: () => _withdraw(wallet),
+              ),
+              _buildGridServiceItem(
+                label: 'Beneficiaries',
+                icon: Icons.people_alt_rounded,
+                iconColor: const Color(0xFF2563EB),
+                bgColor: const Color(0xFFEFF6FF),
+                onTap: () => _showBeneficiariesModal(wallet),
+              ),
+              _buildGridServiceItem(
+                label: 'Return Surplus',
+                icon: Icons.assignment_return_rounded,
+                iconColor: const Color(0xFF059669),
+                bgColor: const Color(0xFFECFDF5),
+                onTap: () => _returnFunds(wallet),
+              ),
+              _buildGridServiceItem(
+                label: 'Request Funds',
+                icon: Icons.add_circle_outline_rounded,
+                iconColor: const Color(0xFFD97706),
+                bgColor: const Color(0xFFFEF3C7),
+                onTap: () {
+                  if (widget.onRequestFunds != null) {
+                    widget.onRequestFunds!();
+                  }
+                },
+              ),
+            ],
           ),
-        ),
-        const SizedBox(width: 10),
-        // Action 3: Return Surplus
-        Expanded(
-          child: _buildActionButton(
-            label: 'Return Surplus',
-            icon: Icons.assignment_return_rounded,
-            backgroundColor: Colors.white,
-            iconColor: const Color(0xFF059669),
-            textColor: const Color(0xFF0F172A),
-            onTap: _busy ? null : () => _returnFunds(wallet),
+          const SizedBox(height: 18),
+          // Row 2: Enterprise Utility Actions (matching OPay's second row)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildGridServiceItem(
+                label: 'Payslips',
+                icon: Icons.receipt_long_rounded,
+                iconColor: const Color(0xFF4F46E5),
+                bgColor: const Color(0xFFEEF2FF),
+                onTap: () {
+                  if (widget.onShowPayslips != null) {
+                    widget.onShowPayslips!();
+                  }
+                },
+              ),
+              _buildGridServiceItem(
+                label: '72h SLA',
+                icon: Icons.timer_outlined,
+                iconColor: const Color(0xFF0D9488),
+                bgColor: const Color(0xFFF0FDFA),
+                onTap: () {
+                  if (widget.onNavigateToTab != null) {
+                    widget.onNavigateToTab!(2);
+                  }
+                },
+              ),
+              _buildGridServiceItem(
+                label: 'Helpdesk',
+                icon: Icons.support_agent_rounded,
+                iconColor: const Color(0xFF9333EA),
+                bgColor: const Color(0xFFFAF5FF),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => StaffAdminChatScreen(currentUser: widget.user)),
+                  );
+                },
+              ),
+              _buildGridServiceItem(
+                label: 'Statement',
+                icon: Icons.description_outlined,
+                iconColor: const Color(0xFF475569),
+                bgColor: const Color(0xFFF1F5F9),
+                onTap: () => _showStatementModal(wallet),
+              ),
+            ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildActionButton({
+  Widget _buildGridServiceItem({
     required String label,
     required IconData icon,
-    required Color backgroundColor,
     required Color iconColor,
-    required Color textColor,
-    required VoidCallback? onTap,
-    bool isPrimary = false,
+    required Color bgColor,
+    required VoidCallback onTap,
   }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: isPrimary ? const Color(0xFFEA580C) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: isPrimary ? null : Border.all(color: const Color(0xFFE2E8F0)),
-          boxShadow: [
-            BoxShadow(
-              color: isPrimary ? const Color(0xFFEA580C).withOpacity(0.25) : Colors.black.withOpacity(0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
+      child: SizedBox(
+        width: 74,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
-                color: isPrimary ? Colors.white.withOpacity(0.18) : iconColor.withOpacity(0.1),
+                color: bgColor,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 18, color: isPrimary ? Colors.white : iconColor),
+              child: Icon(icon, color: iconColor, size: 22),
             ),
             const SizedBox(height: 6),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
-                color: isPrimary ? Colors.white : textColor,
+                color: Color(0xFF0F172A),
               ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -1519,74 +1726,59 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
     );
   }
 
-  // 3. STATISTICAL METRICS ROW
-  Widget _buildMetricsRow(Map<String, dynamic> wallet) {
-    return Row(
-      children: [
-        // Card A: Held in Transit
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(14),
+  // 3. SAFEBOX-STYLE TREASURY ASSURANCE BANNER
+  Widget _buildTreasuryAssuranceBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF0FDF4), Color(0xFFDCFCE7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBBF7D0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              color: const Color(0xFF16A34A).withOpacity(0.15),
+              shape: BoxShape.circle,
             ),
+            child: const Icon(Icons.shield_rounded, size: 20, color: Color(0xFF15803D)),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
-                  children: [
-                    CircleAvatar(radius: 3, backgroundColor: Color(0xFFF59E0B)),
-                    SizedBox(width: 5),
-                    Text(
-                      'HELD IN TRANSIT',
-                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Color(0xFF64748B)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
                 Text(
-                  walletMoney(wallet['heldMinor']?.toString() ?? '0'),
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                  'BEMS Central Treasury Assurance',
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: Color(0xFF15803D)),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Zero transfer fees · Monnify instant settlement · Company sponsored',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF166534), fontWeight: FontWeight.w600),
                 ),
               ],
             ),
           ),
-        ),
-        const SizedBox(width: 10),
-        // Card B: Bank Settled
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              color: const Color(0xFF15803D),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    CircleAvatar(radius: 3, backgroundColor: Color(0xFF10B981)),
-                    SizedBox(width: 5),
-                    Text(
-                      'BANK SETTLED',
-                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Color(0xFF64748B)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  walletMoney(wallet['settledMinor']?.toString() ?? '0'),
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
-                ),
-              ],
+            child: const Text(
+              'Active',
+              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
