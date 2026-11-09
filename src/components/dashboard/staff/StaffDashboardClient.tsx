@@ -220,6 +220,34 @@ export function StaffDashboardClient({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'PAID' | 'RECURRING'>('ALL');
 
+  // Requisition Deletion State
+  const [deletingRequest, setDeletingRequest] = useState<any | null>(null);
+  const [isDeletingRequest, setIsDeletingRequest] = useState(false);
+
+  const handleDeleteRequest = async (reqToDelete: any) => {
+    if (!reqToDelete) return;
+    setIsDeletingRequest(true);
+    try {
+      const res = await fetch(`/api/requests/${encodeURIComponent(reqToDelete.requestNumber)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to delete requisition');
+      }
+      setDeletingRequest(null);
+      if (selectedRequestDetail?.id === reqToDelete.id) {
+        setSelectedRequestDetail(null);
+      }
+      await loadData(true);
+    } catch (err: any) {
+      alert(err.message || 'Could not delete requisition.');
+    } finally {
+      setIsDeletingRequest(false);
+    }
+  };
+
   // Modals & Sheets Visibility
   const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
   const [isPayslipsModalOpen, setIsPayslipsModalOpen] = useState(false);
@@ -3213,20 +3241,36 @@ export function StaffDashboardClient({
                         </div>
 
                         <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setIsAdminChatOpen(true);
-                            }}
-                            className="px-3 py-1.5 rounded-lg bg-[#FFF7ED] border border-[#FED7AA] text-[#EA580C] text-[11px] font-extrabold flex items-center gap-1.5 hover:bg-orange-100 transition-all"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            <span>Request Chat</span>
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsAdminChatOpen(true);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-[#FFF7ED] border border-[#FED7AA] text-[#EA580C] text-[11px] font-extrabold flex items-center gap-1.5 hover:bg-orange-100 transition-all cursor-pointer"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>Request Chat</span>
+                            </button>
+
+                            {!isDisbursed && !isApproved && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeletingRequest(r);
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-extrabold flex items-center gap-1 hover:bg-rose-100 transition-all cursor-pointer"
+                                title="Retract / Delete Request"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete</span>
+                              </button>
+                            )}
+                          </div>
 
                           <button
                             onClick={() => setSelectedRequestDetail(r)}
-                            className="text-xs font-bold text-slate-400 hover:text-[#EA580C] flex items-center gap-1 transition-all"
+                            className="text-xs font-bold text-slate-400 hover:text-[#EA580C] flex items-center gap-1 transition-all cursor-pointer"
                           >
                             <span>Details & Audit</span>
                             <ChevronRight className="w-3.5 h-3.5" />
@@ -4884,6 +4928,73 @@ export function StaffDashboardClient({
                     Upload Receipts for this Advance
                   </button>
                 )}
+
+                {selectedRequestDetail.paymentStatus === 'UNPAID' && selectedRequestDetail.approvalStatus !== 'APPROVED' && (
+                  <button
+                    onClick={() => {
+                      const target = selectedRequestDetail;
+                      setDeletingRequest(target);
+                    }}
+                    className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Requisition</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Delete Requisition Confirmation */}
+        {deletingRequest && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+            <div className="w-full max-w-sm bg-white rounded-3xl p-6 space-y-4 shadow-2xl border border-rose-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-black shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-[#0F172A]">Delete Requisition?</h3>
+                  <p className="text-[11px] text-slate-500">This action cannot be undone.</p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Request:</span>
+                  <span className="font-extrabold text-[#0F172A]">{deletingRequest.requestNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Title:</span>
+                  <span className="font-bold text-[#0F172A] truncate max-w-[180px]">{deletingRequest.title}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Amount:</span>
+                  <span className="font-black text-emerald-600">
+                    {formatNaira(Number(deletingRequest.amountMinor || 0) / 100)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setDeletingRequest(null)}
+                  disabled={isDeletingRequest}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteRequest(deletingRequest)}
+                  disabled={isDeletingRequest}
+                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md shadow-rose-600/20 cursor-pointer"
+                >
+                  {isDeletingRequest && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{isDeletingRequest ? 'Deleting...' : 'Delete'}</span>
+                </button>
               </div>
             </div>
           </div>

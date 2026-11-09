@@ -233,27 +233,12 @@ export async function DELETE(
 
     // Authorization: Only owner or Executive Admin/GMD
     const isOwner = expenditure.requestedById === actor.id;
-    const isExecutiveAdmin = ["SYSTEM_ADMIN", "GMD"].includes(actor.role);
+    const isExecutiveAdmin = ["SUPER_ADMIN", "SYSTEM_ADMIN", "GMD"].includes(actor.role);
     if (!isOwner && !isExecutiveAdmin) {
       return NextResponse.json({ error: "Permission denied. You can only delete your own fund requests." }, { status: 403 });
     }
 
-    // Business Rules: Staff cannot delete once admin approve
-    if (expenditure.approvalStatus === "APPROVED") {
-      return NextResponse.json(
-        { error: "Cannot delete request: This requisition has already been approved by Admin/Management." },
-        { status: 400 }
-      );
-    }
-
-    const hasApprovedStep = expenditure.approvalSteps.some((s) => s.status === "APPROVED");
-    if (hasApprovedStep) {
-      return NextResponse.json(
-        { error: "Cannot delete request: Approval workflow has already commenced and been signed off." },
-        { status: 400 }
-      );
-    }
-
+    // Safety: If funds have already been disbursed, requisition cannot be deleted by anyone to preserve financial integrity
     if (expenditure.paymentStatus !== "UNPAID" || expenditure.disbursements.length > 0) {
       return NextResponse.json(
         { error: "Cannot delete request: Funds have already been scheduled or disbursed." },
@@ -261,9 +246,57 @@ export async function DELETE(
       );
     }
 
+    // Business Rules for Staff (Non-executive requesters cannot delete once approved)
+    if (!isExecutiveAdmin) {
+      if (expenditure.approvalStatus === "APPROVED") {
+        return NextResponse.json(
+          { error: "Cannot delete request: This requisition has already been approved. Please contact Executive Management to remove it." },
+          { status: 400 }
+        );
+      }
+
+      const hasApprovedStep = expenditure.approvalSteps.some((s) => s.status === "APPROVED");
+      if (hasApprovedStep) {
+        return NextResponse.json(
+          { error: "Cannot delete request: Approval workflow has already commenced and been signed off." },
+          { status: 400 }
+        );
+      }
+    }
+
     // Cascading deletion inside transaction
     await prisma.$transaction(async (tx) => {
-      // 1. Delete Channel Messages and Followup Tasks
+      // 1. Delete associated wallet release proposals and items if any
+      const existingProposals = await tx.walletReleaseProposal.findMany({
+        where: { sourceType: "REQUEST", sourceId: expenditure.id },
+        select: { id: true },
+      });
+      if (existingProposals.length > 0) {
+        const proposalIds = existingProposals.map((p) => p.id);
+        await tx.walletReleaseItem.deleteMany({
+          where: { proposalId: { in: proposalIds } },
+        });
+        await tx.walletReleaseProposal.deleteMany({
+          where: { id: { in: proposalIds } },
+        });
+      }
+
+      // 2. Delete Three-Way Match Records
+      await tx.threeWayMatchRecord.deleteMany({
+        where: { requestId: expenditure.id },
+      });
+
+      // 3. Delete Goods Receipt Notes
+      await tx.goodsReceiptNote.deleteMany({
+        where: { requestId: expenditure.id },
+      });
+
+      // 4. Delete Vendor Invoices
+      await tx.vendorInvoice.deleteMany({
+        where: { requestId: expenditure.id },
+      });
+
+      // 5. Delete Channel Messages and Followup Tasks
       if (expenditure.channel) {
         await tx.channelMessage.deleteMany({
           where: { channelId: expenditure.channel.id },
@@ -276,12 +309,12 @@ export async function DELETE(
         });
       }
 
-      // 2. Delete Approval Steps
+      // 6. Delete Approval Steps
       await tx.approvalStep.deleteMany({
         where: { requestId: expenditure.id },
       });
 
-      // 3. Delete Attachments
+      // 7. Delete Attachments
       await tx.attachment.deleteMany({
         where: {
           OR: [
@@ -291,17 +324,17 @@ export async function DELETE(
         },
       });
 
-      // 4. Delete Accountability Case if any
+      // 8. Delete Accountability Case if any
       await tx.accountabilityCase.deleteMany({
         where: { requestId: expenditure.id },
       });
 
-      // 5. Delete the Expenditure Request
+      // 9. Delete the Expenditure Request
       await tx.expenditureRequest.delete({
         where: { id: expenditure.id },
       });
 
-      // 6. Log audit event
+      // 10. Log audit event
       await tx.auditEvent.create({
         data: {
           actorId: actor!.id,

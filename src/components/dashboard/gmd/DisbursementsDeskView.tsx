@@ -21,7 +21,8 @@ import {
   Lock,
   Layers,
   Check,
-  RotateCcw
+  RotateCcw,
+  Trash2,
 } from 'lucide-react';
 import { ReleaseToStaffWalletModal, StaffWalletReleaseData } from './ReleaseToStaffWalletModal';
 
@@ -142,8 +143,35 @@ export function DisbursementsDeskView({
   const [activeTab, setActiveTab] = useState<'AWAITING_TRANSFER' | 'AWAITING_CONFIRMATION' | 'CLEARED'>(
     initialTab || (filterMode === 'settled' ? 'CLEARED' : 'AWAITING_TRANSFER')
   );
+  const [payoutTypeFilter, setPayoutTypeFilter] = useState<'ALL' | 'VENDOR' | 'STAFF'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+
+  // Deletion Modal State
+  const [deleteModalRequest, setDeleteModalRequest] = useState<RequestItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteRequest = async () => {
+    if (!deleteModalRequest) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/requests/${encodeURIComponent(deleteModalRequest.requestNumber)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to delete requisition');
+      }
+      setNotice(`Requisition ${deleteModalRequest.requestNumber} was successfully deleted.`);
+      setDeleteModalRequest(null);
+      await fetchDisbursements();
+    } catch (err: any) {
+      alert(err.message || 'Could not delete requisition.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   useEffect(() => {
     if (initialTab) {
@@ -155,7 +183,11 @@ export function DisbursementsDeskView({
 
   const filteredReadyRequests = useMemo(() => {
     let list = readyRequests;
-    if (filterMode === 'vendors') {
+    if (payoutTypeFilter === 'VENDOR') {
+      list = list.filter(req => Boolean(req.vendor));
+    } else if (payoutTypeFilter === 'STAFF') {
+      list = list.filter(req => !req.vendor);
+    } else if (filterMode === 'vendors') {
       list = list.filter(req => Boolean(req.vendor));
     }
     const q = searchQuery.trim().toLowerCase();
@@ -167,7 +199,7 @@ export function DisbursementsDeskView({
       (req.vendor?.name && req.vendor.name.toLowerCase().includes(q)) ||
       (req.requester?.legalName && req.requester.legalName.toLowerCase().includes(q))
     );
-  }, [readyRequests, searchQuery, filterMode]);
+  }, [readyRequests, searchQuery, filterMode, payoutTypeFilter]);
 
   const filteredAwaitingConfirmation = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -721,6 +753,35 @@ export function DisbursementsDeskView({
         </div>
       ) : activeTab === 'AWAITING_TRANSFER' ? (
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
+          {readyRequests.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#64748b', marginRight: 4 }}>Filter:</span>
+              {[
+                { id: 'ALL', label: `All Payouts (${readyRequests.length})` },
+                { id: 'VENDOR', label: `Vendors (${readyRequests.filter(r => r.vendor).length})` },
+                { id: 'STAFF', label: `Staff Reimbursements (${readyRequests.filter(r => !r.vendor).length})` },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setPayoutTypeFilter(tab.id as any)}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    border: payoutTypeFilter === tab.id ? '1px solid #ea580c' : '1px solid #cbd5e1',
+                    background: payoutTypeFilter === tab.id ? '#ea580c' : '#ffffff',
+                    color: payoutTypeFilter === tab.id ? '#ffffff' : '#475569',
+                    fontSize: '10px',
+                    fontWeight: payoutTypeFilter === tab.id ? 700 : 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {filteredReadyRequests.length === 0 ? (
             <div style={{ padding: '36px 20px', textAlign: 'center' }}>
               <CheckCircle2 size={24} color="#059669" style={{ margin: '0 auto 8px' }} />
@@ -793,46 +854,70 @@ export function DisbursementsDeskView({
                     </span>
                   </div>
 
-                  {(!req.vendor && (!req.requester?.role || req.requester.role === 'STAFF')) ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                    {(!req.vendor && (!req.requester?.role || req.requester.role === 'STAFF')) ? (
+                      <button
+                        onClick={() => openStaffWalletModal(req)}
+                        title="Authorize GMD release and credit to staff internal wallet"
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid #059669',
+                          background: 'linear-gradient(135deg, #10b981, #059669)',
+                          color: '#fff',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          boxShadow: '0 1px 3px rgba(5, 150, 105, 0.25)',
+                        }}
+                      >
+                        Release to Staff Wallet →
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => openMakerModal(req)}
+                        disabled={req.canRecord === false}
+                        title={req.canRecord === false ? `Assigned to ${req.disbursementAssignee?.legalName || 'another executive'}` : 'Record the off-platform payment and upload its receipt'}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #ea580c',
+                          background: 'linear-gradient(135deg, #f97316, #ea580c)',
+                          color: '#fff',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          cursor: req.canRecord === false ? 'not-allowed' : 'pointer',
+                          opacity: req.canRecord === false ? 0.55 : 1,
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {req.canRecord === false ? 'Assigned to another executive' : 'Record Transfer ↗'}
+                      </button>
+                    )}
+
                     <button
-                      onClick={() => openStaffWalletModal(req)}
-                      title="Authorize GMD release and credit to staff internal wallet"
+                      type="button"
+                      onClick={() => setDeleteModalRequest(req)}
+                      title="Permanently delete requisition"
                       style={{
-                        padding: '6px 12px',
+                        padding: '5px 8px',
                         borderRadius: '6px',
-                        border: '1px solid #059669',
-                        background: 'linear-gradient(135deg, #10b981, #059669)',
-                        color: '#fff',
+                        border: '1px solid #fecaca',
+                        background: '#fef2f2',
+                        color: '#dc2626',
                         fontSize: '10px',
                         fontWeight: 700,
                         cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        boxShadow: '0 1px 3px rgba(5, 150, 105, 0.25)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
                       }}
                     >
-                      Release to Staff Wallet →
+                      <Trash2 size={11} />
+                      <span>Delete</span>
                     </button>
-                  ) : (
-                    <button
-                      onClick={() => openMakerModal(req)}
-                      disabled={req.canRecord === false}
-                      title={req.canRecord === false ? `Assigned to ${req.disbursementAssignee?.legalName || 'another executive'}` : 'Record the off-platform payment and upload its receipt'}
-                      style={{
-                        padding: '5px 10px',
-                        borderRadius: '6px',
-                        border: '1px solid #ea580c',
-                        background: 'linear-gradient(135deg, #f97316, #ea580c)',
-                        color: '#fff',
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        cursor: req.canRecord === false ? 'not-allowed' : 'pointer',
-                        opacity: req.canRecord === false ? 0.55 : 1,
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      {req.canRecord === false ? 'Assigned to another executive' : 'Record Transfer ↗'}
-                    </button>
-                  )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1410,6 +1495,145 @@ export function DisbursementsDeskView({
           }}
           data={staffWalletModalData}
         />
+      )}
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteModalRequest && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => !isDeleting && setDeleteModalRequest(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              border: '1px solid #fee2e2',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+              width: '100%',
+              maxWidth: '460px',
+              padding: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  background: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  display: 'grid',
+                  placeItems: 'center',
+                  color: '#dc2626',
+                  flexShrink: 0,
+                }}
+              >
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
+                  Delete Requisition?
+                </h3>
+                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                  This will permanently delete this fund request from the system.
+                </p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '14px',
+                fontSize: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Request Code:</span>
+                <strong style={{ color: '#0f172a' }}>{deleteModalRequest.requestNumber}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Title:</span>
+                <strong style={{ color: '#0f172a', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {deleteModalRequest.title}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Amount:</span>
+                <strong style={{ color: '#059669', fontSize: '13px' }}>
+                  {deleteModalRequest.amountFormatted}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Beneficiary:</span>
+                <span style={{ color: '#334155', fontWeight: 600 }}>
+                  {deleteModalRequest.vendor?.name || deleteModalRequest.requester?.legalName || 'Staff'} ({deleteModalRequest.subsidiary?.legalName || 'BEMS'})
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', marginTop: '6px' }}>
+              <button
+                type="button"
+                onClick={() => setDeleteModalRequest(null)}
+                disabled={isDeleting}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: '10px',
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  color: '#475569',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteRequest}
+                disabled={isDeleting}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: '10px',
+                  background: '#dc2626',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '12px',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 4px rgba(220, 38, 38, 0.25)',
+                }}
+              >
+                {isDeleting && <RefreshCw size={13} className="animate-spin" />}
+                <span>{isDeleting ? 'Deleting...' : 'Delete Permanently'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

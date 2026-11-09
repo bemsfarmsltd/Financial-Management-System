@@ -19,6 +19,7 @@ import {
   ArrowRight,
   ExternalLink,
   Receipt,
+  Trash2,
 } from 'lucide-react';
 import { toSystemRequestId } from '@/lib/request-id';
 
@@ -118,6 +119,7 @@ interface ExecutiveRequisitionModalProps {
   onApprove?: () => void;
   onClarify?: () => void;
   onDecline?: () => void;
+  onDelete?: () => void;
 }
 
 export function ExecutiveRequisitionModal({
@@ -129,6 +131,7 @@ export function ExecutiveRequisitionModal({
   onApprove,
   onClarify,
   onDecline,
+  onDelete,
 }: ExecutiveRequisitionModalProps) {
   const [copiedSystemId, setCopiedSystemId] = useState(false);
   const [evidenceTab, setEvidenceTab] = useState<'ALL' | 'PRE_APPROVAL' | 'POST_RETIREMENT' | 'COMPARE'>('ALL');
@@ -1138,11 +1141,62 @@ export function ExecutiveRequisitionModal({
                     <X size={13} />
                     <span>Decline</span>
                   </button>
+
+                  {onDelete && (
+                    <button
+                      type="button"
+                      onClick={onDelete}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        background: '#fff',
+                        color: '#dc2626',
+                        border: '1px solid #fecaca',
+                        fontWeight: 750,
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '5px',
+                        transition: 'all 0.15s ease',
+                      }}
+                      title="Permanently delete requisition"
+                    >
+                      <Trash2 size={13} />
+                      <span>Delete</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
-              <div style={{ padding: '12px 16px', background: '#ecfdf5', borderRadius: '12px', border: '1px solid #a7f3d0', fontSize: '11.5px', color: '#047857', fontWeight: 650 }}>
-                This requisition is {request.approvalStatus.toLowerCase().replace(/_/g, ' ')}.
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, padding: '12px 16px', background: '#ecfdf5', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
+                <span style={{ fontSize: '11.5px', color: '#047857', fontWeight: 650 }}>
+                  This requisition is {request.approvalStatus.toLowerCase().replace(/_/g, ' ')}.
+                </span>
+                {onDelete && (request.paymentStatus === 'UNPAID' || !request.paymentStatus) && (
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      background: '#fff',
+                      color: '#dc2626',
+                      border: '1px solid #fecaca',
+                      fontWeight: 750,
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                    title="Permanently delete requisition"
+                  >
+                    <Trash2 size={13} />
+                    <span>Delete Requisition</span>
+                  </button>
+                )}
               </div>
             )}
           </div>

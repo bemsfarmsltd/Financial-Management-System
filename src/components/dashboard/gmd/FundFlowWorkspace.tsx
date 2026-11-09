@@ -80,7 +80,7 @@ export function FundFlowWorkspace({
 
   const tabs: { key: WorkspaceTab; label: string; count: number | null; icon: React.ReactNode }[] = [
     { key: 'approvals', label: 'Requisition Approvals', count: reviewCount, icon: <ClipboardCheck size={13} /> },
-    { key: 'vendors', label: 'Vendor Disbursements', count: readyCount, icon: <Building2 size={13} /> },
+    { key: 'vendors', label: 'Disbursements Queue', count: readyCount, icon: <Building2 size={13} /> },
     { key: 'settlements', label: 'Settlement Ledger', count: confirmationCount, icon: <BadgeCheck size={13} /> },
     { key: 'governance', label: 'Approval Matrix & Overrides', count: null, icon: <ShieldCheck size={13} /> },
   ];
@@ -226,7 +226,7 @@ export function FundFlowWorkspace({
           businessCode={businessCode}
           onNavigate={onNavigate}
           onSelectBusiness={onSelectBusiness}
-          filterMode="vendors"
+          filterMode="all"
           initialTab="AWAITING_TRANSFER"
           hideHeader={true}
         />

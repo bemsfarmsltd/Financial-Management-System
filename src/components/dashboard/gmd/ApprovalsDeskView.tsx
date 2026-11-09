@@ -37,6 +37,7 @@ import {
   Download,
   Eye,
   Image as ImageIcon,
+  Trash2,
 } from 'lucide-react';
 import { InstantTransferModal, RequesterDisbursementAccount } from './InstantTransferModal';
 import { ReleaseToStaffWalletModal, StaffWalletReleaseData } from './ReleaseToStaffWalletModal';
@@ -215,6 +216,38 @@ export function ApprovalsDeskView({
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // Deletion Modal State
+  const [deleteModalRequest, setDeleteModalRequest] = useState<RequestItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteRequest = async () => {
+    if (!deleteModalRequest) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/requests/${encodeURIComponent(deleteModalRequest.requestNumber)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to delete requisition');
+      }
+      setNotice(`Requisition ${deleteModalRequest.requestNumber} was successfully deleted.`);
+      if (dossierRequest?.id === deleteModalRequest.id) {
+        setDossierRequest(null);
+      }
+      setDeleteModalRequest(null);
+      await fetchApprovals();
+      if (onApprovedRequest) {
+        onApprovedRequest(deleteModalRequest.id);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Could not delete requisition.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleApproveRequest = (req: RequestItem) => {
     if (!req.vendor && req.requester) {
@@ -1440,6 +1473,27 @@ export function ApprovalsDeskView({
                         </button>
 
                         <button
+                          onClick={() => setDeleteModalRequest(req)}
+                          title="Permanently delete request"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            padding: '4px 8px',
+                            borderRadius: '5px',
+                            fontSize: '10px',
+                            fontWeight: 650,
+                            background: '#fef2f2',
+                            color: '#dc2626',
+                            border: '1px solid #fecaca',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Trash2 size={11} />
+                          Delete
+                        </button>
+
+                        <button
                           onClick={() => setDossierRequest(req)}
                           title="Inspect detailed dossier"
                           style={{
@@ -1494,6 +1548,7 @@ export function ApprovalsDeskView({
           onApprove={() => handleApproveRequest(dossierRequest)}
           onClarify={() => setDecisionModal({ type: 'CLARIFICATION_REQUESTED', request: dossierRequest })}
           onDecline={() => setDecisionModal({ type: 'REJECTED', request: dossierRequest })}
+          onDelete={() => setDeleteModalRequest(dossierRequest)}
         />
       )}
 
@@ -1983,6 +2038,145 @@ export function ApprovalsDeskView({
           }}
           data={staffWalletModalData}
         />
+      )}
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteModalRequest && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => !isDeleting && setDeleteModalRequest(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              border: '1px solid #fee2e2',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+              width: '100%',
+              maxWidth: '460px',
+              padding: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  background: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  display: 'grid',
+                  placeItems: 'center',
+                  color: '#dc2626',
+                  flexShrink: 0,
+                }}
+              >
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
+                  Delete Requisition?
+                </h3>
+                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                  This will permanently delete this fund request from the system.
+                </p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '14px',
+                fontSize: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Request Code:</span>
+                <strong style={{ color: '#0f172a' }}>{deleteModalRequest.requestNumber}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Title:</span>
+                <strong style={{ color: '#0f172a', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {deleteModalRequest.title}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Amount:</span>
+                <strong style={{ color: '#059669', fontSize: '13px' }}>
+                  {deleteModalRequest.amountFormatted || ('₦' + Number(deleteModalRequest.amount || 0).toLocaleString('en-NG'))}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Owner:</span>
+                <span style={{ color: '#334155', fontWeight: 600 }}>
+                  {deleteModalRequest.requester?.name || 'Staff'} ({deleteModalRequest.subsidiary?.name || 'BEMS'})
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', marginTop: '6px' }}>
+              <button
+                type="button"
+                onClick={() => setDeleteModalRequest(null)}
+                disabled={isDeleting}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: '10px',
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  color: '#475569',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteRequest}
+                disabled={isDeleting}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: '10px',
+                  background: '#dc2626',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '12px',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 4px rgba(220, 38, 38, 0.25)',
+                }}
+              >
+                {isDeleting && <RefreshCw size={13} className="animate-spin" />}
+                <span>{isDeleting ? 'Deleting...' : 'Delete Permanently'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
