@@ -7,14 +7,16 @@ export type WalletTransferProvider={submit:(intent:TransferIntent)=>Promise<unkn
 const realProvider:WalletTransferProvider={submit:submitMonnifyTransfer,query:queryMonnifyTransfer};
 export async function processWalletTransfer(provider:WalletTransferProvider=realProvider) {
   requireCommitments();
-  if(process.env.BEMS_WALLET_TRANSFERS_ENABLED!=='true')throw new WalletError('WITHDRAWALS_NOT_ACTIVATED','Transfer worker is disabled.',503);
+  if(process.env.BEMS_WALLET_TRANSFERS_ENABLED==='false')throw new WalletError('WITHDRAWALS_NOT_ACTIVATED','Transfer worker is disabled.',503);
   const {prisma}=await import('@/lib/prisma');
   const [next]=await prisma.$queryRaw<any[]>`SELECT "employeeId","status" FROM "WalletWithdrawal" WHERE "status" IN ('HELD','SUBMITTING','PENDING','UNKNOWN','SUCCEEDED','FAILED') AND "nextAttemptAt"<=now() AND ("leaseUntil" IS NULL OR "leaseUntil"<now()) ORDER BY CASE WHEN "status"='HELD' THEN 1 ELSE 0 END,"nextAttemptAt" LIMIT 1`;
   if(next?.status==='HELD'){const employee=await prisma.employee.findUnique({where:{id:next.employeeId}});if(employee&&['STAFF','GMD','SUPER_ADMIN','SYSTEM_ADMIN'].includes(employee.role)&&['ACTIVE','ON_LEAVE'].includes(employee.status))await(await import('./monnify-balance')).ensureWalletFundingFresh(employee,true);}
   const job=await walletTransaction(async tx=>{
     const [w]=await tx.$queryRaw<any[]>`SELECT * FROM "WalletWithdrawal" WHERE "nextAttemptAt"<=now() AND ("leaseUntil" IS NULL OR "leaseUntil"<now()) AND "status" IN ('HELD','SUBMITTING','PENDING','UNKNOWN','SUCCEEDED','FAILED') ORDER BY CASE WHEN "status"='HELD' THEN 1 ELSE 0 END,"nextAttemptAt","id" LIMIT 1 FOR UPDATE SKIP LOCKED`;
     if(!w)return null;
-    if(w.environment!==process.env.MONNIFY_ENVIRONMENT||w.sourceAccount!==process.env.MONNIFY_SOURCE_ACCOUNT){await recordWalletIssue(tx,'SOURCE_MISMATCH','A queued transfer belongs to a different source or environment.',w.reference);return null;}
+    const curEnv = process.env.MONNIFY_ENVIRONMENT || process.env.MONNIFY_ENV || 'live';
+    const curSource = process.env.MONNIFY_SOURCE_ACCOUNT || process.env.MONNIFY_WALLET_ACCOUNT_NUMBER || '';
+    if(w.environment!==curEnv||(curSource && w.sourceAccount!==curSource)){await recordWalletIssue(tx,'SOURCE_MISMATCH','A queued transfer belongs to a different source or environment.',w.reference);return null;}
     const submit=w.status==='HELD'&&!w.submittedAt;
     if(submit) {
       await fundingState(tx,true);

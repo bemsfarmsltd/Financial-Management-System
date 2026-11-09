@@ -3,7 +3,10 @@
  * Handles secure OAuth token generation, live bank listing, and real-time NUBAN validation.
  */
 
-const MONNIFY_BASE_URL = process.env.MONNIFY_BASE_URL || 'https://api.monnify.com';
+const MONNIFY_BASE_URL = process.env.MONNIFY_BASE_URL || 
+  ((process.env.MONNIFY_ENV === 'sandbox' || process.env.MONNIFY_ENVIRONMENT === 'sandbox')
+    ? 'https://sandbox.monnify.com'
+    : 'https://api.monnify.com');
 const MONNIFY_API_KEY = process.env.MONNIFY_API_KEY || '';
 const MONNIFY_SECRET_KEY = process.env.MONNIFY_SECRET_KEY || '';
 

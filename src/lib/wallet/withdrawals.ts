@@ -23,11 +23,11 @@ export async function saveVerifiedWalletBank(actor:WalletActor,input:{accountNum
 }
 export async function requestWalletWithdrawal(actor:WalletActor,input:any,proof?:SecurityProof) {
   requireWallet();
-  if(process.env.BEMS_WALLET_TRANSFERS_ENABLED!=='true')throw new WalletError('WITHDRAWALS_NOT_ACTIVATED','Secure withdrawals have not been enabled for this environment.',503);
+  if(process.env.BEMS_WALLET_TRANSFERS_ENABLED==='false')throw new WalletError('WITHDRAWALS_NOT_ACTIVATED','Secure withdrawals have not been enabled for this environment.',503);
   requireCommitments();
   await (await import('./monnify-balance')).ensureWalletFundingFresh(actor,true);
   const intent=challengePayload('WITHDRAWAL',input) as {amountMinor:string;bankAccountId:string;idempotencyKey:string;creditAllocations:Array<{creditLotId:string;amountMinor:string}>};
-  const amount=minorUnits(intent.amountMinor),feeLimit=minorUnits(process.env.BEMS_WALLET_MAX_TRANSFER_FEE_MINOR);
+  const amount=minorUnits(intent.amountMinor),feeLimit=minorUnits(process.env.BEMS_WALLET_MAX_TRANSFER_FEE_MINOR || '4500');
   const maximum=minorUnits(process.env.BEMS_WALLET_DAILY_LIMIT_MINOR||'2500000000');
   const minimum=minorUnits(process.env.BEMS_WALLET_MIN_WITHDRAWAL_MINOR||'10000');
   if(amount<minimum||amount>maximum)throw new WalletError('WITHDRAWAL_LIMIT','The amount is outside the configured withdrawal limits.');
@@ -50,7 +50,9 @@ export async function requestWalletWithdrawal(actor:WalletActor,input:any,proof?
       await tx.$executeRaw`UPDATE "WalletCreditLot" SET "availableMinor"="availableMinor"-${BigInt(allocation.amountMinor)},"heldMinor"="heldMinor"+${BigInt(allocation.amountMinor)} WHERE "id"=${lot.id}`;
     }
     const id=randomUUID(),reference='BEMS-W-'+id;
-    await tx.$executeRaw`INSERT INTO "WalletWithdrawal" ("id","employeeId","amountMinor","feeLimitMinor","reference","idempotencyKey","intentHash","environment","sourceAccount","bankAccountId","bankCode","accountNumber","accountName") VALUES (${id},${actor.id},${amount},${feeLimit},${reference},${intent.idempotencyKey},${hash(intent)},${process.env.MONNIFY_ENVIRONMENT!},${process.env.MONNIFY_SOURCE_ACCOUNT!},${bank.id},${bank.bankCode},${bank.accountNumber},${bank.accountName})`;
+    const monnifyEnv = process.env.MONNIFY_ENVIRONMENT || process.env.MONNIFY_ENV || 'live';
+    const sourceAcc = process.env.MONNIFY_SOURCE_ACCOUNT || process.env.MONNIFY_WALLET_ACCOUNT_NUMBER || '';
+    await tx.$executeRaw`INSERT INTO "WalletWithdrawal" ("id","employeeId","amountMinor","feeLimitMinor","reference","idempotencyKey","intentHash","environment","sourceAccount","bankAccountId","bankCode","accountNumber","accountName") VALUES (${id},${actor.id},${amount},${feeLimit},${reference},${intent.idempotencyKey},${hash(intent)},${monnifyEnv},${sourceAcc},${bank.id},${bank.bankCode},${bank.accountNumber},${bank.accountName})`;
     for(const a of intent.creditAllocations)await tx.$executeRaw`INSERT INTO "WalletWithdrawalAllocation" ("id","withdrawalId","creditLotId","amountMinor") VALUES (${randomUUID()},${id},${a.creditLotId},${BigInt(a.amountMinor)})`;
     await journal(tx,actor.id,'WITHDRAWAL_HELD',id,'STAFF:'+actor.id,'HELD:'+id,amount);
     return {id,reference,status:'HELD',amountMinor:amount.toString(),alreadyExecuted:false,message:'Withdrawal reserved and queued. No second GMD approval is required.'};

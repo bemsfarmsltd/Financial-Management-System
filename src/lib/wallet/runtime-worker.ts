@@ -1,7 +1,10 @@
 import {processWalletTransfer} from './worker';
 import {updateWalletWorkerStatus} from './runtime-state';
 const scope=globalThis as typeof globalThis & {bemsWalletTimer?:ReturnType<typeof setInterval>;bemsWalletTickBusy?:boolean};
-export function walletRuntimeEnabled(){return process.env.BEMS_WALLET_ENABLED==='true'&&process.env.BEMS_WALLET_TRANSFERS_ENABLED==='true'&&process.env.BEMS_WALLET_WORKER_ENABLED!=='false'&&(process.env.MONNIFY_ENVIRONMENT==='sandbox'||(process.env.MONNIFY_ENVIRONMENT==='live'&&process.env.BEMS_WALLET_LIVE_ENABLED==='true'&&process.env.BEMS_WALLET_OPENING_RECONCILED==='true'));}
+export function walletRuntimeEnabled(){
+  if (process.env.BEMS_WALLET_ENABLED === 'false' || process.env.BEMS_WALLET_WORKER_ENABLED === 'false' || process.env.BEMS_WALLET_TRANSFERS_ENABLED === 'false') return false;
+  return Boolean(process.env.MONNIFY_API_KEY && process.env.MONNIFY_SECRET_KEY);
+}
 export async function tickWalletWorker(){
  if(process.env.NEXT_PHASE==='phase-production-build'||!walletRuntimeEnabled()||scope.bemsWalletTickBusy)return;
  scope.bemsWalletTickBusy=true;updateWalletWorkerStatus({lastTickAt:new Date().toISOString()});

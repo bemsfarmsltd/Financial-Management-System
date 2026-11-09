@@ -107,7 +107,7 @@ export async function approveWalletRelease(actor:WalletActor,id:string,confirmat
       await tx.$executeRaw`INSERT INTO "WalletPaidSource" ("key","proposalId") VALUES (${key},${id})`;
     }
     const currentFunding=await fundingState(tx,true);
-    const extraDirectFee=source.items.some(i=>i.vendorId)?BigInt(process.env.BEMS_WALLET_MAX_TRANSFER_FEE_MINOR||'0'):BigInt(0);
+    const extraDirectFee=source.items.some(i=>i.vendorId)?BigInt(process.env.BEMS_WALLET_MAX_TRANSFER_FEE_MINOR||'4500'):BigInt(0);
     const fees=await requiredFeeReserve(tx,source.items,extraDirectFee);
     if(fees>currentFunding.feeReserveMinor){const increase=fees-currentFunding.feeReserveMinor;if(increase>currentFunding.freeMinor)throw new WalletError('FEE_RESERVE_INSUFFICIENT','Fund company fees as well as staff/vendor principal before approval.',409);await tx.$executeRaw`UPDATE "WalletFundingPool" SET "feeReserveMinor"=${fees} WHERE "id"='MONNIFY_NGN'`;}
     await tx.$executeRaw`UPDATE "WalletReleaseProposal" SET "status"='EXECUTED',"approvedById"=${actor.id},"approvedAt"=now() WHERE "id"=${id}`;
@@ -115,12 +115,14 @@ export async function approveWalletRelease(actor:WalletActor,id:string,confirmat
       const count=await tx.$executeRaw`UPDATE "WalletBudgetEnvelope" SET "remainingMinor"="remainingMinor"-${i.amountMinor},"version"="version"+1 WHERE "id"=${i.envelopeId} AND "organizationId"=${i.organizationId} AND "status"='ACTIVE' AND "remainingMinor">=${i.amountMinor}`;
       if(count!==1)throw new WalletError('BUDGET_EXCEEDED','A funded subsidiary budget cannot cover this release.',409);
       if(i.vendorId){
-        if(process.env.BEMS_WALLET_TRANSFERS_ENABLED!=='true')throw new WalletError('WITHDRAWALS_NOT_ACTIVATED','Vendor transfers are not enabled for this environment.',503);
-        const bank=JSON.parse(i.bankSnapshot);const withdrawalId=randomUUID();const fee=BigInt(process.env.BEMS_WALLET_MAX_TRANSFER_FEE_MINOR||'0');
+        if(process.env.BEMS_WALLET_TRANSFERS_ENABLED==='false')throw new WalletError('WITHDRAWALS_NOT_ACTIVATED','Vendor transfers are not enabled for this environment.',503);
+        const bank=JSON.parse(i.bankSnapshot);const withdrawalId=randomUUID();const fee=BigInt(process.env.BEMS_WALLET_MAX_TRANSFER_FEE_MINOR||'4500');
         const[reserved]=await tx.$queryRaw<any[]>`SELECT COALESCE(sum("feeLimitMinor"),0)::bigint AS "amount" FROM "WalletWithdrawal" WHERE "status" IN ('HELD','SUBMITTING','PENDING','UNKNOWN')`;
         const state=await fundingState(tx,true);
         if(fee<=BigInt(0)||state.feeReserveMinor<reserved.amount+fee)throw new WalletError('FEE_RESERVE_INSUFFICIENT','Company transfer fee funding is required.',409);
-        await tx.$executeRaw`INSERT INTO "WalletWithdrawal" ("id","employeeId","targetType","vendorId","requestId","proposalId","amountMinor","feeLimitMinor","reference","idempotencyKey","intentHash","environment","sourceAccount","bankCode","accountNumber","accountName") VALUES (${withdrawalId},${actor.id},'VENDOR',${i.vendorId},${i.sourceId},${id},${i.amountMinor},${fee},${'BEMS-V-'+withdrawalId},${'vendor:'+id},${hash({id,bank,amount:i.amountMinor})},${process.env.MONNIFY_ENVIRONMENT!},${process.env.MONNIFY_SOURCE_ACCOUNT!},${bank.bankCode},${bank.accountNumber},${bank.accountName})`;
+        const monnifyEnv = process.env.MONNIFY_ENVIRONMENT || process.env.MONNIFY_ENV || 'live';
+        const sourceAcc = process.env.MONNIFY_SOURCE_ACCOUNT || process.env.MONNIFY_WALLET_ACCOUNT_NUMBER || '';
+        await tx.$executeRaw`INSERT INTO "WalletWithdrawal" ("id","employeeId","targetType","vendorId","requestId","proposalId","amountMinor","feeLimitMinor","reference","idempotencyKey","intentHash","environment","sourceAccount","bankCode","accountNumber","accountName") VALUES (${withdrawalId},${actor.id},'VENDOR',${i.vendorId},${i.sourceId},${id},${i.amountMinor},${fee},${'BEMS-V-'+withdrawalId},${'vendor:'+id},${hash({id,bank,amount:i.amountMinor})},${monnifyEnv},${sourceAcc},${bank.bankCode},${bank.accountNumber},${bank.accountName})`;
         await journal(tx,actor.id,'VENDOR_PAYMENT_HELD',i.id,'ENVELOPE:'+i.envelopeId,'VENDOR_HELD:'+withdrawalId,i.amountMinor);
         const org=await tx.organization.findUniqueOrThrow({where:{id:i.organizationId}});
         await tx.auditEvent.create({data:{actorId:actor.id,actorName:actor.legalName,actorRole:actor.role,groupId:org.parentGroupId||org.id,subsidiaryId:org.id,targetType:'VENDOR_PAYMENT',targetId:withdrawalId,action:'GMD_VENDOR_PAYMENT_APPROVED',correlationId:id,metadata:JSON.stringify({approvalAuthority:actor.role,temporarySuperAdminAccess:actor.role!=='GMD',vendorId:i.vendorId,requestId:i.sourceId,amountMinor:i.amountMinor.toString(),bankLastFour:bank.accountNumber.slice(-4),confirmationHash})}});

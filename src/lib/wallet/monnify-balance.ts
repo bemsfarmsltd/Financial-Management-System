@@ -30,12 +30,12 @@ export async function refreshMonnifyFunding(actor: WalletActor, forOwnWithdrawal
     await liveWalletActor(tx, actor);
     if (!['GMD','SUPER_ADMIN','SYSTEM_ADMIN'].includes(actor.role) && !(forOwnWithdrawal && actor.role==='STAFF')) throw new WalletError('NOT_PERMITTED', 'Executive authority is required to refresh company funding.', 403);
   });
-  const environment = process.env.MONNIFY_ENVIRONMENT;
-  const sourceAccount = process.env.MONNIFY_SOURCE_ACCOUNT || '';
+  const environment = process.env.MONNIFY_ENVIRONMENT || process.env.MONNIFY_ENV || 'live';
+  const sourceAccount = process.env.MONNIFY_SOURCE_ACCOUNT || process.env.MONNIFY_WALLET_ACCOUNT_NUMBER || '';
   const key = process.env.MONNIFY_API_KEY; const secret = process.env.MONNIFY_SECRET_KEY;
-  const reserve = process.env.BEMS_WALLET_FEE_RESERVE_MINOR || '';
+  const reserve = process.env.BEMS_WALLET_FEE_RESERVE_MINOR || '9000';
   if (!['sandbox','live'].includes(environment || '') || !/^\d{10}$/.test(sourceAccount) || !key || !secret || !/^\d{1,15}$/.test(reserve)) {
-    throw new WalletError('FUNDING_NOT_CONFIGURED', 'Configure the Monnify environment, source account, credentials and company fee reserve.', 503);
+    throw new WalletError('FUNDING_NOT_CONFIGURED', 'Configure the Monnify environment, source account, and credentials.', 503);
   }
   const base = environment === 'sandbox' ? 'https://sandbox.monnify.com' : 'https://api.monnify.com';
   const observationStartedAt = new Date();

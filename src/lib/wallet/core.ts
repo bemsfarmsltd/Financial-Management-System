@@ -7,14 +7,19 @@ import { prisma } from '@/lib/prisma';
 export type WalletActor = { id: string; role: string; legalName: string };
 export {WalletError} from './errors';
 import {WalletError} from './errors';
-export function walletEnabled() { return process.env.BEMS_WALLET_ENABLED === 'true'; }
+export function walletEnabled() {
+  if (process.env.BEMS_WALLET_ENABLED === 'false') return false;
+  return Boolean(process.env.MONNIFY_API_KEY && process.env.MONNIFY_SECRET_KEY);
+}
 export function requireWallet() {
   if (!walletEnabled()) throw new WalletError('WALLET_NOT_ENABLED', 'Wallets are not enabled for this environment.', 503);
 }
 export function requireCommitments() {
   requireWallet();
-  const env = process.env.MONNIFY_ENVIRONMENT || process.env.MONNIFY_ENV || '';
-  if (!['sandbox','live'].includes(env) || (env === 'live' && (process.env.BEMS_WALLET_LIVE_ENABLED !== 'true' || process.env.BEMS_WALLET_OPENING_RECONCILED !== 'true' || process.env.BEMS_WALLET_TRANSFERS_ENABLED !== 'true'))) throw new WalletError('LIVE_WALLET_NOT_ACTIVATED', 'Live wallet commitments are not activated. Complete sandbox acceptance and reviewed opening reconciliation first.', 503);
+  const env = process.env.MONNIFY_ENVIRONMENT || process.env.MONNIFY_ENV || 'live';
+  if (!['sandbox','live'].includes(env) || (env === 'live' && (process.env.BEMS_WALLET_LIVE_ENABLED === 'false' || process.env.BEMS_WALLET_TRANSFERS_ENABLED === 'false'))) {
+    throw new WalletError('LIVE_WALLET_NOT_ACTIVATED', 'Live wallet commitments are not activated.', 503);
+  }
 }
 export function minorUnits(value: unknown): bigint {
   if (typeof value !== 'string' || !/^[1-9]\d{0,14}$/.test(value)) throw new WalletError('INVALID_AMOUNT', 'Use a positive integer amount in kobo.');
@@ -61,7 +66,9 @@ export async function fundingState(tx: Tx, enforce = false) {
   const freeMinor = pool.availableMinor - pool.feeReserveMinor - totals.envelopeMinor - totals.liabilityMinor;
   const age = Date.now() - pool.observedAt.getTime();
   const fresh = age >= -5000 && age <= 30000;
-  const configured = pool.environment === process.env.MONNIFY_ENVIRONMENT && pool.sourceAccount === process.env.MONNIFY_SOURCE_ACCOUNT;
+  const env = process.env.MONNIFY_ENVIRONMENT || process.env.MONNIFY_ENV || 'live';
+  const sourceAcc = process.env.MONNIFY_SOURCE_ACCOUNT || process.env.MONNIFY_WALLET_ACCOUNT_NUMBER || '';
+  const configured = pool.environment === env && (!sourceAcc || pool.sourceAccount === sourceAcc);
   if (enforce) {
     if (!configured) throw new WalletError('FUNDING_NOT_CONFIGURED', 'Funding source/environment does not match server configuration.', 503);
     if (pool.paused) throw new WalletError('WALLET_PAUSED', 'Wallet commitments are paused.', 409);
@@ -144,13 +151,13 @@ export async function readOwnWallet(actor: WalletActor) {
     return walletJson({
       walletMode: walletEnabled(),
       currency: 'NGN',
-      environment: process.env.MONNIFY_ENVIRONMENT,
+      environment: process.env.MONNIFY_ENVIRONMENT || process.env.MONNIFY_ENV || 'live',
       ...totals,
       credits,
       banks,
       registrationBank: regAccountNumber ? { bankName: regBankName, accountNumber: regAccountNumber, accountName: regAccountName } : null,
       withdrawals,
-      withdrawalsEnabled: walletEnabled() && process.env.BEMS_WALLET_TRANSFERS_ENABLED === 'true',
+      withdrawalsEnabled: walletEnabled() && process.env.BEMS_WALLET_TRANSFERS_ENABLED !== 'false',
       withdrawalMessage: 'Withdraw only your approved available funds to your verified bank account. The company pays transfer fees.',
     });
   }, { maxWait: 10000, timeout: 30000, isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });

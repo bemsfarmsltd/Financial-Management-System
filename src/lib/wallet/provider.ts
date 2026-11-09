@@ -4,7 +4,7 @@ import { providerAmountMinor } from './monnify-balance';
 export type TransferIntent={reference:string;amountMinor:bigint;sourceAccount:string;bankCode:string;accountNumber:string;accountName:string;environment:string};
 export type TransferEvidence={reference:string;amountMinor:bigint;currency:string;bankCode:string;accountNumber:string;status:string;feeMinor:bigint;providerReference:string|null};
 function configuration() {
-  const environment=process.env.MONNIFY_ENVIRONMENT;
+  const environment=process.env.MONNIFY_ENVIRONMENT || process.env.MONNIFY_ENV || 'live';
   if(!['sandbox','live'].includes(environment||'')||!process.env.MONNIFY_API_KEY||!process.env.MONNIFY_SECRET_KEY)throw new WalletError('PROVIDER_NOT_CONFIGURED','Monnify credentials and environment are required.',503);
   return {environment,base:environment==='sandbox'?'https://sandbox.monnify.com':'https://api.monnify.com'};
 }
@@ -29,8 +29,10 @@ export function exactTransferBody(intent:TransferIntent) {
 }
 export async function submitMonnifyTransfer(intent:TransferIntent) {
   requireCommitments();
-  if(process.env.BEMS_WALLET_TRANSFERS_ENABLED!=='true')throw new WalletError('WITHDRAWALS_NOT_ACTIVATED','Transfers are not enabled.',503);
-  if(intent.environment!==process.env.MONNIFY_ENVIRONMENT||intent.sourceAccount!==process.env.MONNIFY_SOURCE_ACCOUNT)throw new WalletError('PROVIDER_SOURCE_MISMATCH','Transfer source does not match the current environment.',409);
+  if(process.env.BEMS_WALLET_TRANSFERS_ENABLED==='false')throw new WalletError('WITHDRAWALS_NOT_ACTIVATED','Transfers are not enabled.',503);
+  const curEnv = process.env.MONNIFY_ENVIRONMENT || process.env.MONNIFY_ENV || 'live';
+  const curSource = process.env.MONNIFY_SOURCE_ACCOUNT || process.env.MONNIFY_WALLET_ACCOUNT_NUMBER || '';
+  if(intent.environment!==curEnv||(curSource && intent.sourceAccount!==curSource))throw new WalletError('PROVIDER_SOURCE_MISMATCH','Transfer source does not match the current environment.',409);
   return request('/api/v2/disbursements/single',{method:'POST',body:exactTransferBody(intent)},await token());
 }
 export async function queryMonnifyTransfer(reference:string):Promise<TransferEvidence> {

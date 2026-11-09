@@ -55,9 +55,9 @@ export interface PlatformActorContext {
 const DELEGATION_TTL_MS = 10 * 60 * 1000; // 10 minutes max per conversation turn
 
 function getDelegationSigningSecret(): string {
-  const secret = process.env.BEMS_DELEGATION_SIGNING_SECRET;
+  const secret = process.env.BEMS_DELEGATION_SIGNING_SECRET || process.env.BEMS_BOOTSTRAP_SECRET;
   if (!secret || Buffer.byteLength(secret, 'utf8') < 32) {
-    throw new Error('BEMS_DELEGATION_SIGNING_SECRET must contain at least 32 bytes.');
+    throw new Error('BEMS_DELEGATION_SIGNING_SECRET or BEMS_BOOTSTRAP_SECRET must contain at least 32 bytes.');
   }
   return secret;
 }
