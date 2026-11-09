@@ -76,50 +76,68 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
 
   Future<String?> _password(String title, String details) async {
     final controller = TextEditingController();
+    bool obscure = true;
     final result = await showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF0F172A))),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(details, style: const TextStyle(fontSize: 13, color: Color(0xFF475569))),
-            const SizedBox(height: 14),
-            TextField(
-              controller: controller,
-              obscureText: true,
-              autofillHints: const [AutofillHints.password],
-              decoration: InputDecoration(
-                labelText: 'Account Password or PIN',
-                labelStyle: const TextStyle(fontSize: 12),
-                filled: true,
-                fillColor: const Color(0xFFF8FAFC),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+      builder: (c) => StatefulBuilder(
+        builder: (c, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          title: Row(
+            children: [
+              const Icon(Icons.lock_outline_rounded, color: Color(0xFFEA580C), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF0F172A))),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(details, style: const TextStyle(fontSize: 13, color: Color(0xFF475569))),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                obscureText: obscure,
+                autofillHints: const [AutofillHints.password],
+                decoration: InputDecoration(
+                  labelText: 'Account Login Password',
+                  hintText: 'Enter your portal login password',
+                  helperText: 'Your BEMS Staff portal login password',
+                  helperMaxLines: 2,
+                  labelStyle: const TextStyle(fontSize: 12),
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18, color: const Color(0xFF64748B)),
+                    onPressed: () => setDlgState(() => obscure = !obscure),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                  ),
                 ),
               ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(c, controller.text),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFEA580C),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Authorize'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(c, controller.text),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFEA580C),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Authorize'),
-          ),
-        ],
       ),
     );
     await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -129,7 +147,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
 
   // --- BANK BENEFICIARIES MODAL ---
   Future<void> _showBeneficiariesModal(Map<String, dynamic> wallet) async {
-    final banks = wallet['banks'] as List<dynamic>? ?? [];
+    var banks = List<dynamic>.from(wallet['banks'] as List<dynamic>? ?? []);
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -275,7 +293,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
   }
 
   // --- ADD & VERIFY NEW ACCOUNT MODAL ---
-  Future<void> _addNewAccountModal() async {
+  Future<Map<String, dynamic>?> _addNewAccountModal() async {
     final numberController = TextEditingController();
     String? selectedBankCode;
     String? resolvedAccountName;
@@ -284,7 +302,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
 
     try {
       final banks = await StaffApiService.walletBanks(widget.user);
-      if (!mounted) return;
+      if (!mounted) return null;
 
       final verified = await showDialog<bool>(
         context: context,
@@ -448,12 +466,12 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
         ),
       );
 
-      if (verified != true || !mounted) return;
+      if (verified != true || !mounted) return null;
       final password = await _password(
         'Authorize Account Link',
-        'Confirm linking bank account $resolvedAccountName (${numberController.text}).',
+        'Enter your BEMS Staff account login password to link $resolvedAccountName (${numberController.text}).',
       );
-      if (password == null || !mounted) return;
+      if (password == null || !mounted) return null;
 
       setState(() => _busy = true);
       await StaffApiService.walletRequest(
@@ -472,8 +490,14 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
         );
         _reload();
       }
+      return {
+        'accountNumber': numberController.text.trim(),
+        'accountName': resolvedAccountName,
+        'bankCode': selectedBankCode,
+      };
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'), backgroundColor: const Color(0xFFDC2626)));
+      return null;
     } finally {
       numberController.dispose();
       if (mounted) setState(() => _busy = false);
@@ -485,7 +509,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
     final availableMinor = wallet['availableMinor']?.toString() ?? '0';
     final availableInt = BigInt.tryParse(availableMinor) ?? BigInt.zero;
 
-    final banks = wallet['banks'] as List<dynamic>? ?? [];
+    var banks = List<dynamic>.from(wallet['banks'] as List<dynamic>? ?? []);
     dynamic selectedBank = banks.isNotEmpty ? banks[0] : null;
 
     final amountController = TextEditingController();
@@ -548,10 +572,24 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
 
                   if (banks.isEmpty)
                     InkWell(
-                      onTap: () {
-                        Navigator.pop(modalCtx);
-                        _addNewAccountModal();
+                      onTap: () async {
+                        final added = await _addNewAccountModal();
+                        if (added != null && mounted) {
+                          try {
+                            final fresh = await StaffApiService.getOwnWallet(widget.user);
+                            final freshBanks = (fresh['banks'] as List<dynamic>?) ?? [];
+                            setModal(() {
+                              banks = freshBanks;
+                              final match = freshBanks.firstWhere(
+                                (b) => b['accountNumber'] == added['accountNumber'],
+                                orElse: () => freshBanks.isNotEmpty ? freshBanks.last : null,
+                              );
+                              if (match != null) selectedBank = match;
+                            });
+                          } catch (_) {}
+                        }
                       },
+                      borderRadius: BorderRadius.circular(12),
                       child: Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
@@ -560,10 +598,11 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                           border: Border.all(color: const Color(0xFFFDBA74)),
                         ),
                         child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.add_circle_outline_rounded, color: Color(0xFFEA580C), size: 20),
                             SizedBox(width: 10),
-                            Text('Verify & Add Destination Account', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+                            Text('+ Verify & Add Destination Account', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
                           ],
                         ),
                       ),
@@ -629,18 +668,39 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                         ),
                       );
                     }),
+                    const SizedBox(height: 4),
                     InkWell(
-                      onTap: () {
-                        Navigator.pop(modalCtx);
-                        _addNewAccountModal();
+                      onTap: () async {
+                        final added = await _addNewAccountModal();
+                        if (added != null && mounted) {
+                          try {
+                            final fresh = await StaffApiService.getOwnWallet(widget.user);
+                            final freshBanks = (fresh['banks'] as List<dynamic>?) ?? [];
+                            setModal(() {
+                              banks = freshBanks;
+                              final match = freshBanks.firstWhere(
+                                (b) => b['accountNumber'] == added['accountNumber'],
+                                orElse: () => freshBanks.isNotEmpty ? freshBanks.last : null,
+                              );
+                              if (match != null) selectedBank = match;
+                            });
+                          } catch (_) {}
+                        }
                       },
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFFED7AA)),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add_rounded, size: 16, color: Color(0xFFEA580C)),
-                            SizedBox(width: 4),
-                            Text('Use another verified bank account', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFFEA580C))),
+                            Icon(Icons.add_circle_outline_rounded, size: 18, color: Color(0xFFEA580C)),
+                            SizedBox(width: 8),
+                            Text('+ Add / Select Another Bank Account', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
                           ],
                         ),
                       ),
@@ -1335,7 +1395,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
         final wallet = snapshot.data!;
         final credits = wallet['credits'] as List<dynamic>? ?? [];
         final withdrawals = wallet['withdrawals'] as List<dynamic>? ?? [];
-        final banks = wallet['banks'] as List<dynamic>? ?? [];
+        var banks = List<dynamic>.from(wallet['banks'] as List<dynamic>? ?? []);
         final primaryBank = banks.isNotEmpty ? banks[0] as Map<String, dynamic> : null;
 
         return RefreshIndicator(
