@@ -42,7 +42,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   List<AccountabilityCaseItem> _cases = [];
   Map<String, dynamic>? _todayAttendance;
   bool _isTodayOffDay = false;
-  bool _isAttendanceExempt = false;
   Timer? _attendanceReminderTimer;
   bool _isAttendanceModalOpen = false;
   bool _attendanceModalDismissed = false;
@@ -253,7 +252,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         _cases = data['accountabilityCases'] as List<AccountabilityCaseItem>;
         _todayAttendance = attendanceBundle['record'] as Map<String, dynamic>?;
         _isTodayOffDay = attendanceBundle['isOffDay'] == true;
-        _isAttendanceExempt = attendanceBundle['isExempt'] == true;
         _walletData = wallet;
         _isLoading = false;
       });
@@ -264,10 +262,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   }
 
   void _evaluateAttendancePrompt() {
-    final role = _currentUser.role.toUpperCase();
-    final isExecutive = role == 'GMD' || role == 'SUPER_ADMIN' || role == 'SYSTEM_ADMIN' || _currentUser.employeeNumber == 'BEMS-GRO-2026-0001';
     final isPunchedIn = _todayAttendance != null && _todayAttendance!['checkInTime'] != null;
-    if (isPunchedIn || _isTodayOffDay || _isAttendanceExempt || isExecutive || _attendanceModalDismissed) {
+    if (isPunchedIn || _isTodayOffDay || _attendanceModalDismissed) {
       _attendanceReminderTimer?.cancel();
       _attendanceReminderTimer = null;
       return;
@@ -284,10 +280,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   }
 
   void _checkAndShowAttendanceModal() {
-    final role = _currentUser.role.toUpperCase();
-    final isExecutive = role == 'GMD' || role == 'SUPER_ADMIN' || role == 'SYSTEM_ADMIN' || _currentUser.employeeNumber == 'BEMS-GRO-2026-0001';
     final isPunchedIn = _todayAttendance != null && _todayAttendance!['checkInTime'] != null;
-    if (isPunchedIn || _isTodayOffDay || _isAttendanceExempt || isExecutive || _attendanceModalDismissed) return;
+    if (isPunchedIn || _isTodayOffDay || _attendanceModalDismissed) return;
     if (_isAttendanceModalOpen) return;
     if (!mounted) return;
 
@@ -3186,6 +3180,143 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     );
   }
 
+  Widget _buildDailyAttendanceCard() {
+    final isPunchedIn = _todayAttendance != null && _todayAttendance!['checkInTime'] != null;
+    final checkInStr = _todayAttendance?['checkInTime']?.toString();
+    final checkOutStr = _todayAttendance?['checkOutTime']?.toString();
+
+    DateTime? checkInDt;
+    if (checkInStr != null) {
+      try {
+        checkInDt = DateTime.parse(checkInStr).toLocal();
+      } catch (_) {}
+    }
+    final timeFormatted = checkInDt != null ? DateFormat('hh:mm a').format(checkInDt) : '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isPunchedIn ? const Color(0xFFF0FDF4) : const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isPunchedIn ? const Color(0xFFBBF7D0) : const Color(0xFFFED7AA),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (isPunchedIn ? const Color(0xFF16A34A) : const Color(0xFFEA580C)).withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isPunchedIn ? const Color(0xFFDCFCE7) : const Color(0xFFFFEDD5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isPunchedIn ? const Color(0xFF86EFAC) : const Color(0xFFFDBA74),
+              ),
+            ),
+            child: Icon(
+              isPunchedIn ? Icons.verified_user_rounded : Icons.access_time_filled_rounded,
+              color: isPunchedIn ? const Color(0xFF16A34A) : const Color(0xFFEA580C),
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isPunchedIn ? 'Shift Active · Clocked In' : 'Daily Attendance · Not Clocked In',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w900,
+                    color: isPunchedIn ? const Color(0xFF15803D) : const Color(0xFF9A3412),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isPunchedIn
+                      ? 'Registered at $timeFormatted · Office station verified'
+                      : 'Scan office kiosk QR and verify GPS to clock in today.',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: isPunchedIn ? const Color(0xFF166534) : const Color(0xFFB45309),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          if (!isPunchedIn)
+            FilledButton.icon(
+              onPressed: () async {
+                final result = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AttendanceScanScreen(
+                      currentUser: _currentUser,
+                      isCheckIn: true,
+                    ),
+                  ),
+                );
+                if (result == true) _loadData();
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFEA580C),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.qr_code_scanner_rounded, size: 16),
+              label: const Text('Clock In', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+            )
+          else if (checkOutStr == null)
+            OutlinedButton.icon(
+              onPressed: () async {
+                final result = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AttendanceScanScreen(
+                      currentUser: _currentUser,
+                      isCheckIn: false,
+                    ),
+                  ),
+                );
+                if (result == true) _loadData();
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF15803D),
+                side: const BorderSide(color: Color(0xFF86EFAC)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: const Icon(Icons.logout_rounded, size: 15),
+              label: const Text('Check Out', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDCFCE7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text('Completed', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF15803D))),
+            ),
+        ],
+      ),
+    );
+  }
+
   // TAB 0: HOME WORKSPACE
   Widget _buildHomeTab(NumberFormat formatter) {
     final activeAdvanceAmount = _activeAdvanceCases.fold<double>(0, (sum, c) => sum + c.amountNaira);
@@ -3264,6 +3395,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 ],
               ),
             ),
+
+          // Daily Attendance & Shift Status Card
+          _buildDailyAttendanceCard(),
 
           // Multi-Metric Financial Carousel (Replaces Single Hero Card)
           _buildMultiMetricFinancialCarousel(formatter, activeAdvanceAmount),

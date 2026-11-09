@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import { DownloadButton } from './DownloadButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -210,31 +211,19 @@ export default async function PublicDownloadPage() {
           </div>
 
           <div>
-            <a
-              href="/download/gmd-app.apk"
-              download={`BEMS-GMD-Executive-Cockpit-v${gmdVersion}.apk`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                width: '100%',
-                padding: '14px',
-                borderRadius: 12,
-                background: 'linear-gradient(135deg, #10b981, #059669)',
-                color: '#ffffff',
-                fontSize: 14,
-                fontWeight: 900,
-                textDecoration: 'none',
-                boxShadow: '0 8px 24px rgba(16, 185, 129, 0.35)',
-              }}
-            >
-              <span>📥 Download GMD App APK (v{gmdVersion})</span>
-            </a>
+            <DownloadButton
+              href="/downloads/gmd-app.apk"
+              fileName={`BEMS-GMD-Executive-Cockpit-v${gmdVersion}.apk`}
+              label={`📥 Download GMD App APK (v${gmdVersion})`}
+              gradient="linear-gradient(135deg, #10b981, #059669)"
+              shadow="0 8px 24px rgba(16, 185, 129, 0.35)"
+            />
             <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 8 }}>
               <a
                 href="/downloads/gmd-app.apk"
                 download={`BEMS-GMD-Executive-Cockpit-v${gmdVersion}.apk`}
+                target="_blank"
+                rel="noopener noreferrer"
                 style={{ fontSize: 11, color: '#10b981', fontWeight: 700, textDecoration: 'underline' }}
               >
                 Direct Mirror Link
@@ -317,31 +306,19 @@ export default async function PublicDownloadPage() {
           </div>
 
           <div>
-            <a
-              href="/download/staff-app.apk"
-              download={`BEMS-Staff-Portal-v${staffVersion}.apk`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                width: '100%',
-                padding: '14px',
-                borderRadius: 12,
-                background: 'linear-gradient(135deg, #f97316, #ea580c)',
-                color: '#ffffff',
-                fontSize: 14,
-                fontWeight: 900,
-                textDecoration: 'none',
-                boxShadow: '0 8px 20px rgba(234, 88, 12, 0.28)',
-              }}
-            >
-              <span>📥 Download Staff App APK (v{staffVersion})</span>
-            </a>
+            <DownloadButton
+              href="/downloads/staff-app.apk"
+              fileName={`BEMS-Staff-Portal-v${staffVersion}.apk`}
+              label={`📥 Download Staff App APK (v${staffVersion})`}
+              gradient="linear-gradient(135deg, #f97316, #ea580c)"
+              shadow="0 8px 20px rgba(234, 88, 12, 0.28)"
+            />
             <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 8 }}>
               <a
                 href="/downloads/staff-app.apk"
                 download={`BEMS-Staff-Portal-v${staffVersion}.apk`}
+                target="_blank"
+                rel="noopener noreferrer"
                 style={{ fontSize: 11, color: '#ea580c', fontWeight: 700, textDecoration: 'underline' }}
               >
                 Direct Mirror Link
