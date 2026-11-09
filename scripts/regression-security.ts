@@ -58,15 +58,83 @@ async function main() {
     const filter = queries.at(-1).where;
     assert.deepEqual(filter.subsidiaryId.in, []);
   });
-  await check('Anonymous QR refresh requires kiosk credentials', async () => {
+  await check('Open-ended kiosk QR refresh serves active station without executive session', async () => {
     actor = null;
+    database.attendanceStation = {
+      findFirst: async () => ({
+        id: 'station-1',
+        code: 'BEMS-HQ-MAIN',
+        name: 'BEMS HQ Reception',
+        activeSecret: '6322f613524b38b1b7d39a2e154c2194a3bc75a0054084470d78f2913be2731a',
+        organizationId: 'org-A',
+        status: 'ACTIVE',
+        organization: { legalName: 'BEMS Group' },
+        latitude: 5.53134,
+        longitude: 7.497827,
+        radiusMeters: 50,
+      }),
+    };
+    database.attendancePolicy = { findFirst: async () => null };
     const response = await load('src/app/api/attendance/station/qr/route.ts').GET(new Request('https://test/api/attendance/station/qr'));
-    assert.equal(response.status, 403);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.stationCode, 'BEMS-HQ-MAIN');
+    assert.ok(body.qrDataUrl);
   });
-  await check('Anonymous PIN punch requires a trusted kiosk', async () => {
+  await check('Open-ended kiosk PIN punch verifies staff check-in without executive session', async () => {
     actor = null;
-    const response = await load('src/app/api/attendance/kiosk-punch/route.ts').POST(new Request('https://test/api/attendance/kiosk-punch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ staffIdentifier: 'STAFF', kioskPin: '1234' }) }));
-    assert.equal(response.status, 403);
+    database.attendanceStation = {
+      findFirst: async () => ({
+        id: 'station-1',
+        code: 'BEMS-HQ-MAIN',
+        organizationId: 'org-A',
+        activeSecret: '6322f613524b38b1b7d39a2e154c2194a3bc75a0054084470d78f2913be2731a',
+      }),
+    };
+    database.employee = {
+      findMany: async () => [{
+        id: 'staff-1',
+        employeeNumber: 'BEMS-001',
+        legalName: 'Henry Adeleke',
+        workEmail: 'henry@bemsfarms.com',
+        status: 'ACTIVE',
+        approvalStatus: 'APPROVED',
+        role: 'STAFF',
+        kioskPin: '1234',
+        assignments: [{ subsidiaryId: 'org-A', status: 'ACTIVE' }],
+      }],
+      findUnique: async () => ({
+        id: 'staff-1',
+        employeeNumber: 'BEMS-001',
+        legalName: 'Henry Adeleke',
+        kioskPin: '1234',
+      }),
+    };
+    database.attendancePolicy = { findUnique: async () => null, findFirst: async () => null };
+    database.attendanceRecord = {
+      findUnique: async () => null,
+      findFirst: async () => null,
+      create: async (args: any) => ({
+        id: 'rec-1',
+        employeeId: 'staff-1',
+        checkInTime: new Date(),
+        stationId: 'station-1',
+        ...args.data,
+      }),
+      upsert: async (args: any) => ({
+        id: 'rec-1',
+        employeeId: 'staff-1',
+        checkInTime: new Date(),
+        stationId: 'station-1',
+        ...(args.create || args.update),
+      }),
+    };
+    const response = await load('src/app/api/attendance/kiosk-punch/route.ts').POST(new Request('https://test/api/attendance/kiosk-punch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ staffIdentifier: 'BEMS-001', kioskPin: '1234', action: 'CHECK_IN' }),
+    }));
+    assert.equal(response.status, 200);
   });
   await check('Unbound private documents fail closed', async () => {
     actor = { id: 'staff-A', role: 'STAFF' };

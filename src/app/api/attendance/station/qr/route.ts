@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     }
 
     const station = await getAuthenticatedStation(request);
-    if (!station) return NextResponse.json({ error: 'An authorized kiosk or executive session is required.' }, { status: 403 });
+    if (!station) return NextResponse.json({ error: 'No active office attendance station configured.' }, { status: 404 });
 
     const { token, expiresInSeconds } = generateStationQrToken(station.code, station.activeSecret);
 

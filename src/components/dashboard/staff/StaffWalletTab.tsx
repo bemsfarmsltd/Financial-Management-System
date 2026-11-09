@@ -1290,3 +1290,4 @@ export function StaffWalletTab({ user, payslips = [], onRequestFunds }: StaffWal
     </div>
   );
 }
+

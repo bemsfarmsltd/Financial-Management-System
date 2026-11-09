@@ -1460,6 +1460,41 @@ export function StaffDashboardClient({
 
           {/* Right: Actions */}
           <div className="flex items-center gap-2">
+            {/* Shift Attendance Top-Bar Pill */}
+            {todayAttendance ? (
+              <button
+                onClick={() => {
+                  setPunchStatusMessage(null);
+                  setScannerPunchSuccessRecord(null);
+                  setIsAttendanceScanModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black shadow-sm hover:bg-emerald-100 transition-all active:scale-[0.98]"
+                title="Shift Active - Click to Check Out"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="hidden sm:inline">
+                  {todayAttendance.checkInTime
+                    ? `${new Date(todayAttendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · Check Out`
+                    : 'Active Shift · Check Out'}
+                </span>
+                <span className="sm:hidden">Check Out</span>
+                <LogOut className="w-3.5 h-3.5 text-emerald-600" />
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setPunchStatusMessage(null);
+                  setScannerPunchSuccessRecord(null);
+                  setIsAttendanceScanModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 border border-orange-200 hover:bg-orange-100 text-[#EA580C] text-xs font-black shadow-sm transition-all active:scale-[0.98]"
+                title="Clock in via reception kiosk scanner"
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                <span>Clock In</span>
+              </button>
+            )}
+
             {/* Notification Bell */}
             <button
               onClick={() => setIsNotificationsOpen(true)}
@@ -1579,8 +1614,8 @@ export function StaffDashboardClient({
 
                     <div className="relative z-10 flex items-center gap-3">
                       {todayAttendance ? (
-                        <div className="px-4 py-2.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-2 shadow-sm">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <div className="px-4 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 shadow-sm">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                           <span>Clocked In · {todayAttendance.checkInTime ? new Date(todayAttendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active'}</span>
                         </div>
                       ) : (
@@ -1590,7 +1625,7 @@ export function StaffDashboardClient({
                             setScannerPunchSuccessRecord(null);
                             setIsAttendanceScanModalOpen(true);
                           }}
-                          className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98]"
+                          className="px-4 py-2 rounded-2xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white text-xs font-black flex items-center gap-2 shadow-sm shadow-orange-500/25 transition-all active:scale-[0.98]"
                         >
                           <MapPin className="w-4 h-4" />
                           <span>Clock In (Scanner)</span>

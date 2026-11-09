@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     }
 
     const station = await getAuthenticatedStation(request);
-    if (!station) return NextResponse.json({ error: 'An authorized attendance station is required.' }, { status: 403 });
+    if (!station) return NextResponse.json({ error: 'No active office attendance station configured.' }, { status: 404 });
 
     const body = await request.json().catch(() => ({}));
     const staffIdentifier = typeof body.staffIdentifier === 'string' ? body.staffIdentifier.trim() : '';

@@ -9,18 +9,28 @@ export async function getAuthenticatedStation(request: Request) {
   const actor = await getAuthenticatedEmployee(request, { disallowServiceToken: true }).catch(() => null);
   const executive = actor ? hasAnyRole(actor, ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN']) : false;
 
-  if (!executive && (!code || !secret || !secret.trim())) return null;
   if (!prisma.attendanceStation) return null;
 
+  // 1. If code or secret is missing (or executive session), allow open-ended reception kiosk access to the active station
+  if (!code || !secret) {
+    const station = await prisma.attendanceStation.findFirst({
+      where: { status: 'ACTIVE' },
+      include: { organization: { select: { legalName: true } } },
+    });
+    if (!station || !station.activeSecret || !station.activeSecret.trim()) return null;
+    return station;
+  }
+
+  // 2. If explicit station credentials are supplied, strictly verify them with timingSafeEqual
   const station = await prisma.attendanceStation.findFirst({
-    where: { status: 'ACTIVE', ...(code ? { code } : {}) },
+    where: { status: 'ACTIVE', code },
     include: { organization: { select: { legalName: true } } },
   });
   if (!station || !station.activeSecret || !station.activeSecret.trim()) return null;
 
   if (!executive) {
     const expected = Buffer.from(station.activeSecret);
-    const supplied = Buffer.from(secret!);
+    const supplied = Buffer.from(secret);
     if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) return null;
   }
   return station;

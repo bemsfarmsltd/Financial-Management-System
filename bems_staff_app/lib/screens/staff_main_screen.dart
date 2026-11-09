@@ -2997,6 +2997,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ),
         ),
         actions: [
+          // Top Bar Shift Attendance Action (Clock In / Check Out)
+          _buildTopBarAttendanceButton(),
+          const SizedBox(width: 6),
           // Download Android App (Web Only)
           if (kIsWeb)
             Container(
@@ -3188,7 +3191,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     );
   }
 
-  Widget _buildDailyAttendanceCard() {
+  Widget _buildTopBarAttendanceButton() {
     final role = widget.user.role.toUpperCase();
     if (role == 'GMD' || role == 'SUPER_ADMIN' || role == 'SYSTEM_ADMIN') {
       return const SizedBox.shrink();
@@ -3205,125 +3208,120 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     }
     final timeFormatted = checkInDt != null ? DateFormat('hh:mm a').format(checkInDt) : '';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isPunchedIn ? const Color(0xFFF0FDF4) : const Color(0xFFFFF7ED),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isPunchedIn ? const Color(0xFFBBF7D0) : const Color(0xFFFED7AA),
+    if (!isPunchedIn) {
+      return InkWell(
+        onTap: () async {
+          final result = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AttendanceScanScreen(
+                currentUser: _currentUser,
+                isCheckIn: true,
+              ),
+            ),
+          );
+          if (result == true) _loadData();
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF7ED),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFFED7AA)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.qr_code_scanner_rounded, size: 16, color: Color(0xFFEA580C)),
+              SizedBox(width: 5),
+              Text(
+                'Clock In',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFEA580C),
+                ),
+              ),
+            ],
+          ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: (isPunchedIn ? const Color(0xFF16A34A) : const Color(0xFFEA580C)).withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+      );
+    }
+
+    if (checkOutStr == null) {
+      return InkWell(
+        onTap: () async {
+          final result = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AttendanceScanScreen(
+                currentUser: _currentUser,
+                isCheckIn: false,
+              ),
+            ),
+          );
+          if (result == true) _loadData();
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FDF4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFBBF7D0)),
           ),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF16A34A),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                timeFormatted.isNotEmpty ? '$timeFormatted · Out' : 'Check Out',
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF15803D),
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.logout_rounded, size: 14, color: Color(0xFF15803D)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Row(
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: isPunchedIn ? const Color(0xFFDCFCE7) : const Color(0xFFFFEDD5),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isPunchedIn ? const Color(0xFF86EFAC) : const Color(0xFFFDBA74),
-              ),
-            ),
-            child: Icon(
-              isPunchedIn ? Icons.verified_user_rounded : Icons.access_time_filled_rounded,
-              color: isPunchedIn ? const Color(0xFF16A34A) : const Color(0xFFEA580C),
-              size: 22,
+          Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF64748B)),
+          SizedBox(width: 5),
+          Text(
+            'Shift Ended',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF64748B),
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isPunchedIn ? 'Shift Active · Clocked In' : 'Daily Attendance · Not Clocked In',
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w900,
-                    color: isPunchedIn ? const Color(0xFF15803D) : const Color(0xFF9A3412),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  isPunchedIn
-                      ? 'Registered at $timeFormatted · Office station verified'
-                      : 'Scan office kiosk QR and verify GPS to clock in today.',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: isPunchedIn ? const Color(0xFF166534) : const Color(0xFFB45309),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          if (!isPunchedIn)
-            FilledButton.icon(
-              onPressed: () async {
-                final result = await Navigator.push<bool>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AttendanceScanScreen(
-                      currentUser: _currentUser,
-                      isCheckIn: true,
-                    ),
-                  ),
-                );
-                if (result == true) _loadData();
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFEA580C),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.qr_code_scanner_rounded, size: 16),
-              label: const Text('Clock In', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-            )
-          else if (checkOutStr == null)
-            OutlinedButton.icon(
-              onPressed: () async {
-                final result = await Navigator.push<bool>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AttendanceScanScreen(
-                      currentUser: _currentUser,
-                      isCheckIn: false,
-                    ),
-                  ),
-                );
-                if (result == true) _loadData();
-              },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF15803D),
-                side: const BorderSide(color: Color(0xFF86EFAC)),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              icon: const Icon(Icons.logout_rounded, size: 15),
-              label: const Text('Check Out', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: const Color(0xFFDCFCE7),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text('Completed', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF15803D))),
-            ),
         ],
       ),
     );
@@ -3407,9 +3405,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 ],
               ),
             ),
-
-          // Daily Attendance & Shift Status Card
-          _buildDailyAttendanceCard(),
 
           // Multi-Metric Financial Carousel (Replaces Single Hero Card)
           _buildMultiMetricFinancialCarousel(formatter, activeAdvanceAmount),
