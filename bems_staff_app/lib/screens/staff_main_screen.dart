@@ -3061,6 +3061,41 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 ],
               ),
       ),
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'admin_helpdesk_fab',
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => StaffAdminChatScreen(currentUser: _currentUser),
+            ),
+          );
+        },
+        backgroundColor: const Color(0xFFEA580C),
+        elevation: 6,
+        shape: const CircleBorder(),
+        tooltip: 'Admin Helpdesk Chat',
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Icon(Icons.support_agent_rounded, color: Colors.white, size: 28),
+            Positioned(
+              right: 1,
+              top: 1,
+              child: Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF22C55E),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.5),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -3559,37 +3594,52 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
           const SizedBox(height: 12),
 
-          Row(
-            children: [
-              Expanded(
-                child: _buildActionTile(
-                  title: 'Enterprise Hub',
-                  subtitle: 'All 8 Workstations',
-                  icon: Icons.grid_view_rounded,
-                  iconColor: const Color(0xFFEA580C),
-                  iconBgColor: const Color(0xFFFFF7ED),
-                  onTap: _openEnterpriseGallery,
-                ),
+          // Enterprise Workstations Hub Card
+          InkWell(
+            onTap: _openEnterpriseGallery,
+            borderRadius: BorderRadius.circular(18),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildActionTile(
-                  title: 'Admin Helpdesk',
-                  subtitle: 'Chat With Admin',
-                  icon: Icons.support_agent_rounded,
-                  iconColor: const Color(0xFFEA580C),
-                  iconBgColor: const Color(0xFFFFF7ED),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => StaffAdminChatScreen(currentUser: _currentUser),
-                      ),
-                    );
-                  },
-                ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7ED),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.grid_view_rounded, color: Color(0xFFEA580C), size: 22),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Enterprise Workstations Hub',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Oil & Gas, SmartAIRS, Real Estate, Agribusiness & Innovation',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF94A3B8)),
+                ],
               ),
-            ],
+            ),
           ),
 
           const SizedBox(height: 20),

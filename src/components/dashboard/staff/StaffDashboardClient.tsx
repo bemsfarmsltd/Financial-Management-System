@@ -1890,10 +1890,10 @@ export function StaffDashboardClient({
                 </button>
               </div>
 
-              {/* CARD 3: QUICK ACTIONS GRID (6 Core Executive Cards matching Mobile) */}
+              {/* CARD 3: QUICK ACTIONS (4 Core Operational Cards + Enterprise Hub) */}
               <div className="space-y-3">
                 <h4 className="text-sm font-black text-[#0F172A] tracking-tight">Quick Actions</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {/* 1. New Request */}
                   <button
                     onClick={() => setIsNewRequestOpen(true)}
@@ -1955,38 +1955,27 @@ export function StaffDashboardClient({
                       <div className="text-[10.5px] text-slate-500 font-medium">View All &amp; Chat</div>
                     </div>
                   </button>
+                </div>
 
-                  {/* 5. Enterprise Hub */}
-                  <button
-                    onClick={() => {
-                      const el = document.getElementById('workstation-gallery');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-orange-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                {/* Enterprise Workstations Hub Card */}
+                <button
+                  onClick={() => {
+                    const el = document.getElementById('workstation-gallery');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="w-full p-4 rounded-2xl bg-white border border-slate-200 hover:border-orange-300 hover:shadow-md transition-all text-left flex items-center justify-between group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform shrink-0">
                       <LayoutGrid className="w-5 h-5 text-[#EA580C]" />
                     </div>
                     <div>
-                      <div className="text-xs font-black text-[#0F172A]">Enterprise Hub</div>
-                      <div className="text-[10.5px] text-slate-500 font-medium">All 8 Workstations</div>
+                      <div className="text-xs font-black text-[#0F172A]">Enterprise Workstations Hub</div>
+                      <div className="text-[10.5px] text-slate-500 font-medium">Oil &amp; Gas, SmartAIRS, Real Estate, Agribusiness &amp; Innovation</div>
                     </div>
-                  </button>
-
-                  {/* 6. Admin Helpdesk */}
-                  <button
-                    onClick={() => setIsAdminChatOpen(true)}
-                    className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-orange-300 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-3 group cursor-pointer"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 text-[#EA580C] flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-                      <MessageSquare className="w-5 h-5 text-[#EA580C]" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-black text-[#0F172A]">Admin Helpdesk</div>
-                      <div className="text-[10.5px] text-slate-500 font-medium">Chat With Admin</div>
-                    </div>
-                  </button>
-                </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#EA580C] group-hover:translate-x-0.5 transition-all" />
+                </button>
               </div>
 
               {/* DUAL-KEY MAKER-CHECKER (If disbursements awaiting confirmation) */}
@@ -4001,6 +3990,21 @@ export function StaffDashboardClient({
             <span className="text-[10.5px]">Wallet</span>
           </button>
         </nav>
+
+        {/* FLOATING ADMIN HELPDESK CIRCULAR BUTTON */}
+        <button
+          onClick={() => setIsAdminChatOpen(true)}
+          className="fixed bottom-20 md:bottom-6 right-5 md:right-8 z-40 w-14 h-14 rounded-full bg-gradient-to-tr from-orange-600 to-amber-500 hover:from-orange-700 hover:to-amber-600 text-white shadow-xl shadow-orange-600/35 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group cursor-pointer border-2 border-white"
+          title="Admin Helpdesk Chat"
+          aria-label="Admin Helpdesk Chat"
+        >
+          <MessageSquare className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
+          <span className="sr-only">Admin Helpdesk</span>
+          {/* Active Online Pulse Dot */}
+          <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full flex items-center justify-center">
+            <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping" />
+          </span>
+        </button>
 
         {/* ========================================================= */}
         {/* ALL MODALS & DRAWERS (ATTENDANCE, CHAT, PAYSLIPS, ETC)    */}
