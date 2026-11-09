@@ -16,11 +16,12 @@ const APP_URL = (process.env.NEXT_PUBLIC_APP_URL && !process.env.NEXT_PUBLIC_APP
 const SMTP_FROM = process.env.SMTP_FROM || 'BEMS Group Notifications <notifications@bemserp.work>';
 const RESEND_FROM = process.env.RESEND_FROM || 'BEMS Group Notifications <notifications@bemserp.work>';
 
-function getResendClient(): Resend {
+function getResendClient(): Resend | null {
   const envKey = (process.env.RESEND_API_KEY || '').replace(/^["']|["']$/g, '').trim();
-  const fallbackKey = Buffer.from('cmVfOEt1TFdIMTNfNWtmdmF2WHBueVBHYlRXbjgzUUFUSnBM', 'base64').toString('utf-8');
-  const apiKey = envKey.startsWith('re_') ? envKey : fallbackKey;
-  return new Resend(apiKey);
+  if (!envKey || !envKey.startsWith('re_')) {
+    return null;
+  }
+  return new Resend(envKey);
 }
 
 function getTransporter() {
