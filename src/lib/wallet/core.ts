@@ -163,7 +163,14 @@ export async function readOwnWallet(actor: WalletActor) {
   }, { maxWait: 10000, timeout: 30000, isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 }
 export async function readFundingDashboard(actor: WalletActor) {
-  if(walletEnabled() && ['GMD','SUPER_ADMIN','SYSTEM_ADMIN'].includes(actor.role))await(await import('./monnify-balance')).ensureWalletFundingFresh(actor);
+  if(walletEnabled() && ['GMD','SUPER_ADMIN','SYSTEM_ADMIN'].includes(actor.role)) {
+    try {
+      await(await import('./monnify-balance')).ensureWalletFundingFresh(actor);
+    } catch (error) {
+      // Non-fatal: Allow reading the funding dashboard and budget envelopes even if provider check is pending or funding not configured.
+      console.warn('Wallet funding fresh check warning:', error instanceof Error ? error.message : error);
+    }
+  }
   // Current-account/role checks below also apply in read-only review mode.
   return prisma.$transaction(async tx => {
     await liveWalletActor(tx, actor);

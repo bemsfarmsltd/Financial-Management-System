@@ -309,10 +309,48 @@ export default function FundingView({
 
   if (!data) {
     return (
-      <section aria-busy={!error} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 24 }}>
-        <h1 style={{ fontSize: 20, margin: '0 0 12px' }}>Wallets &amp; Funded Budgets</h1>
-        {error ? <><p role="alert">{error}</p><button onClick={() => { setError(''); void load(); }}>Retry loading wallet data</button></> : <p role="status">Loading verified funding and wallet records…</p>}
-      </section>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0, paddingBottom: '24px' }}>
+        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 16, padding: '24px 28px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', margin: 0 }}>Wallets &amp; Funded Budgets</h1>
+            <button
+              onClick={() => { setError(''); void load(); }}
+              disabled={busy}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                borderRadius: 10,
+                border: '1px solid #fed7aa',
+                background: '#fff7ed',
+                color: '#ea580c',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              <RefreshCw size={13} className={busy ? 'animate-spin' : ''} />
+              <span>Retry Loading</span>
+            </button>
+          </div>
+
+          {error ? (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '16px 20px', borderRadius: 12, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' }} role="alert">
+              <AlertTriangle size={18} style={{ color: '#ef4444', flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <strong style={{ fontSize: 13, display: 'block', marginBottom: 4 }}>Funding Connection Notice</strong>
+                <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: '#7f1d1d' }}>{error}</p>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#64748b', fontSize: 13, padding: '20px 0' }} role="status">
+              <RefreshCw size={16} className="animate-spin text-orange-600" />
+              <span>Loading verified funding and wallet records…</span>
+            </div>
+          )}
+        </div>
+      </div>
     );
   }
 
