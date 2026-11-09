@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { WalletActor, WalletError, fundingState, hash, journal, liveWalletActor, requireCommitments, walletJson, walletTransaction } from './core';
 import { consumeWalletChallenge, SecurityProof } from './security';
 import { accountabilityDeadline } from '@/lib/services/accountability-deadline';
+import { sendApprovalDecisionEmail } from '@/lib/email';
 type Item={sourceType:string;sourceId:string;employeeId:string|null;vendorId?:string;bankSnapshot?:any;organizationId:string;amountMinor:bigint;category:string;employeeName:string;employeeNumber:string;title:string;sourceKey:string};
 type Input={sourceType:string;sourceId:string;envelopeId?:string;envelopesByOrganization?:Record<string,string>};
 type Context={allowedOrganizationIds?:string[];conversationId?:string|null;workspaceId?:string|null};
@@ -139,8 +140,21 @@ export async function approveWalletRelease(actor:WalletActor,id:string,confirmat
     if(p.sourceType==='REQUEST') {
       await tx.expenditureRequest.update({where:{id:p.sourceId},data:{approvalStatus:'APPROVED',paymentStatus:items[0].vendorId?'MONNIFY_PENDING':'WALLET_CREDITED',requestVersion:{increment:1}}});
       await tx.approvalStep.updateMany({where:{requestId:p.sourceId,status:'PENDING'},data:{status:'APPROVED',approverId:actor.id,approverName:actor.legalName,decidedAt:new Date()}});
-      const request=await tx.expenditureRequest.findUniqueOrThrow({where:{id:p.sourceId}});
+      const request=await tx.expenditureRequest.findUniqueOrThrow({where:{id:p.sourceId},include:{requester:true}});
       if(!request.vendorId&&request.requestType!=='REIMBURSEMENT')await tx.accountabilityCase.upsert({where:{requestId:request.id},update:{},create:{requestId:request.id,ownerUserId:request.requestedById,requiredDeliverables:request.deliverable,dueAt:await accountabilityDeadline(request.subsidiaryId,request.requestType==='EMERGENCY',new Date(),tx)}});
+      if(request.requester?.workEmail) {
+        sendApprovalDecisionEmail({
+          to: request.requester.workEmail,
+          recipientName: request.requester.legalName,
+          decision: 'APPROVED',
+          decidedBy: actor.legalName,
+          decidedByRole: actor.role,
+          requestNumber: request.requestNumber,
+          title: request.title,
+          amountMinor: Number(request.amountMinor),
+          reason: 'Authorized and released to staff internal wallet.',
+        }).catch((err) => console.error('[Wallet Release Email Error]', err));
+      }
     } else {
       await tx.payrollBatch.update({where:{id:p.sourceId},data:{status:'WALLET_CREDITED',approvedAt:new Date(),snapshotHash:p.sourceHash}});
       await tx.payrollItem.updateMany({where:{batchId:p.sourceId},data:{status:'WALLET_CREDITED'}});

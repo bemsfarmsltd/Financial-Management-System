@@ -4,6 +4,7 @@ import { verifyPassword } from '@/lib/auth';
 import { canApproveWalletRelease } from '@/lib/gmd-access';
 import { prisma } from '@/lib/prisma';
 import { accountabilityDeadline } from '@/lib/services/accountability-deadline';
+import { sendApprovalDecisionEmail } from '@/lib/email';
 import { randomUUID } from 'node:crypto';
 
 export const dynamic = 'force-dynamic';
@@ -277,6 +278,21 @@ export async function POST(request: Request) {
       style: 'currency',
       currency: 'NGN',
     });
+
+    // Real-time email notification to requester
+    if (req.requester?.workEmail) {
+      sendApprovalDecisionEmail({
+        to: req.requester.workEmail,
+        recipientName: req.requester.legalName,
+        decision: 'APPROVED',
+        decidedBy: `${actor.legalName} (GMD)`,
+        decidedByRole: actor.role,
+        requestNumber: req.requestNumber,
+        title: req.title,
+        amountMinor: Number(req.amountMinor),
+        reason: note || 'Authorized by GMD and credited to internal wallet for disbursement.',
+      }).catch((emailErr) => console.error(`[Wallet Release Email Error] Requisition ${req.requestNumber}:`, emailErr));
+    }
 
     return NextResponse.json({
       success: true,

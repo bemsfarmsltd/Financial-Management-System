@@ -18,7 +18,7 @@ import crypto from 'node:crypto';
 import type { AuthenticatedAiActor } from './ai-tools-auth';
 import { normalizeCanonicalRole } from './platform/actor-scope';
 import { prisma } from './prisma';
-import { sendAdminInvitationEmail, sendChatMessageEmail } from './email';
+import { sendAdminInvitationEmail, sendChatMessageEmail, sendApprovalDecisionEmail } from './email';
 import {
   generateOperationalIntercompanyNotes,
   generatePayrollIntercompanyNotes,
@@ -1453,6 +1453,21 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
             },
           });
           notificationsDeliveredIds.push(req.requestedById);
+
+          if (updatedReq.requester?.workEmail) {
+            const dec = newStatus === 'APPROVED' ? 'APPROVED' : newStatus === 'REJECTED' ? 'REJECTED' : 'CLARIFICATION_REQUESTED';
+            sendApprovalDecisionEmail({
+              to: updatedReq.requester.workEmail,
+              recipientName: updatedReq.requester.legalName,
+              decision: dec,
+              decidedBy: actor.legalName,
+              decidedByRole: actor.role,
+              requestNumber: updatedReq.requestNumber,
+              title: updatedReq.title,
+              amountMinor: Number(updatedReq.amountMinor),
+              reason: decisionNote || undefined,
+            }).catch((err) => console.error(`[Approval Email Failed] ${updatedReq.requestNumber}:`, err));
+          }
         }
 
         updatedResults.push(
