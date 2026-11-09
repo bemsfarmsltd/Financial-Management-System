@@ -97,39 +97,6 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     }
   }
 
-  void _showRetirementModal(NumberFormat formatter) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.of(ctx).size.height * 0.85,
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFCBD5E1),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Expanded(child: _buildRetirementTab(formatter)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _downloadAndroidApk() async {
     final effectiveUrl = StaffApiService.resolveUrl('/download/staff-app.apk');
     final success = await downloadFile(effectiveUrl, 'BEMS-Staff-Portal-v1.3.8.apk');
@@ -3100,6 +3067,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 children: [
                   _buildHomeTab(formatter),
                   _buildRequestsTab(formatter),
+                  _buildRetirementTab(formatter),
                   StaffWalletScreen(
                     user: _currentUser,
                     isEmbedded: true,
@@ -3122,13 +3090,13 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           ],
         ),
         child: BottomNavigationBar(
-          currentIndex: _currentIndex >= 2 ? 3 : _currentIndex,
+          currentIndex: _currentIndex >= 2 ? _currentIndex + 1 : _currentIndex,
           onTap: (idx) {
             if (idx == 2) {
               // Center FAB: New Request
               _openNewRequestModal();
             } else {
-              final target = idx == 3 ? 2 : idx;
+              final target = idx > 2 ? idx - 1 : idx;
               _navigateToTab(target);
             }
           },
@@ -3187,6 +3155,25 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 child: const Icon(Icons.add_rounded, color: Colors.white, size: 26),
               ),
               label: '',
+            ),
+            BottomNavigationBarItem(
+              icon: Stack(
+                children: [
+                  const Icon(Icons.timer_outlined),
+                  if (_pendingRetirementCases.isNotEmpty)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                        constraints: const BoxConstraints(minWidth: 8, minHeight: 8),
+                      ),
+                    ),
+                ],
+              ),
+              activeIcon: const Icon(Icons.timer_rounded),
+              label: '72h SLA',
             ),
             const BottomNavigationBarItem(
               icon: Icon(Icons.account_balance_wallet_outlined),
@@ -3454,7 +3441,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   icon: Icons.receipt_long_rounded,
                   iconColor: const Color(0xFF0F172A),
                   iconBgColor: const Color(0xFFF1F5F9),
-                  onTap: () => _showRetirementModal(formatter),
+                  onTap: () => _navigateToTab(2),
                 ),
               ),
               const SizedBox(width: 12),
@@ -3465,7 +3452,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   icon: Icons.account_balance_wallet_rounded,
                   iconColor: const Color(0xFF0F172A),
                   iconBgColor: const Color(0xFFF1F5F9),
-                  onTap: () => _navigateToTab(2),
+                  onTap: () => _navigateToTab(3),
                 ),
               ),
             ],
@@ -5798,11 +5785,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 primaryActionIcon: Icons.arrow_upward_rounded,
                 primaryActionColor: const Color(0xFFEA580C),
                 onPrimaryAction: () {
-                  _navigateToTab(2);
+                  _navigateToTab(3);
                 },
                 secondaryActionLabel: 'Digital Wallet',
                 secondaryActionIcon: Icons.account_balance_wallet_rounded,
-                onSecondaryAction: () => _navigateToTab(2),
+                onSecondaryAction: () => _navigateToTab(3),
               ),
 
               // Slide 2: Lifetime Requests Raised
@@ -5864,7 +5851,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 onPrimaryAction: _showMyPayslipsModal,
                 secondaryActionLabel: 'Update Bank',
                 secondaryActionIcon: Icons.account_balance_wallet_rounded,
-                onSecondaryAction: () => _navigateToTab(2),
+                onSecondaryAction: () => _navigateToTab(3),
               ),
             ],
           ),
