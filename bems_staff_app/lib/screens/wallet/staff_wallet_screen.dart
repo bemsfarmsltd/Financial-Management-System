@@ -826,13 +826,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
       final amountMinor = _minor(rawAmount);
       final amountInt = BigInt.tryParse(amountMinor) ?? BigInt.zero;
 
-      final password = await _password(
-        'Authorize Transfer',
-        'Transfer ${walletMoney(amountMinor)} to ${bank['accountName']} (•••• ${bank['lastFour']}). Instant Monnify settlement.',
-      );
-      if (password == null || !mounted) return;
-
-      // Graceful Insufficient Balance Handling at End Stage (like OPay banking app)
+      // Graceful Insufficient Balance Check BEFORE prompting for password
       if (amountInt > availableInt || availableInt <= BigInt.zero) {
         _showInsufficientBalanceDialog(
           requestedAmount: amountMinor,
@@ -840,6 +834,12 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
         );
         return;
       }
+
+      final password = await _password(
+        'Authorize Transfer',
+        'Transfer ${walletMoney(amountMinor)} to ${bank['accountName']} (•••• ${bank['lastFour']}). Instant Monnify settlement.',
+      );
+      if (password == null || !mounted) return;
 
       setState(() => _busy = true);
 

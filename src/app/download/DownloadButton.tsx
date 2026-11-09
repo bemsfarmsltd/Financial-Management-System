@@ -19,28 +19,10 @@ export function DownloadButton({
   shadow,
   textColor = '#ffffff',
 }: DownloadButtonProps) {
-  const triggerDownload = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    try {
-      const a = document.createElement('a');
-      a.href = href;
-      a.download = fileName;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch (_) {
-      window.location.href = href;
-    }
-  };
-
   return (
     <a
       href={href}
       download={fileName}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={triggerDownload}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -58,7 +40,7 @@ export function DownloadButton({
         cursor: 'pointer',
       }}
     >
-      <span>{label}</span>
+      {label}
     </a>
   );
 }

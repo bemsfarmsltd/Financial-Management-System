@@ -47,6 +47,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       stationCode: station.code,
+      stationSecret: station.activeSecret,
       stationName: station.name,
       organizationName: station.organization.legalName,
       latitude: station.latitude,

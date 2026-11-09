@@ -262,6 +262,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   }
 
   void _evaluateAttendancePrompt() {
+    final role = _currentUser.role.toUpperCase();
+    final isExecutive = role == 'GMD' || role == 'SUPER_ADMIN' || role == 'SYSTEM_ADMIN' || _currentUser.employeeNumber == 'BEMS-GRO-2026-0001';
+    if (isExecutive) return;
+
     final isPunchedIn = _todayAttendance != null && _todayAttendance!['checkInTime'] != null;
     if (isPunchedIn || _isTodayOffDay || _attendanceModalDismissed) {
       _attendanceReminderTimer?.cancel();
@@ -280,6 +284,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   }
 
   void _checkAndShowAttendanceModal() {
+    final role = _currentUser.role.toUpperCase();
+    final isExecutive = role == 'GMD' || role == 'SUPER_ADMIN' || role == 'SYSTEM_ADMIN' || _currentUser.employeeNumber == 'BEMS-GRO-2026-0001';
+    if (isExecutive) return;
+
     final isPunchedIn = _todayAttendance != null && _todayAttendance!['checkInTime'] != null;
     if (isPunchedIn || _isTodayOffDay || _attendanceModalDismissed) return;
     if (_isAttendanceModalOpen) return;
@@ -3181,6 +3189,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   }
 
   Widget _buildDailyAttendanceCard() {
+    final role = widget.user.role.toUpperCase();
+    if (role == 'GMD' || role == 'SUPER_ADMIN' || role == 'SYSTEM_ADMIN') {
+      return const SizedBox.shrink();
+    }
     final isPunchedIn = _todayAttendance != null && _todayAttendance!['checkInTime'] != null;
     final checkInStr = _todayAttendance?['checkInTime']?.toString();
     final checkOutStr = _todayAttendance?['checkOutTime']?.toString();

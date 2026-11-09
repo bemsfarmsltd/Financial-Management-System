@@ -544,6 +544,13 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
   },
   {
     group: 'attendance',
+    apiPath: '/api/attendance/station/activate',
+    relativeFilePath: 'src/app/api/attendance/station/activate/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'MUTATION',
+  },
+  {
+    group: 'attendance',
     apiPath: '/api/attendance/station/qr',
     relativeFilePath: 'src/app/api/attendance/station/qr/route.ts',
     declaredMethods: ['GET'],
@@ -783,11 +790,25 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     classification: 'MUTATION',
   },
 
-  // download (1)
+  // download (3)
+  {
+    group: 'download',
+    apiPath: '/api/download/gmd-app',
+    relativeFilePath: 'src/app/api/download/gmd-app/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
   {
     group: 'download',
     apiPath: '/api/download/kiosk-launcher',
     relativeFilePath: 'src/app/api/download/kiosk-launcher/route.ts',
+    declaredMethods: ['GET'],
+    classification: 'READ',
+  },
+  {
+    group: 'download',
+    apiPath: '/api/download/staff-app',
+    relativeFilePath: 'src/app/api/download/staff-app/route.ts',
     declaredMethods: ['GET'],
     classification: 'READ',
   },

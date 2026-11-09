@@ -13,7 +13,8 @@ export function requireWallet() {
 }
 export function requireCommitments() {
   requireWallet();
-  if (!['sandbox','live'].includes(process.env.MONNIFY_ENVIRONMENT || '') || (process.env.MONNIFY_ENVIRONMENT === 'live' && (process.env.BEMS_WALLET_LIVE_ENABLED !== 'true' || process.env.BEMS_WALLET_OPENING_RECONCILED !== 'true' || process.env.BEMS_WALLET_TRANSFERS_ENABLED !== 'true'))) throw new WalletError('LIVE_WALLET_NOT_ACTIVATED', 'Live wallet commitments are not activated. Complete sandbox acceptance and reviewed opening reconciliation first.', 503);
+  const env = process.env.MONNIFY_ENVIRONMENT || process.env.MONNIFY_ENV || '';
+  if (!['sandbox','live'].includes(env) || (env === 'live' && (process.env.BEMS_WALLET_LIVE_ENABLED !== 'true' || process.env.BEMS_WALLET_OPENING_RECONCILED !== 'true' || process.env.BEMS_WALLET_TRANSFERS_ENABLED !== 'true'))) throw new WalletError('LIVE_WALLET_NOT_ACTIVATED', 'Live wallet commitments are not activated. Complete sandbox acceptance and reviewed opening reconciliation first.', 503);
 }
 export function minorUnits(value: unknown): bigint {
   if (typeof value !== 'string' || !/^[1-9]\d{0,14}$/.test(value)) throw new WalletError('INVALID_AMOUNT', 'Use a positive integer amount in kobo.');

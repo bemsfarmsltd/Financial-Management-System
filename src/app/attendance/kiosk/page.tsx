@@ -194,9 +194,14 @@ export default function AttendanceKioskPage() {
     try {
       setLoadError(null);
       const res = await fetch('/api/attendance/station/qr', { cache: 'no-store' });
-      if (!res.ok) throw new Error('Unable to connect to station server');
-      const data: StationData = await res.json();
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.error || 'Unable to connect to station server');
+      }
+      const data: StationData & { stationSecret?: string } = await res.json();
       setStationData(data);
+      if (data.stationCode) localStorage.setItem('bems_kiosk_station_code', data.stationCode);
+      if (data.stationSecret) localStorage.setItem('bems_kiosk_station_secret', data.stationSecret);
       setSecondsRemaining(data.expiresInSeconds || 45);
       setIsLoading(false);
     } catch (err: any) {

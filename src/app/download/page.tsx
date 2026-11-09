@@ -212,7 +212,7 @@ export default async function PublicDownloadPage() {
 
           <div>
             <DownloadButton
-              href="/downloads/gmd-app.apk"
+              href="/api/download/gmd-app"
               fileName={`BEMS-GMD-Executive-Cockpit-v${gmdVersion}.apk`}
               label={`📥 Download GMD App APK (v${gmdVersion})`}
               gradient="linear-gradient(135deg, #10b981, #059669)"
@@ -222,8 +222,6 @@ export default async function PublicDownloadPage() {
               <a
                 href="/downloads/gmd-app.apk"
                 download={`BEMS-GMD-Executive-Cockpit-v${gmdVersion}.apk`}
-                target="_blank"
-                rel="noopener noreferrer"
                 style={{ fontSize: 11, color: '#10b981', fontWeight: 700, textDecoration: 'underline' }}
               >
                 Direct Mirror Link
@@ -307,7 +305,7 @@ export default async function PublicDownloadPage() {
 
           <div>
             <DownloadButton
-              href="/downloads/staff-app.apk"
+              href="/api/download/staff-app"
               fileName={`BEMS-Staff-Portal-v${staffVersion}.apk`}
               label={`📥 Download Staff App APK (v${staffVersion})`}
               gradient="linear-gradient(135deg, #f97316, #ea580c)"
@@ -317,8 +315,6 @@ export default async function PublicDownloadPage() {
               <a
                 href="/downloads/staff-app.apk"
                 download={`BEMS-Staff-Portal-v${staffVersion}.apk`}
-                target="_blank"
-                rel="noopener noreferrer"
                 style={{ fontSize: 11, color: '#ea580c', fontWeight: 700, textDecoration: 'underline' }}
               >
                 Direct Mirror Link

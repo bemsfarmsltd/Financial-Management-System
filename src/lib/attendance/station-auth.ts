@@ -5,15 +5,19 @@ import { getAuthenticatedEmployee, hasAnyRole } from '@/lib/auth';
 export async function getAuthenticatedStation(request: Request) {
   const url = new URL(request.url);
   const code = request.headers.get('x-station-code') || url.searchParams.get('stationCode');
-  const secret = request.headers.get('x-station-secret');
-  const actor = await getAuthenticatedEmployee(request, { disallowServiceToken: true });
-  const executive = hasAnyRole(actor, ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN']);
+  const secret = request.headers.get('x-station-secret') || url.searchParams.get('stationSecret');
+  const actor = await getAuthenticatedEmployee(request, { disallowServiceToken: true }).catch(() => null);
+  const executive = actor ? hasAnyRole(actor, ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN']) : false;
+
   if (!executive && (!code || !secret || !secret.trim())) return null;
+  if (!prisma.attendanceStation) return null;
+
   const station = await prisma.attendanceStation.findFirst({
     where: { status: 'ACTIVE', ...(code ? { code } : {}) },
     include: { organization: { select: { legalName: true } } },
   });
   if (!station || !station.activeSecret || !station.activeSecret.trim()) return null;
+
   if (!executive) {
     const expected = Buffer.from(station.activeSecret);
     const supplied = Buffer.from(secret!);
