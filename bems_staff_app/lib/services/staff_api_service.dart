@@ -81,8 +81,28 @@ class StaffApiService {
   static const String fallbackBaseUrl = 'https://pink-horse-318730.hostingersite.com';
   static String _activeBaseUrl = primaryBaseUrl;
 
-  static const String appVersion = '1.3.5';
+  static const String appVersion = '1.3.8';
   static const String appId = 'STAFF_APP';
+
+  /// Resolves any relative URL or path against the current web origin or primary host
+  static String resolveUrl(String pathOrUrl) {
+    if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+      return pathOrUrl;
+    }
+    String origin;
+    if (kIsWeb) {
+      try {
+        origin = Uri.base.origin;
+      } catch (_) {
+        origin = primaryBaseUrl;
+      }
+    } else {
+      origin = _activeBaseUrl.isNotEmpty ? _activeBaseUrl : primaryBaseUrl;
+    }
+    final cleanOrigin = origin.endsWith('/') ? origin.substring(0, origin.length - 1) : origin;
+    final cleanPath = pathOrUrl.startsWith('/') ? pathOrUrl : '/$pathOrUrl';
+    return '$cleanOrigin$cleanPath';
+  }
 
   // Global callbacks for app-level interception
   static void Function(Map<String, dynamic> updateInfo)? onUpgradeRequired;

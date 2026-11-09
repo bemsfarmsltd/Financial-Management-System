@@ -231,7 +231,16 @@ export default async function PublicDownloadPage() {
             >
               <span>📥 Download GMD App APK (v{gmdVersion})</span>
             </a>
-            <small style={{ display: 'block', textAlign: 'center', fontSize: 11, color: '#64748b', marginTop: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 8 }}>
+              <a
+                href="/downloads/gmd-app.apk"
+                download={`BEMS-GMD-Executive-Cockpit-v${gmdVersion}.apk`}
+                style={{ fontSize: 11, color: '#10b981', fontWeight: 700, textDecoration: 'underline' }}
+              >
+                Direct Mirror Link
+              </a>
+            </div>
+            <small style={{ display: 'block', textAlign: 'center', fontSize: 11, color: '#64748b', marginTop: 8 }}>
               Android 8.0+ · com.bemsgroup.bems_gmd_ai
             </small>
           </div>
@@ -329,7 +338,23 @@ export default async function PublicDownloadPage() {
             >
               <span>📥 Download Staff App APK (v{staffVersion})</span>
             </a>
-            <small style={{ display: 'block', textAlign: 'center', fontSize: 11, color: '#64748b', marginTop: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 8 }}>
+              <a
+                href="/downloads/staff-app.apk"
+                download={`BEMS-Staff-Portal-v${staffVersion}.apk`}
+                style={{ fontSize: 11, color: '#ea580c', fontWeight: 700, textDecoration: 'underline' }}
+              >
+                Direct Mirror Link
+              </a>
+              <span style={{ fontSize: 11, color: '#cbd5e1' }}>•</span>
+              <a
+                href="/staff-app/index.html"
+                style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textDecoration: 'none' }}
+              >
+                Launch Web Portal →
+              </a>
+            </div>
+            <small style={{ display: 'block', textAlign: 'center', fontSize: 11, color: '#64748b', marginTop: 8 }}>
               Android 8.0+ · com.bemsfarms.bems_staff_app
             </small>
           </div>

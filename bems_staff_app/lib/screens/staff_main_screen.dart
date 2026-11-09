@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../models/staff_models.dart';
 import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
+import '../services/staff_download_helper.dart';
 import 'new_fund_request_screen.dart';
 import 'staff_login_screen.dart';
 import 'wallet/staff_wallet_screen.dart';
@@ -130,26 +131,26 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   }
 
   Future<void> _downloadAndroidApk() async {
-    final uri = Uri.parse('/download/staff-app.apk');
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.platformDefault);
+    final effectiveUrl = StaffApiService.resolveUrl('/download/staff-app.apk');
+    final success = await downloadFile(effectiveUrl, 'BEMS-Staff-Portal-v1.3.8.apk');
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✓ Starting APK download... Check your browser downloads.'),
+            backgroundColor: Color(0xFF059669),
+            duration: Duration(seconds: 4),
+          ),
+        );
       } else {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (_) {
-      try {
-        final fallbackUri = Uri.parse('/download');
-        await launchUrl(fallbackUri, mode: LaunchMode.platformDefault);
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Please navigate to /download to get the APK: $e'),
-              backgroundColor: const Color(0xFFEA580C),
-            ),
-          );
-        }
+        Clipboard.setData(ClipboardData(text: effectiveUrl));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Direct link copied: $effectiveUrl'),
+            backgroundColor: const Color(0xFFEA580C),
+            duration: const Duration(seconds: 4),
+          ),
+        );
       }
     }
   }

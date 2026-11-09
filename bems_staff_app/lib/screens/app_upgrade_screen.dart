@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../services/staff_api_service.dart';
+import '../services/staff_download_helper.dart';
 
 class StaffAppUpgradeScreen extends StatelessWidget {
   final String currentVersion;
@@ -16,21 +18,34 @@ class StaffAppUpgradeScreen extends StatelessWidget {
     required this.notes,
   });
 
+  String get _effectiveUrl {
+    final candidate = downloadUrl.isNotEmpty ? downloadUrl : '/download/staff-app.apk';
+    return StaffApiService.resolveUrl(candidate);
+  }
+
   Future<void> _launchDownload(BuildContext context) async {
-    try {
-      final uri = Uri.parse(downloadUrl);
-      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        throw 'Could not launch URL';
-      }
-    } catch (_) {
-      if (context.mounted) {
+    final url = _effectiveUrl;
+    final filename = 'BEMS-Staff-Portal-v$requiredVersion.apk';
+    final success = await downloadFile(url, filename);
+
+    if (context.mounted) {
+      if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Could not open browser automatically. Link copied to clipboard.'),
-            backgroundColor: Color(0xFF0284C7),
+            content: Text('✓ Starting APK download... Check your browser or notifications tray.'),
+            backgroundColor: Color(0xFF059669),
+            duration: Duration(seconds: 4),
           ),
         );
-        Clipboard.setData(ClipboardData(text: downloadUrl));
+      } else {
+        Clipboard.setData(ClipboardData(text: url));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Direct link copied: $url'),
+            backgroundColor: const Color(0xFF0284C7),
+            duration: const Duration(seconds: 4),
+          ),
+        );
       }
     }
   }
@@ -221,22 +236,64 @@ class StaffAppUpgradeScreen extends StatelessWidget {
 
                   const SizedBox(height: 12),
 
+                  // Direct link display card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.link_rounded, size: 16, color: Color(0xFF64748B)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: SelectableText(
+                            _effectiveUrl,
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF334155), fontFamily: 'monospace'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
                   // Secondary action: Copy Link
-                  TextButton(
+                  TextButton.icon(
                     onPressed: () {
-                      Clipboard.setData(ClipboardData(text: downloadUrl));
+                      Clipboard.setData(ClipboardData(text: _effectiveUrl));
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Download link copied to clipboard.'),
-                          duration: Duration(seconds: 2),
+                        SnackBar(
+                          content: Text('✓ Download link copied: $_effectiveUrl'),
+                          backgroundColor: const Color(0xFF0F172A),
+                          duration: const Duration(seconds: 3),
                         ),
                       );
                     },
-                    child: const Text(
+                    icon: const Icon(Icons.copy_rounded, size: 16, color: Color(0xFF64748B)),
+                    label: const Text(
                       'Copy Direct APK Link',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
                     ),
                   ),
+
+                  if (kIsWeb) ...[
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () {
+                        StaffApiService.fetchMyProfile;
+                        Navigator.pushReplacementNamed(context, '/');
+                      },
+                      icon: const Icon(Icons.refresh_rounded, size: 16, color: Color(0xFFEA580C)),
+                      label: const Text(
+                        'Reload Web Workspace',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFEA580C)),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
