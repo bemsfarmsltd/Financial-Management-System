@@ -114,13 +114,44 @@ export async function createFundedEnvelopeTx(tx:Tx,actor:WalletActor,input:Envel
 export async function readOwnWallet(actor: WalletActor) {
   // Read-only review stays available while monetary execution is disabled.
   return prisma.$transaction(async tx => {
-    await liveWalletActor(tx, actor);
+    const employee = await liveWalletActor(tx, actor);
     if(actor.role!=='STAFF')throw new WalletError('STAFF_WALLET_REQUIRED','Use the executive funding dashboard for company payments.',403);
     const credits = await tx.$queryRaw<any[]>`SELECT "id","sourceType","sourceId","organizationId","category","amountMinor","availableMinor","heldMinor","settledMinor","returnedMinor","frozen","createdAt" FROM "WalletCreditLot" WHERE "employeeId" = ${actor.id} ORDER BY "createdAt" DESC LIMIT 100`;
     const [totals] = await tx.$queryRaw<any[]>`SELECT COALESCE(sum("availableMinor"),0)::bigint AS "availableMinor", COALESCE(sum("heldMinor"),0)::bigint AS "heldMinor", COALESCE(sum("settledMinor"),0)::bigint AS "settledMinor" FROM "WalletCreditLot" WHERE "employeeId" = ${actor.id}`;
-    const banks = await tx.$queryRaw<any[]>`SELECT "id","bankCode",right("accountNumber",4) AS "lastFour","accountName","verifiedAt" FROM "WalletBankAccount" WHERE "employeeId" = ${actor.id} AND "active"`;
-    const withdrawals = await tx.$queryRaw<any[]>`SELECT "id","amountMinor","feeMinor","reference","status","providerStatus",right("accountNumber",4) AS "lastFour","createdAt" FROM "WalletWithdrawal" WHERE "employeeId" = ${actor.id} ORDER BY "createdAt" DESC LIMIT 100`;
-    return walletJson({ walletMode:walletEnabled(), currency: 'NGN', environment:process.env.MONNIFY_ENVIRONMENT, ...totals, credits, banks, withdrawals, withdrawalsEnabled: walletEnabled() && process.env.BEMS_WALLET_TRANSFERS_ENABLED === 'true', withdrawalMessage: 'Withdraw only your approved available funds to your verified bank account. The company pays transfer fees.' });
+    const rawBanks = await tx.$queryRaw<any[]>`SELECT "id","bankCode","accountNumber",right("accountNumber",4) AS "lastFour","accountName","verifiedAt" FROM "WalletBankAccount" WHERE "employeeId" = ${actor.id} AND "active"`;
+
+    const regBankName = employee.salaryBankName || employee.bankName || '';
+    const regAccountNumber = employee.salaryAccountNumber || employee.accountNumber || '';
+    const regAccountName = employee.salaryAccountName || employee.accountName || employee.legalName || '';
+
+    const banks = [...rawBanks];
+    const hasRegBank = rawBanks.some(b => b.accountNumber === regAccountNumber);
+    if (!hasRegBank && regAccountNumber) {
+      banks.unshift({
+        id: 'reg-' + actor.id,
+        bankCode: 'DEFAULT',
+        bankName: regBankName,
+        accountNumber: regAccountNumber,
+        lastFour: regAccountNumber.slice(-4),
+        accountName: regAccountName,
+        isRegistrationDefault: true,
+        verifiedAt: employee.createdAt,
+      });
+    }
+
+    const withdrawals = await tx.$queryRaw<any[]>`SELECT "id","amountMinor","feeMinor","reference","status","providerStatus","accountNumber",right("accountNumber",4) AS "lastFour","accountName","createdAt" FROM "WalletWithdrawal" WHERE "employeeId" = ${actor.id} ORDER BY "createdAt" DESC LIMIT 100`;
+    return walletJson({
+      walletMode: walletEnabled(),
+      currency: 'NGN',
+      environment: process.env.MONNIFY_ENVIRONMENT,
+      ...totals,
+      credits,
+      banks,
+      registrationBank: regAccountNumber ? { bankName: regBankName, accountNumber: regAccountNumber, accountName: regAccountName } : null,
+      withdrawals,
+      withdrawalsEnabled: walletEnabled() && process.env.BEMS_WALLET_TRANSFERS_ENABLED === 'true',
+      withdrawalMessage: 'Withdraw only your approved available funds to your verified bank account. The company pays transfer fees.',
+    });
   }, { maxWait: 10000, timeout: 30000, isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 }
 export async function readFundingDashboard(actor: WalletActor) {

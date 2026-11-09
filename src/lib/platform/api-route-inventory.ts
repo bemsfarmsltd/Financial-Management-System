@@ -1288,6 +1288,7 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
   { group: 'wallet', apiPath: '/api/wallet/challenges', relativeFilePath: 'src/app/api/wallet/challenges/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
   { group: 'wallet', apiPath: '/api/wallet/withdrawals/[id]/cancel', relativeFilePath: 'src/app/api/wallet/withdrawals/[id]/cancel/route.ts', declaredMethods: ['POST'], classification: 'MUTATION' },
   { group: 'wallet', apiPath: '/api/wallet/banks', relativeFilePath: 'src/app/api/wallet/banks/route.ts', declaredMethods: ['GET'], classification: 'READ' },
+  { group: 'wallet', apiPath: '/api/wallet/banks/resolve', relativeFilePath: 'src/app/api/wallet/banks/resolve/route.ts', declaredMethods: ['GET'], classification: 'READ' },
   { group: 'wallet', apiPath: '/api/wallet/envelopes/[id]', relativeFilePath: 'src/app/api/wallet/envelopes/[id]/route.ts', declaredMethods: ['PATCH'], classification: 'MUTATION' },
   { group: 'webhooks', apiPath: '/api/webhooks/monnify', relativeFilePath: 'src/app/api/webhooks/monnify/route.ts', declaredMethods: ['POST'], classification: 'WEBHOOK' },
   { group: 'webhooks', apiPath: '/api/webhooks/monnify/validate-transfer', relativeFilePath: 'src/app/api/webhooks/monnify/validate-transfer/route.ts', declaredMethods: ['POST'], classification: 'WEBHOOK' },

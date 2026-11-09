@@ -41,16 +41,40 @@ class StaffApiService {
   }
 
   static Future<Map<String, dynamic>> walletRequest(StaffUser user, String path, Map<String, dynamic> body) async {
-    final response = await http.post(Uri.parse('$baseUrl/api/wallet/$path'), headers: _headers(token: user.token), body: jsonEncode(body)).timeout(const Duration(seconds: 30));
-    final data = jsonDecode(response.body) as Map<String,dynamic>;
+    final response = await _executeWithFailover(
+      (host) => http.post(
+        Uri.parse('$host/api/wallet/$path'),
+        headers: _headers(token: user.token),
+        body: jsonEncode(body),
+      ),
+    );
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode != 200) throw Exception(data['error'] ?? 'Wallet operation failed. Refresh status before retrying.');
     return data;
   }
+
   static Future<List<dynamic>> walletBanks(StaffUser user) async {
-    final response = await http.get(Uri.parse('$baseUrl/api/wallet/banks'), headers: _headers(token: user.token)).timeout(const Duration(seconds: 20));
-    final data = jsonDecode(response.body) as Map<String,dynamic>;
+    final response = await _executeWithFailover(
+      (host) => http.get(
+        Uri.parse('$host/api/wallet/banks'),
+        headers: _headers(token: user.token),
+      ),
+    );
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode != 200) throw Exception(data['error'] ?? 'Bank list unavailable.');
     return data['banks'] as List<dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> resolveBankAccount(StaffUser user, {required String accountNumber, required String bankCode}) async {
+    final response = await _executeWithFailover(
+      (host) => http.get(
+        Uri.parse('$host/api/wallet/banks/resolve?accountNumber=${Uri.encodeComponent(accountNumber)}&bankCode=${Uri.encodeComponent(bankCode)}'),
+        headers: _headers(token: user.token),
+      ),
+    );
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode != 200) throw Exception(data['error'] ?? 'Could not resolve account details.');
+    return data;
   }
 
   static const String primaryBaseUrl = 'https://bemserp.work';
