@@ -1407,14 +1407,19 @@ export function StaffDashboardClient({
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col selection:bg-orange-100 selection:text-orange-900 font-sans w-full">
       {/* ========================================================= */}
-      {/* TOP HEADER: SPANS FROM LEFT TO RIGHT ACROSS ENTIRE SCREEN */}
       {/* ========================================================= */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 py-3.5 shadow-sm w-full">
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between">
-          {/* Left: Avatar + Identity */}
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-400 text-white font-black text-base flex items-center justify-center shadow-md shadow-orange-500/20 overflow-hidden">
+      {/* TOP HEADER: MINIMAL & UNCLUTTERED EXECUTIVE BAR           */}
+      {/* ========================================================= */}
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 py-3 shadow-sm w-full">
+        <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-4">
+          {/* Left: Avatar + Identity (Clickable to Profile) */}
+          <button
+            onClick={() => setActiveTab('PROFILE')}
+            className="flex items-center gap-3 p-1 -ml-1 rounded-2xl hover:bg-slate-50 transition-all text-left cursor-pointer group"
+            title="View My Profile & Settings"
+          >
+            <div className="relative shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-400 text-white font-black text-sm flex items-center justify-center shadow-md shadow-orange-500/20 overflow-hidden group-hover:scale-105 transition-transform">
                 {user.avatarUrl && user.avatarUrl.startsWith('http') ? (
                   <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
                 ) : (
@@ -1423,111 +1428,23 @@ export function StaffDashboardClient({
               </div>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <h1 className="text-sm font-black text-[#0F172A] tracking-tight">
+                <h1 className="text-xs sm:text-sm font-black text-[#0F172A] tracking-tight truncate group-hover:text-[#EA580C] transition-colors">
                   {user.fullName}
                 </h1>
-                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-orange-600 text-white text-[9px] font-black">
+                <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-orange-600 text-white text-[8px] font-black shrink-0">
                   ✓
                 </span>
               </div>
-              <p className="text-[11px] font-bold text-[#64748B] tracking-tight">
+              <p className="text-[10.5px] font-bold text-[#64748B] tracking-tight truncate">
                 {displayEmployeeNumber} · {displaySubsidiary}
               </p>
             </div>
-          </div>
+          </button>
 
-          {/* Center: Desktop Navigation Tabs (Spreads Across from Left to Right) */}
-          <nav className="hidden md:flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200">
-            <button
-              onClick={() => {
-                setActiveTab('HOME');
-                setActiveWorkstation('HUB');
-              }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                activeTab === 'HOME' && activeWorkstation === 'HUB'
-                  ? 'bg-white text-[#EA580C] shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <LayoutGrid className="w-4 h-4" />
-              <span>Module Gallery</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveTab('HOME');
-                setActiveWorkstation('FINANCE');
-              }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all relative ${
-                activeTab === 'HOME' && activeWorkstation === 'FINANCE'
-                  ? 'bg-white text-[#EA580C] shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Wallet className="w-4 h-4" />
-              <span>Financial Hub</span>
-              {requests.length > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-black">
-                  {requests.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setIsNewRequestOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-orange-600 to-amber-500 text-white shadow-md shadow-orange-500/25 hover:opacity-95 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Request</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveTab('HOME');
-                setActiveWorkstation('ACCOUNTABILITY');
-              }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                activeTab === 'HOME' && activeWorkstation === 'ACCOUNTABILITY'
-                  ? 'bg-white text-[#EA580C] shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>72h SLA</span>
-              {pendingRetirements.length > 0 && (
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('WALLET')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                activeTab === 'WALLET'
-                  ? 'bg-white text-[#EA580C] shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Wallet className="w-4 h-4" />
-              <span>Wallet</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('PROFILE')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                activeTab === 'PROFILE'
-                  ? 'bg-white text-[#EA580C] shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <User className="w-4 h-4" />
-              <span>Profile</span>
-            </button>
-          </nav>
-
-          {/* Right: Actions */}
-          <div className="flex items-center gap-2">
+          {/* Right: Clean Action Controls */}
+          <div className="flex items-center gap-2 shrink-0">
             {/* Shift Attendance Top-Bar Pill (Staff Only, Executives Exempt) */}
             {String(user?.role || '').toUpperCase() === 'STAFF' && (
               todayAttendance ? (
@@ -1546,7 +1463,7 @@ export function StaffDashboardClient({
                       ? `${new Date(todayAttendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · Check Out`
                       : 'Active Shift · Check Out'}
                   </span>
-                  <span className="sm:hidden">Check Out</span>
+                  <span className="sm:hidden text-[11px]">Check Out</span>
                   <LogOut className="w-3.5 h-3.5 text-emerald-600" />
                 </button>
               ) : (
@@ -1565,10 +1482,29 @@ export function StaffDashboardClient({
               )
             )}
 
+            {/* Module Gallery Quick Switcher (Icon Only) */}
+            <button
+              onClick={() => {
+                setActiveTab('HOME');
+                setActiveWorkstation('HUB');
+                const el = document.getElementById('workstation-gallery');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                else window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
+                activeTab === 'HOME' && activeWorkstation === 'HUB'
+                  ? 'bg-orange-50 border-orange-200 text-[#EA580C] shadow-sm'
+                  : 'bg-white border-[#E2E8F0] text-[#0F172A] hover:bg-slate-50 hover:text-[#EA580C]'
+              }`}
+              title="Enterprise Module Gallery"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+
             {/* Notification Bell */}
             <button
               onClick={() => setIsNotificationsOpen(true)}
-              className="w-9 h-9 rounded-full bg-white border border-[#E2E8F0] text-[#0F172A] flex items-center justify-center hover:bg-slate-50 transition-all relative"
+              className="w-9 h-9 rounded-xl bg-white border border-[#E2E8F0] text-[#0F172A] flex items-center justify-center hover:bg-slate-50 transition-all relative cursor-pointer"
               title="Notifications"
             >
               <Bell className="w-4 h-4" />
@@ -1579,7 +1515,7 @@ export function StaffDashboardClient({
             <button
               onClick={() => loadData(true)}
               disabled={refreshing}
-              className="w-9 h-9 rounded-full bg-white border border-[#E2E8F0] text-[#0F172A] flex items-center justify-center hover:bg-slate-50 transition-all"
+              className="w-9 h-9 rounded-xl bg-white border border-[#E2E8F0] text-[#0F172A] flex items-center justify-center hover:bg-slate-50 transition-all cursor-pointer"
               title="Refresh Data"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-orange-600' : ''}`} />
