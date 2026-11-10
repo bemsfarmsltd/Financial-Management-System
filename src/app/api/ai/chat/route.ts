@@ -115,8 +115,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 0. Forward to external n8n AI Agent if configured (BEMS AI Backend Contract Section 02)
-    const n8nFinancialWebhookUrl = process.env.N8N_AI_WEBHOOK_URL;
-    const n8nHrWebhookUrl = process.env.N8N_HR_WEBHOOK_URL;
+    const n8nFinancialWebhookUrl = process.env.N8N_AI_WEBHOOK_URL || 'https://n8n.srv2065537.hstgr.cloud/webhook/bems-financial-manager';
+    const n8nHrWebhookUrl = process.env.N8N_HR_WEBHOOK_URL || 'https://n8n.srv2065537.hstgr.cloud/webhook/bems-hr-operations';
 
     // Detect agent domain (Financial Manager vs. HR & Workforce Operations)
     const explicitAgentMode = String(body.context?.agent_mode || '').toLowerCase(); // 'hr' | 'financial' | 'auto'
