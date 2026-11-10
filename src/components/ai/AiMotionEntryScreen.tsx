@@ -221,12 +221,12 @@ export function AiMotionEntryScreen({
     };
   }, [mode, speakGreeting, stopSpeaking]);
 
-  // For reload mode: automatically transition directly to the dashboard after ~2.4 seconds
+  // For reload mode: automatically transition directly to the dashboard after ~700ms
   useEffect(() => {
     if (mode === 'reload') {
       const autoTimer = setTimeout(() => {
         handleProceed();
-      }, 2400);
+      }, 700);
       return () => clearTimeout(autoTimer);
     }
   }, [mode]);

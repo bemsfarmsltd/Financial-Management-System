@@ -4243,10 +4243,7 @@ export default function Home() {
         const nextUser = data?.user as AuthUser | null;
         setUser(nextUser);
         setAuthStatus(nextUser ? 'signed-in' : 'signed-out');
-        if (nextUser) {
-          setEntryMode('reload');
-          setShowAiEntry(true);
-        }
+        setShowAiEntry(false);
       })
       .catch(() => {
         if (timeoutId) clearTimeout(timeoutId);
@@ -4390,7 +4387,7 @@ export default function Home() {
   if (authStatus === 'checking') {
     return (
       <div role="status" aria-label="Checking sign-in" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f2eb', overflow: 'hidden' }}>
-        <KineticOptikkaTorus size={460} />
+        <KineticOptikkaTorus size={460} brandColor="#ea580c" />
       </div>
     );
   }

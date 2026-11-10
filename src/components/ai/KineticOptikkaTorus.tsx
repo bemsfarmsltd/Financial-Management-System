@@ -8,16 +8,16 @@ interface Props {
 }
 
 function hexToRgb(hex?: string) {
-  if (!hex) return { r: 13, g: 138, b: 112 };
+  if (!hex) return { r: 234, g: 88, b: 12 };
   let clean = hex.trim().replace('#', '');
   if (clean.length === 3) {
     clean = clean.split('').map(c => c + c).join('');
   }
   if (clean.length !== 6) {
-    return { r: 13, g: 138, b: 112 };
+    return { r: 234, g: 88, b: 12 };
   }
   const num = parseInt(clean, 16);
-  if (isNaN(num)) return { r: 13, g: 138, b: 112 };
+  if (isNaN(num)) return { r: 234, g: 88, b: 12 };
   return {
     r: (num >> 16) & 255,
     g: (num >> 8) & 255,
@@ -27,7 +27,7 @@ function hexToRgb(hex?: string) {
 
 export function KineticOptikkaTorus({ size = 420, brandColor }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [currentBrand, setCurrentBrand] = useState<string>(brandColor || '#0d8a70');
+  const [currentBrand, setCurrentBrand] = useState<string>(brandColor || '#ea580c');
 
   useEffect(() => {
     if (brandColor) {
@@ -170,7 +170,7 @@ export function KineticOptikkaTorus({ size = 420, brandColor }: Props) {
       });
 
       ctx.globalAlpha = 1;
-      angleOffset += 0.022;
+      angleOffset += 0.040;
       animationFrameId = requestAnimationFrame(render);
     };
 
