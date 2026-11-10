@@ -132,7 +132,35 @@ export async function POST(req: NextRequest) {
       'helpdesk', 'support ticket', 'onboard admin', 'executive invitation', 'hr policy'
     ];
 
-    const isHrIntent = HR_KEYWORDS.some((kw) => normalized.includes(kw));
+    const FINANCIAL_KEYWORDS = [
+      'budget', 'bank', 'cash', 'balance', 'reconcil', 'expenditure', 'requisition',
+      'monnify', 'ledger', 'payout', 'disburse', 'wallet', 'vendor', 'invoice',
+      'debit note', 'credit note', 'treasury', 'burn rate', 'revenue', 'profit',
+      'funding pool', 'req-', 'purchase order'
+    ];
+
+    const hasFinancialIntent = FINANCIAL_KEYWORDS.some((kw) => normalized.includes(kw));
+
+    // Multi-turn conversation context inspection for thread continuity
+    const historyList = Array.isArray(body.history) ? body.history : [];
+    const lastAssistantMsg = [...historyList].reverse().find((h: any) => h.role === 'assistant')?.content || '';
+    const lastUserMsg = [...historyList].reverse().find((h: any) => h.role === 'user')?.content || '';
+    const priorContextText = `${lastAssistantMsg} ${lastUserMsg}`.toLowerCase();
+    const priorContextHadHr = HR_KEYWORDS.some((kw) => priorContextText.includes(kw));
+
+    const isConversationalFollowUp = normalized.length < 75 && (
+      normalized.startsWith('yes') || normalized.startsWith('no') ||
+      normalized.includes('look into') || normalized.includes('tell me') ||
+      normalized.includes('why') || normalized.includes('go ahead') ||
+      normalized.includes('proceed') || normalized.includes('continue') ||
+      normalized.includes('check') || normalized.includes('excuse') ||
+      normalized.includes('message') || normalized.includes('what about') ||
+      normalized.includes('explain') || normalized.includes('more') ||
+      normalized.includes('sure') || normalized.includes('please')
+    );
+
+    const isHrIntent = HR_KEYWORDS.some((kw) => normalized.includes(kw)) ||
+      (!hasFinancialIntent && priorContextHadHr && (isConversationalFollowUp || !hasFinancialIntent));
 
     let n8nWebhookUrl = n8nFinancialWebhookUrl;
     let activeAgentMode: 'financial' | 'hr' = 'financial';
