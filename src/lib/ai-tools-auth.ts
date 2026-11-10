@@ -147,16 +147,44 @@ export async function authenticateAiToolRequest(
       },
     });
     const canonicalRole = employee ? normalizeCanonicalRole(employee.role) : null;
-    if (!employee || canonicalRole!=='GMD' || canonicalRole !== del.requesterRole) {
+    if (!employee) {
       return {
         actor: null,
         errorResponse: NextResponse.json(
           {
             ok: false,
             error_code: 'DELEGATED_ACTOR_INACTIVE',
-            message: 'The human requester associated with this automation delegation is no longer active.',
+            message: 'The human requester associated with this automation delegation was not found or is no longer active.',
           },
           { status: 401 }
+        ),
+      };
+    }
+
+    if (!hasGmdFeatureAccess(canonicalRole)) {
+      return {
+        actor: null,
+        errorResponse: NextResponse.json(
+          {
+            ok: false,
+            error_code: 'GMD_AI_ONLY',
+            message: 'AI access requires GMD or an authorized Super Admin.',
+          },
+          { status: 403 }
+        ),
+      };
+    }
+
+    if (canonicalRole !== del.requesterRole) {
+      return {
+        actor: null,
+        errorResponse: NextResponse.json(
+          {
+            ok: false,
+            error_code: 'DELEGATION_ROLE_MISMATCH',
+            message: `Delegation token role "${del.requesterRole}" does not match active employee role "${canonicalRole}".`,
+          },
+          { status: 403 }
         ),
       };
     }
