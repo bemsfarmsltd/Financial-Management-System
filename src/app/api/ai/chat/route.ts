@@ -115,7 +115,35 @@ export async function POST(req: NextRequest) {
     }
 
     // 0. Forward to external n8n AI Agent if configured (BEMS AI Backend Contract Section 02)
-    const n8nWebhookUrl = process.env.N8N_AI_WEBHOOK_URL;
+    const n8nFinancialWebhookUrl = process.env.N8N_AI_WEBHOOK_URL;
+    const n8nHrWebhookUrl = process.env.N8N_HR_WEBHOOK_URL;
+
+    // Detect agent domain (Financial Manager vs. HR & Workforce Operations)
+    const explicitAgentMode = String(body.context?.agent_mode || '').toLowerCase(); // 'hr' | 'financial' | 'auto'
+    const targetPage = String(body.context?.target_element?.page || '').toLowerCase();
+    const isHrPage = targetPage.includes('hr') || targetPage.includes('attendance') || targetPage.includes('staff');
+
+    const HR_KEYWORDS = [
+      'attendance', 'roster', 'clock in', 'clock out', 'clock-in', 'clock-out',
+      'lateness', 'late', 'shift', 'resumption', 'leave', 'sick leave', 'annual leave',
+      'maternity', 'casual leave', 'absent', 'absence', 'excuse', 'overtime',
+      'staff directory', 'workforce', 'headcount', 'employee dossier', 'employee list',
+      'helpdesk', 'support ticket', 'onboard admin', 'executive invitation', 'hr policy'
+    ];
+
+    const isHrIntent = HR_KEYWORDS.some((kw) => normalized.includes(kw));
+
+    let n8nWebhookUrl = n8nFinancialWebhookUrl;
+    let activeAgentMode: 'financial' | 'hr' = 'financial';
+
+    if (n8nHrWebhookUrl && (explicitAgentMode === 'hr' || (explicitAgentMode !== 'financial' && (isHrPage || isHrIntent)))) {
+      n8nWebhookUrl = n8nHrWebhookUrl;
+      activeAgentMode = 'hr';
+    } else if (!n8nFinancialWebhookUrl && n8nHrWebhookUrl) {
+      n8nWebhookUrl = n8nHrWebhookUrl;
+      activeAgentMode = 'hr';
+    }
+
     if (n8nWebhookUrl && actor) {
       try {
         const controller = new AbortController();
@@ -270,6 +298,7 @@ export async function POST(req: NextRequest) {
           message: queryText,
           timestamp: new Date().toISOString(),
           context: {
+            agent_mode: activeAgentMode,
             active_business_id: scopedOrgId || '',
             active_business_name: scopedOrgName,
             is_group_scope: isGroupScope,
@@ -400,6 +429,7 @@ title: "<Chart Title>"
 
           return NextResponse.json({
             conversation_id: sessionId,
+            agent_mode: activeAgentMode,
             message: isReadOnlyUser && n8nData.staged_action
               ? `${reply}\n\n*(Note: Staged actions suppressed — read-only informational access).*`
               : reply,

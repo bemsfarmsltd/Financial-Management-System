@@ -36,12 +36,20 @@ interface AiChatWorkspaceViewProps {
   onNavigate?: (tab: string) => void;
 }
 
-const SUGGESTED_PROMPTS = [
+const FINANCIAL_PROMPTS = [
   { icon: '💰', text: 'What is our current liquid cash and treasury reserve balance?' },
   { icon: '📊', text: 'Summarize all pending requisitions and urgent approvals' },
   { icon: '⚖️', text: 'Show open accountability cases and overdue evidence' },
   { icon: '📈', text: 'Analyze our top spend categories and recent trends' },
   { icon: '🔮', text: 'Forecast cash runway and obligations due in 30 days' },
+];
+
+const HR_PROMPTS = [
+  { icon: '👥', text: 'Summarize today daily attendance and late clock-ins' },
+  { icon: '📅', text: 'Show pending leave applications requiring executive review' },
+  { icon: '🏢', text: 'Give a headcount breakdown across all group subsidiaries' },
+  { icon: '🎟️', text: 'Show open staff helpdesk tickets and follow-up tasks' },
+  { icon: '🛡️', text: 'Audit recent attendance penalty deductions and excused staff' },
 ];
 
 export function AiChatWorkspaceView({
@@ -117,7 +125,78 @@ export function AiChatWorkspaceView({
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {/* Sub-Agent Selector */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: '#f8fafc',
+              padding: '3px',
+              borderRadius: '999px',
+              border: '1px solid #cbd5e1',
+              gap: 2,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => aiManager.setAgentMode('auto')}
+              title="Automatically route queries based on content and page"
+              style={{
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontSize: '11px',
+                fontWeight: 700,
+                border: 0,
+                cursor: 'pointer',
+                background: aiManager.agentMode === 'auto' ? '#ffffff' : 'transparent',
+                color: aiManager.agentMode === 'auto' ? '#0f172a' : '#64748b',
+                boxShadow: aiManager.agentMode === 'auto' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              ✦ Auto
+            </button>
+            <button
+              type="button"
+              onClick={() => aiManager.setAgentMode('financial')}
+              title="Direct to BEMS Financial Manager (Budgets, Approvals, Wallets)"
+              style={{
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontSize: '11px',
+                fontWeight: 700,
+                border: 0,
+                cursor: 'pointer',
+                background: aiManager.agentMode === 'financial' ? '#ffffff' : 'transparent',
+                color: aiManager.agentMode === 'financial' ? '#ea580c' : '#64748b',
+                boxShadow: aiManager.agentMode === 'financial' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              ⚡ Finance
+            </button>
+            <button
+              type="button"
+              onClick={() => aiManager.setAgentMode('hr')}
+              title="Direct to BEMS HR Operations (Attendance, Leaves, Staff, Helpdesk)"
+              style={{
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontSize: '11px',
+                fontWeight: 700,
+                border: 0,
+                cursor: 'pointer',
+                background: aiManager.agentMode === 'hr' ? '#ffffff' : 'transparent',
+                color: aiManager.agentMode === 'hr' ? '#059669' : '#64748b',
+                boxShadow: aiManager.agentMode === 'hr' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              👥 HR Ops
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={() => aiManager.setIsHistoryOpen(true)}
@@ -305,7 +384,7 @@ export function AiChatWorkspaceView({
             <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
               Suggested queries:
             </span>
-            {SUGGESTED_PROMPTS.map((p, idx) => (
+            {(aiManager.agentMode === 'hr' ? HR_PROMPTS : FINANCIAL_PROMPTS).map((p, idx) => (
               <button
                 key={idx}
                 type="button"

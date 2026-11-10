@@ -42,6 +42,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
   const [sessions, setSessions] = useState<any[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('active');
   const [hydratedStorageKey, setHydratedStorageKey] = useState('');
+  const [agentMode, setAgentMode] = useState<'financial' | 'hr' | 'auto'>('auto');
 
   // Load archived sessions
   const refreshSessions = useCallback(() => {
@@ -273,6 +274,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
                 : m.content,
             })),
             context: {
+              agent_mode: agentMode,
               active_business_id: businessId,
               business_name: businessName,
               is_group_scope: isGroupScope,
@@ -687,5 +689,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
     refreshSessions,
     activeSessionId,
     ensureFreshSession,
+    agentMode,
+    setAgentMode,
   };
 }
