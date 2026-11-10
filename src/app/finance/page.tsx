@@ -4148,6 +4148,8 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
               messages={aiManager.messages}
               isTyping={aiManager.isTyping}
               isInspectMode={isInspectMode}
+              agentMode={aiManager.agentMode}
+              onSetAgentMode={aiManager.setAgentMode}
               onToggleInspectMode={toggleInspectMode}
               onSendMessage={aiManager.sendMessage}
               onConfirmAction={aiManager.handleConfirmAction}

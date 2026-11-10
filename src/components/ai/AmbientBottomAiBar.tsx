@@ -31,6 +31,8 @@ interface Props {
   onOpenHistory?: () => void;
   onOpenFullCockpit: (initialPrompt?: string) => void;
   onNavigate?: (tab: string) => void;
+  agentMode?: 'financial' | 'hr' | 'auto';
+  onSetAgentMode?: (mode: 'financial' | 'hr' | 'auto') => void;
 }
 
 export function AmbientBottomAiBar({
@@ -49,6 +51,8 @@ export function AmbientBottomAiBar({
   onOpenHistory,
   onOpenFullCockpit,
   onNavigate,
+  agentMode = 'auto',
+  onSetAgentMode,
 }: Props) {
   const isGroupScope = !businessName || businessName === 'BEMS Group';
   const [inputText, setInputText] = useState('');
@@ -158,10 +162,10 @@ export function AmbientBottomAiBar({
               WebkitBackdropFilter: 'blur(12px)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sparkles size={14} color="var(--brand-primary, #2563eb)" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <Sparkles size={14} color="var(--brand-primary, #ea580c)" />
               <strong style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>
-                BEMS AI Financial Assistant
+                {agentMode === 'hr' ? 'BEMS AI HR & Workforce' : agentMode === 'financial' ? 'BEMS AI Financial Assistant' : 'BEMS AI Copilot'}
               </strong>
               {isGroupScope ? (
                 <span
@@ -194,6 +198,65 @@ export function AmbientBottomAiBar({
                 >
                   🔒 Scoped to {businessName}
                 </span>
+              )}
+
+              {onSetAgentMode && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', background: '#e2e8f0', borderRadius: '999px', padding: '2px', marginLeft: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => onSetAgentMode('auto')}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      fontSize: '10px',
+                      fontWeight: 750,
+                      border: 0,
+                      cursor: 'pointer',
+                      background: agentMode === 'auto' ? '#ffffff' : 'transparent',
+                      color: agentMode === 'auto' ? '#0f172a' : '#64748b',
+                      boxShadow: agentMode === 'auto' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                    }}
+                    title="Intelligently route to Financial or HR Agent based on question"
+                  >
+                    ✦ Auto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSetAgentMode('financial')}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      fontSize: '10px',
+                      fontWeight: 750,
+                      border: 0,
+                      cursor: 'pointer',
+                      background: agentMode === 'financial' ? '#ffffff' : 'transparent',
+                      color: agentMode === 'financial' ? '#ea580c' : '#64748b',
+                      boxShadow: agentMode === 'financial' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                    }}
+                    title="Directly talk to Financial Manager"
+                  >
+                    ⚡ Finance
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSetAgentMode('hr')}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      fontSize: '10px',
+                      fontWeight: 750,
+                      border: 0,
+                      cursor: 'pointer',
+                      background: agentMode === 'hr' ? '#ffffff' : 'transparent',
+                      color: agentMode === 'hr' ? '#059669' : '#64748b',
+                      boxShadow: agentMode === 'hr' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                    }}
+                    title="Directly talk to HR & Workforce Operations"
+                  >
+                    👥 HR Ops
+                  </button>
+                </div>
               )}
             </div>
 

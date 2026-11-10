@@ -124,10 +124,11 @@ export async function POST(req: NextRequest) {
     const isHrPage = targetPage.includes('hr') || targetPage.includes('attendance') || targetPage.includes('staff');
 
     const HR_KEYWORDS = [
-      'attendance', 'roster', 'clock in', 'clock out', 'clock-in', 'clock-out',
-      'lateness', 'late', 'shift', 'resumption', 'leave', 'sick leave', 'annual leave',
-      'maternity', 'casual leave', 'absent', 'absence', 'excuse', 'overtime',
-      'staff directory', 'workforce', 'headcount', 'employee dossier', 'employee list',
+      'attend', 'attendance', 'attendacne', 'present', 'presence', 'absent', 'absence',
+      'who is at work', 'who came', 'who clocked', 'clock', 'clock in', 'clock out', 'clock-in', 'clock-out',
+      'roster', 'lateness', 'late', 'early', 'shift', 'resumption', 'punctual',
+      'leave', 'sick leave', 'annual leave', 'maternity', 'casual leave', 'excuse', 'overtime',
+      'staff directory', 'workforce', 'headcount', 'employee', 'employees', 'dossier', 'staff list',
       'helpdesk', 'support ticket', 'onboard admin', 'executive invitation', 'hr policy'
     ];
 
