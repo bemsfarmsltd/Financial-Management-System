@@ -638,6 +638,37 @@ export function AmbientBottomAiBar({
         </div>
       )}
 
+      {/* 1.5. FLOATING AGENT MENTION / SLASH COMMAND SELECTION MENU (Rendered outside overflow:hidden wrapper) */}
+      {isMentionActive && (
+        <div
+          style={{
+            pointerEvents: 'auto',
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            paddingRight: '36px',
+            marginBottom: '8px',
+            zIndex: 99999,
+            animation: 'deckSlideUp 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        >
+          <AgentMentionMenu
+            prefix={mentionPrefix}
+            filterText={mentionFilter}
+            selectedIndex={menuIndex}
+            onSelect={handleSelectAgent}
+            onClose={() => setIsMenuDismissed(true)}
+            style={{
+              position: 'relative',
+              bottom: 'auto',
+              left: 'auto',
+              minWidth: '340px',
+              maxWidth: '420px',
+            }}
+          />
+        </div>
+      )}
+
       {/* 2. THE BOTTOM COMMAND & CHAT BAR WITH HYPER-BRIGHT ORBITING SUBSIDIARY BRAND LIGHT (STOPS AFTER 1 MIN) */}
       <div
         className="bemi-orbit-wrapper"
@@ -833,18 +864,8 @@ export function AmbientBottomAiBar({
           </button>
         )}
 
-        {/* Direct Transparent Chat Input Bar with @ and / Agent Dropdown */}
+        {/* Direct Transparent Chat Input Bar */}
         <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', minWidth: 0 }}>
-          {isMentionActive && (
-            <AgentMentionMenu
-              prefix={mentionPrefix}
-              filterText={mentionFilter}
-              selectedIndex={menuIndex}
-              onSelect={handleSelectAgent}
-              onClose={() => setIsMenuDismissed(true)}
-            />
-          )}
-
           <form
             onSubmit={handleSubmit}
             style={{
@@ -868,6 +889,9 @@ export function AmbientBottomAiBar({
               onKeyDown={handleKeyDown}
               onFocus={() => {
                 notifyAiInteraction();
+                if (inputText.includes('@') || inputText.includes('/')) {
+                  setIsMenuDismissed(false);
+                }
                 if (messages.length > 1) setIsDeckOpen(true);
               }}
               style={{

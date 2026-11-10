@@ -18,6 +18,7 @@ interface AgentMentionMenuProps {
   selectedIndex: number;
   onSelect: (option: AgentOption) => void;
   onClose: () => void;
+  style?: React.CSSProperties;
 }
 
 export function AgentMentionMenu({
@@ -26,6 +27,7 @@ export function AgentMentionMenu({
   selectedIndex,
   onSelect,
   onClose,
+  style,
 }: AgentMentionMenuProps) {
   const options: AgentOption[] = [
     {
@@ -78,13 +80,14 @@ export function AgentMentionMenu({
         left: 0,
         zIndex: 99999,
         background: '#ffffff',
-        border: '1px solid #e2e8f0',
-        borderRadius: '12px',
-        boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08)',
-        padding: '6px',
-        minWidth: '290px',
-        maxWidth: '360px',
+        border: '1.5px solid #e2e8f0',
+        borderRadius: '14px',
+        boxShadow: '0 12px 30px -4px rgba(15, 23, 42, 0.16), 0 8px 12px -6px rgba(15, 23, 42, 0.08)',
+        padding: '8px',
+        minWidth: '320px',
+        maxWidth: '380px',
         fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
+        ...style,
       }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -182,3 +185,4 @@ export function AgentMentionMenu({
     </div>
   );
 }
+

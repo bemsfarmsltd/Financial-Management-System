@@ -789,6 +789,9 @@ export function AiChatWorkspaceView({
                   transition: 'border-color 0.15s ease',
                 }}
                 onFocus={(e) => {
+                  if (inputText.includes('@') || inputText.includes('/')) {
+                    setIsMenuDismissed(false);
+                  }
                   if (isChatEnabled) e.currentTarget.style.borderColor = '#8b5cf6';
                 }}
                 onBlur={(e) => {
