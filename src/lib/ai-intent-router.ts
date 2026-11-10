@@ -13,11 +13,11 @@
  * 6. Cross-domain query detection (e.g. payroll spend + attendance deductions)
  */
 
-export type AiAgentDomain = 'financial' | 'hr';
+export type AiAgentDomain = 'financial' | 'hr' | 'both';
 
 export interface RouteResolutionInput {
   message: string;
-  explicitMode?: 'financial' | 'hr' | 'auto';
+  explicitMode?: 'financial' | 'hr' | 'auto' | 'both';
   isTagLocked?: boolean;
   threadDomain?: AiAgentDomain | null;
   history?: Array<{ role: string; content: string; domain?: AiAgentDomain }>;
@@ -41,11 +41,11 @@ export interface RouteResolutionResult {
 
 // Extract any leading @agent or /agent command tag from the input prompt
 export function extractAgentCommandTag(rawMessage: string): {
-  tag: 'financial' | 'hr' | 'auto' | null;
+  tag: 'financial' | 'hr' | 'both' | 'auto' | null;
   cleanMessage: string;
 } {
   const trimmed = rawMessage.trim();
-  const match = trimmed.match(/^[@/](finance|financial|hr|people|auto)\b\s*/i);
+  const match = trimmed.match(/^[@/](finance|financial|hr|people|both|all|auto)\b\s*/i);
   if (!match) {
     return { tag: null, cleanMessage: trimmed };
   }
@@ -56,6 +56,9 @@ export function extractAgentCommandTag(rawMessage: string): {
   }
   if (token === 'hr' || token === 'people') {
     return { tag: 'hr', cleanMessage };
+  }
+  if (token === 'both' || token === 'all') {
+    return { tag: 'both', cleanMessage };
   }
   if (token === 'auto') {
     return { tag: 'auto', cleanMessage };
@@ -280,7 +283,16 @@ export function resolveAiAgentRoute(input: RouteResolutionInput): RouteResolutio
   const effectiveMessage = parsedTag.cleanMessage || message;
   const normalizedMsg = effectiveMessage.trim().toLowerCase();
 
-  // If user explicitly prefixed the prompt with @finance, /finance, @hr, or /hr
+  // If user explicitly prefixed the prompt with @both, /both, @finance, /finance, @hr, or /hr
+  if (parsedTag.tag === 'both' || (isTagLocked && explicitMode === 'both') || explicitMode === 'both') {
+    return {
+      domain: 'both',
+      isCrossDomain: true,
+      confidence: 1.0,
+      reason: 'Explicit @both / /both dual-agent co-dispatch active.',
+      cleanMessage: effectiveMessage,
+    };
+  }
   if (parsedTag.tag === 'financial' || (isTagLocked && explicitMode === 'financial')) {
     return {
       domain: 'financial',
@@ -443,13 +455,13 @@ export function resolveAiAgentRoute(input: RouteResolutionInput): RouteResolutio
     };
   }
 
-  // 5. Cross-domain detection: strong scores in both domains
+  // 5. Cross-domain detection: strong scores in both domains -> call both agents together!
   if (hrScore >= 8 && finScore >= 8) {
     return {
-      domain: finScore >= hrScore ? 'financial' : 'hr',
+      domain: 'both',
       isCrossDomain: true,
-      confidence: 0.85,
-      reason: `Cross-domain prompt (HR score: ${hrScore}, Finance score: ${finScore}).`,
+      confidence: 0.95,
+      reason: `Cross-domain prompt touching both Financial and Workforce operations (HR score: ${hrScore}, Finance score: ${finScore}). Dispatched to both agents for unified synthesis.`,
       cleanMessage: effectiveMessage,
     };
   }

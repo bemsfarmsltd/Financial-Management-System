@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 
 export interface AgentOption {
-  id: 'financial' | 'hr' | 'auto';
+  id: 'financial' | 'hr' | 'both' | 'auto';
   tag: string;
   label: string;
   description: string;
@@ -30,6 +30,15 @@ export function AgentMentionMenu({
   style,
 }: AgentMentionMenuProps) {
   const options: AgentOption[] = [
+    {
+      id: 'both',
+      tag: `${prefix}both`,
+      label: 'Dual-Agent Co-Pilot (Both)',
+      description: 'Call Financial & HR agents in parallel for unified cross-domain synthesis',
+      icon: '✦',
+      color: '#7c3aed',
+      bgLight: '#f5f3ff',
+    },
     {
       id: 'financial',
       tag: `${prefix}finance`,

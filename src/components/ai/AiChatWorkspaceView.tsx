@@ -113,6 +113,7 @@ export function AiChatWorkspaceView({
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         const available = [
+          { id: 'both', tag: `${mentionPrefix}both`, label: 'Dual-Agent Co-Pilot (Both)', description: '', icon: '✦', color: '#7c3aed', bgLight: '' },
           { id: 'financial', tag: `${mentionPrefix}finance`, label: 'Financial & Treasury Manager', description: '', icon: '⚡', color: '#ea580c', bgLight: '' },
           { id: 'hr', tag: `${mentionPrefix}hr`, label: 'HR & Workforce Operations', description: '', icon: '👥', color: '#059669', bgLight: '' },
           { id: 'auto', tag: `${mentionPrefix}auto`, label: 'Auto-Detect Agent', description: '', icon: '✦', color: '#6366f1', bgLight: '' },
@@ -137,12 +138,13 @@ export function AiChatWorkspaceView({
     if (!inputText.trim() || isTyping || !isChatEnabled) return;
     
     let textToSend = inputText.trim();
-    const tagMatch = textToSend.match(/^[@/](finance|financial|hr|people|auto)\b\s*/i);
+    const tagMatch = textToSend.match(/^[@/](finance|financial|hr|people|both|all|auto)\b\s*/i);
     if (tagMatch) {
       const token = tagMatch[1].toLowerCase();
       textToSend = textToSend.slice(tagMatch[0].length).trim();
       if (token === 'finance' || token === 'financial') setAgentMode('financial');
       else if (token === 'hr' || token === 'people') setAgentMode('hr');
+      else if (token === 'both' || token === 'all') setAgentMode('both');
       else if (token === 'auto') setAgentMode('auto');
     }
 
@@ -223,6 +225,25 @@ export function AiChatWorkspaceView({
               }}
             >
               ✦ Auto
+            </button>
+            <button
+              type="button"
+              onClick={() => aiManager.setAgentMode('both')}
+              title="Parallel Financial & HR Operations synthesis"
+              style={{
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontSize: '11px',
+                fontWeight: 700,
+                border: 0,
+                cursor: 'pointer',
+                background: aiManager.agentMode === 'both' ? '#ffffff' : 'transparent',
+                color: aiManager.agentMode === 'both' ? '#7c3aed' : '#64748b',
+                boxShadow: aiManager.agentMode === 'both' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              ✦ Both
             </button>
             <button
               type="button"

@@ -32,8 +32,8 @@ interface Props {
   onOpenHistory?: () => void;
   onOpenFullCockpit: (initialPrompt?: string) => void;
   onNavigate?: (tab: string) => void;
-  agentMode?: 'financial' | 'hr' | 'auto';
-  onSetAgentMode?: (mode: 'financial' | 'hr' | 'auto') => void;
+  agentMode?: 'financial' | 'hr' | 'both' | 'auto';
+  onSetAgentMode?: (mode: 'financial' | 'hr' | 'both' | 'auto') => void;
 }
 
 export function AmbientBottomAiBar({
@@ -123,6 +123,7 @@ export function AmbientBottomAiBar({
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         const available = [
+          { id: 'both', tag: `${mentionPrefix}both`, label: 'Dual-Agent Co-Pilot (Both)', description: '', icon: '✦', color: '#7c3aed', bgLight: '' },
           { id: 'financial', tag: `${mentionPrefix}finance`, label: 'Financial & Treasury Manager', description: '', icon: '⚡', color: '#ea580c', bgLight: '' },
           { id: 'hr', tag: `${mentionPrefix}hr`, label: 'HR & Workforce Operations', description: '', icon: '👥', color: '#059669', bgLight: '' },
           { id: 'auto', tag: `${mentionPrefix}auto`, label: 'Auto-Detect Agent', description: '', icon: '✦', color: '#6366f1', bgLight: '' },
@@ -148,13 +149,14 @@ export function AmbientBottomAiBar({
     notifyAiInteraction();
 
     let textToSend = inputText.trim();
-    const tagMatch = textToSend.match(/^[@/](finance|financial|hr|people|auto)\b\s*/i);
+    const tagMatch = textToSend.match(/^[@/](finance|financial|hr|people|both|all|auto)\b\s*/i);
     if (tagMatch) {
       const token = tagMatch[1].toLowerCase();
       textToSend = textToSend.slice(tagMatch[0].length).trim();
       if (onSetAgentMode) {
         if (token === 'finance' || token === 'financial') onSetAgentMode('financial');
         else if (token === 'hr' || token === 'people') onSetAgentMode('hr');
+        else if (token === 'both' || token === 'all') onSetAgentMode('both');
         else if (token === 'auto') onSetAgentMode('auto');
       }
     }
@@ -235,7 +237,7 @@ export function AmbientBottomAiBar({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <Sparkles size={14} color="var(--brand-primary, #ea580c)" />
               <strong style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>
-                {agentMode === 'hr' ? 'BEMS AI HR & Workforce' : agentMode === 'financial' ? 'BEMS AI Financial Assistant' : 'BEMS AI Copilot'}
+                {agentMode === 'both' ? 'BEMS AI Dual-Agent Co-Pilot' : agentMode === 'hr' ? 'BEMS AI HR & Workforce' : agentMode === 'financial' ? 'BEMS AI Financial Assistant' : 'BEMS AI Copilot'}
               </strong>
               {isGroupScope ? (
                 <span
@@ -289,6 +291,24 @@ export function AmbientBottomAiBar({
                     title="Intelligently route to Financial or HR Agent based on question"
                   >
                     ✦ Auto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSetAgentMode('both')}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      fontSize: '10px',
+                      fontWeight: 750,
+                      border: 0,
+                      cursor: 'pointer',
+                      background: agentMode === 'both' ? '#ffffff' : 'transparent',
+                      color: agentMode === 'both' ? '#7c3aed' : '#64748b',
+                      boxShadow: agentMode === 'both' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                    }}
+                    title="Parallel Financial & HR Operations synthesis"
+                  >
+                    ✦ Both
                   </button>
                   <button
                     type="button"

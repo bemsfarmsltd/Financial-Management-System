@@ -42,8 +42,8 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
   const [sessions, setSessions] = useState<any[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('active');
   const [hydratedStorageKey, setHydratedStorageKey] = useState('');
-  const [agentMode, setAgentMode] = useState<'financial' | 'hr' | 'auto'>('auto');
-  const [threadDomain, setThreadDomain] = useState<'financial' | 'hr' | null>(null);
+  const [agentMode, setAgentMode] = useState<'financial' | 'hr' | 'both' | 'auto'>('auto');
+  const [threadDomain, setThreadDomain] = useState<'financial' | 'hr' | 'both' | null>(null);
 
   // Load archived sessions
   const refreshSessions = useCallback(() => {
@@ -248,7 +248,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
       if(!canUseAi)return;
       let effectiveMode = agentMode;
       let isTagLocked = false;
-      const tagMatch = text.trim().match(/^[@/](finance|financial|hr|people|auto)\b\s*/i);
+      const tagMatch = text.trim().match(/^[@/](finance|financial|hr|people|both|all|auto)\b\s*/i);
       let payloadText = text;
       if (tagMatch) {
         const token = tagMatch[1].toLowerCase();
@@ -261,6 +261,10 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
           effectiveMode = 'hr';
           isTagLocked = true;
           setAgentMode('hr');
+        } else if (token === 'both' || token === 'all') {
+          effectiveMode = 'both';
+          isTagLocked = true;
+          setAgentMode('both');
         } else if (token === 'auto') {
           effectiveMode = 'auto';
           isTagLocked = false;

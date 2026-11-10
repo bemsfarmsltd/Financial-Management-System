@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
       currentPage: body.context?.target_element?.page || '',
     });
 
-    const activeAgentMode: 'financial' | 'hr' = routeDecision.domain;
+    const activeAgentMode: 'financial' | 'hr' | 'both' = routeDecision.domain;
     const cleanUserMessage = routeDecision.cleanMessage || message;
     let n8nWebhookUrl = activeAgentMode === 'hr' ? n8nHrWebhookUrl : n8nFinancialWebhookUrl;
     if (!n8nWebhookUrl) n8nWebhookUrl = n8nFinancialWebhookUrl || n8nHrWebhookUrl;
@@ -326,17 +326,73 @@ title: "<Chart Title>"
           'X-BEMS-Delegation-Token': delegationToken,
         };
 
-        const n8nRes = await fetch(n8nWebhookUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(n8nPayload),
-          signal: controller.signal,
-        });
+        let n8nRes: Response | null = null;
+        let n8nData: any = null;
+
+        if (activeAgentMode === 'both' && n8nFinancialWebhookUrl && n8nHrWebhookUrl) {
+          // Parallel Dual-Agent Co-Dispatch
+          const [finResult, hrResult] = await Promise.allSettled([
+            fetch(n8nFinancialWebhookUrl, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                ...n8nPayload,
+                context: { ...n8nPayload.context, agent_mode: 'financial' },
+              }),
+              signal: controller.signal,
+            }).then(async (r) => (r.ok ? r.json() : null)),
+            fetch(n8nHrWebhookUrl, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                ...n8nPayload,
+                context: { ...n8nPayload.context, agent_mode: 'hr' },
+              }),
+              signal: controller.signal,
+            }).then(async (r) => (r.ok ? r.json() : null)),
+          ]);
+
+          const finData = finResult.status === 'fulfilled' ? finResult.value : null;
+          const hrData = hrResult.status === 'fulfilled' ? hrResult.value : null;
+
+          if (finData || hrData) {
+            const finText = finData?.reply || finData?.message || '';
+            const hrText = hrData?.reply || hrData?.message || '';
+
+            let mergedReply = '';
+            if (finText && hrText) {
+              mergedReply = `### ⚡ Financial & Treasury Analysis\n${finText}\n\n---\n\n### 👥 Workforce & HR Operations\n${hrText}`;
+            } else if (finText) {
+              mergedReply = finText;
+            } else {
+              mergedReply = hrText;
+            }
+
+            n8nData = {
+              reply: mergedReply,
+              actionCard: finData?.actionCard || hrData?.actionCard || finData?.staged_action || hrData?.staged_action || null,
+              staged_action: finData?.staged_action || hrData?.staged_action || null,
+              citations: [...(finData?.citations || []), ...(hrData?.citations || [])],
+              quick_replies: [...(finData?.quick_replies || []), ...(hrData?.quick_replies || [])],
+            };
+          }
+        }
+
+        if (!n8nData) {
+          n8nRes = await fetch(n8nWebhookUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(n8nPayload),
+            signal: controller.signal,
+          });
+        }
 
         clearTimeout(timeout);
 
-        if (n8nRes.ok) {
-          const n8nData = await n8nRes.json();
+        if (n8nData || (n8nRes && n8nRes.ok)) {
+          if (!n8nData && n8nRes) {
+            n8nData = await n8nRes.json();
+          }
           const rawReply = n8nData.reply || n8nData.message || 'Workflow executed.';
           const reply = normalizeMarkdownStructure(rawReply);
 
@@ -436,7 +492,7 @@ title: "<Chart Title>"
             quick_replies: n8nData.quick_replies || n8nData.quickReplies || [],
             timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
           });
-        } else {
+        } else if (n8nRes) {
           const errData = await n8nRes.json().catch(() => ({}));
           console.warn(`n8n webhook responded with status ${n8nRes.status}:`, errData);
           if (errData.reply || errData.message) {
