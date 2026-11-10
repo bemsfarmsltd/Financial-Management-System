@@ -37,6 +37,9 @@ const nextConfig: NextConfig = {
       { source: '/api/v1/ai/vendors', destination: '/api/ai/tools/vendors' },
       { source: '/api/ai/vendors', destination: '/api/ai/tools/vendors' },
       { source: '/api/v1/ai/tools/:path*', destination: '/api/ai/tools/:path*' },
+      { source: '/api/v1/tools/:path*', destination: '/api/ai/tools/:path*' },
+      { source: '/api/tools/:path*', destination: '/api/ai/tools/:path*' },
+      { source: '/tools/:path*', destination: '/api/ai/tools/:path*' },
     ], afterFiles: [
       { source: '/api/v1/ai/briefing', destination: '/api/briefing' },
       { source: '/api/v1/staged-actions/:path*', destination: '/api/ai/staged-actions/:path*' },
