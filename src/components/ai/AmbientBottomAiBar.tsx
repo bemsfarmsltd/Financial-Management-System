@@ -896,6 +896,42 @@ export function AmbientBottomAiBar({
               minWidth: 0,
             }}
           >
+            {/* ChatGPT-style + button to quickly open agent menu */}
+            <button
+              type="button"
+              onClick={() => {
+                notifyAiInteraction();
+                if (isMentionActive) {
+                  setIsMenuDismissed(true);
+                } else {
+                  setIsMenuDismissed(false);
+                  if (!inputText.startsWith('/') && !inputText.startsWith('@')) {
+                    setInputText('/' + inputText);
+                  }
+                }
+                inputRef.current?.focus();
+              }}
+              title="Select Agent or Command (/ or @)"
+              style={{
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                border: '1px solid rgba(255, 255, 255, 0.75)',
+                background: isMentionActive ? 'rgba(124, 58, 237, 0.18)' : 'rgba(255, 255, 255, 0.65)',
+                color: isMentionActive ? '#7c3aed' : '#475569',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '13px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                flexShrink: 0,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              +
+            </button>
+
             <input
               ref={inputRef}
               type="text"

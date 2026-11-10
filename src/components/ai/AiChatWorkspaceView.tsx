@@ -451,7 +451,7 @@ export function AiChatWorkspaceView({
           borderRadius: 16,
           border: '1px solid #e2e8f0',
           boxShadow: '0 4px 20px rgba(15, 23, 42, 0.04)',
-          overflow: 'hidden',
+          position: 'relative',
           minHeight: 0,
         }}
       >
@@ -777,11 +777,50 @@ export function AiChatWorkspaceView({
                   selectedIndex={menuIndex}
                   onSelect={handleSelectAgent}
                   onClose={() => setIsMenuDismissed(true)}
+                  style={{
+                    position: 'absolute',
+                    bottom: 'calc(100% + 12px)',
+                    left: 0,
+                    zIndex: 99999,
+                  }}
                 />
               )}
-              <div style={{ position: 'absolute', left: 14, color: '#8b5cf6', pointerEvents: 'none' }}>
-                <Sparkles size={17} />
-              </div>
+
+              {/* ChatGPT-style + button to toggle agent command menu */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isMentionActive) {
+                    setIsMenuDismissed(true);
+                  } else {
+                    setIsMenuDismissed(false);
+                    if (!inputText.startsWith('/') && !inputText.startsWith('@')) {
+                      setInputText('/' + inputText);
+                    }
+                  }
+                  inputRef.current?.focus();
+                }}
+                title="Select Agent or Command (/ or @)"
+                style={{
+                  position: 'absolute',
+                  left: 10,
+                  width: 28,
+                  height: 28,
+                  borderRadius: '8px',
+                  border: isMentionActive ? '1px solid #7c3aed40' : '1px solid #e2e8f0',
+                  background: isMentionActive ? '#f5f3ff' : '#f8fafc',
+                  color: isMentionActive ? '#7c3aed' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  zIndex: 2,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span style={{ fontSize: '15px', fontWeight: 800, lineHeight: 1 }}>+</span>
+              </button>
+
               <input
                 ref={inputRef}
                 type="text"
@@ -795,11 +834,11 @@ export function AiChatWorkspaceView({
                 placeholder={
                   !isChatEnabled
                     ? 'AI chat is currently paused by the administrator in Settings.'
-                    : 'Ask anything, or type @ or / to choose agent (e.g. @finance, @hr)...'
+                    : 'Message BEMS AI, or type / or @ to pick an agent...'
                 }
                 style={{
                   width: '100%',
-                  padding: '13px 16px 13px 44px',
+                  padding: '13px 16px 13px 46px',
                   borderRadius: 12,
                   border: '1.5px solid #cbd5e1',
                   fontSize: '14px',
