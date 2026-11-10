@@ -23,6 +23,7 @@ import { BriefingActionCard } from './cards/BriefingActionCard';
 import { ApprovalDecisionCard } from './cards/ApprovalDecisionCard';
 import { BudgetProposalCard } from './cards/BudgetProposalCard';
 import { SalaryAdjustmentCard } from './cards/SalaryAdjustmentCard';
+import { AgentMentionMenu, AgentOption } from './AgentMentionMenu';
 import { DisbursementRecordCard } from './cards/DisbursementRecordCard';
 import { ScenarioSimulatorCard } from './cards/ScenarioSimulatorCard';
 import { UniversalStagedActionCard } from './cards/UniversalStagedActionCard';
@@ -61,6 +62,8 @@ export function AiChatWorkspaceView({
   onNavigate,
 }: AiChatWorkspaceViewProps) {
   const [inputText, setInputText] = useState('');
+  const [menuIndex, setMenuIndex] = useState(0);
+  const [isMenuDismissed, setIsMenuDismissed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -72,18 +75,82 @@ export function AiChatWorkspaceView({
     currentPage: 'AI Copilot & Chat',
   });
 
-  const { messages, isTyping, sendMessage, handleConfirmAction, handleCancelAction, startNewChat } = aiManager;
+  const { messages, isTyping, sendMessage, handleConfirmAction, handleCancelAction, startNewChat, setAgentMode } = aiManager;
 
   // Auto-scroll when messages update or typing state changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
+  // Mention menu detection for @agent or /agent
+  const mentionMatch = !isMenuDismissed ? inputText.match(/(?:^|\s)([@/])([a-zA-Z]*)$/) : null;
+  const isMentionActive = Boolean(mentionMatch);
+  const mentionPrefix = (mentionMatch?.[1] || '@') as '@' | '/';
+  const mentionFilter = mentionMatch?.[2] || '';
+
+  const handleSelectAgent = (opt: AgentOption) => {
+    setAgentMode(opt.id);
+    const updated = inputText.replace(/(?:^|\s)([@/])([a-zA-Z]*)$/, (match) => {
+      const leadingSpace = match.startsWith(' ') ? ' ' : '';
+      return `${leadingSpace}${opt.tag} `;
+    });
+    setInputText(updated);
+    setIsMenuDismissed(true);
+    inputRef.current?.focus();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isMentionActive) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMenuIndex((prev) => prev + 1);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMenuIndex((prev) => (prev > 0 ? prev - 1 : 2));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        const available = [
+          { id: 'financial', tag: `${mentionPrefix}finance`, label: 'Financial & Treasury Manager', description: '', icon: '⚡', color: '#ea580c', bgLight: '' },
+          { id: 'hr', tag: `${mentionPrefix}hr`, label: 'HR & Workforce Operations', description: '', icon: '👥', color: '#059669', bgLight: '' },
+          { id: 'auto', tag: `${mentionPrefix}auto`, label: 'Auto-Detect Agent', description: '', icon: '✦', color: '#6366f1', bgLight: '' },
+        ].filter(opt => !mentionFilter || opt.tag.includes(mentionFilter.toLowerCase()) || opt.id.includes(mentionFilter.toLowerCase()));
+        if (available.length > 0) {
+          e.preventDefault();
+          const selected = available[menuIndex % available.length];
+          handleSelectAgent(selected as any);
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsMenuDismissed(true);
+        return;
+      }
+    }
+  };
+
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || isTyping || !isChatEnabled) return;
-    sendMessage(inputText.trim());
-    setInputText('');
+    
+    let textToSend = inputText.trim();
+    const tagMatch = textToSend.match(/^[@/](finance|financial|hr|people|auto)\b\s*/i);
+    if (tagMatch) {
+      const token = tagMatch[1].toLowerCase();
+      textToSend = textToSend.slice(tagMatch[0].length).trim();
+      if (token === 'finance' || token === 'financial') setAgentMode('financial');
+      else if (token === 'hr' || token === 'people') setAgentMode('hr');
+      else if (token === 'auto') setAgentMode('auto');
+    }
+
+    if (textToSend) {
+      sendMessage(textToSend);
+      setInputText('');
+      setIsMenuDismissed(false);
+    }
   };
 
   const handlePromptClick = (promptText: string) => {
@@ -682,6 +749,15 @@ export function AiChatWorkspaceView({
                 alignItems: 'center',
               }}
             >
+              {isMentionActive && (
+                <AgentMentionMenu
+                  prefix={mentionPrefix}
+                  filterText={mentionFilter}
+                  selectedIndex={menuIndex}
+                  onSelect={handleSelectAgent}
+                  onClose={() => setIsMenuDismissed(true)}
+                />
+              )}
               <div style={{ position: 'absolute', left: 14, color: '#8b5cf6', pointerEvents: 'none' }}>
                 <Sparkles size={17} />
               </div>
@@ -690,11 +766,15 @@ export function AiChatWorkspaceView({
                 type="text"
                 disabled={!isChatEnabled || isTyping}
                 value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+                onChange={(e) => {
+                  setInputText(e.target.value);
+                  setIsMenuDismissed(false);
+                }}
+                onKeyDown={handleKeyDown}
                 placeholder={
                   !isChatEnabled
                     ? 'AI chat is currently paused by the administrator in Settings.'
-                    : 'Ask anything about requisitions, treasury reserves, budget variances, or financial health…'
+                    : 'Ask anything, or type @ or / to choose agent (e.g. @finance, @hr)...'
                 }
                 style={{
                   width: '100%',

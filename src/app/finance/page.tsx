@@ -4228,9 +4228,19 @@ export default function Home() {
     }
   }, [currentId]);
   const [status,setStatus]=useState<'loading'|'ready'|'error'>('ready');
-  const [showAiEntry, setShowAiEntry] = useState(false);
+  const [showAiEntry, setShowAiEntry] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('bems_show_welcome') === '1';
+    }
+    return false;
+  });
   const canEnterAi=useGmdAccess(user?.role||'');
-  const [entryMode, setEntryMode] = useState<'login' | 'reload'>('reload');
+  const [entryMode, setEntryMode] = useState<'login' | 'reload'>(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('bems_entry_mode') === 'login') {
+      return 'login';
+    }
+    return 'reload';
+  });
 
   const checkAuth = () => {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -4245,7 +4255,12 @@ export default function Home() {
         const nextUser = data?.user as AuthUser | null;
         setUser(nextUser);
         setAuthStatus(nextUser ? 'signed-in' : 'signed-out');
-        setShowAiEntry(false);
+        if (typeof window !== 'undefined' && sessionStorage.getItem('bems_show_welcome') === '1') {
+          setEntryMode('login');
+          setShowAiEntry(true);
+        } else {
+          setShowAiEntry(false);
+        }
       })
       .catch(() => {
         if (timeoutId) clearTimeout(timeoutId);
@@ -4295,6 +4310,10 @@ export default function Home() {
   const onAuthed = (u: AuthUser) => {
     setUser(u);
     setEntryMode('login');
+    try {
+      sessionStorage.setItem('bems_show_welcome', '1');
+      sessionStorage.setItem('bems_entry_mode', 'login');
+    } catch {}
     window.dispatchEvent(new Event('bems-session-changed'));
     setStatus('ready');
     setAuthStatus('signed-in');
@@ -4306,6 +4325,10 @@ export default function Home() {
   };
 
   const signOut = async () => {
+    try {
+      sessionStorage.removeItem('bems_show_welcome');
+      sessionStorage.removeItem('bems_entry_mode');
+    } catch {}
     setShowAiEntry(false);
     setUser(null);
     setAuthStatus('signed-out');
@@ -4406,7 +4429,13 @@ export default function Home() {
     return (
       <AiMotionEntryScreen
         key={`ai-entry-${entryMode}-${user.id}`}
-        onComplete={() => setShowAiEntry(false)}
+        onComplete={() => {
+          try {
+            sessionStorage.removeItem('bems_show_welcome');
+            sessionStorage.removeItem('bems_entry_mode');
+          } catch {}
+          setShowAiEntry(false);
+        }}
         businessName={activeEntryBusiness?.name || "BEMS Group"}
         userName={user.fullName || user.name || 'Executive'}
         userRole={user.role || 'STAFF'}

@@ -246,9 +246,31 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
   const sendMessage = useCallback(
     async (text: string, elementContext?: ElementContextPayload) => {
       if(!canUseAi)return;
+      let effectiveMode = agentMode;
+      let isTagLocked = false;
+      const tagMatch = text.trim().match(/^[@/](finance|financial|hr|people|auto)\b\s*/i);
+      let payloadText = text;
+      if (tagMatch) {
+        const token = tagMatch[1].toLowerCase();
+        payloadText = text.trim().slice(tagMatch[0].length).trim();
+        if (token === 'finance' || token === 'financial') {
+          effectiveMode = 'financial';
+          isTagLocked = true;
+          setAgentMode('financial');
+        } else if (token === 'hr' || token === 'people') {
+          effectiveMode = 'hr';
+          isTagLocked = true;
+          setAgentMode('hr');
+        } else if (token === 'auto') {
+          effectiveMode = 'auto';
+          isTagLocked = false;
+          setAgentMode('auto');
+        }
+      }
+
       const displayContent = elementContext
-        ? `[Re: ${elementContext.label}${elementContext.value ? ` · ${elementContext.value}` : ''}] ${text}`
-        : text;
+        ? `[Re: ${elementContext.label}${elementContext.value ? ` · ${elementContext.value}` : ''}] ${payloadText || text}`
+        : payloadText || text;
 
       const userMsg: AiMessage = {
         id: `user-${Date.now()}`,
@@ -267,7 +289,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            message: text,
+            message: payloadText || text,
             conversation_id: activeSessionId.startsWith(`conv_${accountId}_`) ? activeSessionId : `conv_${accountId}_${crypto.randomUUID()}`,
             history: messages.slice(-4).map((m) => ({
               role: m.sender === 'assistant' ? 'assistant' : 'user',
@@ -276,7 +298,8 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
                 : m.content,
             })),
             context: {
-              agent_mode: agentMode,
+              agent_mode: effectiveMode,
+              is_tag_locked: isTagLocked,
               thread_domain: threadDomain,
               active_business_id: businessId,
               business_name: businessName,

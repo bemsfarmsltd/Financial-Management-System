@@ -123,6 +123,7 @@ export async function POST(req: NextRequest) {
     const routeDecision = resolveAiAgentRoute({
       message,
       explicitMode: body.context?.agent_mode,
+      isTagLocked: body.context?.is_tag_locked === true,
       threadDomain: body.context?.thread_domain,
       history: body.history || [],
       targetElement: body.context?.target_element,
@@ -130,6 +131,7 @@ export async function POST(req: NextRequest) {
     });
 
     const activeAgentMode: 'financial' | 'hr' = routeDecision.domain;
+    const cleanUserMessage = routeDecision.cleanMessage || message;
     let n8nWebhookUrl = activeAgentMode === 'hr' ? n8nHrWebhookUrl : n8nFinancialWebhookUrl;
     if (!n8nWebhookUrl) n8nWebhookUrl = n8nFinancialWebhookUrl || n8nHrWebhookUrl;
 
@@ -261,9 +263,9 @@ export async function POST(req: NextRequest) {
         const webhookSecret = process.env.BEMS_N8N_SHARED_SECRET;
         if (!webhookSecret || Buffer.byteLength(webhookSecret) < 32) throw new Error('Configure the n8n shared secret before enabling the AI integration.');
 
-        let queryText = message;
+        let queryText = cleanUserMessage;
         if (targetElement) {
-          queryText = `[UNTRUSTED_UI_ELEMENT_SNAPSHOT — User clicked UI element: "${targetElement.label}" displaying "${targetElement.value || 'N/A'}" under section "${targetElement.section || 'General'}" on page "${targetElement.page}" for subsidiary "${targetElement.subsidiary}". Verify figures against live BEMS read tools and cite the authoritative source endpoint before stating any number as ledger fact]: ${message}`;
+          queryText = `[UNTRUSTED_UI_ELEMENT_SNAPSHOT — User clicked UI element: "${targetElement.label}" displaying "${targetElement.value || 'N/A'}" under section "${targetElement.section || 'General'}" on page "${targetElement.page}" for subsidiary "${targetElement.subsidiary}". Verify figures against live BEMS read tools and cite the authoritative source endpoint before stating any number as ledger fact]: ${cleanUserMessage}`;
         }
 
         const effectiveRole = hasAnyRole(actor, ['GMD'])

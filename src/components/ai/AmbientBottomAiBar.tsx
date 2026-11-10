@@ -14,6 +14,7 @@ import { ScenarioSimulatorCard } from './cards/ScenarioSimulatorCard';
 import { UniversalStagedActionCard } from './cards/UniversalStagedActionCard';
 import { notifyAiInteraction } from './AiScreenEdgeGlow';
 import { FormattedAiMessage } from './FormattedAiMessage';
+import { AgentMentionMenu, AgentOption } from './AgentMentionMenu';
 
 interface Props {
   currentPage: string;
@@ -59,6 +60,9 @@ export function AmbientBottomAiBar({
   const [isDeckOpen, setIsDeckOpen] = useState(false);
   const [isOrbitActive, setIsOrbitActive] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [menuIndex, setMenuIndex] = useState(0);
+  const [isMenuDismissed, setIsMenuDismissed] = useState(false);
 
   // Auto-stop attention-grabbing orbit 1 minute (60 seconds) after entering the dashboard
   useEffect(() => {
@@ -88,13 +92,79 @@ export function AmbientBottomAiBar({
     }
   }, [messages, isTyping, isDeckOpen]);
 
+  // Mention menu detection for @agent or /agent
+  const mentionMatch = !isMenuDismissed ? inputText.match(/(?:^|\s)([@/])([a-zA-Z]*)$/) : null;
+  const isMentionActive = Boolean(mentionMatch);
+  const mentionPrefix = (mentionMatch?.[1] || '@') as '@' | '/';
+  const mentionFilter = mentionMatch?.[2] || '';
+
+  const handleSelectAgent = (opt: AgentOption) => {
+    if (onSetAgentMode) onSetAgentMode(opt.id);
+    const updated = inputText.replace(/(?:^|\s)([@/])([a-zA-Z]*)$/, (match) => {
+      const leadingSpace = match.startsWith(' ') ? ' ' : '';
+      return `${leadingSpace}${opt.tag} `;
+    });
+    setInputText(updated);
+    setIsMenuDismissed(true);
+    inputRef.current?.focus();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isMentionActive) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMenuIndex((prev) => prev + 1);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMenuIndex((prev) => (prev > 0 ? prev - 1 : 2));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        const available = [
+          { id: 'financial', tag: `${mentionPrefix}finance`, label: 'Financial & Treasury Manager', description: '', icon: '⚡', color: '#ea580c', bgLight: '' },
+          { id: 'hr', tag: `${mentionPrefix}hr`, label: 'HR & Workforce Operations', description: '', icon: '👥', color: '#059669', bgLight: '' },
+          { id: 'auto', tag: `${mentionPrefix}auto`, label: 'Auto-Detect Agent', description: '', icon: '✦', color: '#6366f1', bgLight: '' },
+        ].filter(opt => !mentionFilter || opt.tag.includes(mentionFilter.toLowerCase()) || opt.id.includes(mentionFilter.toLowerCase()));
+        if (available.length > 0) {
+          e.preventDefault();
+          const selected = available[menuIndex % available.length];
+          handleSelectAgent(selected as any);
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsMenuDismissed(true);
+        return;
+      }
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
     notifyAiInteraction();
-    onSendMessage(inputText.trim());
-    setInputText('');
-    setIsDeckOpen(true);
+
+    let textToSend = inputText.trim();
+    const tagMatch = textToSend.match(/^[@/](finance|financial|hr|people|auto)\b\s*/i);
+    if (tagMatch) {
+      const token = tagMatch[1].toLowerCase();
+      textToSend = textToSend.slice(tagMatch[0].length).trim();
+      if (onSetAgentMode) {
+        if (token === 'finance' || token === 'financial') onSetAgentMode('financial');
+        else if (token === 'hr' || token === 'people') onSetAgentMode('hr');
+        else if (token === 'auto') onSetAgentMode('auto');
+      }
+    }
+
+    if (textToSend) {
+      onSendMessage(textToSend);
+      setInputText('');
+      setIsDeckOpen(true);
+      setIsMenuDismissed(false);
+    }
   };
 
   const getSeverityBadgeColor = () => {
@@ -763,65 +833,80 @@ export function AmbientBottomAiBar({
           </button>
         )}
 
-        {/* Direct Transparent Chat Input Bar */}
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            minWidth: 0,
-          }}
-        >
-          <input
-            type="text"
-            placeholder={isTelemetryTyping ? displayText : `Ask AI or instruct: e.g. What needs my attention?`}
-            value={inputText}
-            onChange={(e) => {
-              notifyAiInteraction();
-              setInputText(e.target.value);
-            }}
-            onFocus={() => {
-              notifyAiInteraction();
-              if (messages.length > 1) setIsDeckOpen(true);
-            }}
+        {/* Direct Transparent Chat Input Bar with @ and / Agent Dropdown */}
+        <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', minWidth: 0 }}>
+          {isMentionActive && (
+            <AgentMentionMenu
+              prefix={mentionPrefix}
+              filterText={mentionFilter}
+              selectedIndex={menuIndex}
+              onSelect={handleSelectAgent}
+              onClose={() => setIsMenuDismissed(true)}
+            />
+          )}
+
+          <form
+            onSubmit={handleSubmit}
             style={{
               width: '100%',
-              background: 'rgba(255, 255, 255, 0.55)',
-              border: '1px solid rgba(255, 255, 255, 0.75)',
-              borderRadius: '999px',
-              padding: '3px 12px',
-              height: '26px',
-              fontSize: '11px',
-              color: '#0f172a',
-              outline: 'none',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-              boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.03)',
-            }}
-          />
-
-          <button
-            type="submit"
-            disabled={!inputText.trim() || isTyping}
-            style={{
-              background: inputText.trim() && !isTyping ? 'var(--brand-gradient, linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%))' : 'rgba(255, 255, 255, 0.45)',
-              color: inputText.trim() && !isTyping ? '#ffffff' : '#94a3b8',
-              border: '1px solid rgba(255, 255, 255, 0.60)',
-              borderRadius: '50%',
-              width: '24px',
-              height: '24px',
-              display: 'grid',
-              placeItems: 'center',
-              cursor: inputText.trim() && !isTyping ? 'pointer' : 'default',
-              flexShrink: 0,
-              transition: 'all 0.15s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              minWidth: 0,
             }}
           >
-            <Send size={10} />
-          </button>
-        </form>
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder={isTelemetryTyping ? displayText : `Ask AI or type @ or / to choose agent...`}
+              value={inputText}
+              onChange={(e) => {
+                notifyAiInteraction();
+                setInputText(e.target.value);
+                setIsMenuDismissed(false);
+              }}
+              onKeyDown={handleKeyDown}
+              onFocus={() => {
+                notifyAiInteraction();
+                if (messages.length > 1) setIsDeckOpen(true);
+              }}
+              style={{
+                width: '100%',
+                background: 'rgba(255, 255, 255, 0.55)',
+                border: '1px solid rgba(255, 255, 255, 0.75)',
+                borderRadius: '999px',
+                padding: '3px 12px',
+                height: '26px',
+                fontSize: '11px',
+                color: '#0f172a',
+                outline: 'none',
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+                boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.03)',
+              }}
+            />
+
+            <button
+              type="submit"
+              disabled={!inputText.trim() || isTyping}
+              style={{
+                background: inputText.trim() && !isTyping ? 'var(--brand-gradient, linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%))' : 'rgba(255, 255, 255, 0.45)',
+                color: inputText.trim() && !isTyping ? '#ffffff' : '#94a3b8',
+                border: '1px solid rgba(255, 255, 255, 0.60)',
+                borderRadius: '50%',
+                width: '24px',
+                height: '24px',
+                display: 'grid',
+                placeItems: 'center',
+                cursor: inputText.trim() && !isTyping ? 'pointer' : 'default',
+                flexShrink: 0,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <Send size={10} />
+            </button>
+          </form>
+        </div>
 
         {/* Toggle Deck / Expand Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
