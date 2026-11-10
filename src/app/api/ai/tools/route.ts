@@ -17,6 +17,18 @@ export async function GET(req: NextRequest) {
       isExecutive: actor?.isExecutive,
     },
     availableTools: [
+      {
+        name: 'analytics',
+        endpoint: '/api/ai/tools/analytics',
+        methods: ['GET', 'POST'],
+        description: 'Query live financial analytics (get_financial_analytics), requests/disbursements totals, budget allocation variance, and accountability retiral anomalies.',
+      },
+      {
+        name: 'forecast',
+        endpoint: '/api/ai/tools/forecast',
+        methods: ['GET', 'POST'],
+        description: 'Query live 30-day cash forecasting (get_cash_forecast) across approved unpaid requests, recurring commitments, and active payroll obligations.',
+      },
       {name:'wallet',endpoint:'/api/ai/tools/wallet',methods:['GET','POST'],description:'GMD-only scoped wallet reads and exact staff-request or whole-payroll release staging. No AI approval or withdrawal. Return the wallet_release card for secure human confirmation.'},
       {
         name: 'budgets',

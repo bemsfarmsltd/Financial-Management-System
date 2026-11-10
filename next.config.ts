@@ -20,6 +20,11 @@ const nextConfig: NextConfig = {
       { source: '/uploads/:path*', destination: '/secure-uploads/:path*' },
       { source: '/staff-app', destination: '/staff-app/index.html' },
       { source: '/gmd-app', destination: '/gmd-app/index.html' },
+      { source: '/api/v1/ai/analytics', destination: '/api/ai/tools/analytics' },
+      { source: '/api/v1/ai/forecast', destination: '/api/ai/tools/forecast' },
+      { source: '/api/ai/analytics', destination: '/api/ai/tools/analytics' },
+      { source: '/api/ai/forecast', destination: '/api/ai/tools/forecast' },
+      { source: '/api/v1/ai/tools/:path*', destination: '/api/ai/tools/:path*' },
     ], afterFiles: [
       { source: '/api/v1/ai/briefing', destination: '/api/briefing' },
       { source: '/api/v1/staged-actions/:path*', destination: '/api/ai/staged-actions/:path*' },

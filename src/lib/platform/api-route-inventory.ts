@@ -342,6 +342,13 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
   },
   {
     group: 'ai',
+    apiPath: '/api/ai/tools/analytics',
+    relativeFilePath: 'src/app/api/ai/tools/analytics/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'AI_TOOL',
+  },
+  {
+    group: 'ai',
     apiPath: '/api/ai/tools/approvals',
     relativeFilePath: 'src/app/api/ai/tools/approvals/route.ts',
     declaredMethods: ['GET', 'POST'],
@@ -365,6 +372,13 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     group: 'ai',
     apiPath: '/api/ai/tools/budgets',
     relativeFilePath: 'src/app/api/ai/tools/budgets/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'AI_TOOL',
+  },
+  {
+    group: 'ai',
+    apiPath: '/api/ai/tools/forecast',
+    relativeFilePath: 'src/app/api/ai/tools/forecast/route.ts',
     declaredMethods: ['GET', 'POST'],
     classification: 'AI_TOOL',
   },

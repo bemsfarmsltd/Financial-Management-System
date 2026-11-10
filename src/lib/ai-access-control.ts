@@ -58,6 +58,8 @@ export function resolveScopeFromPathname(pathname: string): AiAccessScopeKey | n
   if (clean === '/api/ai/context' || clean === '/api/ai/tools' || clean === '/api/ai/chat') {
     return 'context';
   }
+  if (clean.startsWith('/api/ai/tools/analytics') || clean === '/api/ai/analytics') return 'context';
+  if (clean.startsWith('/api/ai/tools/forecast') || clean === '/api/ai/forecast') return 'context';
   if (clean.startsWith('/api/ai/tools/wallet')) return 'wallet';
   if (clean.startsWith('/api/ai/tools/approvals')) return 'approvals';
   if (clean.startsWith('/api/ai/tools/requests')) return 'requests';

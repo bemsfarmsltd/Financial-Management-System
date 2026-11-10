@@ -555,17 +555,126 @@ Before linking a disbursement or corporate account:
 
 ---
 
-## 11. System Scope & Boundary Guarantees
+## 12. Tool 18: Financial Analytics (`get_financial_analytics`)
 
-1. **File Upload Exclusion**:
-   - The AI & n8n automation bridge operates strictly on text, numeric, and structured JSON payloads.
-   - All physical file uploads (logos, vendor invoice PDFs, photo receipts, CAC certificates) are performed normally through the web dashboard.
-2. **Approval Staging Guarantee**:
-   - The AI **never directly approves** any fund expenditure.
-   - It stages the action and dispatches a secure authorization card containing deep links to banking apps, USSD dialer strings, and an interactive confirmation button for the GMD.
-3. **Strict 3-Role Architecture**:
-   - Only 3 roles exist in the system: `SUPER_ADMIN`, `GMD`, and `STAFF`.
-   - Staff accounts cannot be onboarded via executive invitations; they register exclusively through the self-service portal/mobile app.
+### Endpoint Details
+- **Method:** `GET` or `POST`
+- **Primary Endpoint:** `/api/ai/tools/analytics`
+- **Aliases & Rewrites:** `/api/ai/analytics`, `/api/v1/ai/analytics`
+- **Authentication:** `Authorization: Bearer <TOKEN>` or `X-BEMS-Delegation-Token: <DELEGATION_TOKEN>`
+- **Query / Body Parameters:**
+  - `organization_id` / `subsidiaryId` (string, optional, default `"ALL"`): Subsidiary UUID or `"ALL"` for group-wide.
+  - `dataset` (string, optional, default `"all"`): `"all"` | `"requests"` | `"disbursements"` | `"budgets"`.
+
+### cURL Example
+```bash
+curl -X GET "https://bemserp.work/api/ai/tools/analytics?subsidiaryId=ALL" \
+  -H "Authorization: Bearer 7095ec2348ee3a4ca855707cec7bab8a697f0de4aad3f93f0e545d82bba8e9a8"
+```
+
+### Response Schema
+```json
+{
+  "ok": true,
+  "tool": "get_financial_analytics",
+  "dataset": "all",
+  "scope": {
+    "isGroup": true,
+    "targetOrganizationId": "ALL",
+    "authorizedCount": 6
+  },
+  "totals": {
+    "requests_sum": 99700,
+    "requests_count": 4,
+    "disbursed_sum": 0,
+    "disbursed_count": 0,
+    "budget_allocated": 0
+  },
+  "grouped": {
+    "Operational Materials & Consumables": 99200,
+    "OFFICE_EXPENSE": 500
+  },
+  "variance_vs_budget": "0%",
+  "anomalies": [],
+  "as_of": "2026-11-10T13:25:15.426Z"
+}
+```
+
+---
+
+## 13. Tool 19: 30-Day Cash Forecast (`get_cash_forecast`)
+
+### Endpoint Details
+- **Method:** `GET` or `POST`
+- **Primary Endpoint:** `/api/ai/tools/forecast`
+- **Aliases & Rewrites:** `/api/ai/forecast`, `/api/v1/ai/forecast`
+- **Authentication:** `Authorization: Bearer <TOKEN>` or `X-BEMS-Delegation-Token: <DELEGATION_TOKEN>`
+- **Query / Body Parameters:**
+  - `horizon_days` (number, optional, default `30`): Forecasting horizon window between 1 and 365 days.
+  - `organization_id` / `subsidiaryId` (string, optional, default `"ALL"`): Subsidiary UUID or `"ALL"` for group-wide.
+
+### cURL Example
+```bash
+curl -X GET "https://bemserp.work/api/ai/tools/forecast?horizon_days=30" \
+  -H "Authorization: Bearer 7095ec2348ee3a4ca855707cec7bab8a697f0de4aad3f93f0e545d82bba8e9a8"
+```
+
+### Response Schema
+```json
+{
+  "ok": true,
+  "tool": "get_cash_forecast",
+  "source": "LIVE_LEDGER",
+  "horizon_days": 30,
+  "scope": {
+    "isGroup": true,
+    "targetOrganizationId": "ALL",
+    "authorizedCount": 6
+  },
+  "forecast": {
+    "approved_unpaid_requests": {
+      "count": 1,
+      "total": 500,
+      "items": [
+        {
+          "number": "REQ-2026-0001",
+          "title": "Test Requisition",
+          "amount": 500,
+          "currency": "NGN"
+        }
+      ]
+    },
+    "recurring_commitments": {
+      "count": 3,
+      "total": 99200,
+      "items": [
+        {
+          "title": "N8N Hostinger",
+          "amount": 31200,
+          "interval": "MONTHLY"
+        },
+        {
+          "title": "Claude Subscription",
+          "amount": 27000,
+          "interval": "MONTHLY"
+        },
+        {
+          "title": "Api Tokens",
+          "amount": 41000,
+          "interval": "MONTHLY"
+        }
+      ]
+    },
+    "payroll_obligations": {
+      "headcount": 28,
+      "estimated_total": 2445000
+    },
+    "total_cash_required": 2544700
+  },
+  "as_of": "2026-11-10T13:25:25.694Z"
+}
+```
+
 
 
 
