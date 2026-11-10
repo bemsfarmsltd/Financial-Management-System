@@ -3145,6 +3145,7 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
           role: invitation.role,
           subsidiaryName: subsidiary.legalName,
           expiresAt: invitation.expiresAt.toISOString(),
+          token: invitation.token,
         };
       }
     } else if (action.actionType === 'subsidiary_creation') {
@@ -4870,7 +4871,7 @@ export async function executeDashboardCommand(
   const hrAuthorized = hrScope?.authorized && (actionType === 'leave_action' || hrScope.isGlobal || ((materialPayload.organization_id || materialPayload.organizationId) && hrScope.subsidiaryIds.includes(materialPayload.organization_id || materialPayload.organizationId)));
   const selfTaskUpdate = role === 'STAFF' && actionType === 'task_action' && ['COMPLETE_TASK', 'REOPEN_TASK'].includes(String(materialPayload.sub_action));
   if (!role || (!descriptor?.allowedCallerRoles.includes(role) && !hrAuthorized && !selfTaskUpdate)) throw new StagedPermissionError('This dashboard operation is not permitted for the selected workspace.');
-  return prisma.$transaction(async tx => {
+  const resultRecord = await prisma.$transaction(async tx => {
     const liveActor = await tx.employee.findUnique({ where: { id: actor.id } });
     if (!liveActor || liveActor.status !== 'ACTIVE' || liveActor.approvalStatus !== 'APPROVED' || normalizeCanonicalRole(liveActor.role) !== role) throw new StagedPermissionError('Your account is no longer authorized.');
     const id = crypto.randomUUID();
@@ -4880,4 +4881,13 @@ export async function executeDashboardCommand(
     });
     return result.resultRecord;
   }, { timeout: 20000, isolationLevel: 'Serializable' });
+
+  // Dispatched immediately post-commit so email deliveries are processed without delay
+  try {
+    await processDeliveryOutbox();
+  } catch (err) {
+    console.warn('[DashboardCommand] Delivery outbox post-commit processing deferred:', err);
+  }
+
+  return resultRecord;
 }

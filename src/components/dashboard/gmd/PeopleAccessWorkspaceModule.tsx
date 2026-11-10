@@ -262,6 +262,10 @@ export function PeopleAccessWorkspaceModule({
   };
 
   const copyInviteLink = async (token: string, id: string) => {
+    if (!token || token === 'undefined') {
+      setNotice('Unable to copy link: Token is missing. Click "Resend Email" to generate a fresh link.');
+      return;
+    }
     const url = `${typeof window !== 'undefined' ? window.location.origin : 'https://bemserp.work'}/onboard?token=${encodeURIComponent(token)}`;
     try {
       await navigator.clipboard.writeText(url);

@@ -104,6 +104,7 @@ export async function GET(request: Request) {
         departmentId: true,
         positionName: true,
         invitedById: true,
+        token: true,
         status: true,
         expiresAt: true,
         createdAt: true,
