@@ -83,54 +83,27 @@ export async function POST(request: Request) {
 
     // Atomic execution of release to staff wallet
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Resolve or establish subsidiary funded budget envelope
-      let [envelope] = await tx.$queryRaw<any[]>`
+      // 1. Resolve active subsidiary funded budget envelope
+      const [envelope] = await tx.$queryRaw<any[]>`
         SELECT * FROM "WalletBudgetEnvelope"
         WHERE "organizationId" = ${req.subsidiaryId}
           AND "status" = 'ACTIVE'
-          AND "remainingMinor" >= ${req.amountMinor}
         ORDER BY "remainingMinor" DESC, "createdAt" ASC
         LIMIT 1
       `;
 
       if (!envelope) {
-        // Look for any active envelope for this subsidiary
-        const [anyEnvelope] = await tx.$queryRaw<any[]>`
-          SELECT * FROM "WalletBudgetEnvelope"
-          WHERE "organizationId" = ${req.subsidiaryId}
-            AND "status" = 'ACTIVE'
-          LIMIT 1
-        `;
+        throw new Error(
+          `NO_BUDGET_ENVELOPE:No active funded budget envelope exists for ${req.subsidiary.legalName || 'this subsidiary'}. An executive must allocate a funded budget envelope before releasing funds.`
+        );
+      }
 
-        if (anyEnvelope) {
-          // Increase capacity to cover this approved release
-          const topUp = req.amountMinor * BigInt(2);
-          await tx.$executeRaw`
-            UPDATE "WalletBudgetEnvelope"
-            SET "remainingMinor" = "remainingMinor" + ${topUp},
-                "allocatedMinor" = "allocatedMinor" + ${topUp},
-                "version" = "version" + 1
-            WHERE "id" = ${anyEnvelope.id}
-          `;
-          [envelope] = await tx.$queryRaw<any[]>`
-            SELECT * FROM "WalletBudgetEnvelope" WHERE "id" = ${anyEnvelope.id}
-          `;
-        } else {
-          // Provision default subsidiary operational envelope
-          const envId = randomUUID();
-          const baseAllocation = req.amountMinor > BigInt(50000000) ? req.amountMinor * BigInt(3) : BigInt(100000000); // min ₦1M
-          await tx.$executeRaw`
-            INSERT INTO "WalletBudgetEnvelope" (
-              "id", "organizationId", "label", "allocatedMinor", "remainingMinor", "createdById", "idempotencyKey", "status"
-            ) VALUES (
-              ${envId}, ${req.subsidiaryId}, ${req.subsidiary.legalName + ' Operational Funded Budget'},
-              ${baseAllocation}, ${baseAllocation}, ${actor.id}, ${'auto-env-' + req.subsidiaryId + '-' + envId}, 'ACTIVE'
-            )
-          `;
-          [envelope] = await tx.$queryRaw<any[]>`
-            SELECT * FROM "WalletBudgetEnvelope" WHERE "id" = ${envId}
-          `;
-        }
+      if (BigInt(envelope.remainingMinor) < req.amountMinor) {
+        const availableFormatted = '₦' + (Number(envelope.remainingMinor) / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+        const requiredFormatted = '₦' + (Number(req.amountMinor) / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+        throw new Error(
+          `INSUFFICIENT_BUDGET_BUFFER:Insufficient funded budget in envelope "${envelope.label}". Available: ${availableFormatted}, Required: ${requiredFormatted}. Please top up or allocate additional funded budget before releasing funds.`
+        );
       }
 
       // 2. Decrement envelope capacity
@@ -318,8 +291,29 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     console.error('Wallet release approval error:', error);
+    const msg = error?.message || 'Failed to release funds to staff wallet.';
+    if (msg.startsWith('NO_BUDGET_ENVELOPE:')) {
+      return NextResponse.json(
+        {
+          error: msg.replace('NO_BUDGET_ENVELOPE:', ''),
+          code: 'NO_BUDGET_ENVELOPE',
+          allocateUrl: '/finance?tab=Wallets+%26+funded+budgets',
+        },
+        { status: 422 }
+      );
+    }
+    if (msg.startsWith('INSUFFICIENT_BUDGET_BUFFER:')) {
+      return NextResponse.json(
+        {
+          error: msg.replace('INSUFFICIENT_BUDGET_BUFFER:', ''),
+          code: 'INSUFFICIENT_BUDGET_BUFFER',
+          allocateUrl: '/finance?tab=Wallets+%26+funded+budgets',
+        },
+        { status: 422 }
+      );
+    }
     return NextResponse.json(
-      { error: error?.message || 'Failed to release funds to staff wallet.' },
+      { error: msg },
       { status: 500 }
     );
   }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   Wallet,
   CheckCircle2,
@@ -49,6 +50,8 @@ export const ReleaseToStaffWalletModal: React.FC<ReleaseToStaffWalletModalProps>
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [allocateUrl, setAllocateUrl] = useState<string | null>(null);
   const [copiedWallet, setCopiedWallet] = useState(false);
   const [successReceipt, setSuccessReceipt] = useState<any | null>(null);
 
@@ -73,6 +76,8 @@ export const ReleaseToStaffWalletModal: React.FC<ReleaseToStaffWalletModalProps>
     try {
       setSubmitting(true);
       setError(null);
+      setErrorCode(null);
+      setAllocateUrl(null);
 
       const res = await fetch('/api/wallet/releases/approve-request', {
         method: 'POST',
@@ -86,6 +91,8 @@ export const ReleaseToStaffWalletModal: React.FC<ReleaseToStaffWalletModalProps>
 
       const resJson = await res.json();
       if (!res.ok) {
+        setErrorCode(resJson.code || null);
+        setAllocateUrl(resJson.allocateUrl || null);
         throw new Error(resJson.error || 'Failed to authorize wallet release.');
       }
 
@@ -101,6 +108,8 @@ export const ReleaseToStaffWalletModal: React.FC<ReleaseToStaffWalletModalProps>
     setPassword('');
     setNote('');
     setError(null);
+    setErrorCode(null);
+    setAllocateUrl(null);
     setSuccessReceipt(null);
     onSuccess();
     onClose();
@@ -201,9 +210,36 @@ export const ReleaseToStaffWalletModal: React.FC<ReleaseToStaffWalletModalProps>
           /* STATE 1: AUTHORIZATION FORM */
           <form onSubmit={handleAuthorizeRelease} className="p-6 space-y-4">
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2 text-xs text-red-700 animate-in fade-in">
-                <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
-                <span>{error}</span>
+              <div
+                className={`rounded-xl p-3.5 text-xs animate-in fade-in ${
+                  errorCode === 'NO_BUDGET_ENVELOPE' || errorCode === 'INSUFFICIENT_BUDGET_BUFFER'
+                    ? 'bg-amber-50 border border-amber-200 text-amber-900'
+                    : 'bg-red-50 border border-red-200 text-red-700'
+                }`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle
+                    className={`w-4 h-4 shrink-0 mt-0.5 ${
+                      errorCode === 'NO_BUDGET_ENVELOPE' || errorCode === 'INSUFFICIENT_BUDGET_BUFFER'
+                        ? 'text-amber-600'
+                        : 'text-red-500'
+                    }`}
+                  />
+                  <div className="flex-1 space-y-2">
+                    <p className="leading-relaxed font-medium">{error}</p>
+                    {allocateUrl && (
+                      <div>
+                        <Link
+                          href={allocateUrl}
+                          onClick={onClose}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#ea580c] hover:bg-orange-600 text-white font-bold rounded-lg text-[11px] shadow-sm transition-all"
+                        >
+                          Allocate Funded Budget →
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
