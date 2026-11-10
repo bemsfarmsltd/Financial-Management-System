@@ -6,6 +6,7 @@ export interface ElementContextPayload {
   section?: string;
   page: string;
   subsidiary: string;
+  domain?: 'hr' | 'finance';
   tableColumn?: string;
   tableRowIdentifier?: string;
   surroundingText?: string;
@@ -18,6 +19,11 @@ export function harvestElementContext(
   subsidiaryName: string
 ): ElementContextPayload {
   const rawText = (target.innerText || target.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 400);
+
+  // 0. Detect explicit data-ai-domain on target or nearest ancestor container
+  const domainEl = target.closest('[data-ai-domain]');
+  const domainAttr = domainEl?.getAttribute('data-ai-domain')?.toLowerCase();
+  const domain: 'hr' | 'finance' | undefined = domainAttr === 'hr' ? 'hr' : domainAttr === 'finance' ? 'finance' : undefined;
 
   // 1. Detect monetary or numeric values
   const amountMatch = rawText.match(/(₦[\d,]+(?:\.\d+)?(?:m|k|b)?)/i) || rawText.match(/(\b\d+(?:[\d,]*\d)?\b)/);
@@ -103,6 +109,7 @@ export function harvestElementContext(
     section: sectionTitle || currentPage,
     page: currentPage,
     subsidiary: subsidiaryName,
+    domain,
     tableColumn,
     tableRowIdentifier,
     surroundingText: target.parentElement?.innerText?.trim().replace(/\s+/g, ' ').slice(0, 250),

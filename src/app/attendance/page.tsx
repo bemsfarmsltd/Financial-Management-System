@@ -763,7 +763,7 @@ export default function AttendanceDeskPage() {
 
 
       {/* Main Content Container */}
-      <main style={{ maxWidth: '1280px', width: '100%', margin: '0 auto', padding: '24px 32px', flex: 1 }}>
+      <main data-ai-domain="hr" style={{ maxWidth: '1280px', width: '100%', margin: '0 auto', padding: '24px 32px', flex: 1 }}>
         {/* Starlink Wi-Fi & Power Outage Emergency Control Strip */}
         <div
           style={{

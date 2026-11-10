@@ -355,7 +355,7 @@ export default function FundingView({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0, paddingBottom: '24px' }}>
+    <div data-ai-domain="finance" style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0, paddingBottom: '24px' }}>
       {/* Toast Notice */}
       {notice && (
         <div

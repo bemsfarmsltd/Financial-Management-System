@@ -185,7 +185,7 @@ export function ReceiptArchiveModule({ setNotice, scope }: { setNotice: (message
   };
 
   return (
-    <>
+    <div data-ai-domain="finance">
       <PageHeading
         eyebrow="AUDIT & PAYMENT EVIDENCE"
         title="Receipt Archive"
@@ -785,7 +785,7 @@ export function ReceiptArchiveModule({ setNotice, scope }: { setNotice: (message
           </section>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -1406,7 +1406,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
   const payrollCount = rows.filter((s) => s.employmentAgreements?.[0]?.compensations?.length).length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0, paddingBottom: 24 }}>
+    <div data-ai-domain="hr" style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0, paddingBottom: 24 }}>
       {/* 1. Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
@@ -3634,7 +3634,7 @@ export function IntercompanyModule({ setNotice, scope }: { setNotice: (message: 
   }, [notes, filter, query]);
 
   return (
-    <>
+    <div data-ai-domain="finance">
       <PageHeading
         eyebrow="INTERCOMPANY ACCOUNTING"
         title="Intercompany Notes"
@@ -4385,7 +4385,7 @@ export function IntercompanyModule({ setNotice, scope }: { setNotice: (message: 
           </section>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

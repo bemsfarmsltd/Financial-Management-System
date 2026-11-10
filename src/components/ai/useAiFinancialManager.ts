@@ -43,6 +43,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
   const [activeSessionId, setActiveSessionId] = useState<string>('active');
   const [hydratedStorageKey, setHydratedStorageKey] = useState('');
   const [agentMode, setAgentMode] = useState<'financial' | 'hr' | 'auto'>('auto');
+  const [threadDomain, setThreadDomain] = useState<'financial' | 'hr' | null>(null);
 
   // Load archived sessions
   const refreshSessions = useCallback(() => {
@@ -166,6 +167,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
     }
 
     setActiveSessionId(`conv_${accountId}_${crypto.randomUUID()}`);
+    setThreadDomain(null);
     setMessages([
       {
         id: `msg-welcome-${Date.now()}`,
@@ -275,6 +277,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
             })),
             context: {
               agent_mode: agentMode,
+              thread_domain: threadDomain,
               active_business_id: businessId,
               business_name: businessName,
               is_group_scope: isGroupScope,
@@ -286,6 +289,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
         if (res.ok) {
           const data = await res.json();
           if (data.conversation_id) setActiveSessionId(data.conversation_id);
+          if (data.thread_domain) setThreadDomain(data.thread_domain);
           const rawAction = data.actionCard || data.staged_action;
           let actionCard: any = undefined;
 
@@ -691,5 +695,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
     ensureFreshSession,
     agentMode,
     setAgentMode,
+    threadDomain,
+    setThreadDomain,
   };
 }

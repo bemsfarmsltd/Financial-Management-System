@@ -14,6 +14,7 @@ import { enforceMobileVersionGate } from '@/lib/mobile-gate';
 import { checkAiScopeOrResponse } from '@/lib/ai-access-control';
 import { createScopedAutomationToken, normalizeCanonicalRole } from '@/lib/platform/actor-scope';
 import { redactUntrustedAndSensitiveFields } from '@/lib/platform/read-catalog';
+import { resolveAiAgentRoute } from '@/lib/ai-intent-router';
 
 function formatNaira(amount: number): string {
   return new Intl.NumberFormat('en-NG', {
@@ -118,60 +119,19 @@ export async function POST(req: NextRequest) {
     const n8nFinancialWebhookUrl = process.env.N8N_AI_WEBHOOK_URL || 'https://n8n.srv2065537.hstgr.cloud/webhook/bems-financial-manager';
     const n8nHrWebhookUrl = process.env.N8N_HR_WEBHOOK_URL || 'https://n8n.srv2065537.hstgr.cloud/webhook/bems-hr-operations';
 
-    // Detect agent domain (Financial Manager vs. HR & Workforce Operations)
-    const explicitAgentMode = String(body.context?.agent_mode || '').toLowerCase(); // 'hr' | 'financial' | 'auto'
-    const targetPage = String(body.context?.target_element?.page || '').toLowerCase();
-    const isHrPage = targetPage.includes('hr') || targetPage.includes('attendance') || targetPage.includes('staff');
+    // Intelligent Dual-Agent Intent Resolution (NLP Lexicon, DOM Domain Tagging, Sticky Affinity & Cross-Domain)
+    const routeDecision = resolveAiAgentRoute({
+      message,
+      explicitMode: body.context?.agent_mode,
+      threadDomain: body.context?.thread_domain,
+      history: body.history || [],
+      targetElement: body.context?.target_element,
+      currentPage: body.context?.target_element?.page || '',
+    });
 
-    const HR_KEYWORDS = [
-      'attend', 'attendance', 'attendacne', 'present', 'presence', 'absent', 'absence',
-      'who is at work', 'who came', 'who clocked', 'clock', 'clock in', 'clock out', 'clock-in', 'clock-out',
-      'roster', 'lateness', 'late', 'early', 'shift', 'resumption', 'punctual',
-      'leave', 'sick leave', 'annual leave', 'maternity', 'casual leave', 'excuse', 'overtime',
-      'staff directory', 'workforce', 'headcount', 'employee', 'employees', 'dossier', 'staff list',
-      'helpdesk', 'support ticket', 'onboard admin', 'executive invitation', 'hr policy'
-    ];
-
-    const FINANCIAL_KEYWORDS = [
-      'budget', 'bank', 'cash', 'balance', 'reconcil', 'expenditure', 'requisition',
-      'monnify', 'ledger', 'payout', 'disburse', 'wallet', 'vendor', 'invoice',
-      'debit note', 'credit note', 'treasury', 'burn rate', 'revenue', 'profit',
-      'funding pool', 'req-', 'purchase order'
-    ];
-
-    const hasFinancialIntent = FINANCIAL_KEYWORDS.some((kw) => normalized.includes(kw));
-
-    // Multi-turn conversation context inspection for thread continuity
-    const historyList = Array.isArray(body.history) ? body.history : [];
-    const lastAssistantMsg = [...historyList].reverse().find((h: any) => h.role === 'assistant')?.content || '';
-    const lastUserMsg = [...historyList].reverse().find((h: any) => h.role === 'user')?.content || '';
-    const priorContextText = `${lastAssistantMsg} ${lastUserMsg}`.toLowerCase();
-    const priorContextHadHr = HR_KEYWORDS.some((kw) => priorContextText.includes(kw));
-
-    const isConversationalFollowUp = normalized.length < 75 && (
-      normalized.startsWith('yes') || normalized.startsWith('no') ||
-      normalized.includes('look into') || normalized.includes('tell me') ||
-      normalized.includes('why') || normalized.includes('go ahead') ||
-      normalized.includes('proceed') || normalized.includes('continue') ||
-      normalized.includes('check') || normalized.includes('excuse') ||
-      normalized.includes('message') || normalized.includes('what about') ||
-      normalized.includes('explain') || normalized.includes('more') ||
-      normalized.includes('sure') || normalized.includes('please')
-    );
-
-    const isHrIntent = HR_KEYWORDS.some((kw) => normalized.includes(kw)) ||
-      (!hasFinancialIntent && priorContextHadHr && (isConversationalFollowUp || !hasFinancialIntent));
-
-    let n8nWebhookUrl = n8nFinancialWebhookUrl;
-    let activeAgentMode: 'financial' | 'hr' = 'financial';
-
-    if (n8nHrWebhookUrl && (explicitAgentMode === 'hr' || (explicitAgentMode !== 'financial' && (isHrPage || isHrIntent)))) {
-      n8nWebhookUrl = n8nHrWebhookUrl;
-      activeAgentMode = 'hr';
-    } else if (!n8nFinancialWebhookUrl && n8nHrWebhookUrl) {
-      n8nWebhookUrl = n8nHrWebhookUrl;
-      activeAgentMode = 'hr';
-    }
+    const activeAgentMode: 'financial' | 'hr' = routeDecision.domain;
+    let n8nWebhookUrl = activeAgentMode === 'hr' ? n8nHrWebhookUrl : n8nFinancialWebhookUrl;
+    if (!n8nWebhookUrl) n8nWebhookUrl = n8nFinancialWebhookUrl || n8nHrWebhookUrl;
 
     if (n8nWebhookUrl && actor) {
       try {
@@ -328,6 +288,9 @@ export async function POST(req: NextRequest) {
           timestamp: new Date().toISOString(),
           context: {
             agent_mode: activeAgentMode,
+            thread_domain: activeAgentMode,
+            is_cross_domain: routeDecision.isCrossDomain,
+            routing_reason: routeDecision.reason,
             active_business_id: scopedOrgId || '',
             active_business_name: scopedOrgName,
             is_group_scope: isGroupScope,
@@ -459,6 +422,9 @@ title: "<Chart Title>"
           return NextResponse.json({
             conversation_id: sessionId,
             agent_mode: activeAgentMode,
+            thread_domain: activeAgentMode,
+            is_cross_domain: routeDecision.isCrossDomain,
+            routing_reason: routeDecision.reason,
             message: isReadOnlyUser && n8nData.staged_action
               ? `${reply}\n\n*(Note: Staged actions suppressed — read-only informational access).*`
               : reply,

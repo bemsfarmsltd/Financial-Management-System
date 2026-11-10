@@ -406,7 +406,7 @@ export function PeopleAccessWorkspaceModule({
   }, [pendingInvitations, searchQuery]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', minWidth: 0, paddingBottom: 24 }}>
+    <div data-ai-domain="hr" style={{ display: 'flex', flexDirection: 'column', gap: '24px', minWidth: 0, paddingBottom: 24 }}>
       {/* 1. Executive Top Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
