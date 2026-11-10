@@ -130,7 +130,7 @@ export async function GET(request: Request) {
 
       const seenOrgEmpIds = new Set<string>();
       const orgStaff = assignments
-        .filter((a) => a.subsidiaryId === org.id)
+        .filter((a) => a.subsidiaryId === org.id && a.employee.role === 'STAFF')
         .filter((a) => {
           if (seenOrgEmpIds.has(a.employee.id)) return false;
           seenOrgEmpIds.add(a.employee.id);
@@ -150,6 +150,29 @@ export async function GET(request: Request) {
             status: a.employee.status || 'ACTIVE',
             employmentType: 'Full-Time Permanent',
             intercompanySplit: a.isPrimary ? 'Primary (100%)' : 'Secondary Split (Cost-share)',
+          };
+        });
+
+      const seenOrgLeaderIds = new Set<string>();
+      const orgLeadership = assignments
+        .filter((a) => a.subsidiaryId === org.id && a.employee.role !== 'STAFF')
+        .filter((a) => {
+          if (seenOrgLeaderIds.has(a.employee.id)) return false;
+          seenOrgLeaderIds.add(a.employee.id);
+          return true;
+        })
+        .map((a) => {
+          return {
+            id: a.employee.id,
+            employeeNumber: a.employee.employeeNumber,
+            name: a.employee.legalName,
+            email: a.employee.workEmail,
+            phone: a.employee.phone || null,
+            role: a.employee.role,
+            positionName: a.positionName || (a.employee.role === 'GMD' ? 'Group Managing Director' : 'Super Admin'),
+            departmentName: a.department?.name || 'Executive Directorate',
+            departmentCode: a.department?.code || 'EXEC',
+            status: a.employee.status || 'ACTIVE',
           };
         });
 
@@ -180,6 +203,9 @@ export async function GET(request: Request) {
         headquarters: 'Lagos, Nigeria',
         lead,
         headcount: actualHeadcount,
+        adminCount: orgLeadership.length,
+        staff: orgStaff,
+        leadership: orgLeadership,
         budget: totalBudget,
         spent: totalSpent,
         approvedUnpaid: totalCommitted,
@@ -195,7 +221,6 @@ export async function GET(request: Request) {
           { id: `${org.id}-d1`, name: 'Operations & Execution', code: 'OPS' },
           { id: `${org.id}-d2`, name: 'Finance & Compliance', code: 'FIN' },
         ],
-        staff: orgStaff,
         bankAccounts,
         recentRequests: recentReqs,
       };
@@ -222,13 +247,10 @@ export async function GET(request: Request) {
       },
     }));
 
-    const activeStaffAssignments = assignments.filter(
-      (a) => a.employee.role === 'STAFF' && a.employee.status === 'ACTIVE'
-    );
-    const uniqueStaffIds = new Set(activeStaffAssignments.map((a) => a.employee.id));
     const totalGroupBudget = portfolio.reduce((acc, p) => acc + p.budget, 0);
     const totalGroupSpent = portfolio.reduce((acc, p) => acc + p.spent, 0);
     const totalGroupHeadcount = portfolio.reduce((acc, p) => acc + p.headcount, 0);
+    const totalExecutiveAdmins = assignments.filter((a) => a.employee.role !== 'STAFF').length;
     const totalIntercompanyVolume = serializedNotes.reduce((acc, n) => acc + n.amountNaira, 0);
 
     return NextResponse.json({
@@ -236,6 +258,8 @@ export async function GET(request: Request) {
         totalCompanies: portfolio.length,
         totalOrganizations: portfolio.length,
         totalGroupHeadcount,
+        totalGroupStaff: totalGroupHeadcount,
+        totalExecutiveAdmins,
         totalGroupBudget,
         totalGroupSpent,
         totalIntercompanyVolume,

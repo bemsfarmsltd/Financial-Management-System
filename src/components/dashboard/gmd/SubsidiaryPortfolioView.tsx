@@ -84,6 +84,7 @@ interface SubsidiaryItem {
     email: string;
   };
   headcount: number;
+  adminCount?: number;
   budget: number;
   spent: number;
   approvedUnpaid: number;
@@ -97,6 +98,7 @@ interface SubsidiaryItem {
   netIntercompanyAmount: number;
   departments?: DepartmentItem[];
   staff?: StaffMemberItem[];
+  leadership?: StaffMemberItem[];
   bankAccounts?: BankAccountItem[];
   recentRequests?: RecentRequestItem[];
 }
@@ -126,6 +128,7 @@ interface PortfolioData {
   summary: {
     totalCompanies: number;
     totalGroupHeadcount: number;
+    totalExecutiveAdmins?: number;
     totalGroupBudget: number;
     totalGroupSpent: number;
     totalIntercompanyVolume: number;
@@ -598,10 +601,12 @@ export function SubsidiaryPortfolioView({
             <Users size={14} style={{ color: '#7158de' }} />
           </div>
           <div style={{ fontSize: '19px', fontWeight: '800', color: '#0f172a', marginBottom: '2px', letterSpacing: '-0.02em' }}>
-            {summary.totalGroupHeadcount} Employees
+            {summary.totalGroupHeadcount} Active Staff
           </div>
           <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '500' }}>
-            {summary.totalGroupHeadcount > 0 ? `${summary.totalGroupHeadcount} Registered Staff` : 'No staff profiles registered yet'}
+            {summary.totalGroupHeadcount > 0
+              ? `${summary.totalGroupHeadcount} Active in Roster · ${summary.totalExecutiveAdmins || 2} Executive Admins`
+              : 'No staff profiles registered yet'}
           </div>
         </div>
 
@@ -835,6 +840,26 @@ export function SubsidiaryPortfolioView({
                       <Users size={11} style={{ color: '#64748b' }} />
                       <span>{sub.headcount} Staff</span>
                     </div>
+
+                    {Boolean(sub.adminCount && sub.adminCount > 0) && (
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          background: '#fff7ed',
+                          border: '1px solid #fed7aa',
+                          padding: '3px 7px',
+                          borderRadius: '6px',
+                          fontSize: '10px',
+                          color: '#c2410c',
+                          fontWeight: '700',
+                        }}
+                      >
+                        <ShieldCheck size={11} style={{ color: '#ea580c' }} />
+                        <span>{sub.adminCount} Admins</span>
+                      </div>
+                    )}
 
                     <div
                       style={{
@@ -2421,6 +2446,27 @@ export function SubsidiaryPortfolioView({
                           <span>Registration: {dossierSub.rcNumber || 'RC-1849201'}</span>
                         </div>
                       </div>
+
+                      {Boolean(dossierSub.leadership && dossierSub.leadership.length > 0) && (
+                        <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+                          <span style={{ fontSize: '9px', fontWeight: '800', color: '#c2410c', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                            Assigned Executive Administrators ({dossierSub.leadership?.length})
+                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {dossierSub.leadership?.map((admin) => (
+                              <div key={admin.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #fed7aa', fontSize: '11px' }}>
+                                <div>
+                                  <strong style={{ color: '#0f172a', display: 'block' }}>{admin.name}</strong>
+                                  <span style={{ fontSize: '10px', color: '#64748b' }}>{admin.email}</span>
+                                </div>
+                                <span style={{ fontSize: '9px', fontWeight: '750', padding: '2px 6px', borderRadius: '4px', background: '#ffedd5', color: '#ea580c' }}>
+                                  {admin.role === 'GMD' ? 'GMD' : 'SUPER ADMIN'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* DEPARTMENTS LIST */}
