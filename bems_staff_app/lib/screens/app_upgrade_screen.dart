@@ -236,6 +236,32 @@ class StaffAppUpgradeScreen extends StatelessWidget {
 
                   const SizedBox(height: 12),
 
+                  // Conflict / Signature advisory
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('💡', style: TextStyle(fontSize: 14)),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'If installation says "app already exists / conflicting package", simply uninstall the old BEMS app first, then install this APK.',
+                            style: TextStyle(fontSize: 11, color: Color(0xFF92400E), height: 1.35),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
                   // Direct link display card
                   Container(
                     width: double.infinity,

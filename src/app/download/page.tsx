@@ -124,6 +124,33 @@ export default async function PublicDownloadPage() {
         <p style={{ fontSize: 15, color: '#64748b', lineHeight: 1.5, margin: 0 }}>
           Dedicated native Android applications for the Group Managing Director and BEMS Workforce across all subsidiaries.
         </p>
+
+        {/* Upgrading Advisory Callout */}
+        <div
+          style={{
+            maxWidth: 720,
+            margin: '16px auto 0',
+            background: '#fffbeb',
+            border: '1px solid #fef3c7',
+            borderLeft: '4px solid #f59e0b',
+            borderRadius: 12,
+            padding: '12px 18px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 12,
+            textAlign: 'left',
+          }}
+        >
+          <span style={{ fontSize: 20 }}>⚠️</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 2 }}>
+              Important for existing app users:
+            </div>
+            <div style={{ fontSize: 12, color: '#b45309', lineHeight: 1.5 }}>
+              If you see <em>&ldquo;App not installed / conflicting package&rdquo;</em>, please <strong>uninstall your older BEMS app first</strong>, then tap the download button below. This one-time step is required because of our upgraded official enterprise security certificate. All your account records and wallet balances remain safe in the cloud.
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* TWO APPS SIDE BY SIDE */}
