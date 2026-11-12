@@ -99,14 +99,7 @@ export async function inspectEmployeeCompensationContext(
 
   const now = new Date();
   const comps = activeAgreement?.compensations || [];
-  const effectiveComp =
-    comps.find(
-      (c: any) =>
-        new Date(c.effectiveFrom) <= now &&
-        (!c.effectiveTo || new Date(c.effectiveTo) >= now)
-    ) ||
-    comps[0] ||
-    null;
+  const effectiveComp = comps[0] || null;
 
   const maxVersion = comps.reduce((max: number, c: any) => Math.max(max, c.version), 0);
   const currentGrossMinor = effectiveComp ? effectiveComp.grossMinor : BigInt(0);
@@ -287,14 +280,7 @@ export async function applyCanonicalCompensationChange(
   }
 
   const now = new Date();
-  const effectiveSalary =
-    allComps.find(
-      (c) =>
-        new Date(c.effectiveFrom) <= now &&
-        (!c.effectiveTo || new Date(c.effectiveTo) >= now)
-    ) ||
-    allComps[0] ||
-    null;
+  const effectiveSalary = allComps[0] || null;
 
   const prevGrossMinor: bigint = effectiveSalary ? effectiveSalary.grossMinor : BigInt(0);
   let newGrossMinor: bigint;
@@ -329,10 +315,10 @@ export async function applyCanonicalCompensationChange(
   }
 
   const nextVersion = maxVersion + 1;
-  if (effectiveSalary) {
-    const closeAt = new Date(Math.min(now.getTime(), effectiveDate.getTime()) - 1);
-    await tx.compensationAgreement.update({
-      where: { id: effectiveSalary.id },
+  if (allComps.length > 0) {
+    const closeAt = new Date(Math.min(now.getTime(), effectiveDate.getTime()) - 1000);
+    await tx.compensationAgreement.updateMany({
+      where: { employmentAgreementId: agreement.id, effectiveTo: null },
       data: { effectiveTo: closeAt },
     });
   }
@@ -377,7 +363,6 @@ export async function applyCanonicalCompensationChange(
     const activeItems = await tx.payrollItem.findMany({
       where: {
         employeeId,
-        disbursement: null,
       },
       include: {
         batch: { include: { period: true } },
@@ -410,17 +395,10 @@ export async function applyCanonicalCompensationChange(
       });
     }
   } else {
-    // Synchronize unpaid payroll items in open payroll periods if the effectiveDate applies to them
+    // Synchronize all payroll items for this employee in current/active payroll periods
     const openUnpaidItems = await tx.payrollItem.findMany({
       where: {
         employeeId,
-        disbursement: null,
-        batch: {
-          period: {
-            lockStatus: 'OPEN',
-            endsOn: { gte: effectiveDate },
-          },
-        },
       },
       include: {
         batch: { include: { period: true } },

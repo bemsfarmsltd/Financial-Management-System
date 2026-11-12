@@ -3052,7 +3052,7 @@ function VendorsModule({business,setNotice,onNavigate}:{business:Business;setNot
   </>;
 }
 
-function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,currentId,setCurrentId,onUpdateBusiness}:{user:AuthUser;onSignOut:()=>void;onAddBusiness:()=>void;onEditBusiness?:(b:Business)=>void;businesses:Business[];currentId:string;setCurrentId:(value:string)=>void;onUpdateBusiness:(id:string,patch:Partial<Business>)=>Promise<Business>}) {
+function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,currentId,setCurrentId,onUpdateBusiness,onShowWelcome}:{user:AuthUser;onSignOut:()=>void;onAddBusiness:()=>void;onEditBusiness?:(b:Business)=>void;businesses:Business[];currentId:string;setCurrentId:(value:string)=>void;onUpdateBusiness:(id:string,patch:Partial<Business>)=>Promise<Business>;onShowWelcome?:()=>void}) {
   const safeUser: AuthUser = user;
   const current = (businesses && businesses.length > 0 ? (businesses.find(b=>b.id===currentId) || businesses[0]) : defaultBemsBusinesses[0]) || defaultBemsBusinesses[0];
   const isGroupScope = (current as any).code === 'BEMS-GROUP' || (current as any).type === 'GROUP' || current.id === 'BEMS-GROUP';
@@ -3990,6 +3990,32 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
               )}
             </div><div className="global-search"><span>⌕</span><input aria-label="Search workspace" value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Search ${current.name}`}/><kbd>⌘ K</kbd>{search&&<div className="search-results">{(searchResults.length||dataResults.length)?<>{searchResults.map(name=><button key={`nav-${name}`} onClick={()=>openModule(name)}><span>{isLocked(name)?'⌾':'→'}</span><div><strong>{name}</strong><small>{isLocked(name)?'Locked in current environment':'Open in this workspace'}</small></div></button>)}{dataResults.map((r,i)=><button key={`data-${i}`} onClick={()=>openModule(r.navigate)}><span>◎</span><div><strong>{r.label}</strong><small>{r.type} · {r.sublabel}</small></div></button>)}</>:<p>No workspace results</p>}</div>}</div>
             <div className="top-actions">
+              {onShowWelcome && (
+                <button
+                  type="button"
+                  onClick={onShowWelcome}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '4px 10px',
+                    height: '28px',
+                    borderRadius: '8px',
+                    background: '#fff7ed',
+                    border: '1px solid #fed7aa',
+                    color: '#ea580c',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title="Open AI Executive Voice Welcome & Kinetic Briefing Screen"
+                >
+                  <span style={{ fontSize: '12px' }}>🔊</span>
+                  <span>AI Welcome</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => { if (typeof window !== 'undefined') window.location.href = '/'; }}
@@ -4254,13 +4280,13 @@ export default function Home() {
   const [status,setStatus]=useState<'loading'|'ready'|'error'>('ready');
   const [showAiEntry, setShowAiEntry] = useState(() => {
     if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('bems_show_welcome') === '1';
+      return sessionStorage.getItem('bems_show_welcome') === '1' || sessionStorage.getItem('bems_welcome_shown_session') !== '1';
     }
     return false;
   });
   const canEnterAi=useGmdAccess(user?.role||'');
   const [entryMode, setEntryMode] = useState<'login' | 'reload'>(() => {
-    if (typeof window !== 'undefined' && sessionStorage.getItem('bems_entry_mode') === 'login') {
+    if (typeof window !== 'undefined' && (sessionStorage.getItem('bems_entry_mode') === 'login' || sessionStorage.getItem('bems_welcome_shown_session') !== '1')) {
       return 'login';
     }
     return 'reload';
@@ -4279,7 +4305,7 @@ export default function Home() {
         const nextUser = data?.user as AuthUser | null;
         setUser(nextUser);
         setAuthStatus(nextUser ? 'signed-in' : 'signed-out');
-        if (typeof window !== 'undefined' && sessionStorage.getItem('bems_show_welcome') === '1') {
+        if (typeof window !== 'undefined' && (sessionStorage.getItem('bems_show_welcome') === '1' || sessionStorage.getItem('bems_welcome_shown_session') !== '1')) {
           setEntryMode('login');
           setShowAiEntry(true);
         } else {
@@ -4447,7 +4473,8 @@ export default function Home() {
   }
 
   // 3. Dynamic AI Motion Pre-Screen before dashboard access (on login & reload)
-  if (showAiEntry && canEnterAi) {
+  const isExecutiveWelcomeEligible = user?.role === 'GMD' || user?.role === 'SUPER_ADMIN' || user?.role === 'SYSTEM_ADMIN' || canEnterAi;
+  if (showAiEntry && isExecutiveWelcomeEligible) {
     const activeEntryBusiness = businesses.find(b => b.id === currentId) || businesses[0] || defaultBemsBusinesses[0];
     const entryBrandColor = activeEntryBusiness?.brandColor || activeEntryBusiness?.color || '#0d8a70';
     return (
@@ -4457,6 +4484,7 @@ export default function Home() {
           try {
             sessionStorage.removeItem('bems_show_welcome');
             sessionStorage.removeItem('bems_entry_mode');
+            sessionStorage.setItem('bems_welcome_shown_session', '1');
           } catch {}
           setShowAiEntry(false);
         }}
@@ -4474,7 +4502,7 @@ export default function Home() {
   if (businesses.length === 0 && authStatus === 'signed-in') return <CorporateSubsidiaryModal onComplete={handleSubsidiaryCreated} />;
   return (
     <>
-      <AppWorkspace user={user} onSignOut={signOut} onAddBusiness={()=>setAddingBusiness(true)} onEditBusiness={(b)=>setEditingSubsidiary(b)} businesses={businesses} currentId={currentId||businesses[0].id} setCurrentId={setCurrentId} onUpdateBusiness={updateBusiness}/>
+      <AppWorkspace user={user} onSignOut={signOut} onAddBusiness={()=>setAddingBusiness(true)} onEditBusiness={(b)=>setEditingSubsidiary(b)} businesses={businesses} currentId={currentId||businesses[0].id} setCurrentId={setCurrentId} onUpdateBusiness={updateBusiness} onShowWelcome={()=>{setEntryMode('login');setShowAiEntry(true);}}/>
       {addingBusiness && (
         <CorporateSubsidiaryModal
           onCancel={businesses.length ? () => setAddingBusiness(false) : undefined}

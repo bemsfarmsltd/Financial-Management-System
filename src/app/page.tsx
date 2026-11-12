@@ -3,10 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { UnifiedAuthScreen } from '@/components/auth/UnifiedAuthScreen';
 import { EnterpriseModulesScreen, type EnterpriseUserSummary } from '@/components/dashboard/EnterpriseModulesScreen';
+import { AiMotionEntryScreen } from '@/components/ai/AiMotionEntryScreen';
 
 export default function RootPage() {
   const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
   const [user, setUser] = useState<EnterpriseUserSummary | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -24,6 +26,11 @@ export default function RootPage() {
             subsidiaryName: data.user.subsidiary?.legalName || data.user.subsidiaryName || 'BEMS Group',
           });
           setAuthStatus('authenticated');
+          try {
+            if (sessionStorage.getItem('bems_show_welcome') === '1') {
+              setShowWelcome(true);
+            }
+          } catch {}
         } else {
           setAuthStatus('unauthenticated');
         }
@@ -89,8 +96,29 @@ export default function RootPage() {
             role: authedUser.role || 'STAFF',
             workEmail: authedUser.email || '',
           });
+          setShowWelcome(true);
           setAuthStatus('authenticated');
         }}
+      />
+    );
+  }
+
+  const isExecutive = user.role === 'GMD' || user.role === 'SUPER_ADMIN' || user.role === 'SYSTEM_ADMIN';
+  if (showWelcome && isExecutive) {
+    return (
+      <AiMotionEntryScreen
+        onComplete={() => {
+          try {
+            sessionStorage.removeItem('bems_show_welcome');
+            sessionStorage.setItem('bems_welcome_shown_session', '1');
+          } catch {}
+          setShowWelcome(false);
+        }}
+        businessName={user.subsidiaryName || 'BEMS Group'}
+        userName={user.legalName || 'Executive'}
+        userRole={user.role}
+        mode="login"
+        brandColor="#ea580c"
       />
     );
   }

@@ -560,6 +560,15 @@ export function EnterpriseModulesScreen({ user }: { user: EnterpriseUserSummary 
                 {/* Card CTA */}
                 <Link
                   href={m.href}
+                  onClick={() => {
+                    if (m.id === 'finance') {
+                      try {
+                        sessionStorage.setItem('bems_show_welcome', '1');
+                        sessionStorage.setItem('bems_entry_mode', 'login');
+                        sessionStorage.removeItem('bems_welcome_shown_session');
+                      } catch {}
+                    }
+                  }}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',

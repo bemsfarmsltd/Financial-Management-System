@@ -1247,7 +1247,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
       const data = await api<{ message: string; newGrossFormatted?: string; proposedGrossFormatted?: string; pendingApproval?: boolean }>(`/api/staff/${selectedId}/salary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ changeType: salaryType, amount, reason }),
+        body: JSON.stringify({ changeType: salaryType, amount, reason: reason.trim() || 'Executive salary review and update' }),
       });
       setNotice(
         data.pendingApproval
@@ -2890,16 +2890,14 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
 
                         <div>
                           <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                            Justification &amp; Audit Reason *
+                            Justification &amp; Audit Reason (Optional)
                           </label>
                           <textarea
                             style={{ ...input, width: '100%', minHeight: 70, boxSizing: 'border-box' }}
-                            required
-                            minLength={5}
                             maxLength={1000}
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
-                            placeholder="Explain the compensation addition or deduction for governance audit."
+                            placeholder="Explain the compensation addition or deduction for governance audit (optional)."
                           />
                         </div>
 

@@ -216,11 +216,12 @@ export function PayrollSignOffView({
   const [staffDetailLoading, setStaffDetailLoading] = useState(false);
   const [staffDetailError, setStaffDetailError] = useState<string | null>(null);
   const [salaryEditorOpen, setSalaryEditorOpen] = useState(false);
-  const [salaryChangeType, setSalaryChangeType] = useState<'ADDITION' | 'DEDUCTION'>('ADDITION');
+  const [salaryChangeType, setSalaryChangeType] = useState<'SET_EXACT' | 'ADDITION' | 'DEDUCTION'>('SET_EXACT');
   const [salaryChangeAmount, setSalaryChangeAmount] = useState('');
   const [salaryChangeReason, setSalaryChangeReason] = useState('');
   const [savingSalaryChange, setSavingSalaryChange] = useState(false);
   const [preparingBatch, setPreparingBatch] = useState(false);
+  const [markingBatchPaid, setMarkingBatchPaid] = useState(false);
 
   // Remove from payroll modal state
   const [removeItem, setRemoveItem] = useState<PayrollItem | null>(null);
@@ -288,20 +289,50 @@ export function PayrollSignOffView({
       const response = await fetch(`/api/staff/${encodeURIComponent(selectedStaff.employeeId)}/salary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ changeType: salaryChangeType, amount: salaryChangeAmount, reason: salaryChangeReason })
+        body: JSON.stringify({
+          changeType: salaryChangeType,
+          amount: salaryChangeAmount,
+          reason: salaryChangeReason.trim() || 'Executive salary review and update',
+        })
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not update salary.');
-      setNotice(`${result.message} New gross salary: ${result.newGrossFormatted}.`);
+      setNotice(`✓ ${result.message} New gross salary: ${result.newGrossFormatted}.`);
       setSalaryEditorOpen(false);
       setSalaryChangeAmount('');
       setSalaryChangeReason('');
-      await fetchPayroll();
-      await openStaffDetail(selectedStaff);
+      await fetchPayroll(data?.period?.year, data?.period?.month);
+      if (staffDetail) {
+        await openStaffDetail(selectedStaff);
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Could not update salary.');
     } finally {
       setSavingSalaryChange(false);
+    }
+  };
+
+  const handleMarkBatchPaid = async () => {
+    if (!data?.batch?.id) return;
+    try {
+      setMarkingBatchPaid(true);
+      const res = await fetch('/api/payroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'MARK_BATCH_PAID',
+          batchId: data.batch.id,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not mark batch as paid.');
+      setNotice(`✓ ${json.message || 'Payroll batch marked as Paid.'}`);
+      await fetchPayroll(data?.period?.year, data?.period?.month);
+    } catch (err: any) {
+      setNotice(err?.message || 'Error marking batch as paid.');
+    } finally {
+      setMarkingBatchPaid(false);
     }
   };
 
@@ -568,7 +599,8 @@ export function PayrollSignOffView({
     } catch { setNotice('Could not save your confirmation.'); }
   };
 
-  const isApproved = Boolean(data?.batch && (data.batch.status === 'APPROVED' || data.batch.status === 'DISBURSED' || data.batch.status === 'WALLET_CREDITED'));
+  const isPaidBatch = Boolean(data?.batch && data.batch.status === 'PAID');
+  const isApproved = Boolean(data?.batch && (data.batch.status === 'APPROVED' || data.batch.status === 'PAID' || data.batch.status === 'DISBURSED' || data.batch.status === 'WALLET_CREDITED'));
   const monthName = data?.period?.periodName || 'Payroll';
 
   if (loading && !data && !staffPayments) {
@@ -696,6 +728,29 @@ export function PayrollSignOffView({
                 : 'Prepare Monthly Payroll Batch ⚡'}
           </button>
 
+          {data?.batch && data.batch.status !== 'PAID' && data?.permissions?.canApprove && (
+            <button
+              onClick={handleMarkBatchPaid}
+              disabled={markingBatchPaid}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: '1px solid #059669',
+                background: '#059669',
+                color: '#fff',
+                fontSize: '10px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                cursor: markingBatchPaid ? 'wait' : 'pointer',
+              }}
+            >
+              <CheckCircle2 size={12} />
+              {markingBatchPaid ? 'Marking Paid...' : 'Mark Batch as Paid ✓'}
+            </button>
+          )}
+
           {data?.batch?.status === 'SUBMITTED' && data?.permissions?.canApprove ? (
             <button
               onClick={async () => {
@@ -741,7 +796,7 @@ export function PayrollSignOffView({
               gap: '4px'
             }}>
               <CheckCircle2 size={12} />
-              {isApproved ? `Approved · ${data?.batch?.disbursementAssignee?.legalName || 'register locked'}` : `Batch ${data?.batch?.status || 'not ready'}`}
+              {isPaidBatch ? 'Paid · Disbursed' : isApproved ? `Approved · ${data?.batch?.disbursementAssignee?.legalName || 'register locked'}` : `Batch ${data?.batch?.status || 'not ready'}`}
             </span>
           )}
         </div>
@@ -1259,12 +1314,51 @@ export function PayrollSignOffView({
                     <div style={{ fontSize: '12px', fontWeight: 700, color: '#059669' }}>{item.netFormatted}</div>
                   </div>
 
-                  {isApproved && data?.permissions?.canRecordPayments && item.paymentStatus === 'UNPAID' ? <button onClick={(event) => { event.stopPropagation(); setPaymentItem(item); }} style={{ padding: '6px 9px', borderRadius: '6px', border: '1px solid #ea580c', background: '#fff7ed', color: '#ea580c', fontSize: '9px', fontWeight: 700, cursor: 'pointer' }}>Record payment</button> : <span style={{ fontSize: '9px', fontWeight: 700, color: item.paymentStatus === 'RECIPIENT_CONFIRMED' ? '#059669' : item.paymentStatus === 'AWAITING_RECIPIENT_CONFIRMATION' ? '#b45309' : '#64748b', whiteSpace: 'nowrap' }}>
-                    {item.paymentStatus === 'RECIPIENT_CONFIRMED' ? 'Staff confirmed' : item.paymentStatus === 'AWAITING_RECIPIENT_CONFIRMATION' ? 'Awaiting staff' : item.paymentStatus === 'RECIPIENT_REPORTED_ISSUE' ? 'Staff reported issue' : item.allocations.length ? `${item.allocations.length} allocations` : 'No allocation'}
-                    {item.paymentReceiptName && item.paymentReceiptUrl && <> · <a href={item.paymentReceiptUrl} onClick={event => event.stopPropagation()} style={{ color: '#ea580c' }}>Receipt</a></>}
-                  </span>}
+                  {isApproved && data?.permissions?.canRecordPayments && item.paymentStatus === 'UNPAID' && !isPaidBatch ? (
+                    <button onClick={(event) => { event.stopPropagation(); setPaymentItem(item); }} style={{ padding: '6px 9px', borderRadius: '6px', border: '1px solid #ea580c', background: '#fff7ed', color: '#ea580c', fontSize: '9px', fontWeight: 700, cursor: 'pointer' }}>Record payment</button>
+                  ) : (item.paymentStatus === 'PAID' || isPaidBatch) ? (
+                    <span style={{ padding: '3px 8px', borderRadius: 6, background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#059669', fontSize: '9px', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                      ✓ Paid
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: item.paymentStatus === 'RECIPIENT_CONFIRMED' ? '#059669' : item.paymentStatus === 'AWAITING_RECIPIENT_CONFIRMATION' ? '#b45309' : '#64748b', whiteSpace: 'nowrap' }}>
+                      {item.paymentStatus === 'RECIPIENT_CONFIRMED' ? 'Staff confirmed' : item.paymentStatus === 'AWAITING_RECIPIENT_CONFIRMATION' ? 'Awaiting staff' : item.paymentStatus === 'RECIPIENT_REPORTED_ISSUE' ? 'Staff reported issue' : item.allocations.length ? `${item.allocations.length} allocations` : 'No allocation'}
+                      {item.paymentReceiptName && item.paymentReceiptUrl && <> · <a href={item.paymentReceiptUrl} onClick={event => event.stopPropagation()} style={{ color: '#ea580c' }}>Receipt</a></>}
+                    </span>
+                  )}
 
-                  {item.paymentStatus === 'UNPAID' && (
+                  {data?.permissions?.canApprove && (
+                    <button
+                      type="button"
+                      title="Edit staff gross salary"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedStaff(item);
+                        setSalaryChangeType('SET_EXACT');
+                        setSalaryChangeAmount(String(Math.round((item.grossMinor || 0) / 100)));
+                        setSalaryChangeReason('');
+                        setSalaryEditorOpen(true);
+                      }}
+                      style={{
+                        padding: '5px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid #fed7aa',
+                        background: '#fff7ed',
+                        color: '#c2410c',
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <span>✎ Edit Salary</span>
+                    </button>
+                  )}
+
+                  {data?.permissions?.canApprove && (
                     <button
                       type="button"
                       title="Remove staff from salary payment"
@@ -1453,8 +1547,8 @@ export function PayrollSignOffView({
         </form>
       </div>}
 
-      {selectedStaff && <div
-        onClick={event => { if (event.target === event.currentTarget) setSelectedStaff(null); }}
+      {selectedStaff && (staffDetailLoading || staffDetailError || staffDetail) && <div
+        onClick={event => { if (event.target === event.currentTarget) { setSelectedStaff(null); setStaffDetail(null); } }}
         style={{ position: 'fixed', inset: 0, zIndex: 1001, background: 'rgba(6,26,66,.62)', display: 'grid', placeItems: 'center', padding: 16 }}
       >
         <section role="dialog" aria-modal="true" aria-labelledby="staff-detail-title" style={{ width: 'min(760px, 100%)', maxHeight: 'min(88vh, 820px)', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#fff', border: '1px solid #dbe3ef', borderRadius: 12, boxShadow: '0 22px 60px rgba(0,0,0,.28)' }}>
@@ -1481,42 +1575,44 @@ export function PayrollSignOffView({
                   {staffDetail.permissions.canEditSalary && (
                     <button
                       type="button"
-                      disabled={!staffDetail.employee.salary}
-                      onClick={() => setSalaryEditorOpen(true)}
+                      onClick={() => {
+                        setSalaryChangeType('SET_EXACT');
+                        const currentNaira = Math.round(((staffDetail.employee.salary?.grossMinor ?? selectedStaff.grossMinor) || 0) / 100);
+                        setSalaryChangeAmount(currentNaira > 0 ? String(currentNaira) : '');
+                        setSalaryChangeReason('');
+                        setSalaryEditorOpen(true);
+                      }}
                       style={{
                         ...payrollButtonStyle,
                         flexShrink: 0,
                         background: '#fff',
                         color: 'var(--brand-primary, #0d8a70)',
                         border: '1px solid var(--brand-border, #cbd5e1)',
-                        opacity: staffDetail.employee.salary ? 1 : 0.55,
-                        cursor: staffDetail.employee.salary ? 'pointer' : 'not-allowed',
+                        cursor: 'pointer',
                       }}
                     >
                       Edit salary
                     </button>
                   )}
-                  {selectedStaff.paymentStatus === 'UNPAID' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRemoveItem(selectedStaff);
-                        setRemoveMode('BATCH_ONLY');
-                        setRemoveReason('');
-                      }}
-                      style={{
-                        ...payrollButtonStyle,
-                        flexShrink: 0,
-                        background: '#fff5f5',
-                        color: '#dc2626',
-                        border: '1px solid #fecaca',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <UserX size={12} />
-                      Remove from Payroll
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRemoveItem(selectedStaff);
+                      setRemoveMode('BATCH_ONLY');
+                      setRemoveReason('');
+                    }}
+                    style={{
+                      ...payrollButtonStyle,
+                      flexShrink: 0,
+                      background: '#fff5f5',
+                      color: '#dc2626',
+                      border: '1px solid #fecaca',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <UserX size={12} />
+                    Remove from Payroll
+                  </button>
                 </div>
               </div>
 
@@ -1549,7 +1645,7 @@ export function PayrollSignOffView({
                 {staffDetail.payrollHistory.map(history => <article key={history.id} style={{ padding: 11, border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 9 }}>
                     <strong style={{ color: '#1e293b', fontSize: 11 }}>{history.periodName} · Run {history.batchVersion}</strong>
-                    <span style={{ padding: '3px 7px', borderRadius: 12, background: history.paymentStatus === 'RECIPIENT_CONFIRMED' ? '#ecfdf5' : history.paymentStatus === 'UNPAID' ? '#f1f5f9' : '#fffbeb', color: history.paymentStatus === 'RECIPIENT_CONFIRMED' ? '#047857' : history.paymentStatus === 'UNPAID' ? '#475569' : '#b45309', fontSize: 9, fontWeight: 700 }}>{history.paymentStatus.replace(/_/g, ' ')}</span>
+                    <span style={{ padding: '3px 7px', borderRadius: 12, background: history.paymentStatus === 'RECIPIENT_CONFIRMED' || history.paymentStatus === 'PAID' ? '#ecfdf5' : history.paymentStatus === 'UNPAID' ? '#f1f5f9' : '#fffbeb', color: history.paymentStatus === 'RECIPIENT_CONFIRMED' || history.paymentStatus === 'PAID' ? '#047857' : history.paymentStatus === 'UNPAID' ? '#475569' : '#b45309', fontSize: 9, fontWeight: 700 }}>{history.paymentStatus.replace(/_/g, ' ')}</span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                     {[['Gross', history.grossFormatted], ['Deductions', history.deductionsFormatted], ['Net pay', history.netFormatted]].map(([label, value]) => <div key={label}>
@@ -1571,31 +1667,46 @@ export function PayrollSignOffView({
         </section>
       </div>}
 
-      {salaryEditorOpen && selectedStaff && staffDetail?.employee.salary && <div
+      {salaryEditorOpen && selectedStaff && <div
         onClick={event => { if (event.target === event.currentTarget && !savingSalaryChange) setSalaryEditorOpen(false); }}
         style={{ position: 'fixed', inset: 0, zIndex: 1002, background: 'rgba(6,26,66,.72)', display: 'grid', placeItems: 'center', padding: 16 }}
       >
         <form onSubmit={handleSalaryChange} role="dialog" aria-modal="true" aria-labelledby="salary-change-title" style={{ width: 'min(440px, 100%)', display: 'grid', gap: 12, padding: 18, border: '1px solid #dbe3ef', borderRadius: 12, background: '#fff', boxShadow: '0 22px 60px rgba(0,0,0,.28)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 10 }}>
-            <div><div style={{ color: 'var(--brand-primary, #0d8a70)', fontSize: 9, fontWeight: 800, letterSpacing: '.08em' }}>GMD SALARY CHANGE</div><h3 id="salary-change-title" style={{ margin: '4px 0 0', color: '#0f172a', fontSize: 15 }}>{selectedStaff.employeeName}</h3><p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 10 }}>Current gross: {staffDetail.employee.salary.grossFormatted} per {staffDetail.employee.salary.recurrence.toLowerCase()}.</p></div>
+            <div><div style={{ color: 'var(--brand-primary, #0d8a70)', fontSize: 9, fontWeight: 800, letterSpacing: '.08em' }}>GMD SALARY CHANGE</div><h3 id="salary-change-title" style={{ margin: '4px 0 0', color: '#0f172a', fontSize: 15 }}>{selectedStaff.employeeName}</h3><p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 10 }}>Current gross: {staffDetail?.employee.salary?.grossFormatted || selectedStaff.grossFormatted} per {(staffDetail?.employee.salary?.recurrence || 'monthly').toLowerCase()}.</p></div>
             <button type="button" disabled={savingSalaryChange} onClick={() => setSalaryEditorOpen(false)} aria-label="Close salary editor" style={{ border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer' }}><X size={16}/></button>
           </div>
           <label style={{ color: '#334155', fontSize: 10, fontWeight: 700 }}>Change type
-            <select value={salaryChangeType} onChange={event => setSalaryChangeType(event.target.value as 'ADDITION' | 'DEDUCTION')} style={{ ...payrollInputStyle, background: '#fff' }}>
-              <option value="ADDITION">Add to gross salary</option>
-              <option value="DEDUCTION">Deduct from gross salary</option>
+            <select
+              value={salaryChangeType}
+              onChange={event => {
+                const nextType = event.target.value as 'SET_EXACT' | 'ADDITION' | 'DEDUCTION';
+                setSalaryChangeType(nextType);
+                if (nextType === 'SET_EXACT') {
+                  const currentNaira = Math.round(((staffDetail?.employee.salary?.grossMinor ?? selectedStaff.grossMinor) || 0) / 100);
+                  setSalaryChangeAmount(currentNaira > 0 ? String(currentNaira) : '');
+                } else {
+                  setSalaryChangeAmount('');
+                }
+              }}
+              style={{ ...payrollInputStyle, background: '#fff' }}
+            >
+              <option value="SET_EXACT">Set exact monthly gross salary (₦)</option>
+              <option value="ADDITION">Add to gross salary (₦)</option>
+              <option value="DEDUCTION">Deduct from gross salary (₦)</option>
             </select>
           </label>
-          <label style={{ color: '#334155', fontSize: 10, fontWeight: 700 }}>Amount (₦)
-            <input type="number" min="0.01" step="0.01" required value={salaryChangeAmount} onChange={event => setSalaryChangeAmount(event.target.value)} placeholder="Enter the amount to add or deduct" style={payrollInputStyle}/>
+          <label style={{ color: '#334155', fontSize: 10, fontWeight: 700 }}>
+            {salaryChangeType === 'SET_EXACT' ? 'New monthly gross salary (₦)' : 'Amount (₦)'}
+            <input type="number" min="0.01" step="0.01" required value={salaryChangeAmount} onChange={event => setSalaryChangeAmount(event.target.value)} placeholder={salaryChangeType === 'SET_EXACT' ? 'Enter exact monthly gross salary in NGN' : 'Enter the amount to add or deduct'} style={payrollInputStyle}/>
           </label>
-          <label style={{ color: '#334155', fontSize: 10, fontWeight: 700 }}>Reason for this change
-            <textarea required minLength={5} maxLength={1000} value={salaryChangeReason} onChange={event => setSalaryChangeReason(event.target.value)} placeholder="Explain the reason. The staff member will receive this in a notification." rows={3} style={{ ...payrollInputStyle, resize: 'vertical' }}/>
+          <label style={{ color: '#334155', fontSize: 10, fontWeight: 700 }}>Reason for this change (Optional)
+            <textarea maxLength={1000} value={salaryChangeReason} onChange={event => setSalaryChangeReason(event.target.value)} placeholder="e.g. Executive salary review and adjustment (optional)" rows={3} style={{ ...payrollInputStyle, resize: 'vertical' }}/>
           </label>
-          <div style={{ padding: '9px 10px', borderRadius: 7, background: '#fffbeb', color: '#92400e', fontSize: 10 }}>The change starts now and applies to future payroll runs. Already submitted or paid payroll records will not change. The staff member will be notified with the amount and reason.</div>
+          <div style={{ padding: '9px 10px', borderRadius: 7, background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', fontSize: 10 }}>The new salary persists immediately across the Staff Dossier and active Payroll Register.</div>
           <div style={{ display: 'flex', justifyContent: 'end', gap: 8 }}>
             <button type="button" disabled={savingSalaryChange} onClick={() => setSalaryEditorOpen(false)} style={{ ...payrollButtonStyle, background: '#fff', color: '#475569', border: '1px solid #dbe3ef' }}>Cancel</button>
-            <button type="submit" disabled={savingSalaryChange} style={{ ...payrollButtonStyle, background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))', color: '#fff', border: '1px solid var(--brand-primary, #0d8a70)', opacity: savingSalaryChange ? .7 : 1 }}>{savingSalaryChange ? 'Saving…' : 'Save salary change & notify staff'}</button>
+            <button type="submit" disabled={savingSalaryChange} style={{ ...payrollButtonStyle, background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))', color: '#fff', border: '1px solid var(--brand-primary, #0d8a70)', opacity: savingSalaryChange ? .7 : 1 }}>{savingSalaryChange ? 'Saving…' : 'Save salary change'}</button>
           </div>
         </form>
       </div>}

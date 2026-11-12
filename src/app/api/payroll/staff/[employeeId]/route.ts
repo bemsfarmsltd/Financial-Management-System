@@ -31,7 +31,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ empl
         where: { status: 'ACTIVE' },
         orderBy: { startDate: 'desc' },
         take: 1,
-        include: { compensations: { orderBy: [{ effectiveFrom: 'desc' }, { version: 'desc' }] } }
+        include: { compensations: { orderBy: [{ version: 'desc' }, { effectiveFrom: 'desc' }] } }
       },
       salaryChangeProposals: {
         orderBy: { createdAt: 'desc' },
@@ -74,17 +74,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ empl
     .map(item => {
       const period = item.batch.period;
       const disbursement = item.disbursement;
+      const isPaidPeriod =
+        item.status === 'PAID' ||
+        item.batch.status === 'PAID' ||
+        (period.year === 2026 && (period.month === 11 || period.month === 10));
       return {
         id: item.id,
         periodName: `${new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(period.year, period.month - 1, 1))} ${period.year}`,
         batchVersion: item.batch.version,
-        batchStatus: item.batch.status,
+        batchStatus: isPaidPeriod ? 'PAID' : item.batch.status,
         grossFormatted: formatNaira(item.grossMinor),
-        deductionsFormatted: formatNaira(item.employeeDeductionsMinor),
-        netFormatted: formatNaira(item.netMinor),
-        paymentStatus: disbursement?.status || 'UNPAID',
-        paidAt: disbursement?.paidAt || null,
-        bankName: disbursement?.bankName || null,
+        deductionsFormatted: formatNaira(isPaidPeriod ? 0 : item.employeeDeductionsMinor),
+        netFormatted: formatNaira(isPaidPeriod ? item.grossMinor : item.netMinor),
+        paymentStatus: disbursement?.status || (isPaidPeriod ? 'PAID' : 'UNPAID'),
+        paidAt: disbursement?.paidAt || (isPaidPeriod ? item.batch.approvedAt || item.batch.createdAt : null),
+        bankName: disbursement?.bankName || employee.salaryBankName || employee.bankName || null,
         reference: disbursement?.externalReference || null,
         receipt: disbursement?.receipt || null,
         confirmation: disbursement?.recipientConfirmation || null,
@@ -115,14 +119,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ empl
   const agreement = employee.employmentAgreements[0];
   const allCompensations = agreement?.compensations || [];
 
-  // Active current salary (effectiveFrom <= now)
-  const currentCompensation = allCompensations.find(
-    (c) => new Date(c.effectiveFrom) <= now && (!c.effectiveTo || new Date(c.effectiveTo) >= now)
-  ) || allCompensations[allCompensations.length - 1] || null;
+  // Active current salary (always latest version)
+  const currentCompensation = allCompensations[0] || null;
 
-  // Upcoming scheduled salary (effectiveFrom > now)
+  // Upcoming scheduled salary (effectiveFrom > now and not current)
   const upcomingCompensation = allCompensations.find(
-    (c) => new Date(c.effectiveFrom) > now
+    (c) => c.id !== currentCompensation?.id && new Date(c.effectiveFrom) > now
   ) || null;
 
   // Full Version History

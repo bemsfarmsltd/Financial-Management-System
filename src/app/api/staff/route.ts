@@ -34,10 +34,12 @@ export async function GET(req: Request) {
           }
         },
         employmentAgreements: {
+          where: { status: 'ACTIVE' },
+          orderBy: { startDate: 'desc' },
           include: {
             compensations: {
               take: 5,
-              orderBy: [{ effectiveFrom: 'desc' }, { version: 'desc' }]
+              orderBy: [{ version: 'desc' }, { effectiveFrom: 'desc' }]
             }
           }
         },
@@ -56,10 +58,8 @@ export async function GET(req: Request) {
 
     const processedEmployees = safeEmployees.map((e: any) => {
       const allComp = e.employmentAgreements?.[0]?.compensations || [];
-      const activeComp = allComp.find(
-        (c: any) => new Date(c.effectiveFrom) <= now && (!c.effectiveTo || new Date(c.effectiveTo) >= now)
-      ) || allComp[allComp.length - 1] || null;
-      const upcomingComp = allComp.find((c: any) => new Date(c.effectiveFrom) > now) || null;
+      const activeComp = allComp[0] || null;
+      const upcomingComp = allComp.find((c: any) => c.id !== activeComp?.id && new Date(c.effectiveFrom) > now) || null;
 
       // Keep e.employmentAgreements[0].compensations pointing to activeComp for backward compatibility
       if (e.employmentAgreements?.[0] && activeComp) {

@@ -25,9 +25,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ emp
       body.changeType === 'INITIAL_SALARY' ||
       body.changeType === 'REMOVE_FROM_PAYROLL'
         ? body.changeType
-        : null;
+        : 'SET_EXACT';
     const amount = Number(body.amount);
-    const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+    const rawReason = typeof body.reason === 'string' ? body.reason.trim() : '';
+    const reason =
+      rawReason.length >= 5
+        ? rawReason.slice(0, 1000)
+        : rawReason.length > 0
+        ? `${rawReason} — Executive salary adjustment`
+        : 'Executive salary review and update';
 
     if (!changeType) {
       return NextResponse.json(

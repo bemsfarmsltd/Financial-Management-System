@@ -1260,6 +1260,11 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
 
 export function UnifiedAuthScreen({ redirectUrl, onAuthed }: { redirectUrl?: string; onAuthed?: (user: AuthUser) => void }) {
   const handleAuthed = (user: AuthUser) => {
+    try {
+      sessionStorage.setItem('bems_show_welcome', '1');
+      sessionStorage.setItem('bems_entry_mode', 'login');
+      sessionStorage.removeItem('bems_welcome_shown_session');
+    } catch {}
     if (onAuthed) {
       onAuthed(user);
       return;

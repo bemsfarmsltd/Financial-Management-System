@@ -3349,8 +3349,8 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
               orderBy: { startDate: 'desc' },
               include: {
                 compensations: {
-                  where: { effectiveFrom: { lte: new Date(Date.UTC(year, month, 0, 23, 59, 59)) }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date(Date.UTC(year, month - 1, 1)) } }] },
                   orderBy: [{ version: 'desc' }, { effectiveFrom: 'desc' }],
+                  take: 1,
                   include: { costAllocations: true },
                 },
               },
