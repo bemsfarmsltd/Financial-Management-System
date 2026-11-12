@@ -330,7 +330,7 @@ export function EnterpriseModulesScreen({ user }: { user: EnterpriseUserSummary 
               <span>Notifications</span>
             </Link>
 
-            {user.role === 'STAFF' && (
+            {user?.role === 'STAFF' && (
               <Link
                 href="/staff"
                 style={{
@@ -365,10 +365,10 @@ export function EnterpriseModulesScreen({ user }: { user: EnterpriseUserSummary 
             >
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
-                  {user.legalName}
+                  {user?.legalName || 'User'}
                 </div>
                 <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600 }}>
-                  {user.subsidiaryName || 'BEMS Group'} · <span style={{ color: '#ea580c' }}>{user.role}</span>
+                  {user?.subsidiaryName || 'BEMS Group'} · <span style={{ color: '#ea580c' }}>{user?.role || 'STAFF'}</span>
                 </div>
               </div>
               <button

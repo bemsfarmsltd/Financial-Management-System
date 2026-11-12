@@ -124,7 +124,17 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
     fetch('/api/auth/dev-role').then(r => r.ok ? r.json() : null).then(d => { if (d?.enabled) setDevRoles(d.roles || []); }).catch(() => setDevRoles([]));
     fetch('/api/auth/signup/options').then(r => r.json()).then(d => {
       if (d && d.organizations) {
-        setOptions(d);
+        setOptions(prev => ({
+          ...prev,
+          organizations: d.organizations || prev.organizations || [],
+          departments: d.departments || prev.departments || [],
+          banks: (d.banks && d.banks.length > 0) ? d.banks : prev.banks,
+          maritalStatuses: (d.maritalStatuses && d.maritalStatuses.length > 0) ? d.maritalStatuses : prev.maritalStatuses,
+          educationLevels: (d.educationLevels && d.educationLevels.length > 0) ? d.educationLevels : prev.educationLevels,
+          workLocations: (d.workLocations && d.workLocations.length > 0) ? d.workLocations : prev.workLocations,
+          staffGrades: (d.staffGrades && d.staffGrades.length > 0) ? d.staffGrades : prev.staffGrades,
+          employmentTypes: (d.employmentTypes && d.employmentTypes.length > 0) ? d.employmentTypes : prev.employmentTypes,
+        }));
         if (d.organizations.length > 0) {
           setSignupForm(prev => ({
             ...prev,
@@ -336,7 +346,7 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
     } finally { setDevRoleBusy(''); }
   };
 
-  const filteredDepartments = options.departments.filter(d => !signupForm.subsidiaryId || d.organizationId === signupForm.subsidiaryId);
+  const filteredDepartments = (options?.departments || []).filter(d => !signupForm.subsidiaryId || d.organizationId === signupForm.subsidiaryId);
 
   return <main className="onboarding-shell">
     <section className="onboarding-brand-panel">
@@ -1225,8 +1235,12 @@ function AuthGate({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
 }
 
 
-export function UnifiedAuthScreen({ redirectUrl }: { redirectUrl?: string }) {
+export function UnifiedAuthScreen({ redirectUrl, onAuthed }: { redirectUrl?: string; onAuthed?: (user: AuthUser) => void }) {
   const handleAuthed = (user: AuthUser) => {
+    if (onAuthed) {
+      onAuthed(user);
+      return;
+    }
     if (typeof window !== 'undefined') {
       const sp = new URLSearchParams(window.location.search);
       const target = redirectUrl || sp.get('redirect') || '/';
