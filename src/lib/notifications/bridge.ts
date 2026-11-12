@@ -219,10 +219,16 @@ export async function dispatchNotificationBridge(payload: NotificationPayload): 
   if (payload.channel === "WHATSAPP" || payload.channel === "BOTH" || payload.channel === "ALL") {
     const waText = `*BEMS Group Alert: ${payload.title}*\n\n${payload.summary}\n\n• Reference: ${payload.metadata?.requestNumber || "N/A"}\n• Amount: ₦${payload.metadata?.amountMinor ? (payload.metadata.amountMinor / 100).toLocaleString() : "N/A"}\n\nReply *APPROVE* or *DECLINE* followed by the request number.`;
 
+    let waPhone = (payload.recipient || "").replace(/[^0-9]/g, "");
+    if (!waPhone || waPhone.length < 10) {
+      const fallback = process.env.GMD_WHATSAPP_PHONE || "";
+      waPhone = fallback.replace(/[^0-9]/g, "");
+    }
+
     const outboxRow = await prisma.outboundNotification.create({
       data: {
         channel: "WHATSAPP",
-        recipient: payload.recipient || "",
+        recipient: waPhone || payload.recipient || "",
         eventType: payload.eventType,
         payload: JSON.stringify({ correlationId, state: "PENDING", text: waText, metadata: payload.metadata }),
         status: "PENDING",
@@ -235,9 +241,9 @@ export async function dispatchNotificationBridge(payload: NotificationPayload): 
     let waExternalId: string | null = correlationId;
     let errorReason: string | null = null;
 
-    if (whatsappApiToken && whatsappPhoneId && /^v\d+\.\d+$/.test(whatsappVersion || "") && /^\+?\d{10,15}$/.test(payload.recipient)) {
+    if (whatsappApiToken && whatsappPhoneId && /^v\d+\.\d+$/.test(whatsappVersion || "") && waPhone.length >= 10) {
       try {
-        const res = await fetch(`https://graph.facebook.com/${whatsappVersion}/${whatsappPhoneId}/messages`, {
+        let res = await fetch(`https://graph.facebook.com/${whatsappVersion}/${whatsappPhoneId}/messages`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${whatsappApiToken}`,
@@ -245,11 +251,35 @@ export async function dispatchNotificationBridge(payload: NotificationPayload): 
           },
           body: JSON.stringify({
             messaging_product: "whatsapp",
-            to: payload.recipient.replace(/[^0-9]/g, ""),
+            to: waPhone,
             type: "text",
             text: { body: waText },
           }),
         });
+
+        // If outside the 24h Meta conversation window, fallback to template
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          if (errData?.error?.code === 131047 || String(errData?.error?.message).toLowerCase().includes("template")) {
+            res = await fetch(`https://graph.facebook.com/${whatsappVersion}/${whatsappPhoneId}/messages`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${whatsappApiToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                messaging_product: "whatsapp",
+                to: waPhone,
+                type: "template",
+                template: {
+                  name: "hello_world",
+                  language: { code: "en_US" },
+                },
+              }),
+            });
+          }
+        }
+
         if (res.ok) {
           const data = await res.json();
           waStatus = "SENT";
@@ -368,10 +398,24 @@ export async function notifyApprovalRequired(params: {
 }) {
   const correlationId = params.correlationId || `req_alert_${params.requestNumber}_${Date.now()}`;
 
+  let recipientPhone = params.recipientPhone?.trim() || "";
+  if (!recipientPhone) {
+    try {
+      const gmd = await prisma.employee.findFirst({
+        where: { role: "GMD", status: "ACTIVE" },
+        select: { phone: true },
+      });
+      if (gmd?.phone) recipientPhone = gmd.phone.trim();
+    } catch {}
+  }
+  if (!recipientPhone) {
+    recipientPhone = process.env.GMD_WHATSAPP_PHONE?.trim() || "";
+  }
+
   // Dispatch multi-channel bridge (Slack + WhatsApp)
   const bridgePromise = dispatchNotificationBridge({
     channel: "BOTH",
-    recipient: params.recipientPhone || "",
+    recipient: recipientPhone,
     eventType: "APPROVAL_REQUESTED",
     title: `Pending Approval: ${params.title}`,
     summary: `${params.requesterName} submitted a fund request of ₦${(params.amountMinor / 100).toLocaleString()} requiring ${params.approverRole} review.`,
