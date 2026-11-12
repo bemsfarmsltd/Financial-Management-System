@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import '../models/staff_models.dart';
 import 'staff_main_screen.dart';
 import 'staff_admin_chat_screen.dart';
-import 'modules/staff_hr_hub_screen.dart';
 import 'modules/staff_module_workstation_screen.dart';
 
 class StaffModuleGalleryScreen extends StatefulWidget {
@@ -195,7 +194,7 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                       onChanged: (v) => setState(() => _searchQuery = v),
                       style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
                       decoration: InputDecoration(
-                        hintText: 'Search enterprise workstations & modules...',
+                        hintText: 'Search enterprise management systems...',
                         hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
                         prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 20),
                         suffixIcon: _searchQuery.isNotEmpty
@@ -232,11 +231,11 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Corporate Workstations',
+                          'Enterprise Management Systems',
                           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
                         ),
                         Text(
-                          '${filtered.length} Modules',
+                          '${filtered.length} Systems',
                           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
                         ),
                       ],
@@ -372,14 +371,14 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
 
   List<_ModuleItem> _getEnterpriseModules(StaffUser user) {
     return [
-      // 1. Finance & Fund Hub
+      // 1. Financial Management System
       _ModuleItem(
         id: 'finance',
-        eyebrow: 'GROUP FINANCIAL MANAGEMENT',
-        title: 'Finance & Fund Hub',
-        description: 'Requisitions, 72h advance retirements, expenditure approvals, and spend analytics.',
-        badgeText: 'CORE HUB',
-        badgeColor: const Color(0xFFEA580C),
+        eyebrow: 'FINANCIAL MANAGEMENT',
+        title: 'Financial Management System',
+        description: 'Budgeting, fund requisitions, approvals, treasury, disbursements, and expenditure retirement.',
+        badgeText: 'ACTIVE',
+        badgeColor: const Color(0xFF059669),
         icon: Icons.account_balance_wallet_rounded,
         gradient: [const Color(0xFFEA580C), const Color(0xFFC2410C)],
         onTap: (ctx) {
@@ -390,33 +389,101 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
         },
       ),
 
-      // 2. HR & People Hub
+      // 2. Project Management System
       _ModuleItem(
-        id: 'hr',
-        eyebrow: 'HUMAN CAPITAL & TALENT',
-        title: 'HR & People Hub',
-        description: 'Attendance clock-in, leave administration, monthly payroll payslips, and HR helpdesk.',
-        badgeText: 'ACTIVE',
-        badgeColor: const Color(0xFF2563EB),
-        icon: Icons.people_alt_rounded,
-        gradient: [const Color(0xFF2563EB), const Color(0xFF1D4ED8)],
+        id: 'projects',
+        eyebrow: 'PROJECT EXECUTION',
+        title: 'Project Management System',
+        description: 'Project tracking, milestone execution, deliverables, and capital expenditure oversight.',
+        badgeText: 'PIPELINE',
+        badgeColor: const Color(0xFF64748B),
+        icon: Icons.assignment_turned_in_rounded,
+        gradient: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
         onTap: (ctx) {
           Navigator.push(
             ctx,
-            MaterialPageRoute(builder: (_) => StaffHRHubScreen(user: user)),
+            MaterialPageRoute(
+              builder: (_) => StaffModuleWorkstationScreen(
+                user: user,
+                config: const ModuleConfig(
+                  id: 'projects',
+                  eyebrow: 'PROJECT EXECUTION',
+                  title: 'Project Management System',
+                  subtitle: 'Milestones, Deliverables & Capital Oversight',
+                  description: 'Project tracking, milestone execution, deliverables, and capital expenditure oversight across BEMS Group businesses.',
+                  icon: Icons.assignment_turned_in_rounded,
+                  gradientColors: [Color(0xFF0284C7), Color(0xFF0369A1)],
+                  statusText: 'Pipeline (Phase 2)',
+                  quickActions: [
+                    {'title': 'Milestone Deliverables', 'desc': 'Track milestone progress and deliverables', 'icon': Icons.task_alt_rounded, 'color': Color(0xFF0284C7)},
+                    {'title': 'Task Execution', 'desc': 'Monitor team work packages and deadlines', 'icon': Icons.checklist_rounded, 'color': Color(0xFF10B981)},
+                  ],
+                  metricCards: [
+                    {'label': 'STATUS', 'value': 'Pipeline', 'sub': 'Phase 2 Development'},
+                    {'label': 'SCOPE', 'value': 'Group-wide', 'sub': 'Capital Projects'},
+                  ],
+                  sampleTasks: [
+                    {'task': 'Project Milestone Framework', 'details': 'In active design', 'time': 'Phase 2'},
+                  ],
+                ),
+              ),
+            ),
           );
         },
       ),
 
-      // 3. Operations Hub
+      // 3. Human Resource Management System
+      _ModuleItem(
+        id: 'hr',
+        eyebrow: 'HUMAN CAPITAL',
+        title: 'Human Resource Management System',
+        description: 'Staff directory, employee records, attendance monitoring, and workplace administration.',
+        badgeText: 'PIPELINE',
+        badgeColor: const Color(0xFF64748B),
+        icon: Icons.people_alt_rounded,
+        gradient: [const Color(0xFF6366F1), const Color(0xFF4F46E5)],
+        onTap: (ctx) {
+          Navigator.push(
+            ctx,
+            MaterialPageRoute(
+              builder: (_) => StaffModuleWorkstationScreen(
+                user: user,
+                config: const ModuleConfig(
+                  id: 'hr',
+                  eyebrow: 'HUMAN CAPITAL',
+                  title: 'Human Resource Management System',
+                  subtitle: 'Staff Directory, Records & Administration',
+                  description: 'Staff directory, employee records, attendance monitoring, and workplace administration across BEMS Group businesses.',
+                  icon: Icons.people_alt_rounded,
+                  gradientColors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                  statusText: 'Pipeline (Phase 2)',
+                  quickActions: [
+                    {'title': 'Staff Directory', 'desc': 'View corporate personnel across subsidiaries', 'icon': Icons.badge_rounded, 'color': Color(0xFF6366F1)},
+                    {'title': 'Leave Administration', 'desc': 'Submit and track leave requests', 'icon': Icons.event_available_rounded, 'color': Color(0xFF059669)},
+                  ],
+                  metricCards: [
+                    {'label': 'STATUS', 'value': 'Pipeline', 'sub': 'Phase 2 Development'},
+                    {'label': 'EMPLOYEES', 'value': 'Synchronized', 'sub': 'Active Directory'},
+                  ],
+                  sampleTasks: [
+                    {'task': 'HR Self-Service Architecture', 'details': 'In active design', 'time': 'Phase 2'},
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+
+      // 4. Operations Management System
       _ModuleItem(
         id: 'operations',
-        eyebrow: 'ENTERPRISE OPERATIONS',
-        title: 'Operations Hub',
-        description: 'Daily operational workflows, asset management, facility oversight, and logistics.',
-        badgeText: 'ONLINE',
-        badgeColor: const Color(0xFF059669),
-        icon: Icons.hub_rounded,
+        eyebrow: 'FIELD OPERATIONS',
+        title: 'Operations Management System',
+        description: 'Field operations coordination, fleet management, logistics tracking, and facility oversight.',
+        badgeText: 'PIPELINE',
+        badgeColor: const Color(0xFF64748B),
+        icon: Icons.local_shipping_rounded,
         gradient: [const Color(0xFF059669), const Color(0xFF047857)],
         onTap: (ctx) {
           Navigator.push(
@@ -426,25 +493,23 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                 user: user,
                 config: const ModuleConfig(
                   id: 'operations',
-                  eyebrow: 'ENTERPRISE OPERATIONS WORKSTATION',
-                  title: 'Enterprise Operations Hub',
-                  subtitle: 'Daily Operational Workflows, Assets & Facilities',
-                  description: 'Coordinate daily operational activity, oversee physical and technical assets, manage facility work orders, and log operational shift handovers across BEMS Group businesses.',
-                  icon: Icons.hub_rounded,
+                  eyebrow: 'FIELD OPERATIONS',
+                  title: 'Operations Management System',
+                  subtitle: 'Fleet, Logistics & Field Oversight',
+                  description: 'Field operations coordination, fleet management, logistics tracking, and facility oversight across BEMS Group businesses.',
+                  icon: Icons.local_shipping_rounded,
                   gradientColors: [Color(0xFF059669), Color(0xFF047857)],
-                  statusText: 'Operations Normal',
+                  statusText: 'Pipeline (Phase 2)',
                   quickActions: [
-                    {'title': 'Log Operational Activity', 'desc': 'Record daily departmental tasks and shift execution', 'icon': Icons.assignment_rounded, 'color': Color(0xFF059669)},
-                    {'title': 'Facility & Asset Maintenance', 'desc': 'Submit repair and maintenance service requests', 'icon': Icons.build_circle_rounded, 'color': Color(0xFF0284C7)},
-                    {'title': 'Operational Shift Handover', 'desc': 'File routine activity reports and shift status updates', 'icon': Icons.sync_alt_rounded, 'color': Color(0xFFD97706)},
+                    {'title': 'Daily Operations Log', 'desc': 'Record field activities and shift handovers', 'icon': Icons.assignment_rounded, 'color': Color(0xFF059669)},
+                    {'title': 'Fleet & Logistics', 'desc': 'Track vehicle transit and facility maintenance', 'icon': Icons.local_shipping_rounded, 'color': Color(0xFF0284C7)},
                   ],
                   metricCards: [
-                    {'label': 'OPERATIONAL STATUS', 'value': '100% Ready', 'sub': 'All Facilities Online'},
-                    {'label': 'WORK ORDERS', 'value': 'Active', 'sub': 'Standard Cadence'},
+                    {'label': 'STATUS', 'value': 'Pipeline', 'sub': 'Phase 2 Development'},
+                    {'label': 'FACILITIES', 'value': 'Multi-site', 'sub': 'Field Hubs'},
                   ],
                   sampleTasks: [
-                    {'task': 'Operational Shift Handover Logged', 'details': 'Verified and countersigned', 'time': '09:45 AM'},
-                    {'task': 'Facility Asset Inspection Completed', 'details': 'Quarterly infrastructure review', 'time': '08:20 AM'},
+                    {'task': 'Fleet Operations Protocol', 'details': 'In active design', 'time': 'Phase 2'},
                   ],
                 ),
               ),
@@ -453,16 +518,16 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
         },
       ),
 
-      // 4. Procurement Desk
+      // 5. Media Management System
       _ModuleItem(
-        id: 'procurement',
-        eyebrow: 'PROCUREMENT & VENDORS',
-        title: 'Procurement Desk',
-        description: 'Vendor registry, purchase orders, material & service intake, and 3-way matching.',
-        badgeText: 'DESK OPEN',
-        badgeColor: const Color(0xFF0D9488),
-        icon: Icons.shopping_bag_rounded,
-        gradient: [const Color(0xFF0D9488), const Color(0xFF0F766E)],
+        id: 'media',
+        eyebrow: 'MEDIA & CREATIVE',
+        title: 'Media Management System',
+        description: 'Media production workflows, studio scheduling, creative deliverables, and digital media archives.',
+        badgeText: 'PIPELINE',
+        badgeColor: const Color(0xFF64748B),
+        icon: Icons.videocam_rounded,
+        gradient: [const Color(0xFFDB2777), const Color(0xFFBE185D)],
         onTap: (ctx) {
           Navigator.push(
             ctx,
@@ -470,26 +535,24 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
               builder: (_) => StaffModuleWorkstationScreen(
                 user: user,
                 config: const ModuleConfig(
-                  id: 'procurement',
-                  eyebrow: 'GROUP PROCUREMENT & SUPPLY',
-                  title: 'Procurement Desk',
-                  subtitle: 'Vendor Registry, Purchase Orders & 3-Way Matching',
-                  description: 'Administer corporate vendor directories, issue approved purchase orders, confirm goods and services intake (GRN), and ensure 3-way matching before financial disbursements.',
-                  icon: Icons.shopping_bag_rounded,
-                  gradientColors: [Color(0xFF0D9488), Color(0xFF0F766E)],
-                  statusText: 'Registry Verified',
+                  id: 'media',
+                  eyebrow: 'MEDIA & CREATIVE',
+                  title: 'Media Management System',
+                  subtitle: 'Studio Arella Media Production & Archives',
+                  description: 'Media production workflows, studio scheduling, creative deliverables, and digital media archives.',
+                  icon: Icons.videocam_rounded,
+                  gradientColors: [Color(0xFFDB2777), Color(0xFFBE185D)],
+                  statusText: 'Pipeline (Phase 2)',
                   quickActions: [
-                    {'title': 'Create Purchase Order (PO)', 'desc': 'Issue procurement requisitions to accredited suppliers', 'icon': Icons.receipt_long_rounded, 'color': Color(0xFF0D9488)},
-                    {'title': 'Goods & Services Intake (GRN)', 'desc': 'Inspect and confirm incoming vendor deliveries or services', 'icon': Icons.fact_check_rounded, 'color': Color(0xFF0284C7)},
-                    {'title': '3-Way Match Verification', 'desc': 'Audit PO against delivery note and vendor invoice', 'icon': Icons.rule_rounded, 'color': Color(0xFF059669)},
+                    {'title': 'Studio Production Schedule', 'desc': 'Manage studio shoot calendar and bookings', 'icon': Icons.video_library_rounded, 'color': Color(0xFFDB2777)},
+                    {'title': 'Digital Creative Assets', 'desc': 'Access photography and broadcast archives', 'icon': Icons.perm_media_rounded, 'color': Color(0xFF7C3AED)},
                   ],
                   metricCards: [
-                    {'label': 'VETTED VENDORS', 'value': 'Accredited', 'sub': 'Compliance Cleared'},
-                    {'label': 'MATCHING ACCURACY', 'value': '100%', 'sub': 'Zero Discrepancies'},
+                    {'label': 'STATUS', 'value': 'Pipeline', 'sub': 'Phase 2 Development'},
+                    {'label': 'SUBSIDIARY', 'value': 'Studio Arella', 'sub': 'Creative Agency'},
                   ],
                   sampleTasks: [
-                    {'task': 'Corporate PO-2026-114 Approved', 'details': 'Issued to verified vendor', 'time': '10:15 AM'},
-                    {'task': 'Service Acceptance Signed Off', 'details': 'Deliverables verified against contract', 'time': '07:30 AM'},
+                    {'task': 'Studio Shoot Pipeline', 'details': 'In active design', 'time': 'Phase 2'},
                   ],
                 ),
               ),
@@ -498,61 +561,16 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
         },
       ),
 
-      // 5. Projects Hub
-      _ModuleItem(
-        id: 'projects',
-        eyebrow: 'STRATEGY & EXECUTION',
-        title: 'Projects Hub',
-        description: 'Cross-functional initiatives, project milestones, deliverable sign-offs, and tasks.',
-        badgeText: 'ON TRACK',
-        badgeColor: const Color(0xFF7C3AED),
-        icon: Icons.assignment_turned_in_rounded,
-        gradient: [const Color(0xFF7C3AED), const Color(0xFF6D28D9)],
-        onTap: (ctx) {
-          Navigator.push(
-            ctx,
-            MaterialPageRoute(
-              builder: (_) => StaffModuleWorkstationScreen(
-                user: user,
-                config: const ModuleConfig(
-                  id: 'projects',
-                  eyebrow: 'STRATEGIC PROJECTS & EXECUTION',
-                  title: 'Projects Hub',
-                  subtitle: 'Initiatives, Deliverables & Milestone Tracking',
-                  description: 'Track strategic multi-sector initiatives, monitor project sprints and site milestones, assign work packages, and sign off deliverables against approved group timelines.',
-                  icon: Icons.assignment_turned_in_rounded,
-                  gradientColors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
-                  statusText: 'Projects Active',
-                  quickActions: [
-                    {'title': 'Submit Milestone Deliverable', 'desc': 'Log completed milestone deliverables for sign-off', 'icon': Icons.task_alt_rounded, 'color': Color(0xFF7C3AED)},
-                    {'title': 'Project Task Assignments', 'desc': 'Assign work packages and track deadline execution', 'icon': Icons.checklist_rounded, 'color': Color(0xFF10B981)},
-                    {'title': 'Quality & Scope Sign-Off', 'desc': 'Review project deliverables against benchmark criteria', 'icon': Icons.verified_user_rounded, 'color': Color(0xFF0284C7)},
-                  ],
-                  metricCards: [
-                    {'label': 'ACTIVE INITIATIVES', 'value': 'On Schedule', 'sub': 'Execution Phase'},
-                    {'label': 'DELIVERABLE SLA', 'value': '98.5%', 'sub': 'On-Time Sign-Off'},
-                  ],
-                  sampleTasks: [
-                    {'task': 'Strategic Milestone Deliverable Submitted', 'details': 'Pending executive sign-off', 'time': '11:00 AM'},
-                    {'task': 'Work Package Assigned to Project Team', 'details': 'Timeline and scope documented', 'time': '08:30 AM'},
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-
-      // 6. Innovation Hub
+      // 6. Innovation Management System
       _ModuleItem(
         id: 'innovation',
-        eyebrow: 'R&D & DIGITAL SYSTEMS',
-        title: 'Innovation Hub',
-        description: 'Product R&D, proprietary platforms (Smartairs & software), and digital systems.',
-        badgeText: 'PLATFORMS UP',
-        badgeColor: const Color(0xFF0284C7),
-        icon: Icons.lightbulb_rounded,
-        gradient: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
+        eyebrow: 'TECHNOLOGY & R&D',
+        title: 'Innovation Management System',
+        description: 'Proprietary software technologies, digital platforms, system architecture, and technology R&D.',
+        badgeText: 'PIPELINE',
+        badgeColor: const Color(0xFF64748B),
+        icon: Icons.code_rounded,
+        gradient: [const Color(0xFF0891B2), const Color(0xFF0E7490)],
         onTap: (ctx) {
           Navigator.push(
             ctx,
@@ -561,115 +579,23 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                 user: user,
                 config: const ModuleConfig(
                   id: 'innovation',
-                  eyebrow: 'INNOVATION & DIGITAL PLATFORMS',
-                  title: 'Innovation Hub',
-                  subtitle: 'Product R&D, Smartairs & Proprietary Systems',
-                  description: 'Drive new product development and engineering, oversee proprietary digital solutions like Smartairs (Revenue Management System), champion process innovation, and manage enterprise technology infrastructure.',
-                  icon: Icons.lightbulb_rounded,
-                  gradientColors: [Color(0xFF0284C7), Color(0xFF0369A1)],
-                  statusText: 'Systems Healthy',
+                  eyebrow: 'TECHNOLOGY & R&D',
+                  title: 'Innovation Management System',
+                  subtitle: 'Proprietary Platforms & Digital Systems',
+                  description: 'Proprietary software technologies, digital platforms, system architecture, and technology R&D.',
+                  icon: Icons.code_rounded,
+                  gradientColors: [Color(0xFF0891B2), Color(0xFF0E7490)],
+                  statusText: 'Pipeline (Phase 2)',
                   quickActions: [
-                    {'title': 'Smartairs & System Operations', 'desc': 'Access proprietary revenue & digital management systems', 'icon': Icons.analytics_rounded, 'color': Color(0xFF0284C7)},
-                    {'title': 'Propose Innovation / R&D Initiative', 'desc': 'Submit new product concepts, workflows & solutions', 'icon': Icons.auto_awesome_rounded, 'color': Color(0xFF7C3AED)},
-                    {'title': 'Log Technology Support Request', 'desc': 'Report technical, software or platform infrastructure needs', 'icon': Icons.support_rounded, 'color': Color(0xFF059669)},
+                    {'title': 'SmartAIRS Platform', 'desc': 'State revenue automation and field terminals', 'icon': Icons.terminal_rounded, 'color': Color(0xFF0891B2)},
+                    {'title': 'Software Architecture', 'desc': 'Cloud services and core ERP infrastructure', 'icon': Icons.code_rounded, 'color': Color(0xFF7C3AED)},
                   ],
                   metricCards: [
-                    {'label': 'DIGITAL PLATFORMS', 'value': 'Online', 'sub': 'Smartairs & Core Systems'},
-                    {'label': 'R&D INITIATIVES', 'value': 'Active', 'sub': 'Product Pipeline'},
+                    {'label': 'STATUS', 'value': 'Pipeline', 'sub': 'Phase 2 Development'},
+                    {'label': 'TECH SUBSIDIARY', 'value': 'BemsSoft Hub', 'sub': 'Enterprise Systems'},
                   ],
                   sampleTasks: [
-                    {'task': 'Smartairs Revenue Gateway Check', 'details': 'Transaction streaming online', 'time': '04:00 AM'},
-                    {'task': 'System Security & Backup Synchronized', 'details': 'Infrastructure check healthy', 'time': 'Yesterday'},
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-
-      // 7. Sales & Commercial Hub
-      _ModuleItem(
-        id: 'sales',
-        eyebrow: 'COMMERCIAL & REVENUE',
-        title: 'Sales & Commercial Hub',
-        description: 'Client billing, contracts, customer accounts, and revenue collection.',
-        badgeText: 'ACTIVE',
-        badgeColor: const Color(0xFFE11D48),
-        icon: Icons.trending_up_rounded,
-        gradient: [const Color(0xFFE11D48), const Color(0xFFBE123C)],
-        onTap: (ctx) {
-          Navigator.push(
-            ctx,
-            MaterialPageRoute(
-              builder: (_) => StaffModuleWorkstationScreen(
-                user: user,
-                config: const ModuleConfig(
-                  id: 'sales',
-                  eyebrow: 'COMMERCIAL & REVENUE MANAGEMENT',
-                  title: 'Sales & Commercial Hub',
-                  subtitle: 'Client Contracts, Billing & Revenue Collection',
-                  description: 'Manage client relationships, generate commercial invoices and service billings across subsidiaries, track contract payment terms, and reconcile revenue collections.',
-                  icon: Icons.trending_up_rounded,
-                  gradientColors: [Color(0xFFE11D48), Color(0xFFBE123C)],
-                  statusText: 'Commercial Open',
-                  quickActions: [
-                    {'title': 'Create Client Invoice / Billing', 'desc': 'Generate billing vouchers across subsidiary services & products', 'icon': Icons.receipt_rounded, 'color': Color(0xFFE11D48)},
-                    {'title': 'Customer Account Ledger', 'desc': 'Review client payment schedules, balances & contract terms', 'icon': Icons.badge_rounded, 'color': Color(0xFF0284C7)},
-                    {'title': 'Issue Service / Delivery Clearance', 'desc': 'Authorize client fulfillment, release notes or service sign-offs', 'icon': Icons.check_circle_rounded, 'color': Color(0xFF059669)},
-                  ],
-                  metricCards: [
-                    {'label': 'REVENUE PIPELINE', 'value': 'Healthy', 'sub': 'Contract Reconciliations'},
-                    {'label': 'SETTLEMENT STATUS', 'value': 'Current', 'sub': 'Ledger Verified'},
-                  ],
-                  sampleTasks: [
-                    {'task': 'Commercial Billing Clearance Issued', 'details': 'Client settlement verified', 'time': '11:45 AM'},
-                    {'task': 'Contract Fulfillment Sign-off Completed', 'details': 'Handed to operational team', 'time': '09:10 AM'},
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-
-      // 8. Risk & Internal Audit Hub
-      _ModuleItem(
-        id: 'risk',
-        eyebrow: 'GOVERNANCE & CONTROLS',
-        title: 'Risk & Internal Audit Hub',
-        description: 'Corporate governance, 72h SLA financial compliance, internal audit, and policy controls.',
-        badgeText: '100% SLA',
-        badgeColor: const Color(0xFF475569),
-        icon: Icons.gavel_rounded,
-        gradient: [const Color(0xFF475569), const Color(0xFF334155)],
-        onTap: (ctx) {
-          Navigator.push(
-            ctx,
-            MaterialPageRoute(
-              builder: (_) => StaffModuleWorkstationScreen(
-                user: user,
-                config: const ModuleConfig(
-                  id: 'risk',
-                  eyebrow: 'RISK MANAGEMENT & INTERNAL AUDIT',
-                  title: 'Risk & Internal Audit Hub',
-                  subtitle: '72h SLA Governance, Compliance & Internal Controls',
-                  description: 'Enforce group financial governance, monitor 72h advance retirement SLAs, audit multi-subsidiary transaction controls, and uphold corporate compliance standards.',
-                  icon: Icons.gavel_rounded,
-                  gradientColors: [Color(0xFF475569), Color(0xFF334155)],
-                  statusText: '100% Compliant',
-                  quickActions: [
-                    {'title': 'View 72h SLA Scorecard', 'desc': 'Review advance retirement compliance rate & deadlines', 'icon': Icons.timer_rounded, 'color': Color(0xFF059669)},
-                    {'title': 'Audit Trail & Verification Logs', 'desc': 'Audit approvals, disbursement matches & corporate vouchers', 'icon': Icons.rule_rounded, 'color': Color(0xFF0284C7)},
-                    {'title': 'Report Compliance / Governance Issue', 'desc': 'Confidential internal control & whistleblowing channel', 'icon': Icons.shield_rounded, 'color': Color(0xFFDC2626)},
-                  ],
-                  metricCards: [
-                    {'label': 'SLA GRADE', 'value': 'Tier 1', 'sub': '100% On-Time Retirement'},
-                    {'label': 'AUDIT STATUS', 'value': 'Compliant', 'sub': 'Zero Flagged Exceptions'},
-                  ],
-                  sampleTasks: [
-                    {'task': 'Corporate Audit Review Completed', 'details': 'Zero unretired advances logged', 'time': 'Nov 1'},
-                    {'task': 'Dual-Key Payment Match Confirmed', 'details': 'Matched to GMD executive approval', 'time': 'Nov 3'},
+                    {'task': 'Cloud Infrastructure Framework', 'details': 'In active design', 'time': 'Phase 2'},
                   ],
                 ),
               ),
