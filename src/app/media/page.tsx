@@ -34,7 +34,7 @@ export default function MediaPortalPage() {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <img src="/bems-group-logo.png?v=20261024" alt="BEMS logo" style={{ width: 32, height: 32, objectFit: 'contain' }} />
-            <strong style={{ fontSize: '17px', fontWeight: 800 }}>BEMS Media & Creative Studio</strong>
+            <strong style={{ fontSize: '17px', fontWeight: 800 }}>Media Management System</strong>
           </div>
           <Link
             href="/"
@@ -84,10 +84,10 @@ export default function MediaPortalPage() {
           <Video size={32} />
         </div>
         <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '0 0 8px' }}>
-          Media & Creative Communications
+          Media Management System
         </h1>
         <p style={{ fontSize: '15px', color: '#64748b', margin: '0 0 28px', maxWidth: '520px', lineHeight: 1.5 }}>
-          Dedicated media subsidiary operations: content production schedules, creative digital asset archive, shoot equipment booking, advertising campaigns, and corporate broadcasting.
+          Media production workflows, studio scheduling, creative deliverables, and digital media archives.
         </p>
 
         <div style={{ display: 'flex', gap: '12px' }}>

@@ -193,14 +193,14 @@ function OnboardingContent() {
 
       setSuccess(true);
       setTimeout(() => {
-        if (data.user?.role === 'HR' || data.user?.role === 'HR_ADMIN') {
-          router.push('/hr');
-        } else if (
+        if (
           data.user?.role === 'GMD' ||
           data.user?.role === 'SYSTEM_ADMIN' ||
           data.user?.role === 'SUPER_ADMIN'
         ) {
           router.push('/finance');
+        } else if (data.user?.role === 'STAFF') {
+          router.push('/staff');
         } else {
           router.push('/');
         }

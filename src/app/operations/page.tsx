@@ -34,7 +34,7 @@ export default function OperationsPortalPage() {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <img src="/bems-group-logo.png?v=20261024" alt="BEMS logo" style={{ width: 32, height: 32, objectFit: 'contain' }} />
-            <strong style={{ fontSize: '17px', fontWeight: 800 }}>BEMS Operations</strong>
+            <strong style={{ fontSize: '17px', fontWeight: 800 }}>Operations Management System</strong>
           </div>
           <Link
             href="/"
@@ -83,10 +83,10 @@ export default function OperationsPortalPage() {
           <Truck size={32} />
         </div>
         <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '0 0 8px' }}>
-          Operations & Fleet Management
+          Operations Management System
         </h1>
         <p style={{ fontSize: '15px', color: '#64748b', margin: '0 0 28px' }}>
-          This module is currently in development (Phase 2).
+          This system is currently in development (Phase 2).
         </p>
         <div style={{ display: 'flex', gap: '12px' }}>
           <Link

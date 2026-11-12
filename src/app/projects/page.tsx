@@ -34,7 +34,7 @@ export default function ProjectsPortalPage() {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <img src="/bems-group-logo.png?v=20261024" alt="BEMS logo" style={{ width: 32, height: 32, objectFit: 'contain' }} />
-            <strong style={{ fontSize: '17px', fontWeight: 800 }}>BEMS Projects & Capital Works</strong>
+            <strong style={{ fontSize: '17px', fontWeight: 800 }}>Project Management System</strong>
           </div>
           <Link
             href="/"
@@ -84,10 +84,10 @@ export default function ProjectsPortalPage() {
           <FolderKanban size={32} />
         </div>
         <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '0 0 8px' }}>
-          Projects & Capital Execution
+          Project Management System
         </h1>
         <p style={{ fontSize: '15px', color: '#64748b', margin: '0 0 28px', maxWidth: '520px', lineHeight: 1.5 }}>
-          Corporate project portfolios, field implementation tracking (SmartIRS state deployments, facility expansions, POS rollouts), milestone sign-offs, and project budget accounting.
+          Project tracking, milestone execution, deliverables, and capital expenditure oversight.
         </p>
 
         <div style={{ display: 'flex', gap: '12px' }}>
