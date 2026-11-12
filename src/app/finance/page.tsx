@@ -1751,7 +1751,7 @@ function RoleOverviewModule({role,business,user,cases,setActive,setNotice,onRole
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div className="welcome-row">
         <div>
-          <p className="kicker">EXECUTIVE COMMAND TELEMETRY · {roleProfiles[role]?.title?.toUpperCase() || role}</p>
+          <p className="kicker">FINANCIAL MANAGEMENT SYSTEM · EXECUTIVE COMMAND TELEMETRY · {roleProfiles[role]?.title?.toUpperCase() || role}</p>
           <h1>Good afternoon, {formatDisplayName(user.fullName)}.</h1>
           <p>Real-time expenditure pipeline, cash run-rate, and accountability governance across {business.name}.</p>
         </div>
@@ -3990,6 +3990,30 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
               )}
             </div><div className="global-search"><span>⌕</span><input aria-label="Search workspace" value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Search ${current.name}`}/><kbd>⌘ K</kbd>{search&&<div className="search-results">{(searchResults.length||dataResults.length)?<>{searchResults.map(name=><button key={`nav-${name}`} onClick={()=>openModule(name)}><span>{isLocked(name)?'⌾':'→'}</span><div><strong>{name}</strong><small>{isLocked(name)?'Locked in current environment':'Open in this workspace'}</small></div></button>)}{dataResults.map((r,i)=><button key={`data-${i}`} onClick={()=>openModule(r.navigate)}><span>◎</span><div><strong>{r.label}</strong><small>{r.type} · {r.sublabel}</small></div></button>)}</>:<p>No workspace results</p>}</div>}</div>
             <div className="top-actions">
+              <button
+                type="button"
+                onClick={() => { if (typeof window !== 'undefined') window.location.href = '/'; }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  height: '28px',
+                  borderRadius: '8px',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  color: '#0f172a',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Return to Enterprise Systems Launchpad (All Systems)"
+              >
+                <span style={{ color: '#ea580c', fontSize: '12px' }}>❖</span>
+                <span>All Systems</span>
+              </button>
               {isStaff && (
                 <button
                   className="templates-top"

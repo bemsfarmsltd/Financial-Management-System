@@ -1613,6 +1613,16 @@ export function StaffDashboardClient({
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-orange-600' : ''}`} />
             </button>
 
+            {/* Return to Enterprise Systems Launchpad */}
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-sm"
+              title="Return to Enterprise Systems Launchpad (All Systems)"
+            >
+              <span className="text-orange-600 text-sm">❖</span>
+              <span className="hidden sm:inline">All Systems</span>
+            </Link>
+
             {/* Sign Out */}
             <button
               onClick={handleSignOut}

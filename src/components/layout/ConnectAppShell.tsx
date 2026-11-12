@@ -347,7 +347,7 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
         {/* SIDEBAR */}
         <aside className="sidebar">
           <div className="sidebar-circuit" aria-hidden="true"><i/><i/><i/><i/><i/><i/></div>
-          <div className="side-brand" style={{ cursor: 'pointer' }} onClick={() => { if (typeof window !== 'undefined') window.location.href = '/finance'; }}>
+          <div className="side-brand" style={{ cursor: 'pointer' }} onClick={() => { if (typeof window !== 'undefined') window.location.href = '/'; }}>
             <span style={{ width: 32, height: 32, borderRadius: 7, background: '#ffffff', border: `1.5px solid ${activeBrandColor}50`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 2, flexShrink: 0 }}>
               {activeLogoUrl ? (
                 <img
@@ -502,8 +502,8 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
             >
               <span className="btn-icon">❖</span>
               <div className="btn-text">
-                <strong>All Modules</strong>
-                <small>Switch Department ⤢</small>
+                <strong>All Systems</strong>
+                <small>Enterprise Launchpad ⤢</small>
               </div>
             </Link>
 
