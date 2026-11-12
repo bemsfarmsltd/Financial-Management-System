@@ -21,7 +21,13 @@ export async function GET(
     const appId = safeFilename === 'gmd-app.apk' ? 'GMD_APP' : safeFilename === 'staff-app.apk' ? 'STAFF_APP' : null;
     const active = appId ? await prisma.mobileAppRelease.findFirst({ where: { appId, status: 'ACTIVE' }, orderBy: { createdAt: 'desc' } }) : null;
     const targetPath = path.join(downloadsDir, path.basename(active?.fileName || safeFilename));
-    const fileBuffer = await fs.readFile(targetPath).catch(() => null);
+    let fileBuffer = await fs.readFile(targetPath).catch(() => null);
+    if (!fileBuffer) {
+      fileBuffer = await fs.readFile(path.join(downloadsDir, safeFilename)).catch(() => null);
+    }
+    if (!fileBuffer) {
+      fileBuffer = await fs.readFile(path.join(process.cwd(), 'public', 'download', safeFilename)).catch(() => null);
+    }
 
     if (!fileBuffer) {
       return NextResponse.json(

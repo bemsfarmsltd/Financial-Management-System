@@ -13,6 +13,9 @@ import {
   LogOut,
   Bell,
   Search,
+  Smartphone,
+  Download,
+  ExternalLink,
 } from 'lucide-react';
 
 export interface EnterpriseUserSummary {
@@ -191,6 +194,27 @@ export function EnterpriseModulesScreen({ user }: { user: EnterpriseUserSummary 
 
           {/* User Session & Quick Links */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {/* Download App */}
+            <Link
+              href="/download"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                background: '#fff7ed',
+                border: '1px solid #fed7aa',
+                color: '#ea580c',
+                fontSize: '12px',
+                fontWeight: 700,
+                textDecoration: 'none',
+              }}
+            >
+              <Smartphone size={13} color="#ea580c" />
+              <span>Download App</span>
+            </Link>
+
             {/* Quick Links */}
             <Link
               href="/notifications"
@@ -345,6 +369,105 @@ export function EnterpriseModulesScreen({ user }: { user: EnterpriseUserSummary 
           flex: 1,
         }}
       >
+        {/* MOBILE APP PROMPT BANNER */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #ffffff 0%, #fff7ed 100%)',
+            border: '1.5px solid #fed7aa',
+            borderRadius: '16px',
+            padding: '20px 24px',
+            marginBottom: '28px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '20px',
+            boxShadow: '0 4px 16px -2px rgba(234, 88, 12, 0.08)',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', maxWidth: '680px' }}>
+            <div
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '14px',
+                background: '#ea580c',
+                color: '#ffffff',
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0,
+                boxShadow: '0 4px 12px rgba(234, 88, 12, 0.3)',
+              }}
+            >
+              <Smartphone size={24} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                <strong style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                  Download BEMS Mobile App (Android APK)
+                </strong>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    background: '#ecfdf5',
+                    color: '#059669',
+                    border: '1px solid #a7f3d0',
+                  }}
+                >
+                  Direct APK Available
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: '12.5px', color: '#64748b', lineHeight: 1.45 }}>
+                Get the native Android app for faster fund requisitions, personal wallet tracking, biometric clock-in, and instant push notifications.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <a
+              href={user?.role === 'GMD' ? '/download/gmd-app.apk' : '/download/staff-app.apk'}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '10px 18px',
+                borderRadius: '10px',
+                background: '#ea580c',
+                color: '#ffffff',
+                fontSize: '13px',
+                fontWeight: 700,
+                textDecoration: 'none',
+                boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+              }}
+            >
+              <Download size={14} />
+              <span>{user?.role === 'GMD' ? 'Download GMD Cockpit (APK)' : 'Download Staff App (APK)'}</span>
+            </a>
+            <Link
+              href="/download"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                color: '#334155',
+                fontSize: '13px',
+                fontWeight: 700,
+                textDecoration: 'none',
+              }}
+            >
+              <span>Download Center</span>
+              <ExternalLink size={13} />
+            </Link>
+          </div>
+        </div>
+
         <div
           style={{
             display: 'grid',

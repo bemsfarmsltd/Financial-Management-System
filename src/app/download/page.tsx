@@ -72,7 +72,7 @@ export default async function PublicDownloadPage() {
           </div>
 
           <Link
-            href="/finance"
+            href="/"
             style={{
               padding: '8px 16px',
               borderRadius: 8,
@@ -83,7 +83,7 @@ export default async function PublicDownloadPage() {
               textDecoration: 'none',
             }}
           >
-            Web Portal →
+            Enterprise Portal →
           </Link>
         </div>
       </header>
