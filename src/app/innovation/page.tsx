@@ -34,7 +34,7 @@ export default function InnovationPortalPage() {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <img src="/bems-group-logo.png?v=20261024" alt="BEMS logo" style={{ width: 32, height: 32, objectFit: 'contain' }} />
-            <strong style={{ fontSize: '17px', fontWeight: 800 }}>BEMS Innovation & Tech</strong>
+            <strong style={{ fontSize: '17px', fontWeight: 800 }}>Innovation Management System</strong>
           </div>
           <Link
             href="/"
@@ -52,7 +52,7 @@ export default function InnovationPortalPage() {
             }}
           >
             <ArrowLeft size={13} />
-            <span>All Departments</span>
+            <span>All Systems</span>
           </Link>
         </div>
       </header>
@@ -78,15 +78,16 @@ export default function InnovationPortalPage() {
             display: 'grid',
             placeItems: 'center',
             marginBottom: '20px',
+            border: '1px solid #bae6fd',
           }}
         >
           <Code2 size={32} />
         </div>
         <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '0 0 8px' }}>
-          Innovation & Cloud Tech
+          Innovation Management System
         </h1>
-        <p style={{ fontSize: '15px', color: '#64748b', margin: '0 0 28px' }}>
-          This module is currently in development (Phase 3).
+        <p style={{ fontSize: '15px', color: '#64748b', margin: '0 0 28px', maxWidth: '520px', lineHeight: 1.5 }}>
+          This system is currently in development (Phase 2).
         </p>
         <div style={{ display: 'flex', gap: '12px' }}>
           <Link
@@ -102,7 +103,7 @@ export default function InnovationPortalPage() {
               textDecoration: 'none',
             }}
           >
-            ← Back to Departments
+            ← Back to Systems
           </Link>
           <Link
             href="/finance"
@@ -119,7 +120,7 @@ export default function InnovationPortalPage() {
               gap: '6px',
             }}
           >
-            <span>Open Finance Module</span>
+            <span>Open Financial System</span>
             <ArrowRight size={14} />
           </Link>
         </div>
