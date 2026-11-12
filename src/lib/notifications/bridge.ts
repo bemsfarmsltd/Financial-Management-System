@@ -217,7 +217,11 @@ export async function dispatchNotificationBridge(payload: NotificationPayload): 
 
   // 2. Outbox + Dispatch WhatsApp
   if (payload.channel === "WHATSAPP" || payload.channel === "BOTH" || payload.channel === "ALL") {
-    const waText = `*BEMS Group Alert: ${payload.title}*\n\n${payload.summary}\n\n• Reference: ${payload.metadata?.requestNumber || "N/A"}\n• Amount: ₦${payload.metadata?.amountMinor ? (payload.metadata.amountMinor / 100).toLocaleString() : "N/A"}\n\nReply *APPROVE* or *DECLINE* followed by the request number.`;
+    const reqRef = payload.metadata?.requestNumber || "N/A";
+    const formattedAmt = payload.metadata?.amountMinor
+      ? (Number(payload.metadata.amountMinor) / 100).toLocaleString("en-NG", { minimumFractionDigits: 2 })
+      : "N/A";
+    const waText = `*BEMS Group Alert: ${payload.title}*\n\n${payload.summary}\n\n• Reference: *${reqRef}*\n• Amount: *₦${formattedAmt}*\n\n👉 Reply *APPROVE ${reqRef}* or *DECLINE ${reqRef}*`;
 
     let waPhone = (payload.recipient || "").replace(/[^0-9]/g, "");
     if (!waPhone || waPhone.length < 10) {
