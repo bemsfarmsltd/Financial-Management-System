@@ -100,7 +100,17 @@ export async function applyWalletEvidence(id:string,leaseToken:string,e:Transfer
             ?await tx.$executeRaw`UPDATE "WalletCreditLot" SET "settledMinor"="settledMinor"-${a.amountMinor},"availableMinor"="availableMinor"+${a.amountMinor} WHERE "id"=${a.creditLotId} AND "settledMinor">=${a.amountMinor}`
             :await tx.$executeRaw`UPDATE "WalletCreditLot" SET "heldMinor"="heldMinor"-${a.amountMinor},"availableMinor"="availableMinor"+${a.amountMinor} WHERE "id"=${a.creditLotId} AND "heldMinor">=${a.amountMinor}`;
         if(count!==1)throw new WalletError('WITHDRAWAL_ALLOCATION_MISMATCH','Wallet projection needs reconciliation.',409);
-        if(status==='REVERSED'){const[c]=await tx.$queryRaw<any[]>`SELECT "sourceType","sourceId" FROM "WalletCreditLot" WHERE "id"=${a.creditLotId}`;if(c?.sourceType==='REQUEST'){await tx.accountabilityCase.updateMany({where:{requestId:c.sourceId,status:'CLOSED'},data:{status:'OPEN',verifiedAt:null}});await tx.expenditureRequest.update({where:{id:c.sourceId},data:{accountabilityStatus:'PENDING'}});}}
+        const[c]=await tx.$queryRaw<any[]>`SELECT "sourceType","sourceId","availableMinor","heldMinor","settledMinor" FROM "WalletCreditLot" WHERE "id"=${a.creditLotId}`;
+        if(status==='SUCCEEDED'&&c?.sourceType==='REQUEST'&&BigInt(c.availableMinor||0)===BigInt(0)&&BigInt(c.heldMinor||0)===BigInt(0)&&BigInt(c.settledMinor||0)>BigInt(0)){
+          const r=await tx.expenditureRequest.findUnique({where:{id:c.sourceId}});
+          if(r){
+            if(r.requestType!=='REIMBURSEMENT'){
+              await tx.accountabilityCase.upsert({where:{requestId:r.id},update:{status:'OPEN',verifiedAt:null},create:{requestId:r.id,ownerUserId:r.requestedById,requiredDeliverables:r.deliverable||'Receipts and expenditure proof',dueAt:await accountabilityDeadline(r.subsidiaryId,r.requestType==='EMERGENCY',new Date(),tx)}});
+            }
+            await tx.expenditureRequest.update({where:{id:r.id},data:{paymentStatus:'PAID',accountabilityStatus:r.requestType==='REIMBURSEMENT'?'NOT_REQUIRED':'PENDING'}});
+          }
+        }
+        if(status==='REVERSED'&&c?.sourceType==='REQUEST'){await tx.accountabilityCase.updateMany({where:{requestId:c.sourceId,status:'CLOSED'},data:{status:'OPEN',verifiedAt:null}});await tx.expenditureRequest.update({where:{id:c.sourceId},data:{accountabilityStatus:'AWAITING_WITHDRAWAL',paymentStatus:'WALLET_CREDITED'}});}
       }
       await journal(tx,w.employeeId,status==='SUCCEEDED'?'WITHDRAWAL_SETTLED':status==='REVERSED'?'WITHDRAWAL_REVERSED':'WITHDRAWAL_RELEASED',id+':'+status,w.status==='SUCCEEDED'?'BANK_SETTLED:'+id:'HELD:'+id,status==='SUCCEEDED'?'BANK_SETTLED:'+id:'STAFF:'+w.employeeId,w.amountMinor);
       }

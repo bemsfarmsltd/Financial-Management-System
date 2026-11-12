@@ -31,6 +31,8 @@ export async function GET(req: NextRequest) {
           title: true,
           amountMinor: true,
           currency: true,
+          paymentStatus: true,
+          accountabilityStatus: true,
           subsidiary: { select: { id: true, code: true, legalName: true } },
         },
       },
@@ -40,10 +42,43 @@ export async function GET(req: NextRequest) {
     take: 50,
   });
 
+  const caseRequestIds = cases.map((c) => c.request.id);
+  const lots = caseRequestIds.length
+    ? await prisma.$queryRaw<
+        Array<{
+          requestId: string;
+          amountMinor: bigint;
+          availableMinor: bigint;
+          heldMinor: bigint;
+          settledMinor: bigint;
+        }>
+      >`
+        SELECT "requestId", "amountMinor", "availableMinor", "heldMinor", "settledMinor"
+        FROM "WalletCreditLot"
+        WHERE "requestId" = ANY(${caseRequestIds}::text[])
+      `
+    : [];
+
+  const activeCases = cases.filter((c) => {
+    const reqLots = lots.filter((l) => l.requestId === c.request.id);
+    if (reqLots.length > 0 && c.status !== 'CLOSED') {
+      const totalSettled = reqLots.reduce((s, l) => s + BigInt(l.settledMinor || 0), BigInt(0));
+      const totalAvailable = reqLots.reduce((s, l) => s + BigInt(l.availableMinor || 0), BigInt(0));
+      const totalHeld = reqLots.reduce((s, l) => s + BigInt(l.heldMinor || 0), BigInt(0));
+      const isCompletelyWithdrawn = totalSettled > BigInt(0) && totalAvailable === BigInt(0) && totalHeld === BigInt(0);
+      if (!isCompletelyWithdrawn) {
+        return false; // Accountability does not start until money is completely withdrawn to personal bank
+      }
+    }
+    return true;
+  });
+
   return NextResponse.json({
     ok: true,
-    count: cases.length,
-    cases: cases.map((c) => ({
+    count: activeCases.length,
+    policyNote:
+      'Accountability only begins AFTER a staff member has completely withdrawn the funds from their BEMS Wallet to their personal bank account.',
+    cases: activeCases.map((c) => ({
       id: c.id,
       status: c.status,
       dueAt: c.dueAt,

@@ -253,6 +253,7 @@ export async function POST(req: NextRequest) {
                 action_type: pendingAction.actionType,
                 expires_at: pendingAction.expiresAt.toISOString(),
                 payload_preview: previewObj,
+                preview: previewObj,
                 confirmed: false,
               },
               timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
@@ -309,7 +310,8 @@ title: "<Chart Title>"
 \`\`\`
 3. Markdown Tables: When presenting multi-column comparative data (e.g. subsidiaries, periods, budgets, spending), use standard Markdown tables with proper newlines between every row. Ensure a blank line before and after the table.
 4. Requisition & Action Cards: Use structured cards ONLY for items requiring review, requisition approval decisions (REQ-XXXX-XXXX), or staged actions.${!isGroupScope ? `\n5. STRICT SUBSIDIARY BOUNDARY: You are operating strictly inside the isolated workspace for "${scopedOrgName}" (ID: ${scopedOrgId}). You MUST restrict all database queries, financial totals, and responses exclusively to "${scopedOrgName}". Do NOT query, cite, or manipulate any other subsidiary or group-level data.` : '\n5. GROUP CONGLOMERATE HQ: You have global visibility across all subsidiaries.'}
-6. SOURCE CITATION & UNTRUSTED TELEMETRY: Never describe demo values or caller-supplied UI telemetry as live ledger facts. Always verify figures via live BEMS read endpoints and cite the source register or endpoint.`,
+6. SOURCE CITATION & UNTRUSTED TELEMETRY: Never describe demo values or caller-supplied UI telemetry as live ledger facts. Always verify figures via live BEMS read endpoints and cite the source register or endpoint.
+7. AUDIT PROVENANCE, WALLET WITHDRAWALS & PAYROLL DISBURSEMENT: Always inspect \`walletWithdrawalStatus\`, \`preparedBy\`, \`approvedBy\`, \`approvalSteps\`, and \`auditTrail\` returned by \`/api/ai/tools/requests\`, \`/api/ai/tools/approvals\`, and \`/api/ai/tools/payroll\`. You have full visibility into whether a staff member has withdrawn funds from their BEMS Wallet to their personal bank account (\`walletWithdrawalStatus.isCompletelyWithdrawnToPersonalBank\`, \`withdrawnToPersonalBankFormatted\`, \`availableInBemsWalletFormatted\`, \`personalBankWithdrawals\`), and who prepared and approved every request or payroll batch. Remember: accountability only begins AFTER a staff member has completely withdrawn the money from their BEMS Wallet to their personal bank account (\`AWAITING_WITHDRAWAL\` while still in wallet). When the GMD instructs to approve or disburse a month's salary/payroll, stage \`POST /api/ai/tools/payroll\` with \`action: "SIGN_OFF"\` so the card displays the full monthly staff salary list and requests the GMD's executive password.`,
           },
           conversation_history: conversationHistory,
           chat_history: conversationHistory,

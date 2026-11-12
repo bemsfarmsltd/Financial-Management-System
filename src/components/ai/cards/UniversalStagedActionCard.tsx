@@ -20,7 +20,7 @@ interface Props {
   resultUrl?: string;
   recordId?: string;
   auditEventId?: string;
-  onConfirm: (stagedActionId: string, confirmationHash: string) => Promise<void> | void;
+  onConfirm: (stagedActionId: string, confirmationHash: string, password?: string) => Promise<void> | void;
   onCancel?: (stagedActionId: string) => Promise<void> | void;
 }
 
@@ -46,6 +46,17 @@ export function UniversalStagedActionCard({
 }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [password, setPassword] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const requiresPassword = Boolean(
+    preview?.requires_password ||
+      (actionType?.toLowerCase().includes('payroll') &&
+        ['SIGN_OFF', 'APPROVE'].includes(
+          String(preview?.action || preview?.sub_action || preview?.execution?.sub_action || '').toUpperCase()
+        ))
+  );
+  const salaryList = Array.isArray(preview?.salary_list) ? preview.salary_list : null;
 
   const getActionMeta = (type: string) => {
     const norm = (type || '').toLowerCase();
@@ -224,9 +235,14 @@ export function UniversalStagedActionCard({
 
   const handleConfirm = async () => {
     if (submitting || cancelling) return;
+    if (requiresPassword && !password.trim()) {
+      setLocalError('Please enter your GMD executive password to authorize salary disbursement to staff BEMS Wallets.');
+      return;
+    }
+    setLocalError(null);
     setSubmitting(true);
     try {
-      await onConfirm(stagedActionId, confirmationHash);
+      await onConfirm(stagedActionId, confirmationHash, requiresPassword ? password.trim() : undefined);
     } finally {
       setSubmitting(false);
     }
@@ -416,7 +432,17 @@ export function UniversalStagedActionCard({
         }}
       >
         {Object.entries(preview)
-          .filter(([key]) => key !== 'allocations' && key !== 'lines' && key !== 'warnings' && key !== 'blocking_errors')
+          .filter(
+            ([key]) =>
+              key !== 'allocations' &&
+              key !== 'lines' &&
+              key !== 'warnings' &&
+              key !== 'blocking_errors' &&
+              key !== 'salary_list' &&
+              key !== 'requires_password' &&
+              key !== 'execution' &&
+              key !== 'resolved_targets'
+          )
           .slice(0, 8)
           .map(([key, val]) => {
             const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -499,6 +525,126 @@ export function UniversalStagedActionCard({
         <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px 10px', marginBottom: '12px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
           <AlertTriangle size={14} color="#dc2626" style={{ marginTop: '2px', flexShrink: 0 }} />
           <div style={{ fontSize: '11px', color: '#b91c1c', fontWeight: 600 }}>{errorMessage}</div>
+        </div>
+      )}
+
+      {/* Monthly Staff Salary List if present (Payroll Approval Review) */}
+      {salaryList && salaryList.length > 0 && (
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: '10px',
+            border: '1px solid #e2e8f0',
+            overflow: 'hidden',
+            marginBottom: '12px',
+          }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1.8fr 1fr 0.9fr 1fr',
+              padding: '7px 10px',
+              background: '#f8fafc',
+              fontSize: '9.5px',
+              fontWeight: 800,
+              color: '#475569',
+              borderBottom: '1px solid #e2e8f0',
+              textTransform: 'uppercase',
+              letterSpacing: '0.03em',
+            }}
+          >
+            <span>Staff Member ({salaryList.length})</span>
+            <span style={{ textAlign: 'right' }}>Gross</span>
+            <span style={{ textAlign: 'right' }}>Penalty</span>
+            <span style={{ textAlign: 'right' }}>Net (Wallet)</span>
+          </div>
+          <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
+            {salaryList.map((row: any, idx: number) => (
+              <div
+                key={row.employeeId || idx}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1.8fr 1fr 0.9fr 1fr',
+                  padding: '6px 10px',
+                  borderTop: idx === 0 ? 'none' : '1px solid #f1f5f9',
+                  fontSize: '10.5px',
+                  alignItems: 'center',
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {row.employeeName}
+                  </div>
+                  <div style={{ fontSize: '9px', color: '#64748b' }}>
+                    {row.subsidiary || 'BEMS Group'}
+                  </div>
+                </div>
+                <span style={{ textAlign: 'right', color: '#334155', fontWeight: 600 }}>
+                  {row.grossFormatted || `₦${Number(row.gross || 0).toLocaleString()}`}
+                </span>
+                <span style={{ textAlign: 'right', color: '#d97706', fontWeight: 600 }}>
+                  -{row.deductionsFormatted || `₦${Number(row.deductions || 0).toLocaleString()}`}
+                </span>
+                <strong style={{ textAlign: 'right', color: '#059669', fontWeight: 800 }}>
+                  {row.netFormatted || `₦${Number(row.net || 0).toLocaleString()}`}
+                </strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Executive Password Challenge for Payroll Disbursement */}
+      {requiresPassword && (
+        <div
+          style={{
+            background: '#fff7ed',
+            border: '1px solid #fed7aa',
+            borderRadius: '10px',
+            padding: '10px 12px',
+            marginBottom: '12px',
+          }}
+        >
+          <label
+            style={{
+              display: 'block',
+              fontSize: '10.5px',
+              fontWeight: 800,
+              color: '#9a3412',
+              marginBottom: '6px',
+            }}
+          >
+            🔒 Enter GMD Executive Password to Authorize & Credit Staff BEMS Wallets
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (localError) setLocalError(null);
+            }}
+            placeholder="Enter your GMD password to disburse salaries..."
+            style={{
+              width: '100%',
+              padding: '8px 10px',
+              borderRadius: '7px',
+              border: '1px solid #fdba74',
+              background: '#ffffff',
+              fontSize: '12px',
+              color: '#0f172a',
+              boxSizing: 'border-box',
+            }}
+          />
+          <div style={{ fontSize: '10px', color: '#c2410c', marginTop: '4px' }}>
+            Once authorized, all staff salaries will be credited to their BEMS Wallets immediately with mobile app & email notifications.
+          </div>
+        </div>
+      )}
+
+      {localError && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px 10px', marginBottom: '12px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+          <AlertTriangle size={14} color="#dc2626" style={{ marginTop: '2px', flexShrink: 0 }} />
+          <div style={{ fontSize: '11px', color: '#b91c1c', fontWeight: 600 }}>{localError}</div>
         </div>
       )}
 

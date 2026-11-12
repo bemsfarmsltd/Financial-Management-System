@@ -42,6 +42,7 @@ export async function POST(
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
     const confirmationHash = body.confirmation_hash;
+    const password = typeof body.password === 'string' ? body.password : undefined;
 
     if (!confirmationHash) {
       return NextResponse.json({ ok: false, error_code: 'VALIDATION_FAILED', message: 'confirmation_hash is required.' }, { status: 400 });
@@ -59,6 +60,7 @@ export async function POST(
         employeeNumber: actor.employeeNumber,
       },
       idempotencyKey,
+      password,
     });
 
     if (!result.ok) {

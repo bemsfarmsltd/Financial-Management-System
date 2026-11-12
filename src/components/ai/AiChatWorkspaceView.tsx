@@ -694,10 +694,11 @@ export function AiChatWorkspaceView({
                         resultUrl={msg.actionCard.resultUrl}
                         recordId={msg.actionCard.recordId}
                         auditEventId={msg.actionCard.auditEventId}
-                        onConfirm={(id, hash) => {
+                        onConfirm={(id, hash, password) => {
                           handleConfirmAction(msg.id, msg.actionCard?.type || 'staged_action', {
                             staged_action_id: id,
                             confirmation_hash: hash,
+                            password,
                           });
                         }}
                         onCancel={(id) => {

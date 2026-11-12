@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { sendAdminInvitationEmail, sendChatMessageEmail } from '@/lib/email';
+import { sendAdminInvitationEmail, sendChatMessageEmail, sendSalaryWalletCreditedEmail } from '@/lib/email';
 
-type DeliveryKind = 'ADMIN_INVITATION' | 'CHAT_MESSAGE';
+type DeliveryKind = 'ADMIN_INVITATION' | 'CHAT_MESSAGE' | 'SALARY_WALLET_CREDITED';
 export async function queueDelivery(tx: Prisma.TransactionClient, commandId: string, kind: DeliveryKind, payload: Record<string, unknown>) {
   const id = randomUUID();
   await tx.$executeRaw`INSERT INTO "DeliveryOutbox" ("id", "commandId", "kind", "payload") VALUES (${id}, ${commandId}, ${kind}, ${JSON.stringify(payload)})`;
@@ -24,7 +24,13 @@ export async function processDeliveryOutbox(commandId?: string, limit = 20) {
   for (const row of rows) {
     try {
       const payload = JSON.parse(row.payload);
-      const result = row.kind === 'ADMIN_INVITATION' ? await sendAdminInvitationEmail(payload) : row.kind === 'CHAT_MESSAGE' ? await sendChatMessageEmail(payload) : null;
+      const result = row.kind === 'ADMIN_INVITATION'
+        ? await sendAdminInvitationEmail(payload)
+        : row.kind === 'CHAT_MESSAGE'
+        ? await sendChatMessageEmail(payload)
+        : row.kind === 'SALARY_WALLET_CREDITED'
+        ? await sendSalaryWalletCreditedEmail(payload)
+        : null;
       if (!result?.success || result.simulated) throw new Error('Provider did not acknowledge delivery.');
       await prisma.$executeRaw`UPDATE "DeliveryOutbox" SET "status" = 'SENT', "payload" = '{}', "lockedUntil" = NULL, "sentAt" = CURRENT_TIMESTAMP, "lastError" = NULL WHERE "id" = ${row.id}`;
     } catch {

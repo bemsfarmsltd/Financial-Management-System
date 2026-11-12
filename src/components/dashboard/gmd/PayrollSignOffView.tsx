@@ -204,6 +204,8 @@ export function PayrollSignOffView({
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
   const [signOffModalOpen, setSignOffModalOpen] = useState(false);
+  const [signOffPassword, setSignOffPassword] = useState('');
+  const [signOffError, setSignOffError] = useState<string | null>(null);
   const [comments, setComments] = useState('');
   const [approving, setApproving] = useState(false);
   const [assignees, setAssignees] = useState<Array<{ id: string; legalName: string; role: string }>>([]);
@@ -542,33 +544,42 @@ export function PayrollSignOffView({
 
   const handleApprovePayroll = async () => {
     if (!data?.batch?.id) return;
-    if (!selectedAssigneeId) {
-      setNotice('Choose who will record the external payroll payments.');
+    if (!signOffPassword.trim()) {
+      setSignOffError('Please enter your GMD executive password to authorize salary disbursement to staff BEMS Wallets.');
       return;
     }
     try {
       setApproving(true);
+      setSignOffError(null);
       const res = await fetch('/api/payroll', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           batchId: data.batch?.id,
-          disbursementAssigneeId: selectedAssigneeId,
-          approverEmail: 'gmd@bemsgroup.com',
-          comments: comments.trim() || `${monthName} approved for external payment processing.`
-        })
+          disbursementAssigneeId: selectedAssigneeId || undefined,
+          password: signOffPassword.trim(),
+          disburseToWallets: true,
+          comments: comments.trim() || `${monthName} approved and credited to staff BEMS Wallets.`,
+        }),
       });
       const result = await res.json();
       if (!res.ok) {
-        setNotice(result.error || 'Failed to approve payroll batch.');
+        setSignOffError(result.error || 'Failed to approve and disburse payroll batch.');
         return;
       }
-      setNotice(`${monthName} approved. The payroll register is now locked for external payment processing.`);
+      setNotice(`✓ ${result.message || `${monthName} approved and credited to all staff BEMS Wallets.`}`);
       setSignOffModalOpen(false);
-      fetchPayroll();
+      setSignOffPassword('');
+      setSignOffError(null);
+      if (result.nextPeriod?.year && result.nextPeriod?.month) {
+        setSelectedPeriodKey(`${result.nextPeriod.year}-${result.nextPeriod.month}`);
+        await fetchPayroll(result.nextPeriod.year, result.nextPeriod.month);
+      } else {
+        await fetchPayroll(data?.period?.year, data?.period?.month);
+      }
     } catch (e: any) {
-      setNotice('Network error approving payroll batch.');
+      setSignOffError('Network error approving payroll batch.');
     } finally {
       setApproving(false);
     }
@@ -1487,7 +1498,7 @@ export function PayrollSignOffView({
         )}
       </div>
 
-      {/* EXECUTIVE SIGN-OFF MODAL */}
+      {/* EXECUTIVE SIGN-OFF & BEMS WALLET DISBURSEMENT MODAL */}
       {signOffModalOpen && (
         <div style={{
           position: 'fixed',
@@ -1501,14 +1512,14 @@ export function PayrollSignOffView({
         }}>
           <div style={{
             background: '#fff',
-            borderRadius: '12px',
+            borderRadius: '14px',
             border: '1px solid #e2e8f0',
-            width: 'min(460px, 100%)',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+            width: 'min(560px, 100%)',
+            boxShadow: '0 24px 56px rgba(15, 23, 42, 0.24)',
             overflow: 'hidden'
           }}>
             <div style={{
-              padding: '12px 16px',
+              padding: '14px 18px',
               borderBottom: '1px solid #e2e8f0',
               display: 'flex',
               justifyContent: 'space-between',
@@ -1516,49 +1527,104 @@ export function PayrollSignOffView({
               background: '#f8fafc'
             }}>
               <div>
-                <span style={{ fontSize: '8px', fontWeight: 800, color: '#ea580c', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                  GMD EXECUTIVE AUTHORIZATION
+                <span style={{ fontSize: '8.5px', fontWeight: 800, color: '#ea580c', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  GMD EXECUTIVE SALARY DISBURSEMENT · BEMS WALLET
                 </span>
-                <h3 style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', margin: '2px 0 0' }}>
-                  Approve {monthName}
+                <h3 style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', margin: '2px 0 0' }}>
+                  Approve & Credit {monthName} to Staff Wallets
                 </h3>
               </div>
               <button
-                onClick={() => setSignOffModalOpen(false)}
+                onClick={() => {
+                  setSignOffModalOpen(false);
+                  setSignOffPassword('');
+                  setSignOffError(null);
+                }}
                 style={{ border: 0, background: 'none', color: '#64748b', cursor: 'pointer' }}
               >
                 <X size={16} />
               </button>
             </div>
 
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '6px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748b' }}>Total Gross Payroll:</span>
-                  <span style={{ fontWeight: 700 }}>{data?.batch?.totalGrossFormatted || '—'}</span>
+                  <span style={{ fontWeight: 700, color: '#0f172a' }}>{data?.batch?.totalGrossFormatted || '—'}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#64748b' }}>Total Net Cash Outflow:</span>
-                  <span style={{ fontWeight: 700, color: '#059669' }}>{data?.batch?.totalNetFormatted || '—'}</span>
+                  <span style={{ color: '#64748b' }}>Lateness Deductions:</span>
+                  <span style={{ fontWeight: 700, color: '#d97706' }}>-{data?.batch?.totalDeductionsFormatted || '₦0'}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#64748b' }}>Staff in register:</span>
-                  <span>{data?.items?.length || 0} employees</span>
+                  <span style={{ color: '#64748b' }}>Total Net Credited to Staff BEMS Wallets:</span>
+                  <span style={{ fontWeight: 800, color: '#059669', fontSize: '12px' }}>{data?.batch?.totalNetFormatted || '—'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#64748b' }}>Staff Receiving Wallet Credit & Notifications:</span>
+                  <span style={{ fontWeight: 700, color: '#0f172a' }}>{data?.items?.length || 0} employees</span>
                 </div>
               </div>
 
-              <div>
-                <label style={{ fontSize: '10px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
-                  Assign payment recording to
+              {/* Scrollable Monthly Staff Salary Preview */}
+              {data?.items && data.items.length > 0 && (
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr 0.9fr 1fr', padding: '6px 10px', background: '#f1f5f9', fontSize: '9px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>
+                    <span>Staff Member</span>
+                    <span style={{ textAlign: 'right' }}>Gross</span>
+                    <span style={{ textAlign: 'right' }}>Penalty</span>
+                    <span style={{ textAlign: 'right' }}>Net (Wallet)</span>
+                  </div>
+                  <div style={{ maxHeight: '165px', overflowY: 'auto', background: '#fff' }}>
+                    {data.items.map((item, idx) => (
+                      <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr 0.9fr 1fr', padding: '6px 10px', borderTop: idx === 0 ? 'none' : '1px solid #f1f5f9', fontSize: '10.5px', alignItems: 'center' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.employeeName}</div>
+                          <div style={{ fontSize: '9px', color: '#64748b' }}>{item.primarySubsidiary || 'BEMS Group'}</div>
+                        </div>
+                        <span style={{ textAlign: 'right', color: '#334155', fontWeight: 600 }}>{item.grossFormatted}</span>
+                        <span style={{ textAlign: 'right', color: '#d97706', fontWeight: 600 }}>-{item.deductionsFormatted}</span>
+                        <strong style={{ textAlign: 'right', color: '#059669', fontWeight: 800 }}>{item.netFormatted}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* GMD Password Verification Input */}
+              <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '10px 12px' }}>
+                <label style={{ fontSize: '10.5px', fontWeight: 800, color: '#9a3412', display: 'block', marginBottom: '5px' }}>
+                  🔒 Enter GMD Executive Password to Authorize Disbursement
                 </label>
-                <select
-                  value={selectedAssigneeId}
-                  onChange={(e) => setSelectedAssigneeId(e.target.value)}
-                  style={{ width: '100%', padding: '8px 9px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '11px', color: '#0f172a' }}
-                >
-                  <option value="">Choose a Finance user or executive</option>
-                  {assignees.map((person) => <option key={person.id} value={person.id}>{person.legalName} · {person.role.replace(/_/g, ' ')}</option>)}
-                </select>
+                <input
+                  type="password"
+                  placeholder="Enter your GMD password..."
+                  value={signOffPassword}
+                  onChange={(e) => {
+                    setSignOffPassword(e.target.value);
+                    if (signOffError) setSignOffError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !approving) {
+                      e.preventDefault();
+                      handleApprovePayroll();
+                    }
+                  }}
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid #fdba74',
+                    background: '#fff',
+                    fontSize: '12px',
+                    color: '#0f172a',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                <div style={{ fontSize: '9.5px', color: '#c2410c', marginTop: '4px', lineHeight: 1.4 }}>
+                  All {data?.items?.length || 0} staff members will immediately see their net salary in their <strong>BEMS Wallet</strong> and receive both <strong>mobile app push notifications</strong> and <strong>email alerts</strong> to withdraw.
+                </div>
               </div>
 
               <div>
@@ -1567,7 +1633,7 @@ export function PayrollSignOffView({
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Approved for bank transfer recording."
+                  placeholder="e.g. Monthly salary approved and credited to BEMS Wallets."
                   value={comments}
                   onChange={(e) => setComments(e.target.value)}
                   style={{
@@ -1582,17 +1648,27 @@ export function PayrollSignOffView({
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+              {signOffError && (
+                <div style={{ padding: '8px 10px', borderRadius: '7px', background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: '11px', fontWeight: 700 }}>
+                  ⚠️ {signOffError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
                 <button
                   type="button"
-                  onClick={() => setSignOffModalOpen(false)}
+                  onClick={() => {
+                    setSignOffModalOpen(false);
+                    setSignOffPassword('');
+                    setSignOffError(null);
+                  }}
                   style={{
-                    padding: '6px 12px',
+                    padding: '7px 14px',
                     borderRadius: '6px',
                     border: '1px solid #e2e8f0',
                     background: '#fff',
-                    fontSize: '10px',
-                    fontWeight: 600,
+                    fontSize: '10.5px',
+                    fontWeight: 700,
                     color: '#64748b',
                     cursor: 'pointer'
                   }}
@@ -1604,18 +1680,18 @@ export function PayrollSignOffView({
                   disabled={approving}
                   onClick={handleApprovePayroll}
                   style={{
-                    padding: '6px 14px',
+                    padding: '7px 16px',
                     borderRadius: '6px',
-                    border: '1px solid var(--brand-primary, #0d8a70)',
-                    background: 'var(--brand-gradient, var(--brand-primary, #0d8a70))',
+                    border: '1px solid #059669',
+                    background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
                     color: '#fff',
-                    fontSize: '10px',
-                    fontWeight: 700,
+                    fontSize: '11px',
+                    fontWeight: 800,
                     cursor: approving ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 3px 10px var(--brand-shadow-color, rgba(0, 0, 0, 0.25))',
+                    boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
                   }}
                 >
-                  {approving ? 'Signing off…' : 'Confirm Executive Sign-off ✍️'}
+                  {approving ? 'Disbursing to Wallets…' : 'Authorize & Credit Staff Wallets ✍️'}
                 </button>
               </div>
             </div>

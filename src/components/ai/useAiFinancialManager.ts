@@ -489,6 +489,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
           body: JSON.stringify({
             confirmed_by: userName || 'GMD Executive',
             confirmation_hash: confHash,
+            ...(payload?.password ? { password: payload.password } : {}),
           }),
         });
         const result = await res.json().catch(() => ({}));

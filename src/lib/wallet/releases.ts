@@ -138,10 +138,10 @@ export async function approveWalletRelease(actor:WalletActor,id:string,confirmat
       await tx.systemNotification.create({data:{employeeId:i.employeeId,kind:'WALLET_CREDITED',title:'Approved funds added to your wallet',body:'An authorized executive approved your payment. View the source and available funds in your wallet.',linkUrl:'/wallet'}});
     }
     if(p.sourceType==='REQUEST') {
-      await tx.expenditureRequest.update({where:{id:p.sourceId},data:{approvalStatus:'APPROVED',paymentStatus:items[0].vendorId?'MONNIFY_PENDING':'WALLET_CREDITED',requestVersion:{increment:1}}});
-      await tx.approvalStep.updateMany({where:{requestId:p.sourceId,status:'PENDING'},data:{status:'APPROVED',approverId:actor.id,approverName:actor.legalName,decidedAt:new Date()}});
       const request=await tx.expenditureRequest.findUniqueOrThrow({where:{id:p.sourceId},include:{requester:true}});
-      if(!request.vendorId&&request.requestType!=='REIMBURSEMENT')await tx.accountabilityCase.upsert({where:{requestId:request.id},update:{},create:{requestId:request.id,ownerUserId:request.requestedById,requiredDeliverables:request.deliverable,dueAt:await accountabilityDeadline(request.subsidiaryId,request.requestType==='EMERGENCY',new Date(),tx)}});
+      const isVendor=Boolean(items[0].vendorId);
+      await tx.expenditureRequest.update({where:{id:p.sourceId},data:{approvalStatus:'APPROVED',paymentStatus:isVendor?'MONNIFY_PENDING':'WALLET_CREDITED',accountabilityStatus:request.requestType==='REIMBURSEMENT'?'NOT_REQUIRED':isVendor?'PENDING':'AWAITING_WITHDRAWAL',requestVersion:{increment:1}}});
+      await tx.approvalStep.updateMany({where:{requestId:p.sourceId,status:'PENDING'},data:{status:'APPROVED',approverId:actor.id,approverName:actor.legalName,decidedAt:new Date()}});
       if(request.requester?.workEmail) {
         sendApprovalDecisionEmail({
           to: request.requester.workEmail,

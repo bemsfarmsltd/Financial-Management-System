@@ -390,6 +390,28 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const approvalAudit = await prisma.auditEvent.findFirst({
+      where: {
+        targetId: batch.id,
+        action: {
+          in: [
+            'GMD_PAYROLL_APPROVED_AND_CREDITED',
+            'DASHBOARD_PAYROLL_ACTION_EXECUTED',
+            'AI_STAGED_PAYROLL_ACTION_EXECUTED',
+            'PAYROLL_BATCH_MARKED_PAID',
+          ],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const assigneeRecord = batch.disbursementAssigneeId
+      ? await prisma.employee.findUnique({
+          where: { id: batch.disbursementAssigneeId },
+          select: { id: true, legalName: true, role: true },
+        })
+      : null;
+
     return NextResponse.json({
       period: {
         id: period.id,
@@ -404,7 +426,27 @@ export async function GET(req: NextRequest) {
         id: batch.id,
         version: batch.version,
         status: batch.status,
-        disbursementAssignee: batch.disbursementAssigneeId ? await prisma.employee.findUnique({ where: { id: batch.disbursementAssigneeId }, select: { id: true, legalName: true, role: true } }) : null,
+        preparedBy: {
+          id: batch.submittedById,
+          name: batch.submittedByName || 'System / HR Payroll Prep',
+          submittedAt: batch.createdAt,
+        },
+        approvedBy: approvalAudit
+          ? {
+              id: approvalAudit.actorId,
+              name: approvalAudit.actorName,
+              role: approvalAudit.actorRole,
+              approvedAt: batch.approvedAt || approvalAudit.createdAt,
+            }
+          : batch.approvedAt && assigneeRecord
+          ? {
+              id: assigneeRecord.id,
+              name: assigneeRecord.legalName,
+              role: assigneeRecord.role,
+              approvedAt: batch.approvedAt,
+            }
+          : null,
+        disbursementAssignee: assigneeRecord,
         approvedAt: batch.approvedAt,
         totalGrossMinor: totalGross,
         totalGrossFormatted: formatNaira(totalGross),
@@ -473,6 +515,29 @@ export async function POST(req: NextRequest) {
         data: { status: 'PAID' },
       });
 
+      await prisma.auditEvent.create({
+        data: {
+          actorId: actor.id,
+          actorName: actor.legalName,
+          actorRole: actor.role,
+          groupId: batch.period.groupId,
+          subsidiaryId: batch.paymentEntityId || batch.period.groupId,
+          targetType: 'PAYROLL_BATCH',
+          targetId: batch.id,
+          action: 'PAYROLL_BATCH_MARKED_PAID',
+          correlationId: `mark_paid_${batch.id}`,
+          metadata: JSON.stringify({
+            batchId: batch.id,
+            year: batch.period.year,
+            month: batch.period.month,
+            preparedByName: batch.submittedByName || 'System / HR Payroll Prep',
+            approvedById: actor.id,
+            approvedByName: actor.legalName,
+            approvedByRole: actor.role,
+          }),
+        },
+      });
+
       const nextYear = batch.period.month === 12 ? batch.period.year + 1 : batch.period.year;
       const nextMonth = batch.period.month === 12 ? 1 : batch.period.month + 1;
       await executeDashboardCommand(actor, 'payroll_action', {
@@ -489,7 +554,30 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const result = await executeDashboardCommand(actor, 'payroll_action', { sub_action: 'SIGN_OFF', batchId: body.batchId, disbursementAssigneeId: body.disbursementAssigneeId, paymentEntityId: body.paymentEntityId, comments: body.comments });
-    return NextResponse.json({ success: true, ...result, message: 'Payroll approved for external transfer recording.' });
+    const result: any = await executeDashboardCommand(actor, 'payroll_action', {
+      sub_action: 'SIGN_OFF',
+      batchId: body.batchId,
+      disbursementAssigneeId: body.disbursementAssigneeId || actor.id,
+      paymentEntityId: body.paymentEntityId,
+      comments: body.comments,
+      password: body.password,
+      disburseToWallets: body.disburseToWallets !== false,
+    });
+
+    if (result?.nextPeriod?.year && result?.nextPeriod?.month) {
+      await executeDashboardCommand(actor, 'payroll_action', {
+        sub_action: 'PREPARE',
+        year: result.nextPeriod.year,
+        month: result.nextPeriod.month,
+      }).catch(() => {});
+    }
+
+    return NextResponse.json({
+      success: true,
+      ...result,
+      message: result?.nextPeriod
+        ? `Salaries approved and credited to all ${result.employeeCount || ''} staff BEMS Wallets! App & email notifications sent. Advanced to ${result.nextPeriod.periodName}.`
+        : 'Payroll approved and credited to staff BEMS Wallets.',
+    });
   } catch (error: any) { return NextResponse.json({ error: error.message }, { status: 400 }); }
 }

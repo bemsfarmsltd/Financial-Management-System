@@ -39,6 +39,14 @@ export async function GET(request: Request) {
     orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
   });
   const caseIds = cases.map(c => c.id);
+  const requestIds = cases.map(c => c.request.id);
+  const creditLots = requestIds.length > 0 && typeof (prisma as any).$queryRaw === 'function'
+    ? await prisma.$queryRaw<Array<{ requestId: string; availableMinor: bigint; heldMinor: bigint; settledMinor: bigint }>>`
+        SELECT "requestId", "availableMinor", "heldMinor", "settledMinor"
+        FROM "WalletCreditLot"
+        WHERE "requestId" = ANY(${requestIds}::text[])
+      `.catch(() => [])
+    : [];
   const attachments = caseIds.length > 0
     ? await prisma.attachment.findMany({
         where: { ownerType: 'ACCOUNTABILITY', ownerId: { in: caseIds } },
@@ -48,7 +56,19 @@ export async function GET(request: Request) {
     : [];
   const attachmentMap = new Map<string, typeof attachments>();
   for (const attachment of attachments) if (attachment.ownerId) attachmentMap.set(attachment.ownerId, [...(attachmentMap.get(attachment.ownerId) || []), attachment]);
-  const safeCases = cases.map(c => {
+  const withdrawnCases = cases.filter(c => {
+    const reqLots = creditLots.filter(l => l.requestId === c.request.id);
+    if (reqLots.length > 0 && c.status !== 'CLOSED') {
+      const settled = reqLots.reduce((s, l) => s + BigInt(l.settledMinor || 0), BigInt(0));
+      const available = reqLots.reduce((s, l) => s + BigInt(l.availableMinor || 0), BigInt(0));
+      const held = reqLots.reduce((s, l) => s + BigInt(l.heldMinor || 0), BigInt(0));
+      if (!(settled > BigInt(0) && available === BigInt(0) && held === BigInt(0))) {
+        return false;
+      }
+    }
+    return true;
+  });
+  const safeCases = withdrawnCases.map(c => {
     const naira = Number(c.request.amountMinor) / 100;
     return {
       ...c,

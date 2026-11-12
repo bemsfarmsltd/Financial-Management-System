@@ -163,12 +163,13 @@ export async function POST(request: Request) {
           (${randomUUID()}, ${journalId}, ${'STAFF:' + req.requestedById + ':' + category}, ${req.amountMinor})
       `;
 
-      // 7. Update ExpenditureRequest Status
+      // 7. Update ExpenditureRequest Status (Accountability starts ONLY after complete withdrawal to personal bank)
       await tx.expenditureRequest.update({
         where: { id: req.id },
         data: {
           approvalStatus: 'APPROVED',
           paymentStatus: 'WALLET_CREDITED',
+          accountabilityStatus: req.requestType === 'REIMBURSEMENT' ? 'NOT_REQUIRED' : 'AWAITING_WITHDRAWAL',
           requestVersion: { increment: 1 },
         },
       });
@@ -179,26 +180,16 @@ export async function POST(request: Request) {
         data: {
           status: 'APPROVED',
           approverId: actor.id,
-          approverName: `${actor.legalName} (GMD)`,
+          approverName: `${actor.legalName} (${actor.role})`,
           decisionReason: note || 'Authorized and released to staff internal wallet.',
           decidedAt: new Date(),
         },
       });
 
-      // 9. Initialize Accountability Case (if not reimbursement)
-      if (req.requestType !== 'REIMBURSEMENT') {
-        const dueAt = await accountabilityDeadline(req.subsidiaryId, req.requestType === 'EMERGENCY', new Date(), tx);
-        await tx.accountabilityCase.upsert({
-          where: { requestId: req.id },
-          update: {},
-          create: {
-            requestId: req.id,
-            ownerUserId: req.requestedById,
-            requiredDeliverables: req.deliverable || 'Receipts and expenditure proof',
-            dueAt,
-          },
-        });
-      }
+      // 9. Remove any premature AccountabilityCase while funds are still in BEMS Wallet awaiting bank withdrawal
+      await tx.accountabilityCase.deleteMany({
+        where: { requestId: req.id, status: 'OPEN' },
+      });
 
       // 10. In-App Notification for Beneficiary Staff
       const formattedAmount = (Number(req.amountMinor) / 100).toLocaleString('en-NG', {

@@ -58,12 +58,255 @@ export async function GET(request: NextRequest) {
     where,
     include: {
       subsidiary: { select: { id: true, code: true, legalName: true } },
-      requester: { select: { id: true, legalName: true, role: true } },
+      requester: { select: { id: true, legalName: true, role: true, employeeNumber: true, workEmail: true } },
       vendor: { select: { id: true, name: true } },
+      approvalSteps: {
+        include: {
+          approver: { select: { id: true, legalName: true, role: true } },
+        },
+        orderBy: { stageIndex: 'asc' },
+      },
+      disbursements: {
+        select: { id: true, status: true, paidAt: true, externalReference: true },
+        orderBy: { paidAt: 'desc' },
+      },
     },
     orderBy: { createdAt: 'desc' },
     take: 50,
   });
+
+  const requestIds = requests.map((r) => r.id);
+  const creditLots = requestIds.length
+    ? await prisma.$queryRaw<
+        Array<{
+          id: string;
+          requestId: string;
+          amountMinor: bigint;
+          availableMinor: bigint;
+          heldMinor: bigint;
+          settledMinor: bigint;
+          returnedMinor: bigint;
+          createdAt: Date;
+          approverId: string | null;
+          approverName: string | null;
+          approverRole: string | null;
+          approvedAt: Date | null;
+        }>
+      >`
+        SELECT
+          c."id",
+          c."requestId",
+          c."amountMinor",
+          c."availableMinor",
+          c."heldMinor",
+          c."settledMinor",
+          c."returnedMinor",
+          c."createdAt",
+          p."approvedById" AS "approverId",
+          e."legalName" AS "approverName",
+          e."role" AS "approverRole",
+          p."approvedAt"
+        FROM "WalletCreditLot" c
+        LEFT JOIN "WalletReleaseProposal" p ON p."id" = c."proposalId"
+        LEFT JOIN "Employee" e ON e."id" = p."approvedById"
+        WHERE c."requestId" = ANY(${requestIds}::text[])
+      `
+    : [];
+
+  const creditLotIds = creditLots.map((c) => c.id);
+  const withdrawalRows = creditLotIds.length
+    ? await prisma.$queryRaw<
+        Array<{
+          creditLotId: string;
+          withdrawalId: string;
+          allocatedMinor: bigint;
+          reference: string;
+          status: string;
+          bankCode: string;
+          accountNumber: string;
+          accountName: string;
+          createdAt: Date;
+          updatedAt: Date;
+        }>
+      >`
+        SELECT
+          wa."creditLotId",
+          w."id" AS "withdrawalId",
+          wa."amountMinor" AS "allocatedMinor",
+          w."reference",
+          w."status",
+          w."bankCode",
+          w."accountNumber",
+          w."accountName",
+          w."createdAt",
+          w."updatedAt"
+        FROM "WalletWithdrawalAllocation" wa
+        JOIN "WalletWithdrawal" w ON w."id" = wa."withdrawalId"
+        WHERE wa."creditLotId" = ANY(${creditLotIds}::text[])
+        ORDER BY w."createdAt" DESC
+      `
+    : [];
+
+  const audits = requestIds.length
+    ? await prisma.auditEvent.findMany({
+        where: {
+          OR: [
+            { targetId: { in: requestIds } },
+            ...(creditLotIds.length ? [{ targetId: { in: creditLotIds } }] : []),
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      })
+    : [];
+
+  const formatNaira = (minor: bigint | number) =>
+    `₦${(Number(minor) / 100).toLocaleString('en-NG', { maximumFractionDigits: 0 })}`;
+
+  const enrichRequest = (r: (typeof requests)[0]) => {
+    const lots = creditLots.filter((c) => c.requestId === r.id);
+    const totalCredited = lots.reduce((s, c) => s + BigInt(c.amountMinor || 0), BigInt(0));
+    const totalAvailable = lots.reduce((s, c) => s + BigInt(c.availableMinor || 0), BigInt(0));
+    const totalHeld = lots.reduce((s, c) => s + BigInt(c.heldMinor || 0), BigInt(0));
+    const totalSettled = lots.reduce((s, c) => s + BigInt(c.settledMinor || 0), BigInt(0));
+    const totalReturned = lots.reduce((s, c) => s + BigInt(c.returnedMinor || 0), BigInt(0));
+
+    const lotIdSet = new Set(lots.map((c) => c.id));
+    const withdrawals = withdrawalRows
+      .filter((w) => lotIdSet.has(w.creditLotId))
+      .map((w) => ({
+        reference: w.reference,
+        amount: Number(w.allocatedMinor) / 100,
+        amountFormatted: formatNaira(w.allocatedMinor),
+        status: w.status,
+        bankCode: w.bankCode,
+        accountNumberMasked: w.accountNumber ? `******${w.accountNumber.slice(-4)}` : 'Not Set',
+        accountName: w.accountName,
+        requestedAt: w.createdAt,
+        updatedAt: w.updatedAt,
+      }));
+
+    const isCreditedToWallet = lots.length > 0 || r.paymentStatus === 'WALLET_CREDITED';
+    const isCompletelyWithdrawn =
+      (lots.length > 0 && totalSettled > BigInt(0) && totalAvailable === BigInt(0) && totalHeld === BigInt(0)) ||
+      r.disbursements.some((d) => ['PAID', 'SETTLED', 'RECIPIENT_CONFIRMED'].includes(d.status));
+    const hasPartialWithdrawal = totalSettled > BigInt(0) && !isCompletelyWithdrawn;
+
+    const effectiveAccountabilityStatus =
+      r.requestType === 'REIMBURSEMENT'
+        ? 'NOT_REQUIRED'
+        : isCreditedToWallet && !isCompletelyWithdrawn
+        ? 'AWAITING_WITHDRAWAL'
+        : r.accountabilityStatus;
+
+    const approvedStep = r.approvalSteps.find((s) => s.status === 'APPROVED');
+    const lotApprover = lots.find((l) => l.approverName);
+    const reqAudits = audits.filter(
+      (a) =>
+        a.targetId === r.id ||
+        lotIdSet.has(a.targetId) ||
+        (a.metadata && a.metadata.includes(r.requestNumber))
+    );
+    const approvalAudit = reqAudits.find((a) =>
+      [
+        'GMD_WALLET_RELEASED',
+        'AI_STAGED_APPROVAL_DECISION_EXECUTED',
+        'DASHBOARD_APPROVAL_DECISION_EXECUTED',
+        'REQUEST_APPROVED',
+      ].includes(a.action)
+    );
+
+    const approverName =
+      approvedStep?.approver?.legalName ||
+      approvedStep?.approverName ||
+      lotApprover?.approverName ||
+      approvalAudit?.actorName ||
+      (r.approvalStatus === 'APPROVED' ? 'GMD / Executive Approver' : null);
+    const approverRole =
+      approvedStep?.approver?.role ||
+      lotApprover?.approverRole ||
+      approvalAudit?.actorRole ||
+      (r.approvalStatus === 'APPROVED' ? 'GMD' : null);
+    const approvedAt =
+      approvedStep?.decidedAt ||
+      lotApprover?.approvedAt ||
+      approvalAudit?.createdAt ||
+      null;
+
+    const walletSummaryNote = !isCreditedToWallet
+      ? r.disbursements.length > 0
+        ? `Disbursed directly via bank transfer (${r.disbursements[0].status}).`
+        : 'Not yet credited to staff BEMS Wallet.'
+      : isCompletelyWithdrawn
+      ? `${r.requester.legalName} has completely withdrawn ${formatNaira(totalSettled)} from his/her BEMS Wallet to personal bank account. Accountability is now active.`
+      : hasPartialWithdrawal
+      ? `${r.requester.legalName} was credited ${formatNaira(totalCredited || r.amountMinor)} to BEMS Wallet, has withdrawn ${formatNaira(totalSettled)} to personal bank so far, and still has ${formatNaira(totalAvailable)} in BEMS Wallet. Accountability starts only after the money is completely withdrawn.`
+      : `${r.requester.legalName} was credited ${formatNaira(totalCredited || r.amountMinor)} to his/her BEMS Wallet, and has NOT withdrawn the money to his/her personal bank account yet (₦0 withdrawn; ${formatNaira(totalAvailable || r.amountMinor)} still sitting in BEMS Wallet). Accountability only begins after the money is completely withdrawn to personal bank.`;
+
+    return {
+      id: r.id,
+      requestNumber: r.requestNumber,
+      title: r.title,
+      category: r.category,
+      requestType: r.requestType,
+      amount: Number(r.amountMinor) / 100,
+      amountMinor: r.amountMinor.toString(),
+      formattedAmount: formatNaira(r.amountMinor),
+      currency: r.currency,
+      approvalStatus: r.approvalStatus,
+      paymentStatus: r.paymentStatus,
+      accountabilityStatus: effectiveAccountabilityStatus,
+      isRecurring: r.isRecurring,
+      recurringInterval: r.recurringInterval,
+      neededBy: r.neededBy,
+      subsidiary: r.subsidiary,
+      requester: r.requester,
+      preparedBy: {
+        id: r.requester.id,
+        name: r.requester.legalName,
+        role: r.requester.role,
+        employeeNumber: r.requester.employeeNumber,
+        createdAt: r.createdAt,
+      },
+      approvedBy: approverName
+        ? {
+            name: approverName,
+            role: approverRole,
+            approvedAt,
+            decisionReason: approvedStep?.decisionReason || 'Approved by Executive',
+          }
+        : null,
+      approvalSteps: r.approvalSteps.map((s) => ({
+        stepOrder: s.stageIndex,
+        requiredRole: s.assignedRole,
+        status: s.status,
+        approverName: s.approver?.legalName || s.approverName || null,
+        approverRole: s.approver?.role || s.assignedRole,
+        decidedAt: s.decidedAt,
+        decisionReason: s.decisionReason,
+      })),
+      walletWithdrawalStatus: {
+        isCreditedToBemsWallet: isCreditedToWallet,
+        creditedToWalletFormatted: formatNaira(totalCredited || (isCreditedToWallet ? r.amountMinor : BigInt(0))),
+        availableInBemsWalletFormatted: formatNaira(totalAvailable || (isCreditedToWallet && !isCompletelyWithdrawn ? r.amountMinor : BigInt(0))),
+        heldInPendingTransferFormatted: formatNaira(totalHeld),
+        withdrawnToPersonalBankFormatted: formatNaira(totalSettled),
+        returnedToCompanyFormatted: formatNaira(totalReturned),
+        hasWithdrawnToPersonalBank: totalSettled > BigInt(0),
+        isCompletelyWithdrawnToPersonalBank: isCompletelyWithdrawn,
+        personalBankWithdrawals: withdrawals,
+        summaryNote: walletSummaryNote,
+      },
+      auditTrail: reqAudits.slice(0, 10).map((a) => ({
+        action: a.action,
+        actorName: a.actorName,
+        actorRole: a.actorRole,
+        createdAt: a.createdAt,
+      })),
+      vendor: r.vendor,
+      createdAt: r.createdAt,
+    };
+  };
 
   if (mode === 'recurring_commitments' || mode === 'recurring') {
     const annualMultipliers: Record<string, bigint> = {
@@ -94,48 +337,14 @@ export async function GET(request: NextRequest) {
         nextDueRequestId: nextDue?.id ?? null,
       },
       count: nonRejected.length,
-      requests: nonRejected.map((r) => ({
-        id: r.id,
-        requestNumber: r.requestNumber,
-        title: r.title,
-        category: r.category,
-        amount: Number(r.amountMinor) / 100,
-        amountMinor: r.amountMinor.toString(),
-        currency: r.currency,
-        approvalStatus: r.approvalStatus,
-        paymentStatus: r.paymentStatus,
-        accountabilityStatus: r.accountabilityStatus,
-        isRecurring: r.isRecurring,
-        recurringInterval: r.recurringInterval,
-        neededBy: r.neededBy,
-        subsidiary: r.subsidiary,
-        requester: r.requester,
-        vendor: r.vendor,
-        createdAt: r.createdAt,
-      })),
+      requests: nonRejected.map(enrichRequest),
     });
   }
 
   return NextResponse.json({
     ok: true,
     count: requests.length,
-    requests: requests.map((r) => ({
-      id: r.id,
-      requestNumber: r.requestNumber,
-      title: r.title,
-      category: r.category,
-      amount: Number(r.amountMinor) / 100,
-      currency: r.currency,
-      approvalStatus: r.approvalStatus,
-      paymentStatus: r.paymentStatus,
-      accountabilityStatus: r.accountabilityStatus,
-      isRecurring: r.isRecurring,
-      recurringInterval: r.recurringInterval,
-      subsidiary: r.subsidiary,
-      requester: r.requester,
-      vendor: r.vendor,
-      createdAt: r.createdAt,
-    })),
+    requests: requests.map(enrichRequest),
   });
 }
 

@@ -124,8 +124,11 @@ export async function GET(request: Request) {
         if (req.paymentStatus === "UNPAID") {
           statusLabel = "Approved for Disbursement";
           stepIndex = 2;
+        } else if (req.paymentStatus === "WALLET_CREDITED" && req.accountabilityStatus === "AWAITING_WITHDRAWAL") {
+          statusLabel = "Credited to BEMS Wallet — Awaiting Bank Withdrawal";
+          stepIndex = 3;
         } else if (req.accountabilityStatus === "PENDING" && req.requestType === "ADVANCE") {
-          statusLabel = "Funds Disbursed — Retirement Due";
+          statusLabel = "Withdrawn to Bank — Retirement Due";
           stepIndex = 3;
         } else if (req.accountabilityStatus === "EVIDENCE_SUBMITTED") {
           statusLabel = "Retirement Evidence In Review";
@@ -164,6 +167,8 @@ export async function GET(request: Request) {
 
       const needsRetirement = (req.requestType === "ADVANCE" || req.category.includes("ADVANCE") || req.category.includes("TRAVEL")) &&
         req.paymentStatus !== "UNPAID" &&
+        req.accountabilityStatus !== "AWAITING_WITHDRAWAL" &&
+        req.accountabilityStatus !== "NOT_REQUIRED" &&
         req.accountabilityStatus !== "CLOSED";
 
       return {

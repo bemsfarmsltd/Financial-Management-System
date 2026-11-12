@@ -100,6 +100,12 @@ export async function GET(req: NextRequest) {
       vendor: {
         select: { id: true, name: true, bankName: true, accountNumber: true, accountName: true },
       },
+      approvalSteps: {
+        include: {
+          approver: { select: { id: true, legalName: true, role: true } },
+        },
+        orderBy: { stageIndex: 'asc' },
+      },
     },
     orderBy: { createdAt: 'desc' },
     take: limit,
@@ -152,6 +158,7 @@ export async function GET(req: NextRequest) {
             })
           : null;
 
+      const approvedStep = r.approvalSteps.find((s) => s.status === 'APPROVED');
       return {
         id: r.id,
         requestNumber: r.requestNumber,
@@ -159,12 +166,44 @@ export async function GET(req: NextRequest) {
         amount: amountNaira,
         formattedAmount: `₦${amountNaira.toLocaleString()}`,
         status: r.approvalStatus,
+        paymentStatus: r.paymentStatus,
+        accountabilityStatus: r.accountabilityStatus,
         category: r.category,
         requestType: r.requestType,
         subsidiaryId: r.subsidiaryId,
         subsidiary: r.subsidiary?.legalName || 'BEMS Group',
         requesterId: r.requester.id,
         requester: r.requester.legalName,
+        preparedBy: {
+          id: r.requester.id,
+          name: r.requester.legalName,
+          employeeNumber: r.requester.employeeNumber,
+          createdAt: r.createdAt,
+        },
+        approvedBy: approvedStep
+          ? {
+              name: approvedStep.approver?.legalName || approvedStep.approverName || 'GMD / Executive Approver',
+              role: approvedStep.approver?.role || approvedStep.assignedRole,
+              approvedAt: approvedStep.decidedAt,
+              decisionReason: approvedStep.decisionReason,
+            }
+          : r.approvalStatus === 'APPROVED'
+          ? {
+              name: 'GMD / Executive Approver',
+              role: 'GMD',
+              approvedAt: r.updatedAt,
+              decisionReason: 'Approved',
+            }
+          : null,
+        approvalSteps: r.approvalSteps.map((s) => ({
+          stepOrder: s.stageIndex,
+          requiredRole: s.assignedRole,
+          status: s.status,
+          approverName: s.approver?.legalName || s.approverName || null,
+          approverRole: s.approver?.role || s.assignedRole,
+          decidedAt: s.decidedAt,
+          decisionReason: s.decisionReason,
+        })),
         beneficiaryId,
         beneficiaryType,
         createdAt: r.createdAt,

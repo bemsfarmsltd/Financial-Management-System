@@ -622,10 +622,11 @@ export function AmbientBottomAiBar({
                           resultUrl={msg.actionCard.resultUrl}
                           recordId={msg.actionCard.recordId}
                           auditEventId={msg.actionCard.auditEventId}
-                          onConfirm={(id, hash) => {
+                          onConfirm={(id, hash, password) => {
                             onConfirmAction(msg.id, msg.actionCard?.type || 'staged_action', {
                               staged_action_id: id,
                               confirmation_hash: hash,
+                              password,
                             });
                           }}
                           onCancel={(id) => {

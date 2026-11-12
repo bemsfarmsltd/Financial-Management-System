@@ -189,10 +189,55 @@ export async function GET(req: NextRequest) {
     }
 
     const batch = period.batches[0];
+    const itemIds = batch.items.map((i) => i.id);
+    const creditLots = itemIds.length
+      ? await prisma.$queryRaw<
+          Array<{
+            id: string;
+            payrollItemId: string;
+            amountMinor: bigint;
+            availableMinor: bigint;
+            heldMinor: bigint;
+            settledMinor: bigint;
+          }>
+        >`
+          SELECT "id", "payrollItemId", "amountMinor", "availableMinor", "heldMinor", "settledMinor"
+          FROM "WalletCreditLot"
+          WHERE "payrollItemId" = ANY(${itemIds}::text[])
+        `
+      : [];
+    const lotByItemId = new Map(creditLots.map((l) => [l.payrollItemId, l]));
+
+    const batchAudits = await prisma.auditEvent.findMany({
+      where: {
+        targetId: batch.id,
+        action: {
+          in: [
+            'GMD_PAYROLL_APPROVED_AND_CREDITED',
+            'PAYROLL_BATCH_MARKED_PAID',
+            'DASHBOARD_PAYROLL_ACTION_EXECUTED',
+            'AI_STAGED_PAYROLL_ACTION_EXECUTED',
+          ],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+    const approvalAudit = batchAudits[0] || null;
+    const defaultExecutive =
+      !approvalAudit && batch.approvedAt
+        ? await prisma.employee.findFirst({
+            where: { role: { in: ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'] }, status: 'ACTIVE' },
+            orderBy: { role: 'asc' },
+            select: { id: true, legalName: true, role: true },
+          })
+        : null;
+
     const items = batch.items.map((item) => {
       const gross = Number(item.grossMinor) / 100;
       const deductions = Number(item.employeeDeductionsMinor) / 100;
       const net = Number(item.netMinor) / 100;
+      const lot = lotByItemId.get(item.id);
       const bank = item.employee.salaryAccountNumber
         ? {
             bankName: item.employee.salaryBankName || item.employee.bankName,
@@ -217,8 +262,27 @@ export async function GET(req: NextRequest) {
         netPay: net,
         formattedNet: `₦${net.toLocaleString()}`,
         status: item.status,
-        isDisbursed: Boolean(item.disbursement),
-        disbursedAt: item.disbursement?.paidAt || null,
+        isDisbursed: Boolean(item.disbursement) || item.status === 'PAID' || Boolean(lot),
+        disbursedAt: item.disbursement?.paidAt || batch.approvedAt || null,
+        walletStatus: lot
+          ? {
+              creditedToBemsWallet: true,
+              creditedFormatted: formatNaira(lot.amountMinor),
+              availableInWalletFormatted: formatNaira(lot.availableMinor),
+              heldInTransferFormatted: formatNaira(lot.heldMinor),
+              withdrawnToPersonalBankFormatted: formatNaira(lot.settledMinor),
+              isCompletelyWithdrawnToBank:
+                BigInt(lot.availableMinor) === BigInt(0) &&
+                BigInt(lot.heldMinor) === BigInt(0) &&
+                BigInt(lot.settledMinor) > BigInt(0),
+            }
+          : {
+              creditedToBemsWallet: item.status === 'PAID',
+              creditedFormatted: item.status === 'PAID' ? `₦${net.toLocaleString()}` : '₦0',
+              availableInWalletFormatted: item.status === 'PAID' ? `₦${net.toLocaleString()}` : '₦0',
+              withdrawnToPersonalBankFormatted: '₦0',
+              isCompletelyWithdrawnToBank: false,
+            },
         bankDetails: bank,
       };
     });
@@ -232,10 +296,36 @@ export async function GET(req: NextRequest) {
         batchId: batch.id,
         batchVersion: batch.version,
         batchStatus: batch.status,
+        preparedBy: {
+          id: batch.submittedById,
+          name: batch.submittedByName || 'System / HR Payroll Prep',
+          submittedAt: batch.createdAt,
+        },
+        approvedBy: approvalAudit
+          ? {
+              id: approvalAudit.actorId,
+              name: approvalAudit.actorName,
+              role: approvalAudit.actorRole,
+              approvedAt: batch.approvedAt || approvalAudit.createdAt,
+            }
+          : defaultExecutive
+          ? {
+              id: defaultExecutive.id,
+              name: defaultExecutive.legalName,
+              role: defaultExecutive.role,
+              approvedAt: batch.approvedAt,
+            }
+          : null,
         totalGross: formatNaira(batch.totalGrossMinor),
         totalDeductions: formatNaira(batch.totalGrossMinor - batch.totalNetMinor),
         totalNet: formatNaira(batch.totalNetMinor),
         totalEmployees: items.length,
+        auditTrail: batchAudits.map((a) => ({
+          action: a.action,
+          actorName: a.actorName,
+          actorRole: a.actorRole,
+          timestamp: a.createdAt,
+        })),
       },
       items,
     });
@@ -252,6 +342,9 @@ export async function GET(req: NextRequest) {
           id: true,
           version: true,
           status: true,
+          submittedById: true,
+          submittedByName: true,
+          createdAt: true,
           totalGrossMinor: true,
           totalNetMinor: true,
           approvedAt: true,
@@ -260,19 +353,62 @@ export async function GET(req: NextRequest) {
     },
   });
 
+  const batchIds = periods.map((p) => p.batches[0]?.id).filter(Boolean) as string[];
+  const batchAudits = batchIds.length
+    ? await prisma.auditEvent.findMany({
+        where: {
+          targetId: { in: batchIds },
+          action: {
+            in: [
+              'GMD_PAYROLL_APPROVED_AND_CREDITED',
+              'PAYROLL_BATCH_MARKED_PAID',
+              'DASHBOARD_PAYROLL_ACTION_EXECUTED',
+              'AI_STAGED_PAYROLL_ACTION_EXECUTED',
+            ],
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+    : [];
+  const auditByBatchId = new Map<string, (typeof batchAudits)[0]>();
+  for (const a of batchAudits) {
+    if (!auditByBatchId.has(a.targetId)) {
+      auditByBatchId.set(a.targetId, a);
+    }
+  }
+  const fallbackExec = await prisma.employee.findFirst({
+    where: { role: { in: ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'] }, status: 'ACTIVE' },
+    orderBy: { role: 'asc' },
+    select: { id: true, legalName: true, role: true },
+  });
+
   return NextResponse.json({
     ok: true,
     totalPeriods: periods.length,
     periods: periods.map((p) => {
       const b = p.batches[0];
+      const audit = b ? auditByBatchId.get(b.id) : undefined;
+      const approverName = audit?.actorName || (b?.approvedAt ? fallbackExec?.legalName || 'GMD / Executive' : null);
+      const approverRole = audit?.actorRole || (b?.approvedAt ? fallbackExec?.role || 'GMD' : null);
       return {
         id: p.id,
         year: p.year,
         month: p.month,
         periodName: `${new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(p.year, p.month - 1, 1))} ${p.year}`,
         lockStatus: p.lockStatus,
+        batchId: b?.id || null,
         batchStatus: b?.status || 'NOT_PREPARED',
         batchVersion: b?.version || 1,
+        preparedBy: b ? b.submittedByName || 'System / HR Payroll Prep' : null,
+        preparedAt: b?.createdAt || null,
+        approvedBy: approverName ? `${approverName} (${approverRole})` : null,
+        approvedByDetails: approverName
+          ? {
+              name: approverName,
+              role: approverRole,
+              approvedAt: b?.approvedAt || audit?.createdAt || null,
+            }
+          : null,
         totalGross: b ? formatNaira(b.totalGrossMinor) : '₦0',
         totalDeductions: b ? formatNaira(b.totalGrossMinor - b.totalNetMinor) : '₦0',
         totalNet: b ? formatNaira(b.totalNetMinor) : '₦0',
@@ -344,7 +480,7 @@ export async function POST(req: NextRequest) {
   }
 
   // -------------------------------------------------------------
-  // ACTION 2: STAGE SIGN OFF PAYROLL BATCH (GMD / Super Admin Approval)
+  // ACTION 2: STAGE SIGN OFF PAYROLL BATCH (GMD / Super Admin Approval & BEMS Wallet Release)
   // -------------------------------------------------------------
   if (action === 'SIGN_OFF' || action === 'APPROVE') {
     const period = await db.payrollPeriod.findFirst({
@@ -353,6 +489,29 @@ export async function POST(req: NextRequest) {
         batches: {
           orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
           take: 1,
+          include: {
+            items: {
+              include: {
+                employee: {
+                  select: {
+                    id: true,
+                    legalName: true,
+                    employeeNumber: true,
+                  },
+                },
+                allocations: {
+                  include: {
+                    subsidiary: {
+                      select: {
+                        legalName: true,
+                      },
+                    },
+                  },
+                },
+              },
+              orderBy: { grossMinor: 'desc' },
+            },
+          },
         },
       },
     });
@@ -365,15 +524,25 @@ export async function POST(req: NextRequest) {
     }
 
     const batch = period.batches[0];
-    const paymentEntityId = (body.paymentEntityId || body.payerOrgId || batch.paymentEntityId || '').trim() || null;
-    const disbursementAssigneeId = (body.disbursementAssigneeId || body.assigneeId || '').trim() || null;
+    const paymentEntityId = (body.paymentEntityId || body.payerOrgId || batch.paymentEntityId || period.groupId || '').trim() || null;
+    const disbursementAssigneeId = (body.disbursementAssigneeId || body.assigneeId || actor.id || '').trim() || null;
     const periodLabel = `${new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(year, month - 1, 1))} ${year}`;
+    const salaryList = (batch.items || []).map((item) => ({
+      employeeId: item.employeeId,
+      employeeName: item.employee.legalName,
+      employeeNumber: item.employee.employeeNumber,
+      subsidiary: item.allocations[0]?.subsidiary?.legalName || 'BEMS Group',
+      grossFormatted: formatNaira(item.grossMinor),
+      deductionsFormatted: formatNaira(item.employeeDeductionsMinor),
+      netFormatted: formatNaira(item.netMinor),
+    }));
+
     const staged = await stageAction({
-          actorContext: actor,
-          userId: actor.id,
+      actorContext: actor,
+      userId: actor.id,
       actionType: 'payroll_action',
       targetSubsidiaryId: paymentEntityId || undefined,
-      summary: `Sign off & lock payroll batch v${batch.version} for ${periodLabel} (Net: ${formatNaira(batch.totalNetMinor)})`,
+      summary: `Approve & Disburse ${periodLabel} Salaries to Staff BEMS Wallets (Net: ${formatNaira(batch.totalNetMinor)} · ${salaryList.length} Staff)`,
       materialPayload: {
         sub_action: 'SIGN_OFF',
         year,
@@ -381,14 +550,20 @@ export async function POST(req: NextRequest) {
         batchId: batch.id,
         paymentEntityId,
         disbursementAssigneeId,
+        disburseToWallets: true,
       },
       preview: {
         action: 'SIGN_OFF',
         period: periodLabel,
         batchId: batch.id,
         version: batch.version,
+        preparedBy: batch.submittedByName || 'System / HR Payroll Prep',
+        staffCount: `${salaryList.length} employees`,
         totalGross: formatNaira(batch.totalGrossMinor),
+        totalDeductions: formatNaira(batch.totalGrossMinor - batch.totalNetMinor),
         totalNet: formatNaira(batch.totalNetMinor),
+        requires_password: true,
+        salary_list: salaryList,
         ...(paymentEntityId ? { paymentEntityId } : {}),
         ...(disbursementAssigneeId ? { disbursementAssigneeId } : {}),
       },
@@ -399,7 +574,7 @@ export async function POST(req: NextRequest) {
       status: 'AWAITING_CONFIRMATION',
       requires_gmd_action: true,
       action: 'SIGN_OFF',
-      message: `Payroll sign-off for ${periodLabel} (${formatNaira(batch.totalNetMinor)}) has been staged. Click the confirmation button to approve and lock the period.`,
+      message: `Payroll disbursement for ${periodLabel} (${formatNaira(batch.totalNetMinor)} across ${salaryList.length} staff) has been staged with the full monthly salary list. Review the salary card, enter your GMD password, and click Authorize to credit all staff BEMS Wallets and send mobile app & email notifications.`,
       staged_action_id: staged.staged_action_id,
       confirmation_hash: staged.confirmation_hash,
       confirmation_button: staged.confirmation_button,

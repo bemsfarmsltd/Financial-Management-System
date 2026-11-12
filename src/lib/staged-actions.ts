@@ -31,7 +31,7 @@ import {
 } from './ai-access-control';
 import { resolveAuthorizedOrganizationScope } from './organizations';
 import { assertSingleActiveGmd, verifyTargetEmployeeAccess, approveEmployeeOnboarding, rejectEmployeeOnboarding, transitionEmployeeStatus } from './employee-lifecycle';
-import { invalidateSessionCache, getHrAuthorizationScope } from './auth';
+import { invalidateSessionCache, getHrAuthorizationScope, verifyPassword } from './auth';
 import {
   applyCanonicalCompensationChange,
   CompensationChangeType,
@@ -519,8 +519,9 @@ export async function executeStagedAction(params: {
   confirmationHash: string;
   actor: { id: string; legalName: string; role: string; employeeNumber?: string };
   idempotencyKey?: string;
+  password?: string;
 }): Promise<ConfirmResult> {
-  const { actionId, confirmationHash, actor, idempotencyKey } = params;
+  const { actionId, confirmationHash, actor, idempotencyKey, password } = params;
 
   // 1. Fetch staged action
   const action = await prisma.stagedAction.findUnique({
@@ -765,7 +766,7 @@ export async function executeStagedAction(params: {
 
       try { await assertCommandTargetsUnchanged(tx, materialPayload._target_snapshots || []); } catch (error) { throw new StaleTargetError(error instanceof Error ? error.message : 'Proposal target changed.'); }
 
-      const committed = await executeBusinessCommand(tx, { action, actor, materialPayload, actionId, effectiveIdempotencyKey, auditEventId, source: 'AI_STAGED' });
+      const committed = await executeBusinessCommand(tx, { action, actor, materialPayload, actionId, effectiveIdempotencyKey, auditEventId, source: 'AI_STAGED', confirmationPassword: password });
       resultRecord = committed.resultRecord; recordType = committed.recordType; recordId = committed.recordId;
       url = committed.url; resolvedSubsidiaryId = committed.resolvedSubsidiaryId;
       notificationIntentIds.push(...committed.notificationIntentIds);
@@ -848,6 +849,20 @@ export async function executeStagedAction(params: {
       errorCode: 'EXECUTION_FAILED',
       message: err?.message || 'Failed to execute staged action.',
     };
+  }
+
+  try {
+    await processDeliveryOutbox(actionId);
+  } catch (outboxErr) {
+    console.warn('[StagedAction] Delivery outbox post-commit processing deferred:', outboxErr);
+  }
+
+  if (resultRecord?.nextPeriod?.year && resultRecord?.nextPeriod?.month) {
+    await executeDashboardCommand(actor, 'payroll_action', {
+      sub_action: 'PREPARE',
+      year: resultRecord.nextPeriod.year,
+      month: resultRecord.nextPeriod.month,
+    }).catch(() => {});
   }
 
   const queuedEffects = await prisma.$queryRaw<Array<{ count: bigint }>>`SELECT count(*) AS count FROM "DeliveryOutbox" WHERE "commandId" = ${actionId} AND "status" <> 'SENT'`;
@@ -981,8 +996,9 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
   effectiveIdempotencyKey: string;
   auditEventId: string;
   source: 'AI_STAGED' | 'DASHBOARD';
+  confirmationPassword?: string;
 }) {
-  const { action, actor, materialPayload, actionId, effectiveIdempotencyKey, auditEventId, source } = input;
+  const { action, actor, materialPayload, actionId, effectiveIdempotencyKey, auditEventId, source, confirmationPassword } = input;
   let resultRecord: any = null;
   let recordType: string = action.actionType;
   let recordId = '';
@@ -3476,58 +3492,301 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
           totalNet: Number(totalNet) / 100,
         };
       } else if (subAction === 'SIGN_OFF' || subAction === 'APPROVE') {
-        if (walletEnabled()) throw new WalletError('WALLET_PAYROLL_NOT_READY', 'Wallet payroll release is not activated yet. No clearing-account payment or wallet credit was created.', 409);
+        const rawPassword = String(confirmationPassword || materialPayload.password || '').trim();
+        const useWalletDisbursement =
+          walletEnabled() ||
+          materialPayload.disburseToWallets === true ||
+          source === 'AI_STAGED' ||
+          rawPassword.length > 0;
+
         const batchId = String(materialPayload.batchId || '');
         if (!batchId) throw new Error('Choose an exact payroll batch.');
-        const batch = await tx.payrollBatch.findUnique({ where: { id: batchId }, include: { period: true, items: { include: { allocations: true } } } });
-        if (!batch || batch.status !== 'SUBMITTED' || !batch.items.length) throw new StaleTargetError('Only a submitted nonempty payroll batch can be signed off.');
-        const period = batch.period;
-        const paymentEntityId = materialPayload.paymentEntityId || batch.paymentEntityId;
-        if (!paymentEntityId || !await tx.organization.findFirst({ where: { id: paymentEntityId, status: 'ACTIVE' } })) throw new Error('Select an active payroll paying entity.');
-        const disbursementAssigneeId = materialPayload.disbursementAssigneeId || batch.disbursementAssigneeId;
-        if (!disbursementAssigneeId || !await tx.employee.findFirst({ where: { id: disbursementAssigneeId, status: 'ACTIVE', approvalStatus: 'APPROVED', role: { in: ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'] } } })) throw new Error('Assign an active executive to record payroll transfers.');
-        if (batch.items.some(item => item.netMinor < BigInt(0) || item.grossMinor < item.netMinor) || batch.items.reduce((sum, item) => sum + item.netMinor, BigInt(0)) !== batch.totalNetMinor || batch.items.reduce((sum, item) => sum + item.grossMinor, BigInt(0)) !== batch.totalGrossMinor) throw new Error('Payroll totals require reconciliation before approval.');
-        if (batch.items.some(item => item.allocations.reduce((sum, allocation) => sum + allocation.allocableCostMinor, BigInt(0)) !== item.grossMinor)) throw new Error('Payroll allocations must reconcile exactly to gross amounts.');
-        const snapshotHash = payrollSnapshotHash(batch.items);
-        resolvedSubsidiaryId = paymentEntityId;
-        const updated = await tx.payrollBatch.update({
-          where: { id: batch.id },
-          data: {
-            status: 'APPROVED', snapshotHash,
-            approvedAt: new Date(),
-            ...(paymentEntityId ? { paymentEntityId } : {}),
-            ...(disbursementAssigneeId ? { disbursementAssigneeId } : {}),
+        const batch = await tx.payrollBatch.findUnique({
+          where: { id: batchId },
+          include: {
+            period: true,
+            items: {
+              include: {
+                allocations: true,
+                employee: { select: { id: true, legalName: true, employeeNumber: true, workEmail: true, role: true } },
+              },
+            },
           },
         });
-        await tx.payrollPeriod.update({
-          where: { id: period.id },
-          data: { lockStatus: 'LOCKED' },
-        });
-        if (disbursementAssigneeId) {
-          notificationIntentIds.push(disbursementAssigneeId);
-          await tx.systemNotification.create({
+        if (!batch || !['SUBMITTED', 'APPROVED'].includes(batch.status) || !batch.items.length) {
+          throw new StaleTargetError('Only a submitted nonempty payroll batch can be signed off and disbursed.');
+        }
+        const period = batch.period;
+
+        if (!useWalletDisbursement) {
+          const paymentEntityId = materialPayload.paymentEntityId || batch.paymentEntityId;
+          if (!paymentEntityId || !(await tx.organization.findFirst({ where: { id: paymentEntityId, status: 'ACTIVE' } }))) {
+            throw new Error('Select an active payroll paying entity.');
+          }
+          const disbursementAssigneeId = materialPayload.disbursementAssigneeId || batch.disbursementAssigneeId;
+          if (
+            !disbursementAssigneeId ||
+            !(await tx.employee.findFirst({
+              where: {
+                id: disbursementAssigneeId,
+                status: 'ACTIVE',
+                approvalStatus: 'APPROVED',
+                role: { in: ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'] },
+              },
+            }))
+          ) {
+            throw new Error('Assign an active executive to record payroll transfers.');
+          }
+          if (
+            batch.items.some((item) => item.netMinor < BigInt(0) || item.grossMinor < item.netMinor) ||
+            batch.items.reduce((sum, item) => sum + item.netMinor, BigInt(0)) !== batch.totalNetMinor ||
+            batch.items.reduce((sum, item) => sum + item.grossMinor, BigInt(0)) !== batch.totalGrossMinor
+          ) {
+            throw new Error('Payroll totals require reconciliation before approval.');
+          }
+          if (
+            batch.items.some(
+              (item) =>
+                item.allocations.reduce((sum, allocation) => sum + allocation.allocableCostMinor, BigInt(0)) !==
+                item.grossMinor
+            )
+          ) {
+            throw new Error('Payroll allocations must reconcile exactly to gross amounts.');
+          }
+          const snapshotHash = payrollSnapshotHash(batch.items);
+          resolvedSubsidiaryId = paymentEntityId;
+          const updated = await tx.payrollBatch.update({
+            where: { id: batch.id },
             data: {
-              employeeId: disbursementAssigneeId,
-              kind: 'DISBURSEMENT_ASSIGNED',
-              title: `Payroll Disbursement Assigned (${year}-${String(month).padStart(2, '0')})`,
-              body: `${actor.legalName} approved payroll batch v${updated.version} and assigned you to record salary payouts.`,
-              linkUrl: '/payroll',
+              status: 'APPROVED',
+              snapshotHash,
+              approvedAt: new Date(),
+              ...(paymentEntityId ? { paymentEntityId } : {}),
+              ...(disbursementAssigneeId ? { disbursementAssigneeId } : {}),
             },
           });
-          notificationsDeliveredIds.push(disbursementAssigneeId);
+          await tx.payrollPeriod.update({
+            where: { id: period.id },
+            data: { lockStatus: 'LOCKED' },
+          });
+          if (disbursementAssigneeId) {
+            notificationIntentIds.push(disbursementAssigneeId);
+            await tx.systemNotification.create({
+              data: {
+                employeeId: disbursementAssigneeId,
+                kind: 'DISBURSEMENT_ASSIGNED',
+                title: `Payroll Disbursement Assigned (${year}-${String(month).padStart(2, '0')})`,
+                body: `${actor.legalName} approved payroll batch v${updated.version} and assigned you to record salary payouts.`,
+                linkUrl: '/payroll',
+              },
+            });
+            notificationsDeliveredIds.push(disbursementAssigneeId);
+          }
+          recordType = 'payroll_batch';
+          recordId = updated.id;
+          url = `/payroll`;
+          resultRecord = {
+            id: updated.id,
+            status: updated.status,
+            version: updated.version,
+            paymentEntityId: updated.paymentEntityId,
+            disbursementAssigneeId: updated.disbursementAssigneeId,
+            totalNet: Number(updated.totalNetMinor) / 100,
+            approvedAt: updated.approvedAt,
+          };
+        } else {
+          // Verify GMD Executive Password before crediting staff BEMS Wallets
+          const approverAccount = await tx.employee.findUnique({
+            where: { id: actor.id },
+            select: { id: true, passwordHash: true, legalName: true, role: true },
+          });
+          if (!rawPassword) {
+            throw new Error('Please enter your executive password to authorize salary disbursement to staff BEMS Wallets.');
+          }
+          if (!approverAccount?.passwordHash || !(await verifyPassword(rawPassword, approverAccount.passwordHash))) {
+            throw new Error('Invalid executive password. Salary disbursement was not authorized.');
+          }
+
+          const paymentEntityId = materialPayload.paymentEntityId || batch.paymentEntityId || period.groupId;
+          const disbursementAssigneeId = materialPayload.disbursementAssigneeId || batch.disbursementAssigneeId || actor.id;
+          const snapshotHash = payrollSnapshotHash(batch.items);
+          resolvedSubsidiaryId = paymentEntityId;
+
+          const monthLabel = `${new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(period.year, period.month - 1, 1))} ${period.year}`;
+          const proposalId = crypto.randomUUID();
+          const proposalAmount = batch.totalNetMinor > BigInt(0) ? batch.totalNetMinor : BigInt(1);
+
+          await tx.$executeRaw`
+            INSERT INTO "WalletReleaseProposal" (
+              "id", "createdById", "sourceType", "sourceId",
+              "amountMinor", "category", "sourceHash", "confirmationHash", "expiresAt",
+              "status", "approvedById", "approvedAt"
+            ) VALUES (
+              ${proposalId}, ${actor.id}, 'PAYROLL_BATCH', ${batch.id},
+              ${proposalAmount}, 'SALARY', ${snapshotHash}, ${snapshotHash}, now(),
+              'EXECUTED', ${actor.id}, now()
+            )
+          `;
+
+          let creditedCount = 0;
+          for (const item of batch.items) {
+            const orgId = item.allocations[0]?.subsidiaryId || paymentEntityId || period.groupId;
+            if (item.netMinor > BigInt(0)) {
+              const existingLots = await tx.$queryRaw<Array<{ id: string }>>`
+                SELECT "id" FROM "WalletCreditLot"
+                WHERE "payrollItemId" = ${item.id}
+                LIMIT 1
+              `;
+              if (existingLots.length === 0) {
+                const creditId = crypto.randomUUID();
+                await tx.$executeRaw`
+                  INSERT INTO "WalletCreditLot" (
+                    "id", "proposalId", "payrollItemId", "sourceType", "sourceId",
+                    "employeeId", "organizationId", "category", "amountMinor", "availableMinor"
+                  ) VALUES (
+                    ${creditId}, ${proposalId}, ${item.id}, 'PAYROLL_ITEM', ${item.id},
+                    ${item.employeeId}, ${orgId}, 'SALARY', ${item.netMinor}, ${item.netMinor}
+                  )
+                `;
+
+                const sourceKey = `SALARY:${period.year}:${period.month}:${item.employeeId}`;
+                await tx.$executeRaw`
+                  INSERT INTO "WalletPaidSource" ("key", "proposalId")
+                  VALUES (${sourceKey}, ${proposalId})
+                  ON CONFLICT DO NOTHING
+                `;
+
+                const journalId = crypto.randomUUID();
+                const journalRef = `WLT-SAL-${period.year}${String(period.month).padStart(2, '0')}-${item.id.slice(0, 8)}-${Date.now().toString().slice(-5)}`;
+                await tx.$executeRaw`
+                  INSERT INTO "WalletJournal" ("id", "kind", "reference", "actorId")
+                  VALUES (${journalId}, 'WALLET_CREDITED', ${journalRef}, ${actor.id})
+                `;
+                await tx.$executeRaw`
+                  INSERT INTO "WalletJournalEntry" ("id", "journalId", "accountKey", "amountMinor")
+                  VALUES
+                    (${crypto.randomUUID()}, ${journalId}, ${'PAYROLL_BATCH:' + batch.id}, ${-item.netMinor}),
+                    (${crypto.randomUUID()}, ${journalId}, ${'STAFF:' + item.employeeId + ':SALARY'}, ${item.netMinor})
+                `;
+                creditedCount++;
+              }
+
+              const formattedNet = '₦' + (Number(item.netMinor) / 100).toLocaleString('en-NG', { maximumFractionDigits: 0 });
+              const formattedGross = '₦' + (Number(item.grossMinor) / 100).toLocaleString('en-NG', { maximumFractionDigits: 0 });
+              const formattedDed = '₦' + (Number(item.employeeDeductionsMinor) / 100).toLocaleString('en-NG', { maximumFractionDigits: 0 });
+
+              notificationIntentIds.push(item.employeeId);
+              await tx.systemNotification.create({
+                data: {
+                  employeeId: item.employeeId,
+                  subsidiaryId: orgId,
+                  category: 'PAYROLL_DEDUCTIONS',
+                  priority: 'CRITICAL',
+                  kind: 'WALLET_CREDITED',
+                  title: `💸 ${monthLabel} Salary Credited: ${formattedNet}`,
+                  body: `Your ${monthLabel} salary (${formattedNet} net; Gross: ${formattedGross}, Deductions: ${formattedDed}) has been approved by ${actor.legalName} (${actor.role}) and credited to your BEMS Wallet. Open the BEMS App or Portal to withdraw to your personal bank account.`,
+                  actionLabel: 'Withdraw from BEMS Wallet',
+                  actionUrl: '/wallet',
+                  linkUrl: '/wallet',
+                },
+              });
+              notificationsDeliveredIds.push(item.employeeId);
+
+              if (item.employee?.workEmail) {
+                await queueDelivery(tx, actionId, 'SALARY_WALLET_CREDITED', {
+                  to: item.employee.workEmail,
+                  recipientName: item.employee.legalName,
+                  employeeNumber: item.employee.employeeNumber,
+                  periodName: monthLabel,
+                  grossMinor: Number(item.grossMinor),
+                  deductionsMinor: Number(item.employeeDeductionsMinor),
+                  netMinor: Number(item.netMinor),
+                  approvedBy: actor.legalName,
+                  approvedByRole: actor.role,
+                });
+              }
+            }
+          }
+
+          await tx.payrollItem.updateMany({
+            where: { batchId: batch.id },
+            data: { status: 'PAID' },
+          });
+
+          const updated = await tx.payrollBatch.update({
+            where: { id: batch.id },
+            data: {
+              status: 'PAID',
+              snapshotHash,
+              approvedAt: new Date(),
+              ...(paymentEntityId ? { paymentEntityId } : {}),
+              ...(disbursementAssigneeId ? { disbursementAssigneeId } : {}),
+            },
+          });
+
+          await tx.payrollPeriod.update({
+            where: { id: period.id },
+            data: { lockStatus: 'LOCKED' },
+          });
+
+          await tx.auditEvent.create({
+            data: {
+              actorId: actor.id,
+              actorName: actor.legalName,
+              actorRole: actor.role,
+              groupId: period.groupId,
+              subsidiaryId: paymentEntityId || period.groupId,
+              targetType: 'PAYROLL_BATCH',
+              targetId: batch.id,
+              action: 'GMD_PAYROLL_APPROVED_AND_CREDITED',
+              correlationId: proposalId,
+              metadata: JSON.stringify({
+                batchId: batch.id,
+                periodId: period.id,
+                year: period.year,
+                month: period.month,
+                periodName: monthLabel,
+                version: batch.version,
+                preparedById: batch.submittedById,
+                preparedByName: batch.submittedByName || 'System / HR Payroll Prep',
+                approvedById: actor.id,
+                approvedByName: actor.legalName,
+                approvedByRole: actor.role,
+                totalGrossMinor: batch.totalGrossMinor.toString(),
+                totalNetMinor: batch.totalNetMinor.toString(),
+                employeeCount: batch.items.length,
+                walletsCredited: creditedCount,
+                notes: materialPayload.comments || null,
+              }),
+            },
+          });
+
+          const nextYear = period.month === 12 ? period.year + 1 : period.year;
+          const nextMonth = period.month === 12 ? 1 : period.month + 1;
+          const nextPeriodName = `${new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(nextYear, nextMonth - 1, 1))} ${nextYear}`;
+
+          recordType = 'payroll_batch';
+          recordId = updated.id;
+          url = `/payroll`;
+          resultRecord = {
+            id: updated.id,
+            status: updated.status,
+            version: updated.version,
+            paymentEntityId: updated.paymentEntityId,
+            disbursementAssigneeId: updated.disbursementAssigneeId,
+            totalGross: Number(updated.totalGrossMinor) / 100,
+            totalNet: Number(updated.totalNetMinor) / 100,
+            employeeCount: batch.items.length,
+            walletsCredited: creditedCount,
+            approvedBy: actor.legalName,
+            approvedAt: updated.approvedAt,
+            nextPeriod: {
+              year: nextYear,
+              month: nextMonth,
+              periodName: nextPeriodName,
+            },
+          };
         }
-        recordType = 'payroll_batch';
-        recordId = updated.id;
-        url = `/payroll`;
-        resultRecord = {
-          id: updated.id,
-          status: updated.status,
-          version: updated.version,
-          paymentEntityId: updated.paymentEntityId,
-          disbursementAssigneeId: updated.disbursementAssigneeId,
-          totalNet: Number(updated.totalNetMinor) / 100,
-          approvedAt: updated.approvedAt,
-        };
       } else if (subAction === 'RECORD_PAYOUT' || subAction === 'DISBURSE') {
         const itemId = materialPayload.itemId || materialPayload.payrollItemId;
         if (!itemId) throw new Error('Select one payroll item and its actual transfer receipt.');

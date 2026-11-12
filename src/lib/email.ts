@@ -989,3 +989,76 @@ export async function sendGmdAttendanceAlert(params: {
   });
 }
 
+export async function sendSalaryWalletCreditedEmail(params: {
+  to: string;
+  recipientName: string;
+  employeeNumber: string;
+  periodName: string;
+  grossMinor: number;
+  deductionsMinor: number;
+  netMinor: number;
+  approvedBy: string;
+  approvedByRole: string;
+}) {
+  const walletUrl = `${APP_URL}/wallet`;
+  const grossFormatted = `₦${(params.grossMinor / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+  const deductionsFormatted = `₦${(params.deductionsMinor / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+  const netFormatted = `₦${(params.netMinor / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+  const subject = `💸 [${params.periodName} Salary Credited] ${netFormatted} added to your BEMS Wallet`;
+
+  const content = `
+    <h2 style="margin: 0 0 12px; font-size: 19px; font-weight: 800; color: #0f172a;">
+      ${params.periodName} Salary Credited to Your BEMS Wallet
+    </h2>
+    <p style="margin: 0 0 16px; color: #475569; font-size: 14px; line-height: 1.5;">
+      Hello <strong>${params.recipientName}</strong>, your monthly salary for <strong>${params.periodName}</strong> has been approved by <strong>${params.approvedBy}</strong> (${params.approvedByRole.replace(/_/g, ' ')}) and credited directly into your internal <strong>BEMS Wallet</strong>.
+    </p>
+
+    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #16a34a; border-radius: 8px; padding: 18px; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+        <tr>
+          <td style="padding: 6px 0; color: #64748b; width: 150px;">Payroll Period:</td>
+          <td style="padding: 6px 0; color: #0f172a; font-weight: 700;">${params.periodName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Staff Wallet ID:</td>
+          <td style="padding: 6px 0; color: #0f172a; font-weight: 700; font-family: monospace;">WLT-${params.employeeNumber}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Gross Salary:</td>
+          <td style="padding: 6px 0; color: #0f172a; font-weight: 700;">${grossFormatted}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Lateness Deductions:</td>
+          <td style="padding: 6px 0; color: #d97706; font-weight: 700;">-${deductionsFormatted}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0 4px; color: #166534; font-weight: 800;">Net Credited to Wallet:</td>
+          <td style="padding: 8px 0 4px; color: #15803d; font-weight: 900; font-size: 16px;">${netFormatted}</td>
+        </tr>
+      </table>
+    </div>
+
+    <p style="margin: 16px 0 0; color: #475569; font-size: 13px; line-height: 1.5;">
+      You can now open the <strong>BEMS Staff Mobile App</strong> or <strong>BEMS Staff Web Portal</strong> to withdraw your salary directly to your verified personal bank account at any time.
+    </p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject,
+    eventType: 'SALARY_WALLET_CREDITED',
+    text: `${params.periodName} Salary Credited: ${netFormatted} has been added to your BEMS Wallet (WLT-${params.employeeNumber}). Open ${walletUrl} or the BEMS Staff App to withdraw to your bank account.`,
+    html: wrapEmailTemplate({
+      title: `${params.periodName} Salary Credited`,
+      preheader: `${netFormatted} credited to your BEMS Wallet for ${params.periodName}`,
+      badge: 'BEMS WALLET CREDITED',
+      content,
+      callToAction: {
+        label: 'Open BEMS Wallet & Withdraw →',
+        url: walletUrl,
+      },
+    }),
+  });
+}
+
