@@ -93,7 +93,8 @@ export type ApiRouteGroup =
   | 'upload'
   | 'vendors'
   | 'webhooks'
-  | 'wallet';
+  | 'wallet'
+  | 'disputes';
 
 export interface ApiRouteInventoryEntry {
   group: ApiRouteGroup;
@@ -1340,4 +1341,9 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
   { group: 'wallet', apiPath: '/api/wallet/reconcile', relativeFilePath: 'src/app/api/wallet/reconcile/route.ts', declaredMethods: ["POST"], classification: 'MUTATION' },
   { group: 'wallet', apiPath: '/api/wallet/vendors/[id]/verify-bank', relativeFilePath: 'src/app/api/wallet/vendors/[id]/verify-bank/route.ts', declaredMethods: ["POST"], classification: 'MUTATION' },
   { group: 'wallet', apiPath: '/api/wallet/withdrawal-plan', relativeFilePath: 'src/app/api/wallet/withdrawal-plan/route.ts', declaredMethods: ["POST"], classification: 'MUTATION' },
+
+  // Announcements & Staff Dispute Inquiries
+  { group: 'notifications', apiPath: '/api/announcements', relativeFilePath: 'src/app/api/announcements/route.ts', declaredMethods: ['GET', 'POST'], classification: 'MUTATION' },
+  { group: 'disputes', apiPath: '/api/disputes', relativeFilePath: 'src/app/api/disputes/route.ts', declaredMethods: ['GET', 'POST'], classification: 'MUTATION' },
+  { group: 'disputes', apiPath: '/api/disputes/[id]', relativeFilePath: 'src/app/api/disputes/[id]/route.ts', declaredMethods: ['GET', 'POST', 'PATCH'], classification: 'MUTATION' },
 ];

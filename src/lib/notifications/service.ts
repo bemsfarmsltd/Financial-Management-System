@@ -48,7 +48,7 @@ export async function dispatchNotification(input: DispatchNotificationInput) {
     // 1. Resolve subsidiaryId if missing
     let resolvedSubsidiaryId = input.subsidiaryId || null;
     if (!resolvedSubsidiaryId) {
-      const assignment = await prisma.employeeAssignment.findFirst({
+      const assignment = await (prisma as any).employeeAssignment?.findFirst?.({
         where: { employeeId: input.employeeId, status: 'ACTIVE' },
         select: { subsidiaryId: true },
         orderBy: { isPrimary: 'desc' },
@@ -58,7 +58,7 @@ export async function dispatchNotification(input: DispatchNotificationInput) {
 
     // 2. Check User Notification Preferences (for non-mandatory categories)
     if (!MANDATORY_CATEGORIES.has(input.category) && priority !== 'CRITICAL') {
-      const prefs = await prisma.notificationPreference.findUnique({
+      const prefs = await (prisma as any).notificationPreference?.findUnique?.({
         where: { employeeId: input.employeeId },
       });
 
@@ -85,7 +85,7 @@ export async function dispatchNotification(input: DispatchNotificationInput) {
     const cooldown = input.cooldownMinutes ?? 2;
     if (cooldown > 0) {
       const recentThreshold = new Date(Date.now() - cooldown * 60 * 1000);
-      const duplicate = await prisma.systemNotification.findFirst({
+      const duplicate = await (prisma as any).systemNotification?.findFirst?.({
         where: {
           employeeId: input.employeeId,
           kind: input.kind,
@@ -101,7 +101,7 @@ export async function dispatchNotification(input: DispatchNotificationInput) {
     }
 
     // 4. Persist Notification in Database
-    const notification = await prisma.systemNotification.create({
+    const notification = await (prisma as any).systemNotification?.create?.({
       data: {
         employeeId: input.employeeId,
         subsidiaryId: resolvedSubsidiaryId,

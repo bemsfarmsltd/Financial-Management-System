@@ -192,8 +192,15 @@ async function main() {
     assert.equal(verifyScopedAutomationToken('bems_del_v1.' + encoded + '.' + signature).valid, false);
   });
   await check('Payment service rejects missing bank evidence before writing', async () => {
-    const { recordTransfer } = load('src/lib/services/payment.ts');
-    await assert.rejects(recordTransfer({}, { actor, amountMinor: BigInt(100), reference: 'REF', receipt: { name: 'fake.pdf', type: 'application/pdf', bytes: Buffer.alloc(0) } }), /actual bank receipt/);
+    const savedWallet = process.env.BEMS_WALLET_ENABLED;
+    process.env.BEMS_WALLET_ENABLED = 'false';
+    try {
+      const { recordTransfer } = load('src/lib/services/payment.ts');
+      await assert.rejects(recordTransfer({}, { actor, amountMinor: BigInt(100), reference: 'REF', receipt: { name: 'fake.pdf', type: 'application/pdf', bytes: Buffer.alloc(0) } }), /actual bank receipt/);
+    } finally {
+      if (savedWallet !== undefined) process.env.BEMS_WALLET_ENABLED = savedWallet;
+      else delete process.env.BEMS_WALLET_ENABLED;
+    }
   });
   await check('Legacy roles cannot acquire an authenticated dashboard identity', async () => {
     database.authSession = { findUnique: async () => ({ expiresAt: new Date(Date.now() + 60000), employee: { id: 'legacy', role: 'COO', status: 'ACTIVE', approvalStatus: 'APPROVED' } }) };
@@ -222,10 +229,12 @@ async function main() {
   });
   await check('Wallet withdrawal calls cannot bypass activation or submit provider transfers', async () => {
     process.env.BEMS_WALLET_ENABLED = 'true';
+    process.env.BEMS_WALLET_TRANSFERS_ENABLED = 'false';
     const response = await load('src/app/api/wallet/withdrawals/route.ts').POST(new Request('https://test/api/wallet/withdrawals', { method: 'POST', headers: { Authorization: 'Bearer human-session', 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: 'someone-else', approved: true, balance: '999999999', amountMinor: '1' }) }));
     assert.equal(response.status, 503);
     assert.equal((await response.json()).code, 'WITHDRAWALS_NOT_ACTIVATED');
     delete process.env.BEMS_WALLET_ENABLED;
+    delete process.env.BEMS_WALLET_TRANSFERS_ENABLED;
   });
   await check('Wallet approval rejects delegation headers before executing a human action', async () => {
     const response = await load('src/app/api/wallet/releases/[id]/approve/route.ts').POST(new Request('https://test/api/wallet/releases/forged/approve', { method: 'POST', headers: { 'x-bems-delegation-token': 'forged', Authorization: 'Bearer human-session' } }), { params: Promise.resolve({id:'forged'}) });
