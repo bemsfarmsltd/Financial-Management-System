@@ -106,6 +106,8 @@ interface PayrollPeriodOption {
   lockStatus: string;
   batchStatus: string;
   batchVersion: number;
+  totalNetMinor?: number;
+  totalNetFormatted?: string | null;
 }
 
 interface PaydayRadarInfo {
@@ -328,7 +330,12 @@ export function PayrollSignOffView({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Could not mark batch as paid.');
       setNotice(`✓ ${json.message || 'Payroll batch marked as Paid.'}`);
-      await fetchPayroll(data?.period?.year, data?.period?.month);
+      if (json.nextPeriod?.year && json.nextPeriod?.month) {
+        setSelectedPeriodKey(`${json.nextPeriod.year}-${json.nextPeriod.month}`);
+        await fetchPayroll(json.nextPeriod.year, json.nextPeriod.month);
+      } else {
+        await fetchPayroll(data?.period?.year, data?.period?.month);
+      }
     } catch (err: any) {
       setNotice(err?.message || 'Error marking batch as paid.');
     } finally {
@@ -644,8 +651,11 @@ export function PayrollSignOffView({
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Historical Period Archive Selector */}
           {data?.availablePeriods && data.availablePeriods.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '2px 8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #ea580c', borderRadius: 6, padding: '3px 10px', boxShadow: '0 1px 3px rgba(234,88,12,0.1)' }}>
               <Calendar size={12} style={{ color: '#ea580c' }} />
+              <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#ea580c', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Select Month:
+              </span>
               <select
                 aria-label="Select Historical Payroll Period"
                 value={selectedPeriodKey || (data?.period ? `${data.period.year}-${data.period.month}` : '')}
@@ -659,7 +669,7 @@ export function PayrollSignOffView({
                   border: 'none',
                   background: 'transparent',
                   fontSize: '11px',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   color: '#0f172a',
                   cursor: 'pointer',
                   outline: 'none',
@@ -668,7 +678,7 @@ export function PayrollSignOffView({
               >
                 {(data?.availablePeriods || []).map((p) => (
                   <option key={p.id} value={`${p.year}-${p.month}`}>
-                    {p.periodName} ({p.batchStatus === 'APPROVED' ? 'Approved' : p.batchStatus === 'PAID' ? 'Disbursed' : p.batchStatus === 'SUBMITTED' ? 'Submitted' : 'Not Prepared'})
+                    {p.periodName} — {p.batchStatus === 'PAID' ? `✓ Disbursed${p.totalNetFormatted ? ` (${p.totalNetFormatted})` : ''}` : p.batchStatus === 'APPROVED' ? 'Approved' : p.batchStatus === 'SUBMITTED' ? 'Active / Next Run' : 'Not Prepared'}
                   </option>
                 ))}
               </select>
@@ -801,6 +811,90 @@ export function PayrollSignOffView({
           )}
         </div>
       </div>
+
+      {/* MONTHLY SALARY RECORDS & PERIOD SWITCHER STRIP */}
+      {data?.availablePeriods && data.availablePeriods.length > 0 && (
+        <div
+          style={{
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            padding: '10px 14px',
+            marginBottom: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '10px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Calendar size={14} style={{ color: '#ea580c' }} />
+            <span style={{ fontSize: '10px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Monthly Salary Runs &amp; Disbursed History:
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {data.availablePeriods.map((p) => {
+              const key = `${p.year}-${p.month}`;
+              const isCurrentSelected = (selectedPeriodKey || (data?.period ? `${data.period.year}-${data.period.month}` : '')) === key;
+              const isPaid = p.batchStatus === 'PAID';
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedPeriodKey(key);
+                    fetchPayroll(p.year, p.month);
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    border: isCurrentSelected
+                      ? '1.5px solid #ea580c'
+                      : isPaid
+                        ? '1px solid #a7f3d0'
+                        : '1px solid #cbd5e1',
+                    background: isCurrentSelected
+                      ? '#fff7ed'
+                      : isPaid
+                        ? '#f0fdf4'
+                        : '#f8fafc',
+                    color: isCurrentSelected
+                      ? '#c2410c'
+                      : isPaid
+                        ? '#047857'
+                        : '#334155',
+                    fontSize: '10.5px',
+                    fontWeight: isCurrentSelected ? 800 : 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: isCurrentSelected ? '0 2px 6px rgba(234,88,12,0.14)' : 'none',
+                  }}
+                >
+                  <span>{p.periodName}</span>
+                  <span
+                    style={{
+                      fontSize: '9px',
+                      fontWeight: 800,
+                      padding: '1px 6px',
+                      borderRadius: '5px',
+                      background: isPaid ? '#d1fae5' : '#ffedd5',
+                      color: isPaid ? '#065f46' : '#9a3412',
+                    }}
+                  >
+                    {isPaid
+                      ? `✓ Paid${p.totalNetFormatted ? ` · ${p.totalNetFormatted}` : ''}`
+                      : 'Active / Next Run'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {notice && (
         <div style={{

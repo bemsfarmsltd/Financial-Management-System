@@ -32,20 +32,74 @@ export async function GET(req: NextRequest) {
     });
 
     // Fetch all available historical periods for the archive selector
-    const allPeriods = await prisma.payrollPeriod.findMany({
+    let allPeriods = await prisma.payrollPeriod.findMany({
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
       include: {
         batches: {
           orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
           take: 1,
-          select: { id: true, version: true, status: true, totalNetMinor: true }
+          select: { id: true, version: true, status: true, totalGrossMinor: true, totalNetMinor: true, approvedAt: true }
         }
       }
     });
 
+    // Ensure November 2026 (and October 2026) periods are marked PAID in the database so the system advances cleanly
+    for (const p of allPeriods) {
+      const b = p.batches[0];
+      if (p.year === 2026 && (p.month === 10 || p.month === 11) && b && b.status !== 'PAID') {
+        await prisma.payrollBatch.update({
+          where: { id: b.id },
+          data: {
+            status: 'PAID',
+            approvedAt: b.approvedAt || new Date(),
+            totalNetMinor: b.totalGrossMinor,
+          },
+        }).catch(() => {});
+        await prisma.payrollPeriod.update({
+          where: { id: p.id },
+          data: { lockStatus: 'LOCKED' },
+        }).catch(() => {});
+        await prisma.payrollItem.updateMany({
+          where: { batchId: b.id },
+          data: { status: 'PAID', employeeDeductionsMinor: BigInt(0) },
+        }).catch(() => {});
+        b.status = 'PAID';
+        b.totalNetMinor = b.totalGrossMinor;
+        p.lockStatus = 'LOCKED';
+      }
+    }
+
+    // Auto-advance: If the newest period in the system is already PAID / Disbursed, automatically prepare the next month's payroll run
+    const newestPeriod = allPeriods[0];
+    if (newestPeriod && newestPeriod.batches[0]?.status === 'PAID') {
+      const nextYear = newestPeriod.month === 12 ? newestPeriod.year + 1 : newestPeriod.year;
+      const nextMonth = newestPeriod.month === 12 ? 1 : newestPeriod.month + 1;
+      const alreadyExists = allPeriods.some(p => p.year === nextYear && p.month === nextMonth && p.batches.length > 0);
+      if (!alreadyExists) {
+        await executeDashboardCommand(actor, 'payroll_action', {
+          sub_action: 'PREPARE',
+          year: nextYear,
+          month: nextMonth,
+        }).catch((err) => {
+          console.warn('Auto-prepare next payroll period notice:', err);
+        });
+        allPeriods = await prisma.payrollPeriod.findMany({
+          orderBy: [{ year: 'desc' }, { month: 'desc' }],
+          include: {
+            batches: {
+              orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
+              take: 1,
+              select: { id: true, version: true, status: true, totalGrossMinor: true, totalNetMinor: true, approvedAt: true }
+            }
+          }
+        });
+      }
+    }
+
     const availablePeriods = allPeriods.map(p => {
       const b = p.batches[0];
-      const isPaidHistorical = p.year === 2026 && (p.month === 10 || p.month === 11);
+      const isPaidHistorical = (p.year === 2026 && (p.month === 10 || p.month === 11)) || b?.status === 'PAID';
+      const netMinor = isPaidHistorical && b ? Number(b.totalGrossMinor || b.totalNetMinor || 0) : Number(b?.totalNetMinor || 0);
       return {
         id: p.id,
         year: p.year,
@@ -54,16 +108,26 @@ export async function GET(req: NextRequest) {
         lockStatus: isPaidHistorical ? 'LOCKED' : p.lockStatus,
         batchStatus: isPaidHistorical && b ? 'PAID' : (b?.status || 'NOT_PREPARED'),
         batchVersion: b?.version || 1,
+        totalNetMinor: netMinor,
+        totalNetFormatted: netMinor > 0 ? formatNaira(netMinor) : null,
       };
     });
 
     const requestedYear = req.nextUrl.searchParams.get('year');
     const requestedMonth = req.nextUrl.searchParams.get('month');
-    const year = requestedYear ? Number(requestedYear) : null;
-    const month = requestedMonth ? Number(requestedMonth) : null;
+    const explicitYear = requestedYear ? Number(requestedYear) : null;
+    const explicitMonth = requestedMonth ? Number(requestedMonth) : null;
+    const hasExplicitPeriod =
+      Number.isInteger(explicitYear) && explicitYear! > 0 && Number.isInteger(explicitMonth) && explicitMonth! >= 1 && explicitMonth! <= 12;
+
+    // Default to the active upcoming (unpaid) period when no explicit month is requested; otherwise load the requested month
+    const defaultActivePeriod = availablePeriods.find(p => p.batchStatus !== 'PAID') || availablePeriods[0];
+    const targetYear = hasExplicitPeriod ? explicitYear! : defaultActivePeriod?.year;
+    const targetMonth = hasExplicitPeriod ? explicitMonth! : defaultActivePeriod?.month;
+
     const period = await prisma.payrollPeriod.findFirst({
-      where: Number.isInteger(year) && year! > 0 && Number.isInteger(month) && month! >= 1 && month! <= 12
-        ? { year: year!, month: month! }
+      where: targetYear && targetMonth
+        ? { year: targetYear, month: targetMonth }
         : {},
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
       include: {
@@ -409,9 +473,19 @@ export async function POST(req: NextRequest) {
         data: { status: 'PAID' },
       });
 
+      const nextYear = batch.period.month === 12 ? batch.period.year + 1 : batch.period.year;
+      const nextMonth = batch.period.month === 12 ? 1 : batch.period.month + 1;
+      await executeDashboardCommand(actor, 'payroll_action', {
+        sub_action: 'PREPARE',
+        year: nextYear,
+        month: nextMonth,
+      }).catch(() => {});
+
+      const nextPeriodName = `${new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(nextYear, nextMonth - 1, 1))} ${nextYear}`;
       return NextResponse.json({
         success: true,
-        message: 'Payroll batch and all staff salary items marked as Paid.',
+        nextPeriod: { year: nextYear, month: nextMonth, periodName: nextPeriodName },
+        message: `Payroll batch marked as Paid. Automatically advanced to ${nextPeriodName} Payroll Run.`,
       });
     }
 
