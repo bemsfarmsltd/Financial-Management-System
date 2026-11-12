@@ -103,6 +103,10 @@ function StaffDisputesContent() {
       if (statusFilter !== 'ALL') params.set('status', statusFilter);
 
       const res = await fetch(`/api/disputes?${params.toString()}`);
+      if (res.status === 401) {
+        window.location.href = '/?redirect=/disputes';
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setDisputes(data.disputes || []);

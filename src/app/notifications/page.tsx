@@ -115,6 +115,10 @@ function NotificationCentreContent() {
       params.set('limit', '25');
 
       const res = await fetch(`/api/notifications?${params.toString()}`);
+      if (res.status === 401) {
+        window.location.href = '/?redirect=/notifications';
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.notifications || []);

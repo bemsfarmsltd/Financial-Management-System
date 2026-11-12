@@ -494,6 +494,19 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
 
           {/* TOP ACTIONS */}
           <div className="top-actions">
+            <Link
+              href="/"
+              className="top-action-btn"
+              style={{ textDecoration: 'none' }}
+              title="Return to Enterprise Suite Launchpad"
+            >
+              <span className="btn-icon">❖</span>
+              <div className="btn-text">
+                <strong>All Modules</strong>
+                <small>Switch Department ⤢</small>
+              </div>
+            </Link>
+
             {currentRole === 'Staff' && (
               <Link href="/requests/new" className="top-action-btn" style={{ textDecoration: 'none' }}>
                 <span className="btn-icon">📁</span>

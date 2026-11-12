@@ -11,7 +11,7 @@ export default async function StaffPage() {
 
   // Redirect unauthenticated visitors to portal sign-in
   if (!actor) {
-    redirect('/finance');
+    redirect('/?redirect=/staff');
   }
 
   // Allow STAFF, as well as SUPER_ADMIN and GMD for administrative preview

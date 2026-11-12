@@ -7,7 +7,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function FundingPage() {
   const actor = await getAuthenticatedEmployee();
-  if (!actor || !['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(actor.role)) {
+  if (!actor) {
+    redirect('/?redirect=/wallet/funding');
+  }
+  if (!['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(actor.role)) {
     redirect('/finance');
   }
   const initialRole = actor.role === 'GMD' ? 'GMD' : 'SystemAdmin';

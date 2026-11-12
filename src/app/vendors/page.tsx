@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export default async function VendorsPage() {
   const actor = await getAuthenticatedEmployee();
   if (!actor) {
-    redirect('/finance');
+    redirect('/?redirect=/vendors');
   }
 
   const isExecutive = hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD']);

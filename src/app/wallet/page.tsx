@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function WalletPage() {
   const actor = await getAuthenticatedEmployee();
-  if (!actor) redirect('/finance');
+  if (!actor) redirect('/?redirect=/wallet');
   if (actor.role !== 'STAFF') redirect('/wallet/funding');
   return (
     <ConnectAppShell initialRole="Staff">
