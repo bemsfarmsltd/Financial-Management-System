@@ -5083,9 +5083,32 @@ export function StaffDashboardClient({
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="py-8 text-center text-xs text-slate-500 space-y-1">
-                <p className="font-extrabold text-[#0F172A]">All caught up!</p>
-                <p>You have no unread high-priority notifications.</p>
+              <div className="py-6 text-center text-xs text-slate-500 space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-200 flex items-center justify-center mx-auto text-[#EA580C]">
+                  <Bell className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="font-extrabold text-[#0F172A] text-sm">BEMS Notification Centre</p>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                    View real-time attendance confirmations, lateness deductions, payroll slips, and announcements.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-col gap-2">
+                  <Link
+                    href="/notifications"
+                    onClick={() => setIsNotificationsOpen(false)}
+                    className="w-full py-2.5 px-4 bg-[#EA580C] text-white text-xs font-bold rounded-xl hover:bg-orange-600 transition shadow-sm text-center"
+                  >
+                    Open Notification Centre →
+                  </Link>
+                  <Link
+                    href="/disputes"
+                    onClick={() => setIsNotificationsOpen(false)}
+                    className="w-full py-2 px-4 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200 transition text-center"
+                  >
+                    Staff Queries & Disputes
+                  </Link>
+                </div>
               </div>
             </div>
           </div>

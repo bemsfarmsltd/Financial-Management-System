@@ -35,6 +35,9 @@ model Organization {
   bankAccounts         CompanyBankAccount[]
   attendanceStations   AttendanceStation[]
   attendancePolicy     AttendancePolicy?
+  notifications        SystemNotification[]
+  staffDisputes        StaffDispute[]
+  announcements        CompanyAnnouncement[]
 }
 
 model CompanyBankAccount {
@@ -137,6 +140,11 @@ model Employee {
 
   authSessions   AuthSession[]
   notifications  SystemNotification[]
+  notificationPreference NotificationPreference?
+  disputesFiled  StaffDispute[]         @relation("EmployeeDisputes")
+  disputesResolved StaffDispute[]       @relation("ResolvedDisputes")
+  disputeMessages StaffDisputeMessage[]
+  announcements  CompanyAnnouncement[]
   paymentConfirmations RecipientPaymentConfirmation[]
 
   assignments           EmployeeAssignment[]
@@ -214,17 +222,94 @@ model AuthSession {
 }
 
 model SystemNotification {
-  id         String   @id @default(uuid())
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  kind       String
-  title      String
-  body       String
-  readAt     DateTime?
-  linkUrl    String?
-  createdAt  DateTime @default(now())
+  id           String        @id @default(uuid())
+  employeeId   String
+  employee     Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  subsidiaryId String?
+  subsidiary   Organization? @relation(fields: [subsidiaryId], references: [id])
+  category     String        @default("INFORMATIONAL") // ATTENDANCE, PAYROLL_DEDUCTIONS, REQUESTS_APPROVALS, LEAVE, MESSAGES, TASKS, ANNOUNCEMENTS, SECURITY
+  priority     String        @default("INFORMATIONAL") // CRITICAL, IMPORTANT, INFORMATIONAL
+  kind         String        // Granular event key
+  title        String
+  body         String
+  metadata     Json?         // Structured data: { grossMinor, deductionMinor, netMinor, minutesLate, disputeId, etc. }
+  actionLabel  String?       // e.g. "Dispute Deduction", "View Payslip", "Confirm Attendance"
+  actionUrl    String?       // e.g. "/disputes", "/payroll", "/attendance"
+  readAt       DateTime?
+  linkUrl      String?
+  createdAt    DateTime      @default(now())
 
   @@index([employeeId, readAt, createdAt])
+  @@index([employeeId, category, priority])
+  @@index([subsidiaryId, category])
+}
+
+model StaffDispute {
+  id              String                @id @default(uuid())
+  disputeNumber   String                @unique // e.g. DSP-2026-0001
+  employeeId      String
+  employee        Employee              @relation("EmployeeDisputes", fields: [employeeId], references: [id], onDelete: Cascade)
+  subsidiaryId    String
+  subsidiary      Organization          @relation(fields: [subsidiaryId], references: [id])
+  category        String                // ATTENDANCE, LATENESS, DEDUCTION, PAYROLL, HR_DECISION
+  targetRecordId  String?               // ID of the AttendanceRecord or PayrollItem
+  title           String
+  explanation     String
+  evidenceUrls    String[]              @default([])
+  status          String                @default("OPEN") // OPEN, UNDER_REVIEW, APPROVED, REJECTED, CLOSED
+  resolutionNotes String?
+  resolvedById    String?
+  resolvedBy      Employee?             @relation("ResolvedDisputes", fields: [resolvedById], references: [id])
+  resolvedAt      DateTime?
+  messages        StaffDisputeMessage[]
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@index([employeeId, status])
+  @@index([subsidiaryId, status])
+}
+
+model StaffDisputeMessage {
+  id         String       @id @default(uuid())
+  disputeId  String
+  dispute    StaffDispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     Employee     @relation(fields: [senderId], references: [id])
+  senderRole String
+  body       String
+  createdAt  DateTime     @default(now())
+
+  @@index([disputeId, createdAt])
+}
+
+model NotificationPreference {
+  id                 String   @id @default(uuid())
+  employeeId         String   @unique
+  employee           Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  attendanceAlerts   Boolean  @default(true)
+  taskAlerts         Boolean  @default(true)
+  messageAlerts      Boolean  @default(true)
+  announcementAlerts Boolean  @default(true)
+  leaveAlerts        Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model CompanyAnnouncement {
+  id           String        @id @default(uuid())
+  title        String
+  content      String
+  category     String        @default("COMPANY_WIDE") // COMPANY_WIDE, DEPARTMENTAL, POLICY, HOLIDAY, TRAINING
+  priority     String        @default("INFORMATIONAL") // CRITICAL, IMPORTANT, INFORMATIONAL
+  subsidiaryId String?       // null = Group-wide
+  subsidiary   Organization? @relation(fields: [subsidiaryId], references: [id])
+  departmentId String?
+  authorId     String
+  author       Employee      @relation(fields: [authorId], references: [id])
+  publishedAt  DateTime      @default(now())
+  expiresAt    DateTime?
+
+  @@index([subsidiaryId, publishedAt])
 }
 
 model EmployeeAssignment {

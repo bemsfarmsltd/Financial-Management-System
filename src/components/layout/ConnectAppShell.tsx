@@ -510,24 +510,59 @@ export function ConnectAppShell({ children, initialRole, initialSubId }: { child
                 🔔
               </button>
               {notificationsOpen && (
-                <div className="top-popover notifications-panel" role="dialog" aria-label="Notifications">
-                  <header>
-                    <strong>Notifications{unreadCount ? ` · ${unreadCount} unread` : ''}</strong>
-                    {unreadCount > 0 && <button type="button" onClick={markAllNotificationsRead}>Mark all read</button>}
+                <div className="top-popover notifications-panel" role="dialog" aria-label="Notifications" style={{ width: 360, maxHeight: 460, display: 'flex', flexDirection: 'column' }}>
+                  <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <strong style={{ fontSize: 13, color: '#0f172a' }}>Notifications</strong>
+                      {unreadCount > 0 && (
+                        <span style={{ fontSize: 10, fontWeight: 800, background: '#ea580c', color: '#ffffff', padding: '1px 6px', borderRadius: 999 }}>
+                          {unreadCount}
+                        </span>
+                      )}
+                    </div>
+                    {unreadCount > 0 && (
+                      <button type="button" onClick={markAllNotificationsRead} style={{ fontSize: 11, fontWeight: 700, color: '#059669', background: 'none', border: 'none', cursor: 'pointer' }}>
+                        Mark all read
+                      </button>
+                    )}
                   </header>
-                  {notifications.length === 0 ? (
-                    <p className="notification-empty">You’re all caught up.</p>
-                  ) : notifications.map(notification => (
+                  <div style={{ overflowY: 'auto', flex: 1, padding: 6 }}>
+                    {notifications.length === 0 ? (
+                      <p className="notification-empty" style={{ textAlign: 'center', padding: '24px 12px', fontSize: 12, color: '#64748b' }}>You’re all caught up.</p>
+                    ) : notifications.slice(0, 8).map(notification => (
+                      <Link
+                        href={notification.linkUrl || '/notifications'}
+                        key={notification.id}
+                        className={`notification-item${notification.readAt ? ' read' : ''}`}
+                        onClick={() => { setNotificationsOpen(false); if (!notification.readAt) void markNotificationRead(notification.id); }}
+                        style={{ display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 8, textDecoration: 'none', transition: 'background 0.15s' }}
+                      >
+                        <span aria-hidden="true" style={{ fontSize: 14, color: notification.readAt ? '#94a3b8' : '#ea580c' }}>
+                          {notification.readAt ? '•' : '🔔'}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <strong style={{ display: 'block', fontSize: 12, color: '#0f172a', lineHeight: 1.3, marginBottom: 2 }}>{notification.title}</strong>
+                          <small style={{ display: 'block', fontSize: 11, color: '#64748b', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{notification.body}</small>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                  <footer style={{ borderTop: '1px solid #e2e8f0', padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc' }}>
                     <Link
-                      href={notification.linkUrl || '/'}
-                      key={notification.id}
-                      className={`notification-item${notification.readAt ? ' read' : ''}`}
-                      onClick={() => { setNotificationsOpen(false); if (!notification.readAt) void markNotificationRead(notification.id); }}
+                      href="/disputes"
+                      onClick={() => setNotificationsOpen(false)}
+                      style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textDecoration: 'none' }}
                     >
-                      <span aria-hidden="true">{notification.readAt ? '•' : '!'}</span>
-                      <div><strong>{notification.title}</strong><small>{notification.body}</small></div>
+                      Staff Disputes
                     </Link>
-                  ))}
+                    <Link
+                      href="/notifications"
+                      onClick={() => setNotificationsOpen(false)}
+                      style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', textDecoration: 'none' }}
+                    >
+                      View All Notifications →
+                    </Link>
+                  </footer>
                 </div>
               )}
             </div>

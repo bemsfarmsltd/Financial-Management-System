@@ -11,6 +11,7 @@ import {
   validateCheckInTimeWindow,
 } from '@/lib/attendance/token';
 import { notifyGmdStaffClockIn } from '@/lib/notifications/attendance';
+import { notifyAttendancePunch } from '@/lib/notifications/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -308,6 +309,17 @@ export async function POST(request: Request) {
           status: isEarly ? 'HALF_DAY' : 'PRESENT',
         },
       });
+
+      // Dispatch check-out confirmation to employee
+      notifyAttendancePunch({
+        employeeId: employee.id,
+        subsidiaryId: employee.assignments[0]?.subsidiaryId,
+        stationName: station.name,
+        timeStr: currentTimeStr,
+        isClockIn: false,
+        status: record.status,
+        recordId: record.id,
+      }).catch(err => console.error('[Punch Route] Clock-out notification error:', err));
 
       return NextResponse.json({
         success: true,

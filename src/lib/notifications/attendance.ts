@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { sendGmdAttendanceAlert, getExecutiveRecipients } from '@/lib/email';
+import { notifyAttendancePunch } from './events';
 
 export interface NotifyGmdClockInParams {
   employee: {
@@ -34,6 +35,17 @@ export async function notifyGmdStaffClockIn(params: NotifyGmdClockInParams) {
       : `🕒 Staff Clock-In: ${params.employee.legalName}`;
 
     const notifBody = `${params.employee.legalName} (${params.employee.employeeNumber}) clocked in at ${params.timeStr} at ${params.stationName} (${params.subsidiaryName}). Status: ${statusLabel}.`;
+
+    // 1b. Dispatch personal in-app notification to the staff member
+    await notifyAttendancePunch({
+      employeeId: params.employee.id,
+      stationName: params.stationName,
+      timeStr: params.timeStr,
+      isClockIn: true,
+      status: params.status,
+      minutesLate: isLate ? 15 : 0,
+      deductionPercent: params.deductionPercent || 0,
+    }).catch(err => console.error('[Attendance Notify] Staff notification failed:', err));
 
     // 1. Fetch active GMD and Super Admin accounts
     const executives = await prisma.employee.findMany({
