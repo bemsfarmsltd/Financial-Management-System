@@ -834,7 +834,11 @@ export default function AttendanceDeskPage() {
                   : 'Staff must be connected to company Starlink Wi-Fi router to scan attendance.'}
               </p>
               <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                Arrival Window: <strong>{policy.earliestCheckInTime || '07:00'} AM – {policy.resumptionTime} AM</strong> (Grace up to 08:15 AM)
+                Arrival Window: <strong>{policy.earliestCheckInTime || '07:00'} AM – {policy.resumptionTime || '08:00'} AM</strong> (Grace up to {(() => {
+                  const [rH, rM] = String(policy.resumptionTime || '08:00').split(':').map(Number);
+                  const tot = (Number.isFinite(rH) ? rH : 8) * 60 + (Number.isFinite(rM) ? rM : 0) + Number(policy.gracePeriodMinutes ?? 15);
+                  return `${String(Math.floor(tot / 60) % 24).padStart(2, '0')}:${String(tot % 60).padStart(2, '0')} AM`;
+                })()})
               </div>
             </div>
           </div>
@@ -1244,7 +1248,13 @@ export default function AttendanceDeskPage() {
                 <div style={{ fontSize: '24px', fontWeight: 900, color: '#059669', marginTop: '4px' }}>
                   {dailyCounts.onTime}
                 </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Punched before 08:15 AM</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  Punched before {(() => {
+                    const [rH, rM] = String(policy.resumptionTime || '08:00').split(':').map(Number);
+                    const tot = (Number.isFinite(rH) ? rH : 8) * 60 + (Number.isFinite(rM) ? rM : 0) + Number(policy.gracePeriodMinutes ?? 15);
+                    return `${String(Math.floor(tot / 60) % 24).padStart(2, '0')}:${String(tot % 60).padStart(2, '0')} AM`;
+                  })()}
+                </div>
               </div>
 
               <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -1254,7 +1264,7 @@ export default function AttendanceDeskPage() {
                 <div style={{ fontSize: '24px', fontWeight: 900, color: 'var(--brand-primary, #0d8a70)', marginTop: '4px' }}>
                   {dailyCounts.late}
                 </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>-5.0% salary deduction applied</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>-{Number(policy.latenessDeductionPercent ?? 5).toFixed(1)}% salary deduction applied</div>
               </div>
 
               <div style={{ padding: '14px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -2071,7 +2081,7 @@ export default function AttendanceDeskPage() {
                         {selectedCalendarDay.checkInTime || 'No Arrival Recorded'}
                       </div>
                       <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                        Status: <strong>{selectedCalendarDay.status === 'PRESENT' ? 'On-Time (Punched before 08:15 AM)' : selectedCalendarDay.status === 'LATE' ? 'Late Arrival (Flagged -5%)' : selectedCalendarDay.status === 'OFF_DAY' ? 'Weekly Off-Day' : selectedCalendarDay.status === 'ABSENT' ? 'Unexcused Absent' : 'Pending'}</strong>
+                        Status: <strong>{selectedCalendarDay.status === 'PRESENT' ? `On-Time (Within ${policy.gracePeriodMinutes ?? 15}m grace)` : selectedCalendarDay.status === 'LATE' ? `Late Arrival (Flagged -${Number(policy.latenessDeductionPercent ?? 5)}%)` : selectedCalendarDay.status === 'OFF_DAY' ? 'Weekly Off-Day' : selectedCalendarDay.status === 'ABSENT' ? 'Unexcused Absent' : 'Pending'}</strong>
                       </div>
                     </div>
 

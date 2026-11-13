@@ -22,8 +22,20 @@ export async function POST(request: Request) {
     if (!actor) return NextResponse.json({ error: 'Sign in to configure attendance.' }, { status: 401 });
     const body = await request.json();
     const action_type = body.toggleStarlink !== undefined ? 'TOGGLE_STARLINK_LOCK' : body.toggleGeofence !== undefined ? 'TOGGLE_GEOFENCE_LOCK' : body.togglePowerOutage !== undefined ? 'TOGGLE_POWER_OUTAGE' : 'UPDATE_POLICY';
-    const organizationId = body.organizationId;
-    const result = await executeDashboardCommand(actor, 'attendance_override', { ...body, action_type, scope: organizationId ? 'ENTITY' : 'GROUP' });
+    const organizationId = typeof body.organizationId === 'string' && body.organizationId.trim() ? body.organizationId.trim() : undefined;
+    let resolvedScope = body.scope;
+    if (!resolvedScope) {
+      if (!organizationId) {
+        resolvedScope = 'GROUP';
+      } else {
+        const org = await prisma.organization.findUnique({
+          where: { id: organizationId },
+          select: { type: true },
+        });
+        resolvedScope = org?.type === 'GROUP' ? 'GROUP' : 'ENTITY';
+      }
+    }
+    const result = await executeDashboardCommand(actor, 'attendance_override', { ...body, action_type, scope: resolvedScope });
     return NextResponse.json({ success: true, policy: result });
   } catch (error: any) { return NextResponse.json({ error: error.message }, { status: 400 }); }
 }

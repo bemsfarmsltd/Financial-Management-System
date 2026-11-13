@@ -275,12 +275,18 @@ export function isStarlinkIpAllowed(
  */
 export function validateCheckInTimeWindow(
   currentTimeStr: string,
-  earliestCheckInTime: string = '07:00'
+  earliestCheckInTime: string = '07:00',
+  resumptionTime: string = '08:00',
+  gracePeriodMinutes: number = 15
 ): { allowed: boolean; reason?: string } {
   if (currentTimeStr < earliestCheckInTime) {
+    const [rH, rM] = resumptionTime.split(':').map(Number);
+    const totalMins = (Number.isFinite(rH) ? rH : 8) * 60 + (Number.isFinite(rM) ? rM : 0) + gracePeriodMinutes;
+    const gH = String(Math.floor(totalMins / 60) % 24).padStart(2, '0');
+    const gM = String(totalMins % 60).padStart(2, '0');
     return {
       allowed: false,
-      reason: `Attendance taking is not allowed before ${earliestCheckInTime} AM. Morning arrival window is ${earliestCheckInTime} AM – 08:00 AM (Grace period until 08:15 AM). Please wait until ${earliestCheckInTime} AM to check in.`,
+      reason: `Attendance taking is not allowed before ${earliestCheckInTime} AM. Morning arrival window is ${earliestCheckInTime} AM – ${resumptionTime} AM (Grace period until ${gH}:${gM}). Please wait until ${earliestCheckInTime} AM to check in.`,
     };
   }
   return { allowed: true };

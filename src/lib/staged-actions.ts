@@ -2764,6 +2764,59 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
           });
         }
 
+        // Re-evaluate today's non-overridden punches so new shift hours / grace / late penalty take effect immediately
+        if (
+          materialPayload.resumptionTime !== undefined ||
+          materialPayload.gracePeriodMinutes !== undefined ||
+          materialPayload.latenessDeductionPercent !== undefined
+        ) {
+          const todayWat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date());
+          const targetOrgIds = targetOrgs.map((o) => o.id);
+          const effectiveResumption = updateData.resumptionTime || current?.resumptionTime || '08:00';
+          const effectiveGrace = updateData.gracePeriodMinutes ?? current?.gracePeriodMinutes ?? 15;
+          const effectivePenalty = updateData.latenessDeductionPercent ?? current?.latenessDeductionPercent ?? 5.0;
+          const [rH, rM] = String(effectiveResumption).split(':').map(Number);
+          const cutoffMinutes = (Number.isFinite(rH) ? rH : 8) * 60 + (Number.isFinite(rM) ? rM : 0) + Number(effectiveGrace);
+
+          const todayRecords = await tx.attendanceRecord.findMany({
+            where: {
+              workDate: todayWat,
+              approvedById: null,
+              status: { in: ['PRESENT', 'LATE'] },
+              checkInTime: { not: null },
+              employee: {
+                isAttendanceExempt: false,
+                assignments: { some: { subsidiaryId: { in: targetOrgIds }, status: 'ACTIVE' } },
+              },
+            },
+            select: { id: true, checkInTime: true, status: true, deductionPercent: true },
+          });
+
+          const watTimeFmt = new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Africa/Lagos',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          });
+
+          for (const rec of todayRecords) {
+            if (!rec.checkInTime) continue;
+            const hhmm = watTimeFmt.format(rec.checkInTime);
+            const [cH, cM] = hhmm.split(':').map(Number);
+            if (!Number.isFinite(cH) || !Number.isFinite(cM)) continue;
+            const punchMinutes = cH * 60 + cM;
+            const nextIsLate = punchMinutes > cutoffMinutes;
+            const nextStatus = nextIsLate ? 'LATE' : 'PRESENT';
+            const nextDeduction = nextIsLate ? Number(effectivePenalty) : 0.0;
+            if (rec.status !== nextStatus || Number(rec.deductionPercent) !== nextDeduction) {
+              await tx.attendanceRecord.update({
+                where: { id: rec.id },
+                data: { status: nextStatus, deductionPercent: nextDeduction },
+              });
+            }
+          }
+        }
+
         resolvedSubsidiaryId = targetOrgId ? String(targetOrgId) : resolvedSubsidiaryId;
         recordType = 'attendance_policy';
         recordId = isGroupScope ? 'GROUP_ATTENDANCE_POLICY' : String(targetOrgId);
