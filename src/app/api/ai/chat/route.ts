@@ -1926,7 +1926,8 @@ title: "<Chart Title>"
         ? `**Active Workspace Subsidiary:**\n\n• **${scopedOrgName}** (Code: \`${scopedOrgCode}\`)\n\n*The AI Copilot is strictly isolated to this subsidiary. To view the group conglomerate portfolio, switch to BEMS Group.*`
         : `**BEMS Group Multi-Subsidiary Architecture:**\n\n${orgNames}\n\nAll intercompany transactions generate automated bilateral Debit/Credit notes with zero double-counting.`;
     } else if (
-      /\b(message|notify|tell|send\s+(?:a\s+)?message\s+to|follow\s*up\s+with)\s+[a-z]{2,}/i.test(cleanUserMessage)
+      /\b(message|notify|tell|send\s+(?:a\s+)?message\s+to|follow\s*up\s+with)\s+[a-z]{2,}/i.test(cleanUserMessage) ||
+      /\bsend\s+.+?\s+to\s+[a-z]{2,}/i.test(cleanUserMessage)
     ) {
       const orgFilter = scopedOrgId ? [scopedOrgId] : authorizedScope.organizationIds;
       const scopedEmployees = await prisma.employee.findMany({

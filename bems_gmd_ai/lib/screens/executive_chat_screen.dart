@@ -363,10 +363,13 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
       _currentSession.messages = List.from(_messages);
       ChatStorageService.upsertSession(_currentSession);
     } catch (e) {
+      final errDetail = e.toString().replaceFirst('Exception: ', '').trim();
       final fallbackMsg = ChatMessage(
         id: 'err-${DateTime.now().millisecondsSinceEpoch}',
         sender: 'assistant',
-        content: 'BEMS real-time intelligence synchronized. Treasury records are intact.',
+        content: errDetail.isNotEmpty
+            ? 'Could not complete that request: $errDetail'
+            : 'Could not reach BEMS AI right now. Please try again.',
         timestamp: 'Now',
       );
 
