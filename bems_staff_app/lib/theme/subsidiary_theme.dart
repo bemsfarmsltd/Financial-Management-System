@@ -84,22 +84,32 @@ class SubsidiaryTheme {
     if (trimmed.startsWith('data:image/')) {
       return trimmed;
     }
+    const prodHost = 'https://bemserp.work';
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      if (kIsWeb) {
+        try {
+          final parsed = Uri.parse(trimmed);
+          final base = Uri.base;
+          final host = parsed.host.toLowerCase();
+          final isBemsHost =
+              host.contains('bemserp.work') || host.contains('hostingersite.com');
+          final isProxyablePath =
+              parsed.path.startsWith('/api/') ||
+              parsed.path.startsWith('/logos/') ||
+              parsed.path.startsWith('/uploads/') ||
+              parsed.path.startsWith('/bems-group-logo.png');
+          if (isBemsHost && isProxyablePath && parsed.origin != base.origin) {
+            final query = parsed.hasQuery ? '?${parsed.query}' : '';
+            return '${base.origin}${parsed.path}$query';
+          }
+        } catch (_) {}
+      }
       return trimmed;
     }
-    const prodHost = 'https://bemserp.work';
     final cleanPath = trimmed.startsWith('/') ? trimmed : '/$trimmed';
     if (kIsWeb) {
       try {
-        final base = Uri.base;
-        final host = base.host.toLowerCase();
-        final isErpOrigin =
-            host.contains('bemserp.work') ||
-            host.contains('hostingersite.com') ||
-            ((host == 'localhost' || host == '127.0.0.1') && base.port == 3000);
-        if (isErpOrigin) {
-          return '${base.origin}$cleanPath';
-        }
+        return '${Uri.base.origin}$cleanPath';
       } catch (_) {}
     }
     return '$prodHost$cleanPath';
@@ -220,6 +230,7 @@ class StaffAvatar extends StatelessWidget {
   final String? avatarUrl;
   final String fullName;
   final double radius;
+  final double? borderRadius;
   final Color? accentColor;
 
   const StaffAvatar({
@@ -227,6 +238,7 @@ class StaffAvatar extends StatelessWidget {
     required this.avatarUrl,
     required this.fullName,
     this.radius = 24,
+    this.borderRadius,
     this.accentColor,
   });
 
@@ -279,6 +291,17 @@ class StaffAvatar extends StatelessWidget {
         height: diameter,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => fallback(),
+      );
+    }
+
+    if (borderRadius != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius!),
+        child: SizedBox(
+          width: diameter,
+          height: diameter,
+          child: content,
+        ),
       );
     }
 

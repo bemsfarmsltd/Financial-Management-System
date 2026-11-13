@@ -2940,27 +2940,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: _currentUser.avatarUrl.isNotEmpty && _currentUser.avatarUrl.startsWith('http')
-                      ? Image.network(
-                          _currentUser.avatarUrl,
-                          width: 40,
-                          height: 40,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            width: 40,
-                            height: 40,
-                            color: SubsidiaryTheme.current.color.withOpacity(0.1),
-                            child: Icon(Icons.person, color: SubsidiaryTheme.current.color, size: 22),
-                          ),
-                        )
-                      : Container(
-                          width: 40,
-                          height: 40,
-                          color: SubsidiaryTheme.current.color.withOpacity(0.1),
-                          child: Icon(Icons.person, color: SubsidiaryTheme.current.color, size: 22),
-                        ),
+                StaffAvatar(
+                  avatarUrl: _currentUser.avatarUrl,
+                  fullName: _currentUser.fullName,
+                  radius: 20,
+                  borderRadius: 12,
+                  accentColor: SubsidiaryTheme.current.color,
                 ),
                 const SizedBox(width: 10),
                 Column(
@@ -5417,27 +5402,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 child: Stack(
                   alignment: Alignment.bottomRight,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: _currentUser.avatarUrl.isNotEmpty && _currentUser.avatarUrl.startsWith('http')
-                          ? Image.network(
-                              _currentUser.avatarUrl,
-                              width: 64,
-                              height: 64,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                width: 64,
-                                height: 64,
-                                color: SubsidiaryTheme.current.color.withOpacity(0.1),
-                                child: Icon(Icons.person, color: SubsidiaryTheme.current.color, size: 32),
-                              ),
-                            )
-                          : Container(
-                              width: 64,
-                              height: 64,
-                              color: SubsidiaryTheme.current.color.withOpacity(0.1),
-                              child: Icon(Icons.person, color: SubsidiaryTheme.current.color, size: 32),
-                            ),
+                    StaffAvatar(
+                      avatarUrl: _currentUser.avatarUrl,
+                      fullName: _currentUser.fullName,
+                      radius: 32,
+                      borderRadius: 20,
+                      accentColor: SubsidiaryTheme.current.color,
                     ),
                     Container(
                       padding: const EdgeInsets.all(3),

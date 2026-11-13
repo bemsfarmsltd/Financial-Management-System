@@ -33,7 +33,12 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path.startswith("/api/"):
+        if (
+            self.path.startswith("/api/")
+            or self.path.startswith("/logos/")
+            or self.path.startswith("/uploads/")
+            or self.path.startswith("/bems-group-logo.png")
+        ):
             self._proxy_request("GET")
         else:
             # If path doesn't exist as static file, fallback to index.html for Flutter routing
