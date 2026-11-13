@@ -82,8 +82,21 @@ const HR_WEIGHTS: Record<string, number> = {
   'clock-in': 12,
   'clock out': 12,
   'clock-out': 12,
-  clocked: 10,
-  clocking: 10,
+  'clocked': 10,
+  'clocking': 10,
+  'clocked in': 14,
+  "hasn't clocked": 14,
+  "haven't clocked": 14,
+  'not clocked': 14,
+  'unexcused': 12,
+  'absentee': 10,
+  'tardy': 10,
+  'punch': 10,
+  'message': 8,
+  'notify': 8,
+  'send message': 10,
+  'follow up': 8,
+  'follow-up': 8,
   roster: 12,
   shift: 10,
   lateness: 12,
@@ -363,7 +376,10 @@ export function resolveAiAgentRoute(input: RouteResolutionInput): RouteResolutio
 
   // 3. Multi-turn Conversational Continuity for Short / Referential Follow-ups
   // (e.g. "the first 1", "yes", "proceed", "look into it", "confirm it")
-  const isShortReferential = normalizedMsg.length <= 30 || FOLLOW_UP_PATTERNS.some((pat) => pat.test(normalizedMsg));
+  const isPureGreeting = /^(hello|hi|hey|good\s+(?:morning|afternoon|evening))[!.,?\s]*$/i.test(normalizedMsg);
+  const isShortReferential =
+    !isPureGreeting &&
+    (normalizedMsg.length <= 30 || FOLLOW_UP_PATTERNS.some((pat) => pat.test(normalizedMsg)));
   if (isShortReferential && hrScore < 8 && finScore < 8) {
     // If an explicit threadDomain is already established, follow-ups adhere to that thread
     if (threadDomain) {
@@ -413,8 +429,18 @@ export function resolveAiAgentRoute(input: RouteResolutionInput): RouteResolutio
     }
   }
 
-  // If explicitMode is set by the user in the UI pill toggle ('hr', 'financial', or 'both'), strictly honor it!
+  // If explicitMode is set by the user in the UI pill toggle ('hr', 'financial', or 'both'),
+  // honor it unless an un-tagged prompt strongly & unambiguously targets the other domain.
   if (explicitMode === 'hr') {
+    if (!parsedTag.tag && finScore >= 14 && hrScore === 0) {
+      return {
+        domain: 'financial',
+        isCrossDomain: false,
+        confidence: 0.94,
+        reason: `Asymmetric strong Finance signal override (Finance score: ${finScore}) while HR Ops pill active.`,
+        cleanMessage: effectiveMessage,
+      };
+    }
     return {
       domain: 'hr',
       isCrossDomain: false,
@@ -424,6 +450,15 @@ export function resolveAiAgentRoute(input: RouteResolutionInput): RouteResolutio
     };
   }
   if (explicitMode === 'financial') {
+    if (!parsedTag.tag && hrScore >= 14 && finScore === 0) {
+      return {
+        domain: 'hr',
+        isCrossDomain: false,
+        confidence: 0.94,
+        reason: `Asymmetric strong HR signal override (HR score: ${hrScore}) while Finance pill active.`,
+        cleanMessage: effectiveMessage,
+      };
+    }
     return {
       domain: 'financial',
       isCrossDomain: false,

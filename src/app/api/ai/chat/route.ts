@@ -123,8 +123,7 @@ export async function POST(req: NextRequest) {
     const explicitAgentMode = body.context?.agent_mode || body.agent_mode;
     const explicitTagLocked =
       body.context?.is_tag_locked === true ||
-      body.is_tag_locked === true ||
-      (explicitAgentMode && explicitAgentMode !== 'auto');
+      body.is_tag_locked === true;
     const routeDecision = resolveAiAgentRoute({
       message,
       explicitMode: explicitAgentMode,
@@ -789,9 +788,11 @@ title: "<Chart Title>"
                     summary: `Send official BEMS message to ${matchedStaff.legalName} (${matchedStaff.employeeNumber})`,
                     targetEmployeeId: matchedStaff.id,
                     materialPayload: {
+                      employeeId: matchedStaff.id,
                       recipientId: matchedStaff.id,
                       subject: msgSubject,
                       message: msgBody,
+                      channel: actor.role === 'GMD' ? 'GMD' : 'HR',
                       priority: 'HIGH',
                     },
                     preview: {
@@ -1924,33 +1925,230 @@ title: "<Chart Title>"
       reply = !isGroupScope
         ? `**Active Workspace Subsidiary:**\n\n• **${scopedOrgName}** (Code: \`${scopedOrgCode}\`)\n\n*The AI Copilot is strictly isolated to this subsidiary. To view the group conglomerate portfolio, switch to BEMS Group.*`
         : `**BEMS Group Multi-Subsidiary Architecture:**\n\n${orgNames}\n\nAll intercompany transactions generate automated bilateral Debit/Credit notes with zero double-counting.`;
+    } else if (
+      /\b(message|notify|tell|send\s+(?:a\s+)?message\s+to|follow\s*up\s+with)\s+[a-z]{2,}/i.test(cleanUserMessage)
+    ) {
+      const orgFilter = scopedOrgId ? [scopedOrgId] : authorizedScope.organizationIds;
+      const scopedEmployees = await prisma.employee.findMany({
+        where: {
+          status: 'ACTIVE',
+          approvalStatus: 'APPROVED',
+          assignments: { some: { subsidiaryId: { in: orgFilter }, status: 'ACTIVE', endsOn: null } },
+        },
+        select: {
+          id: true,
+          legalName: true,
+          employeeNumber: true,
+          workEmail: true,
+          assignments: {
+            where: { status: 'ACTIVE', endsOn: null },
+            orderBy: { isPrimary: 'desc' },
+            take: 1,
+            select: { subsidiary: { select: { legalName: true } } },
+          },
+        },
+      });
+      const lowerPrompt = cleanUserMessage.toLowerCase();
+      const matchedStaff = scopedEmployees.find((s) => {
+        const full = s.legalName.toLowerCase();
+        const parts = full.split(/\s+/).filter((p) => p.length >= 3);
+        return lowerPrompt.includes(full) || parts.some((p) => new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(lowerPrompt));
+      });
+
+      if (matchedStaff) {
+        const firstName = matchedStaff.legalName.split(' ')[0];
+        const cleanedInstruction = cleanUserMessage
+          .replace(/^(?:please\s+)?(?:send\s+(?:a\s+)?message\s+to|message|notify|tell|follow\s*up\s+with)\s+/i, '')
+          .trim();
+        const msgSubject = 'Executive Follow-Up from GMD Office';
+        const msgBody =
+          cleanedInstruction.length > firstName.length + 3
+            ? `Hello ${firstName}, ${cleanedInstruction}. Please respond via BEMS at your earliest convenience.`
+            : `Hello ${firstName}, please follow up with the GMD office regarding today's operational status.`;
+
+        const fallbackSessionId =
+          String(body.conversation_id || body.session_id || '').trim() ||
+          `conv_${actor.id}_${scopedOrgId || 'group'}_${crypto.randomUUID()}`;
+        const staged = await stageAction({
+          actorContext: {
+            id: actor.id,
+            legalName: actor.legalName,
+            role: actor.role,
+            conversationId: fallbackSessionId,
+          },
+          userId: actor.id,
+          actionType: 'staff_message',
+          summary: `Send official BEMS message to ${matchedStaff.legalName} (${matchedStaff.employeeNumber})`,
+          targetEmployeeId: matchedStaff.id,
+          materialPayload: {
+            employeeId: matchedStaff.id,
+            recipientId: matchedStaff.id,
+            subject: msgSubject,
+            message: msgBody,
+            channel: actor.role === 'GMD' ? 'GMD' : 'HR',
+            priority: 'HIGH',
+          },
+          preview: {
+            recipient_name: matchedStaff.legalName,
+            recipient_email: matchedStaff.workEmail,
+            subsidiary: matchedStaff.assignments[0]?.subsidiary?.legalName || scopedOrgName,
+            subject: msgSubject,
+            message_preview: msgBody,
+            priority: 'HIGH',
+          },
+        });
+        const dbStaged = await prisma.stagedAction.findUnique({ where: { id: staged.staged_action_id } });
+        let dbPreview: Record<string, any> = {};
+        try {
+          dbPreview = dbStaged?.previewJson ? JSON.parse(dbStaged.previewJson) : {};
+        } catch {}
+        actionCard = dbStaged
+          ? {
+              id: dbStaged.id,
+              staged_action_id: dbStaged.id,
+              confirmation_hash: dbStaged.confirmationHash,
+              confirmationHash: dbStaged.confirmationHash,
+              type: dbStaged.actionType,
+              action_type: dbStaged.actionType,
+              actionType: dbStaged.actionType,
+              cardType: 'STAGED_ACTION',
+              summary: dbStaged.summary,
+              status: dbStaged.status,
+              expires_at: dbStaged.expiresAt.toISOString(),
+              payload_preview: dbPreview,
+              preview: dbPreview,
+            }
+          : null;
+        reply = `I have drafted and staged an official BEMS message to **${matchedStaff.legalName}** (${matchedStaff.assignments[0]?.subsidiary?.legalName || scopedOrgName}). Please review and click **Authorize & Execute Action** below to send.`;
+      } else {
+        reply = `I could not match an active staff member in **${scopedOrgName}** from that name. Please include the staff member's full name or employee number (for example: *"Message Osuji Jideobi Samuel to..."*).`;
+      }
+    } else if (
+      normalized.includes('clocked in') ||
+      normalized.includes("hasn't clocked") ||
+      normalized.includes("haven't clocked") ||
+      normalized.includes('not clocked') ||
+      normalized.includes('attendance') ||
+      normalized.includes('absent') ||
+      normalized.includes('unexcused') ||
+      normalized.includes('late')
+    ) {
+      const todayWat = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Africa/Lagos',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+      const orgFilter = scopedOrgId ? [scopedOrgId] : authorizedScope.organizationIds;
+      const activeStaff = await prisma.employee.findMany({
+        where: {
+          role: 'STAFF',
+          status: 'ACTIVE',
+          approvalStatus: 'APPROVED',
+          isAttendanceExempt: false,
+          assignments: { some: { subsidiaryId: { in: orgFilter }, status: 'ACTIVE', endsOn: null } },
+        },
+        select: {
+          id: true,
+          legalName: true,
+          employeeNumber: true,
+          assignments: {
+            where: { status: 'ACTIVE', endsOn: null },
+            orderBy: { isPrimary: 'desc' },
+            take: 1,
+            select: { subsidiary: { select: { legalName: true } } },
+          },
+        },
+        orderBy: { legalName: 'asc' },
+      });
+      const todayRecords = activeStaff.length
+        ? await prisma.attendanceRecord.findMany({
+            where: {
+              workDate: todayWat,
+              employeeId: { in: activeStaff.map((e) => e.id) },
+            },
+            select: {
+              employeeId: true,
+              status: true,
+              checkInTime: true,
+            },
+          })
+        : [];
+
+      const recordByEmp = new Map(todayRecords.map((r) => [r.employeeId, r]));
+      const onTime: string[] = [];
+      const late: string[] = [];
+      const notClockedIn: string[] = [];
+
+      for (const emp of activeStaff) {
+        const rec = recordByEmp.get(emp.id);
+        const label = `**${emp.legalName}** (${emp.assignments[0]?.subsidiary?.legalName || 'BEMS'})`;
+        if (!rec || !rec.checkInTime) {
+          notClockedIn.push(label);
+        } else if (rec.status === 'LATE') {
+          const t = new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Africa/Lagos',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          }).format(rec.checkInTime);
+          late.push(`${label} — ${t}`);
+        } else {
+          onTime.push(label);
+        }
+      }
+
+      reply =
+        `**Live Attendance Summary for ${todayWat} (${scopedOrgName}):**\n\n` +
+        `• **On-Time:** ${onTime.length} staff\n` +
+        `• **Late:** ${late.length} staff\n` +
+        `• **Not Clocked In Yet:** ${notClockedIn.length} staff\n\n` +
+        (notClockedIn.length > 0
+          ? `**Not Clocked In (${notClockedIn.length}):**\n${notClockedIn.slice(0, 12).map((s) => `• ${s}`).join('\n')}${notClockedIn.length > 12 ? `\n• *...and ${notClockedIn.length - 12} more*` : ''}\n\n`
+          : '') +
+        (late.length > 0
+          ? `**Late Arrivals (${late.length}):**\n${late.slice(0, 10).map((s) => `• ${s}`).join('\n')}\n\n`
+          : '') +
+        `💬 *You can ask me to message any staff member (e.g., "Message <Name> to explain their absence").*`;
     } else {
-      // General financial advisor intelligence fallback
+      // General mode-aware intelligence fallback
       const hasSpecificQuery = message.length > 15 && !normalized.includes('hello') && !normalized.includes('hi');
-      reply = !isGroupScope
-        ? `I am your **dedicated AI Financial Manager for ${scopedOrgName}**, grounded with live database ledger telemetry strictly for this subsidiary.\n\n` +
+      if (activeAgentMode === 'hr') {
+        reply =
+          `I am your **BEMS AI HR & Workforce Copilot**${!isGroupScope ? ` for **${scopedOrgName}**` : ' across **BEMS Group**'}, connected to live attendance and staff records.\n\n` +
           (hasSpecificQuery ? `I noted your instruction: *"${message}"*.\n\n` : '') +
           `You can ask me:\n` +
-          `• *"What is our cash balance in ${scopedOrgName}'s bank accounts?"*\n` +
-          `• *"Who works at ${scopedOrgName}?"*\n` +
-          `• *"What is our budget allocation?"*\n` +
-          `• *"Are there any fund requests pending for ${scopedOrgName}?"*\n` +
-          `• *"Show today's attendance for our staff."*\n\n` +
-          `*🔒 Note: I am partitioned exclusively to ${scopedOrgName}. To view other subsidiaries or consolidated figures, switch to BEMS Group.*`
-        : `I am your **BEMS Executive Financial AI Copilot**, grounded with live database ledger telemetry across BEMS Group.\n\n` +
-          (hasSpecificQuery ? `I noted your instruction: *"${message}"*.\n\n` : '') +
-          `You can ask me:\n` +
-          `• *"What is our total cash balance across bank accounts?"*\n` +
-          `• *"Are there any fund requests pending my approval?"*\n` +
-          `• *"Give me the morning executive briefing."*\n` +
-          `• *"Who has open cash advance accountability cases?"*\n` +
-          `• *"Summarize our subsidiary structure and budget allocations."*\n\n` +
-          `How would you like to direct financial oversight right now?`;
+          `• *"Who hasn't clocked in today?"*\n` +
+          `• *"Show today's late arrivals and attendance summary."*\n` +
+          `• *"Message <Staff Name> to follow up on attendance."*\n` +
+          `• *"Give me the morning executive briefing."*`;
+      } else {
+        reply = !isGroupScope
+          ? `I am your **dedicated AI Financial Manager for ${scopedOrgName}**, grounded with live database ledger telemetry strictly for this subsidiary.\n\n` +
+            (hasSpecificQuery ? `I noted your instruction: *"${message}"*.\n\n` : '') +
+            `You can ask me:\n` +
+            `• *"What is our cash balance in ${scopedOrgName}'s bank accounts?"*\n` +
+            `• *"Who works at ${scopedOrgName}?"*\n` +
+            `• *"What is our budget allocation?"*\n` +
+            `• *"Are there any fund requests pending for ${scopedOrgName}?"*\n` +
+            `• *"Show today's attendance for our staff."*\n\n` +
+            `*🔒 Note: I am partitioned exclusively to ${scopedOrgName}. To view other subsidiaries or consolidated figures, switch to BEMS Group.*`
+          : `I am your **BEMS Executive Financial AI Copilot**, grounded with live database ledger telemetry across BEMS Group.\n\n` +
+            (hasSpecificQuery ? `I noted your instruction: *"${message}"*.\n\n` : '') +
+            `You can ask me:\n` +
+            `• *"What is our total cash balance across bank accounts?"*\n` +
+            `• *"Are there any fund requests pending my approval?"*\n` +
+            `• *"Give me the morning executive briefing."*\n` +
+            `• *"Who has open cash advance accountability cases?"*\n` +
+            `• *"Summarize our subsidiary structure and budget allocations."*\n\n` +
+            `How would you like to direct financial oversight right now?`;
+      }
     }
 
     return NextResponse.json({
       message: reply,
       actionCard,
+      thread_domain: activeAgentMode,
       timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
     });
   } catch (error: any) {
