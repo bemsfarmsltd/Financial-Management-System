@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/chat_storage_service.dart';
-import 'onboarding_carousel_screen.dart';
 import 'welcome_entry_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -414,31 +413,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 14),
-
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const OnboardingCarouselScreen(isReplay: true),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.view_carousel_rounded, size: 15, color: Color(0xFFEA580C)),
-                      label: const Text(
-                        'View Executive App Journey (4 Slides)',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFFEA580C),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
 
                   // Footer Security Note
                   const Text(

@@ -4,7 +4,6 @@ import '../services/staff_storage_service.dart';
 import 'staff_module_gallery_screen.dart';
 import 'staff_register_screen.dart';
 import 'staff_forgot_password_screen.dart';
-import 'staff_onboarding_carousel_screen.dart';
 
 import '../models/staff_models.dart';
 import '../services/staff_biometric_service.dart';
@@ -432,26 +431,6 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 13),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           side: const BorderSide(color: Color(0xFFE2E8F0)),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const StaffOnboardingCarouselScreen(isReplay: true),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.view_carousel_rounded, size: 16, color: Color(0xFF64748B)),
-                        label: const Text(
-                          'View Staff App Journey (4 Slides)',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF475569),
-                          ),
                         ),
                       ),
                     ],
