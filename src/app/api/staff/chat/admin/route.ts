@@ -6,6 +6,7 @@ import {
 } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sendChatMessageEmail } from '@/lib/email';
+import { dispatchNotificationBridge, resolveGmdNotificationTarget } from '@/lib/notifications/bridge';
 
 export const dynamic = 'force-dynamic';
 
@@ -389,6 +390,27 @@ export async function POST(req: Request) {
             }
           }
         }
+
+        // Real-time WhatsApp alert to GMD on incoming staff message
+        resolveGmdNotificationTarget()
+          .then((gmdTarget) => {
+            if (!gmdTarget.phone) return;
+            const snippet = messageText.length > 160 ? `${messageText.slice(0, 160)}...` : messageText;
+            return dispatchNotificationBridge({
+              channel: 'WHATSAPP',
+              recipient: gmdTarget.phone,
+              eventType: 'STAFF_MESSAGE',
+              title: `New Staff Message from ${actor.legalName}`,
+              summary: `"${snippet}"\n\n🔗 Reply in BEMS Helpdesk: https://bemserp.work/helpdesk?employeeId=${targetEmployeeId}&channel=GMD`,
+              correlationId: `staff_msg_${newMessage.id}`,
+              metadata: {
+                employeeId: targetEmployeeId,
+                senderName: actor.legalName,
+                rawText: `💬 *BEMS Staff Message*\nFrom: *${actor.legalName}*\n\n"${snippet}"\n\n🔗 Reply: https://bemserp.work/helpdesk?employeeId=${targetEmployeeId}&channel=GMD`,
+              },
+            });
+          })
+          .catch((err) => console.error('Failed to dispatch WhatsApp staff message alert:', err));
       } else {
         // Route to HR-authorized personnel in the employee's subsidiary
         const empSubIds = employee.assignments.map((a) => a.subsidiaryId);

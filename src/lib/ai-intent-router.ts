@@ -413,34 +413,12 @@ export function resolveAiAgentRoute(input: RouteResolutionInput): RouteResolutio
     }
   }
 
-  // 4. Asymmetric Strong Signal Overrides against Passive Pill Selection
-  // If the user's current prompt clearly indicates one domain (score >= 10) with negligible counter-signals (<= 3),
-  // dynamically route to the dominant domain rather than blindly sticking to the passive toggle!
-  if (explicitMode === 'financial' && hrScore >= 10 && finScore <= 3) {
-    return {
-      domain: 'hr',
-      isCrossDomain: false,
-      confidence: 0.92,
-      reason: `Smart Intent Override: Strong HR signal (${hrScore}) dynamically routed to HR Operations despite passive Finance pill.`,
-      cleanMessage: effectiveMessage,
-    };
-  }
-  if (explicitMode === 'hr' && finScore >= 10 && hrScore <= 3) {
-    return {
-      domain: 'financial',
-      isCrossDomain: false,
-      confidence: 0.92,
-      reason: `Smart Intent Override: Strong Financial signal (${finScore}) dynamically routed to Financial Manager despite passive HR pill.`,
-      cleanMessage: effectiveMessage,
-    };
-  }
-
-  // If explicitMode is set and no strong asymmetric counter-signal was triggered
+  // If explicitMode is set by the user in the UI pill toggle ('hr', 'financial', or 'both'), strictly honor it!
   if (explicitMode === 'hr') {
     return {
       domain: 'hr',
       isCrossDomain: false,
-      confidence: 0.95,
+      confidence: 0.99,
       reason: 'Explicit [👥 HR Ops] toggle active.',
       cleanMessage: effectiveMessage,
     };
@@ -449,7 +427,7 @@ export function resolveAiAgentRoute(input: RouteResolutionInput): RouteResolutio
     return {
       domain: 'financial',
       isCrossDomain: false,
-      confidence: 0.95,
+      confidence: 0.99,
       reason: 'Explicit [⚡ Finance] toggle active.',
       cleanMessage: effectiveMessage,
     };

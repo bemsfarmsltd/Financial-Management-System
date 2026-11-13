@@ -17,16 +17,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ or
       where: { id: organizationId },
       include: {
         departments: { select: { id: true, name: true, code: true } },
-        employeeAssignments: { select: { id: true } },
+        employeeAssignments: { where: { status: 'ACTIVE' }, select: { id: true, employeeId: true, isPrimary: true } },
         budgets: { where: { status: 'ACTIVE' }, select: { id: true, totalAmount: true } },
-        settings: { where: { key: { in: ['SUBSIDIARY_INDUSTRY', 'HEADQUARTERS_LOCATION', 'RC_NUMBER'] } } },
+        settings: true,
       },
     });
 
     if (!current) return NextResponse.json({ error: 'Subsidiary entity not found.' }, { status: 404 });
 
     const body = await request.json().catch(() => ({}));
-    const legalName = typeof body.legalName === 'string' && body.legalName.trim() ? body.legalName.trim() : current.legalName;
+    const rawName = typeof body.legalName === 'string' && body.legalName.trim() ? body.legalName.trim() : typeof body.name === 'string' && body.name.trim() ? body.name.trim() : '';
+    const legalName = rawName || current.legalName;
     const code = typeof body.code === 'string' && body.code.trim() ? body.code.trim().toUpperCase() : current.code;
     const defaultCurrency = typeof body.defaultCurrency === 'string' && ['NGN', 'USD', 'GBP', 'EUR'].includes(body.defaultCurrency) 
       ? body.defaultCurrency 
@@ -35,6 +36,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ or
     const industry = typeof body.industry === 'string' ? body.industry.trim() : undefined;
     const headquarters = typeof body.headquarters === 'string' ? body.headquarters.trim() : undefined;
     const rcNumber = typeof body.rcNumber === 'string' ? body.rcNumber.trim() : undefined;
+    const tinNumber = typeof body.tinNumber === 'string' ? body.tinNumber.trim() : undefined;
+    const incorporationDate = typeof body.incorporationDate === 'string' ? body.incorporationDate.trim() : undefined;
+    const websiteUrl = typeof body.websiteUrl === 'string' ? body.websiteUrl.trim() : undefined;
+    const description = typeof body.description === 'string' ? body.description.trim() : undefined;
+    const leadName = typeof body.leadName === 'string' ? body.leadName.trim() : undefined;
+    const leadTitle = typeof body.leadTitle === 'string' ? body.leadTitle.trim() : undefined;
+    const leadEmail = typeof body.leadEmail === 'string' ? body.leadEmail.trim() : undefined;
+    const leadPhone = typeof body.leadPhone === 'string' ? body.leadPhone.trim() : undefined;
     const brandColor = typeof body.brandColor === 'string' && body.brandColor.trim() 
       ? body.brandColor.trim() 
       : typeof body.color === 'string' && body.color.trim() 
@@ -45,7 +54,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ or
       ? body.monthlyBudget 
       : typeof body.initialBudget === 'number' 
       ? body.initialBudget 
-      : Number(body.monthlyBudget || body.initialBudget) || undefined;
+      : body.monthlyBudget !== undefined || body.initialBudget !== undefined
+      ? Number(body.monthlyBudget ?? body.initialBudget)
+      : undefined;
+    const departments: string[] | undefined = Array.isArray(body.departments) ? body.departments : undefined;
+    const staffIds: string[] | undefined = Array.isArray(body.staffIds) ? body.staffIds.filter((s: unknown) => typeof s === 'string' && s.trim()) : undefined;
 
     assertGroupIdentityUpdate(current, { legalName, code, type });
 
@@ -67,45 +80,131 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ or
           defaultCurrency,
           type,
           ...(brandColor !== undefined ? { brandColor } : {}),
-          ...(logoUrl !== undefined ? { logoUrl } : {}),
+          ...(logoUrl !== undefined ? { logoUrl: logoUrl || null } : {}),
         },
       });
 
       // 2. Upsert WorkspaceSettings
-      if (brandColor !== undefined) {
-        await tx.workspaceSetting.upsert({
-          where: { organizationId_key: { organizationId, key: 'BRAND_COLOR' } },
-          create: { organizationId, key: 'BRAND_COLOR', value: brandColor, updatedById: actor.id },
-          update: { value: brandColor, updatedById: actor.id },
-        });
+      const settingsToUpsert: Array<[string, string | undefined]> = [
+        ['BRAND_COLOR', brandColor],
+        ['BRAND_LOGO_URL', logoUrl],
+        ['SUBSIDIARY_INDUSTRY', industry],
+        ['HEADQUARTERS_LOCATION', headquarters],
+        ['RC_NUMBER', rcNumber],
+        ['TIN_NUMBER', tinNumber],
+        ['INCORPORATION_DATE', incorporationDate],
+        ['WEBSITE_URL', websiteUrl],
+        ['CORPORATE_DESCRIPTION', description],
+        ['EXECUTIVE_LEAD_NAME', leadName],
+        ['EXECUTIVE_LEAD_TITLE', leadTitle],
+        ['EXECUTIVE_LEAD_EMAIL', leadEmail],
+        ['EXECUTIVE_LEAD_PHONE', leadPhone],
+      ];
+
+      for (const [key, value] of settingsToUpsert) {
+        if (value !== undefined) {
+          await tx.workspaceSetting.upsert({
+            where: { organizationId_key: { organizationId, key } },
+            create: { organizationId, key, value, updatedById: actor.id },
+            update: { value, updatedById: actor.id },
+          });
+        }
       }
-      if (logoUrl !== undefined) {
-        await tx.workspaceSetting.upsert({
-          where: { organizationId_key: { organizationId, key: 'BRAND_LOGO_URL' } },
-          create: { organizationId, key: 'BRAND_LOGO_URL', value: logoUrl, updatedById: actor.id },
-          update: { value: logoUrl, updatedById: actor.id },
-        });
+
+      // 2b. Ensure Departments
+      let defaultDeptId = current.departments[0]?.id;
+      if (departments && departments.length > 0) {
+        const existingNames = new Set(current.departments.map((d) => d.name.toLowerCase()));
+        for (const dName of departments) {
+          if (!dName || !dName.trim()) continue;
+          if (!existingNames.has(dName.trim().toLowerCase())) {
+            const dCode = `${code}-${dName.trim().slice(0, 4).toUpperCase()}-${Math.floor(10 + Math.random() * 89)}`;
+            const createdDept = await tx.department.create({
+              data: {
+                organizationId,
+                name: dName.trim(),
+                code: dCode,
+              },
+            });
+            if (!defaultDeptId) defaultDeptId = createdDept.id;
+            existingNames.add(dName.trim().toLowerCase());
+          }
+        }
       }
-      if (industry !== undefined) {
-        await tx.workspaceSetting.upsert({
-          where: { organizationId_key: { organizationId, key: 'SUBSIDIARY_INDUSTRY' } },
-          create: { organizationId, key: 'SUBSIDIARY_INDUSTRY', value: industry, updatedById: actor.id },
-          update: { value: industry, updatedById: actor.id },
+      if (!defaultDeptId) {
+        const fallbackDept = await tx.department.create({
+          data: {
+            organizationId,
+            name: 'General Operations',
+            code: `${code}-OPS`,
+          },
         });
+        defaultDeptId = fallbackDept.id;
       }
-      if (headquarters !== undefined) {
-        await tx.workspaceSetting.upsert({
-          where: { organizationId_key: { organizationId, key: 'HEADQUARTERS_LOCATION' } },
-          create: { organizationId, key: 'HEADQUARTERS_LOCATION', value: headquarters, updatedById: actor.id },
-          update: { value: headquarters, updatedById: actor.id },
+
+      // 2c. Synchronize Tagged Staff Assignments if staffIds provided
+      if (staffIds !== undefined && defaultDeptId) {
+        const desiredSet = new Set(staffIds);
+        const existingOrgStaffAssignments = await tx.employeeAssignment.findMany({
+          where: {
+            subsidiaryId: organizationId,
+            status: 'ACTIVE',
+            employee: { role: 'STAFF' },
+          },
         });
-      }
-      if (rcNumber !== undefined) {
-        await tx.workspaceSetting.upsert({
-          where: { organizationId_key: { organizationId, key: 'RC_NUMBER' } },
-          create: { organizationId, key: 'RC_NUMBER', value: rcNumber, updatedById: actor.id },
-          update: { value: rcNumber, updatedById: actor.id },
-        });
+        const currentlyAssignedEmpIds = new Set(existingOrgStaffAssignments.map((a) => a.employeeId));
+
+        // Add newly tagged staff
+        for (const empId of desiredSet) {
+          if (!currentlyAssignedEmpIds.has(empId)) {
+            const anyActive = await tx.employeeAssignment.findFirst({
+              where: { employeeId: empId, status: 'ACTIVE' },
+            });
+            await tx.employeeAssignment.create({
+              data: {
+                employeeId: empId,
+                subsidiaryId: organizationId,
+                departmentId: defaultDeptId,
+                positionName: anyActive?.positionName || 'Operations Specialist',
+                isPrimary: !anyActive,
+                status: 'ACTIVE',
+                startsOn: new Date(),
+              },
+            });
+          }
+        }
+
+        // Remove untagged staff (only if they have another active assignment, or move them back to BEMS-GROUP so they aren't orphaned)
+        for (const assignment of existingOrgStaffAssignments) {
+          if (!desiredSet.has(assignment.employeeId)) {
+            const otherActiveCount = await tx.employeeAssignment.count({
+              where: {
+                employeeId: assignment.employeeId,
+                status: 'ACTIVE',
+                id: { not: assignment.id },
+              },
+            });
+            if (otherActiveCount > 0) {
+              await tx.employeeAssignment.update({
+                where: { id: assignment.id },
+                data: { status: 'INACTIVE', endsOn: new Date() },
+              });
+            } else if (current.parentGroupId && current.parentGroupId !== organizationId) {
+              const groupDept = await tx.department.findFirst({
+                where: { organizationId: current.parentGroupId },
+              });
+              if (groupDept) {
+                await tx.employeeAssignment.update({
+                  where: { id: assignment.id },
+                  data: {
+                    subsidiaryId: current.parentGroupId,
+                    departmentId: groupDept.id,
+                  },
+                });
+              }
+            }
+          }
+        }
       }
 
       // 3. Update or create Active Budget if provided

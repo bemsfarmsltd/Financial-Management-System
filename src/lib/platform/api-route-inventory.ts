@@ -68,6 +68,7 @@ export type ApiRouteGroup =
   | 'briefing'
   | 'budgets'
   | 'businesses'
+  | 'cron'
   | 'departments'
   | 'disbursements'
   | 'download'
@@ -193,7 +194,14 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     classification: 'MUTATION',
   },
 
-  // ai (37)
+  // ai (38)
+  {
+    group: 'ai',
+    apiPath: '/api/ai/attachments',
+    relativeFilePath: 'src/app/api/ai/attachments/route.ts',
+    declaredMethods: ['POST'],
+    classification: 'AI_TOOL',
+  },
   {
     group: 'ai',
     apiPath: '/api/ai/chat',
@@ -757,6 +765,15 @@ export const PART_III_API_ROUTE_INVENTORY: ApiRouteInventoryEntry[] = [
     relativeFilePath: 'src/app/api/businesses/[businessId]/templates/route.ts',
     declaredMethods: ['GET'],
     classification: 'READ',
+  },
+
+  // cron (1)
+  {
+    group: 'cron',
+    apiPath: '/api/cron/morning-digest',
+    relativeFilePath: 'src/app/api/cron/morning-digest/route.ts',
+    declaredMethods: ['GET', 'POST'],
+    classification: 'READ_AND_MUTATION',
   },
 
   // departments (1)

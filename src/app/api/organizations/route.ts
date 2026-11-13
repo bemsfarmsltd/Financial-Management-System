@@ -118,11 +118,18 @@ export async function POST(req: Request) {
       brandColor,
       logoUrl,
       rcNumber,
+      tinNumber,
+      incorporationDate,
+      websiteUrl,
+      description,
       headquarters,
       leadName,
+      leadTitle,
       leadEmail,
+      leadPhone,
       initialBudget,
       departments,
+      staffIds,
     } = body;
 
     const resolvedColor = brandColor || color || '#0d8a70';
@@ -169,40 +176,32 @@ export async function POST(req: Request) {
     });
 
     // 2. Persist metadata in WorkspaceSetting
-    if (resolvedColor) {
-      try {
-        await prisma.workspaceSetting.create({
-          data: { organizationId: newOrg.id, key: 'BRAND_COLOR', value: resolvedColor, updatedById: actor.id },
-        });
-      } catch {}
-    }
-    if (logoUrl) {
-      try {
-        await prisma.workspaceSetting.create({
-          data: { organizationId: newOrg.id, key: 'BRAND_LOGO_URL', value: logoUrl, updatedById: actor.id },
-        });
-      } catch {}
-    }
-    if (industry) {
-      try {
-        await prisma.workspaceSetting.create({
-          data: { organizationId: newOrg.id, key: 'SUBSIDIARY_INDUSTRY', value: industry, updatedById: actor.id },
-        });
-      } catch {}
-    }
-    if (headquarters) {
-      try {
-        await prisma.workspaceSetting.create({
-          data: { organizationId: newOrg.id, key: 'HEADQUARTERS_LOCATION', value: headquarters, updatedById: actor.id },
-        });
-      } catch {}
-    }
-    if (rcNumber) {
-      try {
-        await prisma.workspaceSetting.create({
-          data: { organizationId: newOrg.id, key: 'RC_NUMBER', value: rcNumber, updatedById: actor.id },
-        });
-      } catch {}
+    const metadataSettings: Array<[string, string | undefined]> = [
+      ['BRAND_COLOR', resolvedColor],
+      ['BRAND_LOGO_URL', logoUrl],
+      ['SUBSIDIARY_INDUSTRY', industry],
+      ['HEADQUARTERS_LOCATION', headquarters],
+      ['RC_NUMBER', rcNumber],
+      ['TIN_NUMBER', tinNumber],
+      ['INCORPORATION_DATE', incorporationDate],
+      ['WEBSITE_URL', websiteUrl],
+      ['CORPORATE_DESCRIPTION', description],
+      ['EXECUTIVE_LEAD_NAME', leadName],
+      ['EXECUTIVE_LEAD_TITLE', leadTitle],
+      ['EXECUTIVE_LEAD_EMAIL', leadEmail],
+      ['EXECUTIVE_LEAD_PHONE', leadPhone],
+    ];
+
+    for (const [key, value] of metadataSettings) {
+      if (value && String(value).trim()) {
+        try {
+          await prisma.workspaceSetting.upsert({
+            where: { organizationId_key: { organizationId: newOrg.id, key } },
+            create: { organizationId: newOrg.id, key, value: String(value).trim(), updatedById: actor.id },
+            update: { value: String(value).trim(), updatedById: actor.id },
+          });
+        } catch {}
+      }
     }
 
     // 3. Create Initial Departments if provided
@@ -238,6 +237,33 @@ export async function POST(req: Request) {
             },
           });
           createdDepts.push({ id: dept.id, name: dept.name, code: dept.code });
+        } catch {}
+      }
+    }
+
+    // 3b. Tag / Assign Staff if staffIds provided
+    if (Array.isArray(staffIds) && staffIds.length > 0 && createdDepts.length > 0) {
+      const defaultDeptId = createdDepts[0].id;
+      for (const empId of staffIds) {
+        if (typeof empId !== 'string' || !empId.trim()) continue;
+        try {
+          const existingAssignments = await prisma.employeeAssignment.findMany({
+            where: { employeeId: empId.trim(), status: 'ACTIVE' },
+          });
+          const alreadyAssignedHere = existingAssignments.some((a) => a.subsidiaryId === newOrg.id);
+          if (!alreadyAssignedHere) {
+            await prisma.employeeAssignment.create({
+              data: {
+                employeeId: empId.trim(),
+                subsidiaryId: newOrg.id,
+                departmentId: defaultDeptId,
+                positionName: existingAssignments[0]?.positionName || 'Operations Specialist',
+                isPrimary: existingAssignments.length === 0,
+                status: 'ACTIVE',
+                startsOn: new Date(),
+              },
+            });
+          }
         } catch {}
       }
     }

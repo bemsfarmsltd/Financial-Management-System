@@ -12,9 +12,12 @@ export async function GET(request: Request) {
     if (!hasAnyRole(actor, ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'GMD'])) {
       return NextResponse.json({ error: 'Executive access is required to view the group portfolio.' }, { status: 403 });
     }
-    const [organizations, budgets, requests, intercompanyNotes, departments, assignments, disbursements, accountabilityCases, companyBankAccounts] = await Promise.all([
+    const [organizations, budgets, requests, intercompanyNotes, departments, assignments, disbursements, accountabilityCases, companyBankAccounts, allStaffEmployees] = await Promise.all([
       prisma.organization.findMany({
         orderBy: { createdAt: 'asc' },
+        include: {
+          settings: true,
+        },
       }),
       prisma.budget.findMany({
         where: { status: 'ACTIVE' },
@@ -63,6 +66,16 @@ export async function GET(request: Request) {
               phone: true,
               role: true,
               status: true,
+              employmentAgreements: {
+                where: { status: 'ACTIVE' },
+                take: 1,
+                include: {
+                  compensations: {
+                    orderBy: [{ version: 'desc' }, { effectiveFrom: 'desc' }],
+                    take: 1,
+                  },
+                },
+              },
             },
           },
           department: true,
@@ -82,6 +95,37 @@ export async function GET(request: Request) {
       prisma.companyBankAccount.findMany({
         where: { status: 'ACTIVE' },
         orderBy: { balance: 'desc' },
+      }),
+      prisma.employee.findMany({
+        where: {
+          role: 'STAFF',
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+          employeeNumber: true,
+          legalName: true,
+          workEmail: true,
+          phone: true,
+          assignments: {
+            where: { status: 'ACTIVE' },
+            include: {
+              subsidiary: { select: { id: true, legalName: true, code: true } },
+              department: { select: { id: true, name: true } },
+            },
+          },
+          employmentAgreements: {
+            where: { status: 'ACTIVE' },
+            take: 1,
+            include: {
+              compensations: {
+                orderBy: [{ version: 'desc' }, { effectiveFrom: 'desc' }],
+                take: 1,
+              },
+            },
+          },
+        },
+        orderBy: { legalName: 'asc' },
       }),
     ]);
 
@@ -109,10 +153,14 @@ export async function GET(request: Request) {
         .filter((d) => d.organizationId === org.id)
         .map((d) => ({ id: d.id, name: d.name, code: d.code }));
 
+      const getSetting = (key: string) => org.settings?.find((s) => s.key === key)?.value || null;
       const orgAssignment = assignments.find((a) => a.department?.organizationId === org.id || a.subsidiaryId === org.id);
-      const lead = orgAssignment
-        ? { name: orgAssignment.employee.legalName, role: orgAssignment.employee.role || 'Corporate Lead', email: orgAssignment.employee.workEmail }
-        : { name: actor.legalName, role: 'Corporate Lead', email: actor.workEmail };
+      const lead = {
+        name: getSetting('EXECUTIVE_LEAD_NAME') || (orgAssignment ? orgAssignment.employee.legalName : actor.legalName),
+        role: getSetting('EXECUTIVE_LEAD_TITLE') || (orgAssignment ? orgAssignment.positionName || orgAssignment.employee.role || 'Managing Director' : 'Managing Director'),
+        email: getSetting('EXECUTIVE_LEAD_EMAIL') || (orgAssignment ? orgAssignment.employee.workEmail : actor.workEmail),
+        phone: getSetting('EXECUTIVE_LEAD_PHONE') || (orgAssignment ? orgAssignment.employee.phone : actor.phone) || null,
+      };
 
       const recentReqs = orgRequests.slice(0, 5).map((r) => ({
         id: r.id,
@@ -137,6 +185,8 @@ export async function GET(request: Request) {
           return true;
         })
         .map((a) => {
+          const activeComp = a.employee.employmentAgreements?.[0]?.compensations?.[0];
+          const grossMonthlySalary = activeComp ? Number(activeComp.grossMinor || BigInt(0)) / 100 : 0;
           return {
             id: a.employee.id,
             employeeNumber: a.employee.employeeNumber,
@@ -150,6 +200,7 @@ export async function GET(request: Request) {
             status: a.employee.status || 'ACTIVE',
             employmentType: 'Full-Time Permanent',
             intercompanySplit: a.isPrimary ? 'Primary (100%)' : 'Secondary Split (Cost-share)',
+            grossMonthlySalary,
           };
         });
 
@@ -190,17 +241,48 @@ export async function GET(request: Request) {
         balanceNaira: Number(b.balance),
       }));
 
+      const DEFAULT_LOGOS: Record<string, string> = {
+        'BEMS-GROUP': '/bems-group-logo.png?v=20261024',
+        'BBH': '/logos/bbh.svg',
+        'BTECH': '/logos/smartairs.svg',
+        'BSA': '/logos/studio-arella.svg',
+        'BEDU': '/logos/bedu.svg',
+        'BAGRO': '/logos/bems-farms.svg',
+      };
+
+      const resolvedColor = org.brandColor || getSetting('BRAND_COLOR') || (org.type === 'GROUP' ? '#ea580c' : '#0d8a70');
+      const resolvedLogo = org.logoUrl || getSetting('BRAND_LOGO_URL') || DEFAULT_LOGOS[org.code] || (org.type === 'GROUP' ? '/bems-group-logo.png?v=20261024' : null);
+      const resolvedIndustry = getSetting('SUBSIDIARY_INDUSTRY') || (
+        org.type === 'GROUP'
+          ? 'Group Holding & Executive Governance'
+          : org.code.includes('LOG') || org.code.includes('AGRO')
+          ? 'Logistics & Agribusiness'
+          : org.code.includes('SOFT') || org.code.includes('BBH') || org.code.includes('TECH')
+          ? 'Software & Cloud Services'
+          : org.code.includes('BSA')
+          ? 'Media, Broadcast & Creative Production'
+          : org.code.includes('EDU')
+          ? 'Education & EdTech Services'
+          : 'Corporate Operating Subsidiary'
+      );
+
       return {
         id: org.id,
         name: org.legalName,
         code: org.code,
         type: org.type,
         status: org.status === 'ACTIVE' ? 'Live' : 'Setup',
-        industry: org.code.includes('LOG') ? 'Logistics & Agribusiness' : org.code.includes('SOFT') ? 'Software & Cloud Services' : 'Corporate Group Operations',
+        industry: resolvedIndustry,
         initials: org.code.replace('BEMS-', '').slice(0, 2) || 'BM',
-        color: '#ea580c',
-        rcNumber: 'RC-REGISTERED',
-        headquarters: 'Lagos, Nigeria',
+        color: resolvedColor,
+        brandColor: resolvedColor,
+        logoUrl: resolvedLogo,
+        rcNumber: getSetting('RC_NUMBER') || 'RC-REGISTERED',
+        tinNumber: getSetting('TIN_NUMBER') || null,
+        incorporationDate: getSetting('INCORPORATION_DATE') || null,
+        websiteUrl: getSetting('WEBSITE_URL') || null,
+        description: getSetting('CORPORATE_DESCRIPTION') || null,
+        headquarters: getSetting('HEADQUARTERS_LOCATION') || 'Lagos, Nigeria',
         lead,
         headcount: actualHeadcount,
         adminCount: orgLeadership.length,
@@ -223,6 +305,24 @@ export async function GET(request: Request) {
         ],
         bankAccounts,
         recentRequests: recentReqs,
+      };
+    });
+
+    const allGroupStaff = allStaffEmployees.map((emp) => {
+      const primaryAssignment = emp.assignments.find((a) => a.isPrimary) || emp.assignments[0];
+      const activeComp = emp.employmentAgreements?.[0]?.compensations?.[0];
+      return {
+        id: emp.id,
+        employeeNumber: emp.employeeNumber,
+        name: emp.legalName,
+        email: emp.workEmail,
+        phone: emp.phone || null,
+        positionName: primaryAssignment?.positionName || 'Staff Member',
+        departmentName: primaryAssignment?.department?.name || 'Operations',
+        primarySubsidiaryId: primaryAssignment?.subsidiaryId || null,
+        primarySubsidiaryName: primaryAssignment?.subsidiary?.legalName || 'BEMS Group',
+        subsidiaryIds: Array.from(new Set(emp.assignments.map((a) => a.subsidiaryId))),
+        grossMonthlySalary: activeComp ? Number(activeComp.grossMinor || BigInt(0)) / 100 : 0,
       };
     });
 
@@ -267,6 +367,7 @@ export async function GET(request: Request) {
       },
       group: portfolio.find(p => p.type === 'GROUP') || null,
       portfolio: portfolio,
+      allGroupStaff,
       intercompanyNotes: serializedNotes,
     });
   } catch (error: any) {

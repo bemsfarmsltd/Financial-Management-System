@@ -3202,15 +3202,69 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
         },
       });
 
-      if (industry) {
-        await tx.workspaceSetting.create({
-          data: { organizationId: org.id, key: 'SUBSIDIARY_INDUSTRY', value: industry, updatedById: actor.id },
+      const extraSettings: Array<[string, string | null | undefined]> = [
+        ['SUBSIDIARY_INDUSTRY', industry],
+        ['HEADQUARTERS_LOCATION', headquarters],
+        ['RC_NUMBER', materialPayload.rcNumber],
+        ['TIN_NUMBER', materialPayload.tinNumber],
+        ['INCORPORATION_DATE', materialPayload.incorporationDate],
+        ['WEBSITE_URL', materialPayload.websiteUrl],
+        ['CORPORATE_DESCRIPTION', materialPayload.description],
+        ['EXECUTIVE_LEAD_NAME', materialPayload.leadName],
+        ['EXECUTIVE_LEAD_TITLE', materialPayload.leadTitle],
+        ['EXECUTIVE_LEAD_EMAIL', materialPayload.leadEmail],
+        ['EXECUTIVE_LEAD_PHONE', materialPayload.leadPhone],
+      ];
+      for (const [k, v] of extraSettings) {
+        if (v && String(v).trim()) {
+          await tx.workspaceSetting.upsert({
+            where: { organizationId_key: { organizationId: org.id, key: k } },
+            create: { organizationId: org.id, key: k, value: String(v).trim(), updatedById: actor.id },
+            update: { value: String(v).trim(), updatedById: actor.id },
+          });
+        }
+      }
+
+      const initialBudget = Number(materialPayload.monthlyBudget ?? materialPayload.initialBudget ?? 0);
+      if (Number.isFinite(initialBudget) && initialBudget > 0) {
+        const now = new Date();
+        const fiscalYear = now.getFullYear();
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        await tx.budget.create({
+          data: {
+            organizationId: org.id,
+            fiscalYear,
+            fiscalPeriod: 'MONTHLY',
+            periodName: `${monthNames[now.getMonth()]} ${fiscalYear}`,
+            totalAmount: initialBudget,
+            committedAmount: 0,
+            spentAmount: 0,
+            status: 'ACTIVE',
+            warningThreshold: 80.0,
+          },
         });
       }
-      if (headquarters) {
-        await tx.workspaceSetting.create({
-          data: { organizationId: org.id, key: 'HEADQUARTERS_LOCATION', value: headquarters, updatedById: actor.id },
-        });
+
+      if (Array.isArray(materialPayload.staffIds) && materialPayload.staffIds.length > 0) {
+        for (const staffId of materialPayload.staffIds) {
+          const emp = await tx.employee.findUnique({ where: { id: String(staffId) } });
+          if (emp) {
+            const existingAsg = await tx.employeeAssignment.findFirst({
+              where: { employeeId: emp.id, subsidiaryId: org.id },
+            });
+            if (!existingAsg) {
+              await tx.employeeAssignment.create({
+                data: {
+                  employeeId: emp.id,
+                  subsidiaryId: org.id,
+                  positionName: emp.jobTitle || 'Subsidiary Staff',
+                  isPrimary: false,
+                  status: 'ACTIVE',
+                },
+              });
+            }
+          }
+        }
       }
 
       recordType = 'organization';
@@ -4025,6 +4079,53 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
         });
       }
 
+      const updateExtraSettings: Array<[string, string | null | undefined]> = [
+        ['TIN_NUMBER', materialPayload.tinNumber],
+        ['INCORPORATION_DATE', materialPayload.incorporationDate],
+        ['WEBSITE_URL', materialPayload.websiteUrl],
+        ['CORPORATE_DESCRIPTION', materialPayload.description],
+        ['EXECUTIVE_LEAD_NAME', materialPayload.leadName],
+        ['EXECUTIVE_LEAD_TITLE', materialPayload.leadTitle],
+        ['EXECUTIVE_LEAD_EMAIL', materialPayload.leadEmail],
+        ['EXECUTIVE_LEAD_PHONE', materialPayload.leadPhone],
+      ];
+      for (const [k, v] of updateExtraSettings) {
+        if (v !== undefined && String(v || '').trim()) {
+          await tx.workspaceSetting.upsert({
+            where: { organizationId_key: { organizationId, key: k } },
+            create: { organizationId, key: k, value: String(v).trim(), updatedById: actor.id },
+            update: { value: String(v).trim(), updatedById: actor.id },
+          });
+        }
+      }
+
+      if (Array.isArray(materialPayload.staffIds) && materialPayload.staffIds.length > 0) {
+        for (const staffId of materialPayload.staffIds) {
+          const emp = await tx.employee.findUnique({ where: { id: String(staffId) } });
+          if (emp) {
+            const existingAsg = await tx.employeeAssignment.findFirst({
+              where: { employeeId: emp.id, subsidiaryId: organizationId },
+            });
+            if (!existingAsg) {
+              await tx.employeeAssignment.create({
+                data: {
+                  employeeId: emp.id,
+                  subsidiaryId: organizationId,
+                  positionName: emp.jobTitle || 'Subsidiary Staff',
+                  isPrimary: false,
+                  status: 'ACTIVE',
+                },
+              });
+            } else if (existingAsg.status !== 'ACTIVE') {
+              await tx.employeeAssignment.update({
+                where: { id: existingAsg.id },
+                data: { status: 'ACTIVE' },
+              });
+            }
+          }
+        }
+      }
+
       const monthlyBudget = Number(materialPayload.monthlyBudget ?? materialPayload.monthly_budget ?? NaN);
       if (!Number.isNaN(monthlyBudget) && monthlyBudget >= 0) {
         const activeBudget = existingOrg.budgets[0];
@@ -4209,6 +4310,43 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
             data: { isAttendanceExempt: isExempt },
           });
           await tx.staffWorkSchedule.upsert({ where: { employeeId }, update: { isExempt }, create: { employeeId, weeklyOffDays: '0,6', isExempt } });
+
+          if (isExempt) {
+            const unpaidItems = await tx.payrollItem.findMany({
+              where: {
+                employeeId,
+                status: { notIn: ['PAID', 'WALLET_CREDITED'] },
+                batch: { status: { not: 'PAID' } },
+              },
+              select: { id: true, batchId: true, grossMinor: true, employeeDeductionsMinor: true },
+            });
+            for (const item of unpaidItems) {
+              if (item.employeeDeductionsMinor > BigInt(0)) {
+                await tx.payrollItem.update({
+                  where: { id: item.id },
+                  data: {
+                    employeeDeductionsMinor: BigInt(0),
+                    netMinor: item.grossMinor,
+                  },
+                });
+                const batchItems = await tx.payrollItem.findMany({
+                  where: { batchId: item.batchId },
+                  select: { grossMinor: true, netMinor: true },
+                });
+                let totalG = BigInt(0);
+                let totalN = BigInt(0);
+                for (const bi of batchItems) {
+                  totalG += bi.grossMinor;
+                  totalN += bi.netMinor;
+                }
+                await tx.payrollBatch.update({
+                  where: { id: item.batchId },
+                  data: { totalGrossMinor: totalG, totalNetMinor: totalN },
+                });
+              }
+            }
+          }
+
           notificationIntentIds.push(employeeId);
           await tx.systemNotification.create({
             data: {
@@ -4298,9 +4436,67 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
             resetUrl,
           };
         } else if (subAction === 'DELETE_OR_DEACTIVATE') {
-          const updated = await transitionEmployeeStatus({ actor: actor as any, targetEmployeeId: employeeId, nextStatus: 'TERMINATED', reason: materialPayload.reason || 'Account deactivated; business records retained.' }, tx);
-          recordType = 'employee'; recordId = employeeId; url = '/hr';
-          resultRecord = { id: employeeId, legalName: updated.legalName, status: updated.status, mode: 'DEACTIVATED_WITH_HISTORY', message: 'Account access ended. Business and employment history was retained.' };
+          const updated =
+            targetEmployee.status === 'TERMINATED'
+              ? await tx.employee.update({
+                  where: { id: employeeId },
+                  data: { status: 'TERMINATED' },
+                })
+              : await transitionEmployeeStatus(
+                  {
+                    actor: actor as any,
+                    targetEmployeeId: employeeId,
+                    nextStatus: 'TERMINATED',
+                    reason: materialPayload.reason || 'Account deactivated; business records retained.',
+                  },
+                  tx
+                );
+          await tx.employeeAssignment.updateMany({ where: { employeeId }, data: { status: 'INACTIVE' } });
+          await tx.employmentAgreement.updateMany({ where: { employeeId, status: 'ACTIVE' }, data: { status: 'TERMINATED', endDate: new Date() } });
+          await tx.authSession.deleteMany({ where: { employeeId } });
+
+          const openPayrollItems = await tx.payrollItem.findMany({
+            where: {
+              employeeId,
+              status: { notIn: ['PAID', 'WALLET_CREDITED'] },
+              batch: { status: { not: 'PAID' } },
+            },
+            include: { disbursement: true },
+          });
+          for (const pi of openPayrollItems) {
+            if (pi.disbursement && pi.disbursement.status === 'UNPAID') {
+              await tx.disbursement.delete({ where: { id: pi.disbursement.id } });
+            }
+            if (!pi.disbursement || pi.disbursement.status === 'UNPAID') {
+              await tx.payrollItemAllocation.deleteMany({ where: { itemId: pi.id } });
+              await tx.payrollItem.delete({ where: { id: pi.id } });
+              const batchItems = await tx.payrollItem.findMany({
+                where: { batchId: pi.batchId },
+                select: { grossMinor: true, netMinor: true },
+              });
+              let totalG = BigInt(0);
+              let totalN = BigInt(0);
+              for (const bi of batchItems) {
+                totalG += bi.grossMinor;
+                totalN += bi.netMinor;
+              }
+              await tx.payrollBatch.update({
+                where: { id: pi.batchId },
+                data: { totalGrossMinor: totalG, totalNetMinor: totalN },
+              });
+            }
+          }
+
+          recordType = 'employee';
+          recordId = employeeId;
+          url = '/hr';
+          resultRecord = {
+            id: employeeId,
+            legalName: updated.legalName,
+            status: updated.status,
+            mode: 'DEACTIVATED_WITH_HISTORY',
+            message: `Staff account for ${updated.legalName} has been removed from active directory and open payroll runs.`,
+          };
         } else {
           // EDIT_PROFILE
           const updateData: any = {};

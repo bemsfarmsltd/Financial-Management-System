@@ -120,11 +120,16 @@ export async function POST(req: NextRequest) {
     const n8nHrWebhookUrl = process.env.N8N_HR_WEBHOOK_URL || 'https://n8n.srv2065537.hstgr.cloud/webhook/bems-hr-operations';
 
     // Intelligent Dual-Agent Intent Resolution (NLP Lexicon, DOM Domain Tagging, Sticky Affinity & Cross-Domain)
+    const explicitAgentMode = body.context?.agent_mode || body.agent_mode;
+    const explicitTagLocked =
+      body.context?.is_tag_locked === true ||
+      body.is_tag_locked === true ||
+      (explicitAgentMode && explicitAgentMode !== 'auto');
     const routeDecision = resolveAiAgentRoute({
       message,
-      explicitMode: body.context?.agent_mode,
-      isTagLocked: body.context?.is_tag_locked === true,
-      threadDomain: body.context?.thread_domain,
+      explicitMode: explicitAgentMode,
+      isTagLocked: explicitTagLocked,
+      threadDomain: body.context?.thread_domain || body.thread_domain,
       history: body.history || [],
       targetElement: body.context?.target_element,
       currentPage: body.context?.target_element?.page || '',
@@ -269,6 +274,27 @@ export async function POST(req: NextRequest) {
           queryText = `[UNTRUSTED_UI_ELEMENT_SNAPSHOT — User clicked UI element: "${targetElement.label}" displaying "${targetElement.value || 'N/A'}" under section "${targetElement.section || 'General'}" on page "${targetElement.page}" for subsidiary "${targetElement.subsidiary}". Verify figures against live BEMS read tools and cite the authoritative source endpoint before stating any number as ledger fact]: ${cleanUserMessage}`;
         }
 
+        const rawAttachments = Array.isArray(body.attachments)
+          ? body.attachments
+          : Array.isArray(body.context?.attachments)
+          ? body.context.attachments
+          : [];
+        if (rawAttachments.length > 0) {
+          const attDescriptions = rawAttachments
+            .slice(0, 5)
+            .map((att: any, idx: number) => {
+              const name = String(att?.name || att?.fileName || `Attachment-${idx + 1}`);
+              const mime = String(att?.type || att?.mimeType || 'application/octet-stream');
+              const sizeKb = att?.size ? `${Math.round(Number(att.size) / 1024)}KB` : '';
+              const extracted = att?.textContent ? `\nExtracted Content:\n${String(att.textContent).slice(0, 2000)}` : '';
+              return `[Attachment ${idx + 1}: "${name}" (${mime}${sizeKb ? `, ${sizeKb}` : ''})${att?.url ? ` URL: ${att.url}` : ''}${extracted}]`;
+            })
+            .join('\n');
+          queryText = `${queryText}\n\n[USER_UPLOADED_ATTACHMENTS]:\n${attDescriptions}`;
+        }
+
+        const turnStartedAt = new Date(Date.now() - 8000);
+
         const effectiveRole = hasAnyRole(actor, ['GMD'])
           ? 'GMD'
           : hasAnyRole(actor, ['SUPER_ADMIN', 'SYSTEM_ADMIN', 'HR'])
@@ -396,22 +422,48 @@ title: "<Chart Title>"
             n8nData = await n8nRes.json();
           }
           const rawReply = n8nData.reply || n8nData.message || 'Workflow executed.';
-          const reply = normalizeMarkdownStructure(rawReply);
-
-          // Persist assistant reply to memory
-          try {
-            await prisma.$executeRaw`
-              INSERT INTO n8n_chat_histories (session_id, message, created_at)
-              VALUES (${sessionId}, ${JSON.stringify({ role: 'assistant', content: reply, timestamp: new Date().toISOString() })}::jsonb, NOW())
-            `;
-          } catch (e) {
-            console.warn('Could not persist assistant reply to memory:', e);
-          }
+          let reply = normalizeMarkdownStructure(rawReply);
 
           // Verify any staged_action or STAGED_ACTION card against backend database records before rendering
           let verifiedStagedAction: Record<string, any> | null = null;
           let verifiedActionCard: Record<string, any> | null = null;
           const rawCandidate = n8nData.staged_action || n8nData.actionCard || null;
+          const actorRoleUpper = (actor.role || '').toUpperCase();
+          const isExecutiveActor = ['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(actorRoleUpper);
+
+          const buildVerifiedCardFromDbStaged = (dbStaged: any) => {
+            let dbPreview: Record<string, any> = {};
+            try {
+              dbPreview = JSON.parse(dbStaged.previewJson || '{}');
+            } catch {
+              dbPreview = {};
+            }
+            const saObj = {
+              id: dbStaged.id,
+              staged_action_id: dbStaged.id,
+              confirmation_hash: dbStaged.confirmationHash,
+              confirmationHash: dbStaged.confirmationHash,
+              type: dbStaged.actionType,
+              action_type: dbStaged.actionType,
+              actionType: dbStaged.actionType,
+              cardType: 'STAGED_ACTION',
+              summary: dbStaged.summary,
+              status: dbStaged.status,
+              expires_at: dbStaged.expiresAt.toISOString(),
+              payload_preview: dbPreview,
+              preview: dbPreview,
+            };
+            let cardObj: Record<string, any> = {
+              ...saObj,
+              type: saObj.type || 'STAGED_ACTION',
+            };
+            try {
+              if (dbStaged.actionType === 'budget' && JSON.parse(dbStaged.payload || '{}').wallet_operation) {
+                cardObj = { ...cardObj, type: 'wallet_budget', actionType: 'wallet_budget' };
+              }
+            } catch {}
+            return { saObj, cardObj };
+          };
 
           if (!isReadOnlyUser && rawCandidate && actor) {
             const candidateStagedId =
@@ -420,51 +472,46 @@ title: "<Chart Title>"
               rawCandidate.stagedActionId ||
               null;
 
-            if (candidateStagedId && String(rawCandidate.type || '').toLowerCase()==='wallet_release') {
+            if (candidateStagedId && String(rawCandidate.type || '').toLowerCase() === 'wallet_release') {
               try {
-                const scope=await resolveAuthorizedOrganizationScope(actor as any,scopedOrgId||'ALL');
-                const proposal=await walletProposal(actor,String(candidateStagedId),{conversationId:sessionId,workspaceId:scopedOrgId||null,allowedOrganizationIds:scope.organizationIds});
-                if(proposal.status==='PENDING' && new Date(proposal.expiresAt)>new Date()) verifiedActionCard={type:'wallet_release',id:proposal.id,confirmationHash:proposal.confirmationHash,preview:proposal};
-              } catch { /* Unverified wallet proposals never become actionable cards. */ }
+                const scope = await resolveAuthorizedOrganizationScope(actor as any, scopedOrgId || 'ALL');
+                const proposal = await walletProposal(actor, String(candidateStagedId), {
+                  conversationId: sessionId,
+                  workspaceId: scopedOrgId || null,
+                  allowedOrganizationIds: scope.organizationIds,
+                });
+                if (proposal.status === 'PENDING' && new Date(proposal.expiresAt) > new Date()) {
+                  verifiedActionCard = {
+                    type: 'wallet_release',
+                    id: proposal.id,
+                    confirmationHash: proposal.confirmationHash,
+                    preview: proposal,
+                  };
+                }
+              } catch {
+                /* Unverified wallet proposals never become actionable cards. */
+              }
             } else if (candidateStagedId && String(candidateStagedId).startsWith('sa_')) {
               const dbStaged = await prisma.stagedAction.findUnique({
                 where: { id: String(candidateStagedId) },
               });
-              const actorRoleUpper = (actor.role || '').toUpperCase();
               const isAuthorizedOwner =
                 dbStaged &&
-                (dbStaged.userId === actor.id || actorRoleUpper === 'GMD') &&
-                dbStaged.conversationId === sessionId &&
-                (!scopedOrgId || dbStaged.targetSubsidiaryId === scopedOrgId) &&
+                (dbStaged.userId === actor.id || isExecutiveActor) &&
+                (dbStaged.conversationId === sessionId ||
+                  dbStaged.conversationId === `conv_${actor.id}` ||
+                  isExecutiveActor) &&
+                (!scopedOrgId ||
+                  !dbStaged.targetSubsidiaryId ||
+                  dbStaged.targetSubsidiaryId === scopedOrgId ||
+                  isExecutiveActor) &&
                 dbStaged.status === 'PENDING' &&
                 dbStaged.expiresAt > new Date();
 
               if (isAuthorizedOwner && dbStaged) {
-                let dbPreview: Record<string, any> = {};
-                try {
-                  dbPreview = JSON.parse(dbStaged.previewJson || '{}');
-                } catch {
-                  dbPreview = {};
-                }
-                verifiedStagedAction = {
-                  id: dbStaged.id,
-                  staged_action_id: dbStaged.id,
-                  confirmation_hash: dbStaged.confirmationHash,
-                  confirmationHash: dbStaged.confirmationHash,
-                  type: dbStaged.actionType,
-                  action_type: dbStaged.actionType,
-                  cardType: 'STAGED_ACTION',
-                  summary: dbStaged.summary,
-                  status: dbStaged.status,
-                  expires_at: dbStaged.expiresAt.toISOString(),
-                  payload_preview: dbPreview,
-                  preview: dbPreview,
-                };
-                verifiedActionCard = {
-                  type: 'STAGED_ACTION',
-                  ...verifiedStagedAction,
-                };
-                try {if(dbStaged.actionType==='budget' && JSON.parse(dbStaged.payload||'{}').wallet_operation){verifiedActionCard={...verifiedActionCard,type:'wallet_budget',actionType:'wallet_budget'};}}catch{}
+                const built = buildVerifiedCardFromDbStaged(dbStaged);
+                verifiedStagedAction = built.saObj;
+                verifiedActionCard = built.cardObj;
               } else {
                 console.warn(
                   `[AI Chat Integrity] Suppressed unverified or expired staged_action card (${candidateStagedId}).`
@@ -474,9 +521,301 @@ title: "<Chart Title>"
               n8nData.actionCard &&
               ['TREASURY', 'BRIEFING', 'ANALYTICS_CHART'].includes(String(n8nData.actionCard.type || ''))
             ) {
-              // Informational read-only cards only; never actionable mutation cards without a verified stagedAction
               verifiedActionCard = n8nData.actionCard;
             }
+          }
+
+          // Automatic Recovery: If an n8n tool staged an action in PostgreSQL during this turn
+          // but the LLM returned conversational prose without echoing `staged_action` in the outer JSON
+          if (!isReadOnlyUser && !verifiedActionCard && actor) {
+            const recentDbStaged = await prisma.stagedAction.findFirst({
+              where: {
+                userId: actor.id,
+                status: 'PENDING',
+                createdAt: { gte: turnStartedAt },
+                expiresAt: { gt: new Date() },
+              },
+              orderBy: { createdAt: 'desc' },
+            });
+            if (recentDbStaged) {
+              const built = buildVerifiedCardFromDbStaged(recentDbStaged);
+              verifiedStagedAction = built.saObj;
+              verifiedActionCard = built.cardObj;
+            }
+          }
+
+          // Server-Side Intelligent Fallback Stager: If the user explicitly asked to stage an action
+          // (or confirmed "yes, draw it up" / "send her the message" / "create subsidiary") and n8n failed to stage it
+          if (!isReadOnlyUser && !verifiedActionCard && actor && isExecutiveActor) {
+            try {
+              const combinedContextText = [
+                cleanUserMessage,
+                ...(Array.isArray(body.history)
+                  ? body.history.slice(-4).map((h: any) => String(h?.content || ''))
+                  : []),
+                ...conversationHistory.slice(-4).map((h: any) => String(h?.content || '')),
+                reply,
+              ].join('\n');
+              const lowerMsg = cleanUserMessage.toLowerCase();
+              const lowerReply = reply.toLowerCase();
+              const isConfirmingPriorProposal =
+                /\b(yes|draw it up|stage it|do it|go ahead|proceed|apply it|send it|send her the message|send him the message|approve it)\b/i.test(
+                  cleanUserMessage
+                );
+
+              // 1. Salary change fallback staging
+              const mentionsSalaryFailure =
+                lowerReply.includes("couldn't draw up the salary") ||
+                lowerReply.includes('could not draw up the salary') ||
+                lowerReply.includes('attempts failed');
+              const isDirectSalaryCommand =
+                /\b(reduce|cut|deduct|increase|add|set|change|adjust|update)\b[\s\S]{0,40}\b(salary|pay|gross)\b/i.test(
+                  cleanUserMessage
+                ) ||
+                (isConfirmingPriorProposal &&
+                  /\b(salary|reduction|cut|₦\d|monthly salary)\b/i.test(combinedContextText));
+
+              if (mentionsSalaryFailure || isDirectSalaryCommand) {
+                const empNumMatch = combinedContextText.match(/BEMS-[A-Z0-9]+-\d{4}-\d{4}/i);
+                let targetEmpLookup: string | null = empNumMatch ? empNumMatch[0].toUpperCase() : null;
+                if (!targetEmpLookup) {
+                  const allStaff = await prisma.employee.findMany({
+                    where: { role: 'STAFF', status: 'ACTIVE' },
+                    select: { id: true, legalName: true, employeeNumber: true },
+                  });
+                  const matchedStaff = allStaff.find((s) => {
+                    const full = s.legalName.toLowerCase();
+                    const first = full.split(/\s+/)[0];
+                    return (
+                      combinedContextText.toLowerCase().includes(full) ||
+                      (first.length >= 4 && combinedContextText.toLowerCase().includes(first))
+                    );
+                  });
+                  if (matchedStaff) targetEmpLookup = matchedStaff.id;
+                }
+
+                if (targetEmpLookup) {
+                  const { inspectEmployeeCompensationContext } = await import('@/lib/services/compensation');
+                  const { stageAction } = await import('@/lib/staged-actions');
+                  const ctx = await inspectEmployeeCompensationContext(targetEmpLookup);
+                  let targetNaira = 0;
+
+                  // Check explicit proposed figure like ₦28,000 or percentage like 30%
+                  const pctMatch = combinedContextText.match(/(\d+(?:\.\d+)?)\s*%\s*(?:reduction|cut|decrease|deduction|off|increase|raise)?/i);
+                  const nairaMatches = Array.from(
+                    combinedContextText.matchAll(/(?:₦|NGN\s*)([\d,]+(?:\.\d+)?)/gi)
+                  ).map((m) => Number(m[1].replace(/,/g, '')));
+
+                  if (pctMatch && ctx.currentGrossNaira > 0) {
+                    const pctVal = Number(pctMatch[1]);
+                    const isCut = /reduc|cut|decreas|deduct|less/i.test(combinedContextText);
+                    targetNaira = isCut
+                      ? Math.round(ctx.currentGrossNaira * (1 - pctVal / 100))
+                      : Math.round(ctx.currentGrossNaira * (1 + pctVal / 100));
+                  } else {
+                    const candidateNaira = nairaMatches.find(
+                      (n) => n > 1000 && Math.round(n) !== Math.round(ctx.currentGrossNaira)
+                    );
+                    if (candidateNaira) targetNaira = candidateNaira;
+                  }
+
+                  if (targetNaira > 0 && targetNaira !== ctx.currentGrossNaira) {
+                    const deltaVal = targetNaira - ctx.currentGrossNaira;
+                    const deltaFormatted =
+                      deltaVal > 0
+                        ? `+₦${deltaVal.toLocaleString()}`
+                        : `-₦${Math.abs(deltaVal).toLocaleString()}`;
+                    const nowIso = new Date().toISOString();
+                    const staged = await stageAction({
+                      actorContext: {
+                        id: actor.id,
+                        legalName: actor.legalName,
+                        role: actor.role,
+                        conversationId: sessionId,
+                      },
+                      userId: actor.id,
+                      actionType: 'salary_change',
+                      summary: `Adjust monthly salary for ${ctx.employee.legalName} (${ctx.employee.employeeNumber}) from ₦${ctx.currentGrossNaira.toLocaleString()} to ₦${targetNaira.toLocaleString()}`,
+                      targetEmployeeId: ctx.employee.id,
+                      targetSubsidiaryId: ctx.subsidiaryId,
+                      materialPayload: {
+                        employee_id: ctx.employee.id,
+                        subsidiary_id: ctx.subsidiaryId,
+                        change_type:
+                          ctx.currentGrossNaira === 0
+                            ? 'INITIAL_SALARY'
+                            : deltaVal < 0
+                            ? 'DEDUCTION'
+                            : 'ADDITION',
+                        amount: targetNaira,
+                        new_base_salary: targetNaira,
+                        prior_base_salary: ctx.currentGrossNaira,
+                        effective_date: nowIso,
+                        reason: `Executive salary adjustment for ${ctx.employee.legalName} staged via BEMi Copilot`,
+                        expected_comp_version: ctx.currentCompVersion,
+                      },
+                      preview: {
+                        employee_name: ctx.employee.legalName,
+                        employee_number: ctx.employee.employeeNumber,
+                        subsidiary: ctx.subsidiaryName,
+                        current_base_gross: `₦${ctx.currentGrossNaira.toLocaleString()}`,
+                        new_base_gross: `₦${targetNaira.toLocaleString()}`,
+                        delta: deltaFormatted,
+                        effective_date: nowIso.split('T')[0],
+                        affected_open_periods:
+                          ctx.affectedOpenPeriods.length > 0
+                            ? ctx.affectedOpenPeriods.join(', ')
+                            : 'Current open payroll batch',
+                      },
+                    });
+                    const dbStaged = await prisma.stagedAction.findUnique({
+                      where: { id: staged.staged_action_id },
+                    });
+                    if (dbStaged) {
+                      const built = buildVerifiedCardFromDbStaged(dbStaged);
+                      verifiedStagedAction = built.saObj;
+                      verifiedActionCard = built.cardObj;
+                      if (mentionsSalaryFailure) {
+                        reply = `I have drawn up the salary adjustment for **${ctx.employee.legalName} (${ctx.employee.employeeNumber})**, updating her monthly gross salary from **₦${ctx.currentGrossNaira.toLocaleString()}** to **₦${targetNaira.toLocaleString()}** (${deltaFormatted}).\n\nOnce you confirm on the card below, the change will immediately persist across both her employment compensation record and the current open payroll register.`;
+                      }
+                    }
+                  }
+                }
+              }
+
+              // 2. Subsidiary creation / editing capability response & staging
+              if (
+                !verifiedActionCard &&
+                /\b(subsidiary|subsidiaries)\b/i.test(cleanUserMessage) &&
+                /\b(create|add|new|edit|update|modify|open)\b/i.test(cleanUserMessage)
+              ) {
+                const { stageAction } = await import('@/lib/staged-actions');
+                const quotedNameMatch =
+                  cleanUserMessage.match(/(?:called|named)\s+["']?([A-Za-z0-9\s&.-]{3,60})["']?/i) ||
+                  cleanUserMessage.match(/["']([A-Za-z0-9\s&.-]{3,60})["']/);
+                if (quotedNameMatch && /\b(create|add|new)\b/i.test(cleanUserMessage)) {
+                  const subName = quotedNameMatch[1].trim();
+                  const words = subName.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+                  const code =
+                    words.length >= 2
+                      ? words.map((w) => w[0]).join('').slice(0, 4).toUpperCase()
+                      : subName.slice(0, 3).toUpperCase();
+                  const staged = await stageAction({
+                    actorContext: {
+                      id: actor.id,
+                      legalName: actor.legalName,
+                      role: actor.role,
+                      conversationId: sessionId,
+                    },
+                    userId: actor.id,
+                    actionType: 'subsidiary_creation',
+                    summary: `Create new subsidiary "${subName}" (${code})`,
+                    materialPayload: {
+                      name: subName,
+                      code,
+                      type: 'OPERATING_SUBSIDIARY',
+                      currency: 'NGN',
+                      brandColor: '#EA580C',
+                      industry: 'Corporate Group Operations',
+                      headquarters: 'Lagos, Nigeria',
+                    },
+                    preview: {
+                      name: subName,
+                      code,
+                      type: 'OPERATING_SUBSIDIARY',
+                      currency: 'NGN',
+                      industry: 'Corporate Group Operations',
+                      headquarters: 'Lagos, Nigeria',
+                    },
+                  });
+                  const dbStaged = await prisma.stagedAction.findUnique({
+                    where: { id: staged.staged_action_id },
+                  });
+                  if (dbStaged) {
+                    const built = buildVerifiedCardFromDbStaged(dbStaged);
+                    verifiedStagedAction = built.saObj;
+                    verifiedActionCard = built.cardObj;
+                    reply = `I have staged the creation of **${subName} (${code})** for your confirmation below.`;
+                  }
+                } else if (
+                  lowerReply.includes('cannot create') ||
+                  lowerReply.includes("can't create") ||
+                  lowerReply.includes('not able to create') ||
+                  lowerReply.includes('only view')
+                ) {
+                  reply = `Yes — I can **create** a new subsidiary or **edit** any existing subsidiary directly from here and stage the confirmation card for your sign-off.\n\nTo stage a **New Subsidiary**, tell me:\n1. **Legal Corporate Name & Shortcode** (e.g., *Bems Logistics Ltd*, ` + '`BLOG`' + `)\n2. **Industry Sector & Headquarters Location**\n3. **Executive Contact Name, Email & Phone Number**\n4. **Initial Monthly Budget & Staff to Tag** *(optional)*\n\nOr tell me which existing subsidiary you would like to edit and what fields to update.`;
+                }
+              }
+
+              // 3. Staff message fallback staging when user confirms "yes, send her the message"
+              if (
+                !verifiedActionCard &&
+                /\b(send\s+(?:her|him|them)\s+the\s+message|message\s+[a-z]+)/i.test(cleanUserMessage)
+              ) {
+                const allStaff = await prisma.employee.findMany({
+                  where: { role: 'STAFF', status: 'ACTIVE' },
+                  select: { id: true, legalName: true, employeeNumber: true, workEmail: true },
+                });
+                const matchedStaff = allStaff.find((s) => {
+                  const full = s.legalName.toLowerCase();
+                  const first = full.split(/\s+/)[0];
+                  return (
+                    combinedContextText.toLowerCase().includes(full) ||
+                    (first.length >= 4 && combinedContextText.toLowerCase().includes(first))
+                  );
+                });
+                if (matchedStaff) {
+                  const { stageAction } = await import('@/lib/staged-actions');
+                  const msgSubject = 'Executive Follow-Up from GMD Office';
+                  const msgBody = `Hello ${matchedStaff.legalName.split(' ')[0]}, please confirm the details discussed regarding your recent record with the GMD office at your earliest convenience.`;
+                  const staged = await stageAction({
+                    actorContext: {
+                      id: actor.id,
+                      legalName: actor.legalName,
+                      role: actor.role,
+                      conversationId: sessionId,
+                    },
+                    userId: actor.id,
+                    actionType: 'staff_message',
+                    summary: `Send official BEMS message to ${matchedStaff.legalName} (${matchedStaff.employeeNumber})`,
+                    targetEmployeeId: matchedStaff.id,
+                    materialPayload: {
+                      recipientId: matchedStaff.id,
+                      subject: msgSubject,
+                      message: msgBody,
+                      priority: 'HIGH',
+                    },
+                    preview: {
+                      recipient_name: matchedStaff.legalName,
+                      recipient_email: matchedStaff.workEmail,
+                      subject: msgSubject,
+                      message_preview: msgBody,
+                      priority: 'HIGH',
+                    },
+                  });
+                  const dbStaged = await prisma.stagedAction.findUnique({
+                    where: { id: staged.staged_action_id },
+                  });
+                  if (dbStaged) {
+                    const built = buildVerifiedCardFromDbStaged(dbStaged);
+                    verifiedStagedAction = built.saObj;
+                    verifiedActionCard = built.cardObj;
+                  }
+                }
+              }
+            } catch (fallbackErr) {
+              console.warn('[AI Fallback Stager] Non-fatal error:', fallbackErr);
+            }
+          }
+
+          // Persist assistant reply to memory
+          try {
+            await prisma.$executeRaw`
+              INSERT INTO n8n_chat_histories (session_id, message, created_at)
+              VALUES (${sessionId}, ${JSON.stringify({ role: 'assistant', content: reply, timestamp: new Date().toISOString() })}::jsonb, NOW())
+            `;
+          } catch (e) {
+            console.warn('Could not persist assistant reply to memory:', e);
           }
 
           return NextResponse.json({

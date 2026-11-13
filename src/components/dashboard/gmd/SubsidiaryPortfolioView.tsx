@@ -67,6 +67,20 @@ interface RecentRequestItem {
   createdAt: string;
 }
 
+interface GroupStaffPickerItem {
+  id: string;
+  employeeNumber: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  positionName: string;
+  departmentName: string;
+  primarySubsidiaryId: string | null;
+  primarySubsidiaryName: string;
+  subsidiaryIds: string[];
+  grossMonthlySalary: number;
+}
+
 interface SubsidiaryItem {
   id: string;
   name: string;
@@ -76,12 +90,19 @@ interface SubsidiaryItem {
   industry: string;
   initials: string;
   color: string;
+  brandColor?: string;
+  logoUrl?: string | null;
   rcNumber?: string;
+  tinNumber?: string | null;
+  incorporationDate?: string | null;
+  websiteUrl?: string | null;
+  description?: string | null;
   headquarters?: string;
   lead?: {
     name: string;
     role: string;
     email: string;
+    phone?: string | null;
   };
   headcount: number;
   adminCount?: number;
@@ -135,6 +156,7 @@ interface PortfolioData {
     activeNotesCount: number;
   };
   portfolio: SubsidiaryItem[];
+  allGroupStaff?: GroupStaffPickerItem[];
   intercompanyNotes: IntercompanyNoteItem[];
 }
 
@@ -190,19 +212,116 @@ export function SubsidiaryPortfolioView({
   const [staffSearch, setStaffSearch] = useState('');
   const [staffDeptFilter, setStaffDeptFilter] = useState('ALL');
 
-  // Expanded Add Subsidiary Modal State
+  // Expanded Add / Edit Subsidiary Modal State
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [editingSubId, setEditingSubId] = useState<string | null>(null);
   const [newSubName, setNewSubName] = useState('');
   const [newSubCode, setNewSubCode] = useState('');
+  const [newSubType, setNewSubType] = useState('OPERATING_SUBSIDIARY');
   const [newSubIndustry, setNewSubIndustry] = useState('Software & Cloud Services');
   const [newSubRc, setNewSubRc] = useState('');
+  const [newSubTin, setNewSubTin] = useState('');
+  const [newSubIncorpDate, setNewSubIncorpDate] = useState('');
+  const [newSubWebsite, setNewSubWebsite] = useState('');
+  const [newSubDescription, setNewSubDescription] = useState('');
   const [newSubLocation, setNewSubLocation] = useState('Victoria Island, Lagos');
   const [newSubLeadName, setNewSubLeadName] = useState('');
+  const [newSubLeadTitle, setNewSubLeadTitle] = useState('Managing Director / Executive Lead');
   const [newSubLeadEmail, setNewSubLeadEmail] = useState('');
+  const [newSubLeadPhone, setNewSubLeadPhone] = useState('');
   const [newSubBudget, setNewSubBudget] = useState('0');
   const [newSubColor, setNewSubColor] = useState('#ea580c');
+  const [newSubLogoUrl, setNewSubLogoUrl] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [newSubDepts, setNewSubDepts] = useState<string[]>(['General Operations', 'Finance & Accounting']);
+  const [customDeptInput, setCustomDeptInput] = useState('');
+  const [newSubStaffIds, setNewSubStaffIds] = useState<string[]>([]);
+  const [staffTagSearch, setStaffTagSearch] = useState('');
   const [creatingSub, setCreatingSub] = useState(false);
+
+  const openCreateModal = () => {
+    setEditingSubId(null);
+    setNewSubName('');
+    setNewSubCode('');
+    setNewSubType('OPERATING_SUBSIDIARY');
+    setNewSubIndustry('Software & Cloud Services');
+    setNewSubRc('');
+    setNewSubTin('');
+    setNewSubIncorpDate('');
+    setNewSubWebsite('');
+    setNewSubDescription('');
+    setNewSubLocation('Victoria Island, Lagos');
+    setNewSubLeadName('');
+    setNewSubLeadTitle('Managing Director / Executive Lead');
+    setNewSubLeadEmail('');
+    setNewSubLeadPhone('');
+    setNewSubBudget('0');
+    setNewSubColor('#ea580c');
+    setNewSubLogoUrl('');
+    setNewSubDepts(['General Operations', 'Finance & Accounting']);
+    setCustomDeptInput('');
+    setNewSubStaffIds([]);
+    setStaffTagSearch('');
+    setAddModalOpen(true);
+  };
+
+  const openEditModal = (sub: SubsidiaryItem) => {
+    setEditingSubId(sub.id);
+    setNewSubName(sub.name || '');
+    setNewSubCode(sub.code || '');
+    setNewSubType(sub.type || 'OPERATING_SUBSIDIARY');
+    setNewSubIndustry(sub.industry || 'Software & Cloud Services');
+    setNewSubRc(sub.rcNumber && sub.rcNumber !== 'RC-REGISTERED' ? sub.rcNumber : '');
+    setNewSubTin(sub.tinNumber || '');
+    setNewSubIncorpDate(sub.incorporationDate || '');
+    setNewSubWebsite(sub.websiteUrl || '');
+    setNewSubDescription(sub.description || '');
+    setNewSubLocation(sub.headquarters || 'Lagos, Nigeria');
+    setNewSubLeadName(sub.lead?.name || '');
+    setNewSubLeadTitle(sub.lead?.role || 'Managing Director / Executive Lead');
+    setNewSubLeadEmail(sub.lead?.email || '');
+    setNewSubLeadPhone(sub.lead?.phone || '');
+    setNewSubBudget(String(sub.budget || 0));
+    setNewSubColor(sub.brandColor || sub.color || '#ea580c');
+    setNewSubLogoUrl(sub.logoUrl || '');
+    const existingDeptNames = (sub.departments || []).map((d) => d.name);
+    setNewSubDepts(existingDeptNames.length > 0 ? existingDeptNames : ['General Operations', 'Finance & Accounting']);
+    setCustomDeptInput('');
+    setNewSubStaffIds((sub.staff || []).map((s) => s.id));
+    setStaffTagSearch('');
+    setAddModalOpen(true);
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const json = await res.json();
+      if (res.ok && json.url) {
+        setNewSubLogoUrl(json.url);
+      } else {
+        alert(json.error || 'Could not upload subsidiary logo.');
+      }
+    } catch {
+      alert('Network error uploading logo.');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const toggleStaffTag = (empId: string) => {
+    setNewSubStaffIds((prev) =>
+      prev.includes(empId) ? prev.filter((id) => id !== empId) : [...prev, empId]
+    );
+  };
 
   const loadData = () => {
     fetch('/api/portfolio', { credentials: 'include' })
@@ -236,13 +355,15 @@ export function SubsidiaryPortfolioView({
     }).format(amount);
   };
 
-  // Auto-generate code when legal name changes if not manually set
+  // Auto-generate code when legal name changes if not manually set (only in create mode)
   const handleNameChange = (val: string) => {
     setNewSubName(val);
-    const words = val.trim().split(/\s+/).filter(Boolean);
-    if (words.length > 0) {
-      const codeSuggestion = 'BEMS-' + words.map((w) => w[0]).join('').toUpperCase().slice(0, 4);
-      setNewSubCode(codeSuggestion);
+    if (!editingSubId) {
+      const words = val.trim().split(/\s+/).filter(Boolean);
+      if (words.length > 0) {
+        const codeSuggestion = 'BEMS-' + words.map((w) => w[0]).join('').toUpperCase().slice(0, 4);
+        setNewSubCode(codeSuggestion);
+      }
     }
   };
 
@@ -252,44 +373,60 @@ export function SubsidiaryPortfolioView({
     );
   };
 
-  const handleCreateSubsidiary = async (e: React.FormEvent) => {
+  const handleSaveSubsidiary = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSubName.trim()) return;
     setCreatingSub(true);
     try {
-      const res = await fetch('/api/organizations', {
-        method: 'POST',
+      const payload = {
+        name: newSubName.trim(),
+        legalName: newSubName.trim(),
+        code: newSubCode.trim() || undefined,
+        type: newSubType || 'OPERATING_SUBSIDIARY',
+        industry: newSubIndustry.trim() || 'General Business',
+        color: newSubColor,
+        brandColor: newSubColor,
+        logoUrl: newSubLogoUrl.trim() || undefined,
+        rcNumber: newSubRc.trim() || undefined,
+        tinNumber: newSubTin.trim() || undefined,
+        incorporationDate: newSubIncorpDate.trim() || undefined,
+        websiteUrl: newSubWebsite.trim() || undefined,
+        description: newSubDescription.trim() || undefined,
+        headquarters: newSubLocation.trim() || undefined,
+        leadName: newSubLeadName.trim() || undefined,
+        leadTitle: newSubLeadTitle.trim() || undefined,
+        leadEmail: newSubLeadEmail.trim() || undefined,
+        leadPhone: newSubLeadPhone.trim() || undefined,
+        initialBudget: Number(newSubBudget) || 0,
+        monthlyBudget: Number(newSubBudget) || 0,
+        departments: newSubDepts,
+        staffIds: newSubStaffIds,
+      };
+
+      const url = editingSubId ? `/api/organizations/${editingSubId}` : '/api/organizations';
+      const method = editingSubId ? 'PATCH' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newSubName.trim(),
-          code: newSubCode.trim() || undefined,
-          industry: newSubIndustry.trim() || 'General Business',
-          color: newSubColor,
-          rcNumber: newSubRc.trim() || undefined,
-          headquarters: newSubLocation.trim() || undefined,
-          leadName: newSubLeadName.trim() || undefined,
-          leadEmail: newSubLeadEmail.trim() || undefined,
-          initialBudget: Number(newSubBudget) || 0,
-          departments: newSubDepts,
-        }),
+        credentials: 'include',
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
-        setNotice(`Subsidiary "${newSubName}" created and added to Group portfolio!`);
+        setNotice(
+          editingSubId
+            ? `Subsidiary "${newSubName}" profile, executive contacts, and tagged staff updated!`
+            : `Subsidiary "${newSubName}" created and added to Group portfolio!`
+        );
         setAddModalOpen(false);
-        // Reset form
-        setNewSubName('');
-        setNewSubCode('');
-        setNewSubRc('');
-        setNewSubLeadName('');
-        setNewSubLeadEmail('');
-        setNewSubBudget('0');
+        setEditingSubId(null);
         loadData();
       } else {
         const err = await res.json();
-        alert(err.error || 'Failed to create subsidiary');
+        alert(err.error || 'Failed to save subsidiary');
       }
     } catch {
-      alert('Network error creating subsidiary');
+      alert('Network error saving subsidiary');
     } finally {
       setCreatingSub(false);
     }
@@ -530,7 +667,7 @@ export function SubsidiaryPortfolioView({
           </button>
 
           <button
-            onClick={() => setAddModalOpen(true)}
+            onClick={openCreateModal}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -715,7 +852,7 @@ export function SubsidiaryPortfolioView({
                 Register your first company or upload your entity records to start managing budgets, fund requests, and intercompany notes.
               </p>
               <button
-                onClick={() => setAddModalOpen(true)}
+                onClick={openCreateModal}
                 style={{
                   marginTop: '6px',
                   display: 'inline-flex',
@@ -775,22 +912,38 @@ export function SubsidiaryPortfolioView({
                   {/* TITLE & BADGES */}
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-                      <div
-                        style={{
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '7px',
-                          background: sub.color,
-                          color: '#ffffff',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: '800',
-                          fontSize: '11px',
-                        }}
-                      >
-                        {sub.initials}
-                      </div>
+                      {sub.logoUrl ? (
+                        <img
+                          src={sub.logoUrl}
+                          alt={sub.name}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            objectFit: 'contain',
+                            background: '#f8fafc',
+                            border: '1px solid #e2e8f0',
+                            padding: '2px',
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            background: sub.color,
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: '800',
+                            fontSize: '11px',
+                          }}
+                        >
+                          {sub.initials}
+                        </div>
+                      )}
                       <div>
                         <h3 style={{ fontSize: '13px', fontWeight: '750', color: '#0f172a', margin: '0 0 1px 0' }}>
                           {sub.name}
@@ -818,6 +971,30 @@ export function SubsidiaryPortfolioView({
                       }}
                     >
                       ● {sub.status}
+                    </span>
+                  </div>
+
+                  {/* EXECUTIVE LEAD & HEADQUARTERS STRIP */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '10px',
+                      color: '#475569',
+                      background: '#f8fafc',
+                      border: '1px solid #f1f5f9',
+                      borderRadius: '7px',
+                      padding: '5px 8px',
+                      marginBottom: '10px',
+                    }}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      👤 <strong>{sub.lead?.name || 'Managing Director'}</strong>
+                      {sub.lead?.phone ? ` · ${sub.lead.phone}` : ''}
+                    </span>
+                    <span style={{ color: '#64748b', fontFamily: 'monospace', fontSize: '9px', flexShrink: 0, marginLeft: '6px' }}>
+                      {sub.rcNumber || sub.code}
                     </span>
                   </div>
 
@@ -959,7 +1136,7 @@ export function SubsidiaryPortfolioView({
                   </div>
 
                   {/* ACTIONS */}
-                  <div style={{ marginTop: 'auto', display: 'flex', gap: '8px' }}>
+                  <div style={{ marginTop: 'auto', display: 'flex', gap: '6px' }}>
                     {onSelectBusiness && (
                       <button
                         onClick={(e) => {
@@ -979,9 +1156,28 @@ export function SubsidiaryPortfolioView({
                           cursor: 'pointer',
                         }}
                       >
-                        Set Active Company
+                        Set Active
                       </button>
                     )}
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(sub);
+                      }}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: '#f8fafc',
+                        color: '#0f172a',
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ✎ Edit
+                    </button>
 
                     <button
                       onClick={(e) => {
@@ -1286,7 +1482,7 @@ export function SubsidiaryPortfolioView({
       </div>
 
       {/* ========================================================================= */}
-      {/* 1. EXPANDED ENTERPRISE "ADD NEW SUBSIDIARY" MODAL (~740px)                */}
+      {/* 1. EXPANDED ENTERPRISE "ADD / EDIT SUBSIDIARY" MODAL (~920px)              */}
       {/* ========================================================================= */}
       {addModalOpen && (
         <div
@@ -1298,7 +1494,7 @@ export function SubsidiaryPortfolioView({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 9999,
+            zIndex: 10050,
             padding: '20px',
           }}
           onClick={(e) => {
@@ -1310,25 +1506,25 @@ export function SubsidiaryPortfolioView({
               background: '#ffffff',
               borderRadius: '16px',
               padding: '28px',
-              maxWidth: '820px',
-              width: 'min(820px, 94vw)',
-              maxHeight: '90vh',
+              maxWidth: '920px',
+              width: 'min(920px, 95vw)',
+              maxHeight: '92vh',
               overflowY: 'auto',
               boxShadow: '0 25px 50px -12px rgba(15,23,42,0.25)',
               border: '1px solid #e2e8f0',
             }}
           >
             {/* MODAL HEADER */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', paddingBottom: '14px', borderBottom: '1px solid #f1f5f9' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px', paddingBottom: '14px', borderBottom: '1px solid #f1f5f9' }}>
               <div>
-                <span style={{ fontSize: '9px', fontWeight: '800', letterSpacing: '0.12em', color: '#105ee8', textTransform: 'uppercase' }}>
-                  BEMS GROUP HOLDINGS · ONBOARDING DESK
+                <span style={{ fontSize: '9px', fontWeight: '800', letterSpacing: '0.12em', color: '#ea580c', textTransform: 'uppercase' }}>
+                  BEMS GROUP HOLDINGS · {editingSubId ? 'CORPORATE REGISTRY & GOVERNANCE UPDATE' : 'SUBSIDIARY ONBOARDING DESK'}
                 </span>
                 <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', margin: '3px 0 0 0', letterSpacing: '-0.02em' }}>
-                  Register New Subsidiary Entity
+                  {editingSubId ? `Edit Subsidiary Profile — ${newSubName}` : 'Register New Subsidiary Entity'}
                 </h2>
                 <p style={{ fontSize: '11px', color: '#64748b', margin: '3px 0 0 0' }}>
-                  Create an independent corporate workspace with budget allocations, department nodes, and intercompany routing.
+                  Configure corporate registration, logo branding, executive contact details, budget allocations, departments, and tagged staff roster.
                 </p>
               </div>
               <button
@@ -1350,212 +1546,462 @@ export function SubsidiaryPortfolioView({
               </button>
             </div>
 
-            <form onSubmit={handleCreateSubsidiary}>
-              {/* LIVE PREVIEW BADGE */}
+            <form onSubmit={handleSaveSubsidiary}>
+              {/* LIVE PREVIEW & LOGO UPLOAD BAR */}
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '12px',
                   background: '#f8fafc',
                   border: '1px solid #e2e8f0',
-                  borderRadius: '10px',
-                  padding: '10px 14px',
-                  marginBottom: '18px',
+                  borderRadius: '12px',
+                  padding: '12px 16px',
+                  marginBottom: '20px',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div
-                    style={{
-                      width: '34px',
-                      height: '34px',
-                      borderRadius: '8px',
-                      background: newSubColor,
-                      color: '#ffffff',
-                      display: 'grid',
-                      placeItems: 'center',
-                      fontWeight: '800',
-                      fontSize: '13px',
-                    }}
-                  >
-                    {newSubCode ? newSubCode.replace('BEMS-', '').slice(0, 2) || 'BS' : 'BS'}
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {newSubLogoUrl ? (
+                    <img
+                      src={newSubLogoUrl}
+                      alt="Subsidiary Logo"
+                      style={{
+                        width: '46px',
+                        height: '46px',
+                        borderRadius: '10px',
+                        objectFit: 'contain',
+                        background: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        padding: '4px',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '46px',
+                        height: '46px',
+                        borderRadius: '10px',
+                        background: newSubColor,
+                        color: '#ffffff',
+                        display: 'grid',
+                        placeItems: 'center',
+                        fontWeight: '800',
+                        fontSize: '15px',
+                      }}
+                    >
+                      {newSubCode ? newSubCode.replace('BEMS-', '').slice(0, 2) || 'BS' : 'BS'}
+                    </div>
+                  )}
                   <div>
-                    <strong style={{ fontSize: '13px', color: '#0f172a', display: 'block' }}>
+                    <strong style={{ fontSize: '14px', color: '#0f172a', display: 'block' }}>
                       {newSubName.trim() || 'Subsidiary Entity Preview'}
                     </strong>
                     <span style={{ fontSize: '10px', color: '#64748b' }}>
-                      Code: <code style={{ fontWeight: '700', color: '#105ee8' }}>{newSubCode || 'BEMS-NEW'}</code> · {newSubIndustry}
+                      Code: <code style={{ fontWeight: '700', color: '#ea580c' }}>{newSubCode || 'BEMS-NEW'}</code> · {newSubIndustry} · {newSubStaffIds.length} Staff Tagged
                     </span>
                   </div>
                 </div>
-                <span style={{ fontSize: '9px', fontWeight: '700', background: '#ecfdf5', color: '#059669', padding: '3px 8px', borderRadius: '10px' }}>
-                  ● Active Workspace
-                </span>
-              </div>
 
-              {/* 2-COLUMN FORM GRID */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '18px' }}>
-                {/* 1. LEGAL NAME */}
-                <div style={{ gridColumn: 'span 2' }}>
-                  <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
-                    Subsidiary Legal Name <span style={{ color: '#ef4444' }}>*</span>
-                  </label>
-                  <input
-                    required
-                    placeholder="e.g. Bems Energy & Infrastructure Ltd"
-                    value={newSubName}
-                    onChange={(e) => handleNameChange(e.target.value)}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <label
                     style={{
-                      width: '100%',
-                      padding: '8px 12px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 12px',
                       borderRadius: '8px',
                       border: '1px solid #cbd5e1',
-                      fontSize: '12px',
+                      background: '#ffffff',
                       color: '#0f172a',
-                    }}
-                  />
-                </div>
-
-                {/* 2. COMPANY CODE */}
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
-                    Entity Code / Prefix
-                  </label>
-                  <input
-                    placeholder="e.g. BEMS-ENERGY"
-                    value={newSubCode}
-                    onChange={(e) => setNewSubCode(e.target.value.toUpperCase())}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '12px',
-                      fontFamily: 'monospace',
+                      fontSize: '11px',
                       fontWeight: '700',
-                      color: '#0f172a',
-                    }}
-                  />
-                  <small style={{ fontSize: '9px', color: '#64748b', display: 'block', marginTop: '2px' }}>
-                    Used for request prefixes & intercompany note routing.
-                  </small>
-                </div>
-
-                {/* 3. CORPORATE RC NUMBER */}
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
-                    Corporate RC Number
-                  </label>
-                  <input
-                    placeholder="e.g. RC-1849201"
-                    value={newSubRc}
-                    onChange={(e) => setNewSubRc(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '12px',
-                      color: '#0f172a',
-                    }}
-                  />
-                  <small style={{ fontSize: '9px', color: '#64748b', display: 'block', marginTop: '2px' }}>
-                    CAC Registered enterprise identity.
-                  </small>
-                </div>
-
-                {/* 4. INDUSTRY SECTOR */}
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
-                    Industry / Business Line
-                  </label>
-                  <select
-                    value={newSubIndustry}
-                    onChange={(e) => setNewSubIndustry(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '12px',
-                      background: '#fff',
-                      color: '#0f172a',
+                      cursor: 'pointer',
                     }}
                   >
-                    {INDUSTRY_PRESETS.map((ind) => (
-                      <option key={ind} value={ind}>
-                        {ind}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 5. HEADQUARTERS LOCATION */}
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
-                    Operating City
+                    <span>{uploadingLogo ? 'Uploading Logo...' : newSubLogoUrl ? '↻ Change Logo' : '🖼 Upload Subsidiary Logo'}</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={handleLogoUpload}
+                      style={{ display: 'none' }}
+                    />
                   </label>
-                  <input
-                    placeholder="e.g. Victoria Island, Lagos"
-                    value={newSubLocation}
-                    onChange={(e) => setNewSubLocation(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '12px',
-                      color: '#0f172a',
-                    }}
-                  />
+                  {newSubLogoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setNewSubLogoUrl('')}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid #fecaca',
+                        background: '#fef2f2',
+                        color: '#dc2626',
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Remove Logo
+                    </button>
+                  )}
                 </div>
+              </div>
 
-                {/* 6. MANAGING DIRECTOR / LEAD */}
+              {/* SECTION 1: CORPORATE IDENTITY & REGISTRATION */}
+              <div style={{ marginBottom: '18px' }}>
+                <div style={{ fontSize: '10px', fontWeight: '800', letterSpacing: '0.08em', color: '#ea580c', textTransform: 'uppercase', marginBottom: '10px' }}>
+                  1. Corporate Identity & Statutory Registration
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                  {/* LEGAL NAME */}
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      Subsidiary Legal Name <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      required
+                      placeholder="e.g. Bems Energy & Infrastructure Ltd"
+                      value={newSubName}
+                      onChange={(e) => handleNameChange(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+
+                  {/* ENTITY CODE */}
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      Entity Code / Prefix
+                    </label>
+                    <input
+                      placeholder="e.g. BEMS-ENERGY"
+                      value={newSubCode}
+                      onChange={(e) => setNewSubCode(e.target.value.toUpperCase())}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        fontFamily: 'monospace',
+                        fontWeight: '700',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+
+                  {/* ENTITY CLASSIFICATION TYPE */}
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      Entity Classification
+                    </label>
+                    <select
+                      value={newSubType}
+                      onChange={(e) => setNewSubType(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        background: '#fff',
+                        color: '#0f172a',
+                      }}
+                    >
+                      <option value="OPERATING_SUBSIDIARY">Operating Commercial Subsidiary</option>
+                      <option value="TECH_IP_ENTITY">Technology & Digital IP Entity</option>
+                      <option value="AGRICULTURAL_HUB">Agricultural & Agro-Allied Hub</option>
+                      <option value="SPECIAL_PURPOSE_VEHICLE">Special Purpose Vehicle (SPV)</option>
+                      <option value="INFRASTRUCTURE_SITE">Infrastructure & Project Site</option>
+                      <option value="REGIONAL_OFFICE">Regional Directorate Office</option>
+                    </select>
+                  </div>
+
+                  {/* INDUSTRY SECTOR */}
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      Industry / Business Sector
+                    </label>
+                    <input
+                      list="industry-presets-list"
+                      placeholder="e.g. Software & Cloud Services"
+                      value={newSubIndustry}
+                      onChange={(e) => setNewSubIndustry(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        background: '#fff',
+                        color: '#0f172a',
+                      }}
+                    />
+                    <datalist id="industry-presets-list">
+                      {INDUSTRY_PRESETS.map((ind) => (
+                        <option key={ind} value={ind} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  {/* CAC RC NUMBER */}
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      CAC Corporate RC Number
+                    </label>
+                    <input
+                      placeholder="e.g. RC-1849201"
+                      value={newSubRc}
+                      onChange={(e) => setNewSubRc(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+
+                  {/* TAX ID (TIN) */}
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      FIRS Tax Identification (TIN)
+                    </label>
+                    <input
+                      placeholder="e.g. 24910482-0001"
+                      value={newSubTin}
+                      onChange={(e) => setNewSubTin(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+
+                  {/* INCORPORATION DATE */}
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      Incorporation Date
+                    </label>
+                    <input
+                      type="date"
+                      value={newSubIncorpDate}
+                      onChange={(e) => setNewSubIncorpDate(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+
+                  {/* WEBSITE URL */}
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      Official Website / Portal
+                    </label>
+                    <input
+                      placeholder="e.g. https://bemssofthub.com"
+                      value={newSubWebsite}
+                      onChange={(e) => setNewSubWebsite(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+
+                  {/* HEADQUARTERS ADDRESS */}
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      Headquarters Address / Operating City
+                    </label>
+                    <input
+                      placeholder="e.g. Plot 14, Victoria Island, Lagos, Nigeria"
+                      value={newSubLocation}
+                      onChange={(e) => setNewSubLocation(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+
+                  {/* BRAND COLOR */}
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '6px' }}>
+                      Brand Color Accent
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {COLOR_PALETTE.map((c) => (
+                        <button
+                          key={c.hex}
+                          type="button"
+                          onClick={() => setNewSubColor(c.hex)}
+                          title={c.label}
+                          style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '6px',
+                            background: c.hex,
+                            border: newSubColor === c.hex ? '3px solid #0f172a' : '1px solid transparent',
+                            cursor: 'pointer',
+                            display: 'grid',
+                            placeItems: 'center',
+                            color: '#fff',
+                            fontSize: '12px',
+                          }}
+                        >
+                          {newSubColor === c.hex && '✓'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* CORPORATE DESCRIPTION / MANDATE */}
+                  <div style={{ gridColumn: 'span 3' }}>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      Corporate Mandate & Operational Description
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Describe the subsidiary's core business mandate, products, target markets, and operational scope within BEMS Group..."
+                      value={newSubDescription}
+                      onChange={(e) => setNewSubDescription(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        color: '#0f172a',
+                        resize: 'vertical',
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: EXECUTIVE CONTACT INFORMATION */}
+              <div style={{ marginBottom: '18px', background: '#f8fafc', padding: '14px 16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '10px', fontWeight: '800', letterSpacing: '0.08em', color: '#ea580c', textTransform: 'uppercase', marginBottom: '10px' }}>
+                  2. Executive Leadership & Direct Contact Details
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      Executive Contact Name
+                    </label>
+                    <input
+                      placeholder="e.g. Engr. Tunde Adeleke"
+                      value={newSubLeadName}
+                      onChange={(e) => setNewSubLeadName(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        background: '#ffffff',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      Executive Title / Role
+                    </label>
+                    <input
+                      placeholder="e.g. Managing Director"
+                      value={newSubLeadTitle}
+                      onChange={(e) => setNewSubLeadTitle(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        background: '#ffffff',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      Executive Contact Phone
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="e.g. +234 803 000 0000"
+                      value={newSubLeadPhone}
+                      onChange={(e) => setNewSubLeadPhone(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        background: '#ffffff',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
+                      Executive Contact Email
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="e.g. md@bemsgroup.com"
+                      value={newSubLeadEmail}
+                      onChange={(e) => setNewSubLeadEmail(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        background: '#ffffff',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: BUDGET & DEPARTMENTS */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '14px', marginBottom: '18px' }}>
                 <div>
                   <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
-                    Managing Director / Executive Lead
-                  </label>
-                  <input
-                    placeholder="e.g. Engr. Tunde Adeleke"
-                    value={newSubLeadName}
-                    onChange={(e) => setNewSubLeadName(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '12px',
-                      color: '#0f172a',
-                    }}
-                  />
-                </div>
-
-                {/* 7. LEAD EMAIL */}
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
-                    Executive Contact Email
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="e.g. executive@bemsgroup.com"
-                    value={newSubLeadEmail}
-                    onChange={(e) => setNewSubLeadEmail(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '12px',
-                      color: '#0f172a',
-                    }}
-                  />
-                </div>
-
-                {/* 8. INITIAL MONTHLY BUDGET ALLOCATION */}
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '4px' }}>
-                    Initial Monthly Budget (NGN ₦)
+                    3. Monthly Budget Allocation (NGN ₦)
                   </label>
                   <input
                     type="number"
@@ -1572,49 +2018,17 @@ export function SubsidiaryPortfolioView({
                       fontWeight: '700',
                     }}
                   />
-                  <small style={{ fontSize: '9px', color: '#059669', display: 'block', marginTop: '2px', fontWeight: '600' }}>
-                    {formatNaira(Number(newSubBudget) || 0)} allocated for Q4.
+                  <small style={{ fontSize: '9px', color: '#059669', display: 'block', marginTop: '3px', fontWeight: '600' }}>
+                    {formatNaira(Number(newSubBudget) || 0)} monthly operational allocation.
                   </small>
                 </div>
 
-                {/* 9. BRAND COLOR */}
                 <div>
                   <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '6px' }}>
-                    Entity Brand Color Accent
+                    Core Operating Departments
                   </label>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    {COLOR_PALETTE.map((c) => (
-                      <button
-                        key={c.hex}
-                        type="button"
-                        onClick={() => setNewSubColor(c.hex)}
-                        title={c.label}
-                        style={{
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '6px',
-                          background: c.hex,
-                          border: newSubColor === c.hex ? '3px solid #0f172a' : '1px solid transparent',
-                          cursor: 'pointer',
-                          display: 'grid',
-                          placeItems: 'center',
-                          color: '#fff',
-                          fontSize: '12px',
-                        }}
-                      >
-                        {newSubColor === c.hex && '✓'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 10. INITIAL DEPARTMENTS */}
-                <div style={{ gridColumn: 'span 2' }}>
-                  <label style={{ fontSize: '11px', fontWeight: '750', color: '#1e293b', display: 'block', marginBottom: '6px' }}>
-                    Core Initial Departments
-                  </label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {DEPARTMENT_PRESETS.map((dept) => {
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                    {Array.from(new Set([...DEPARTMENT_PRESETS, ...newSubDepts])).map((dept) => {
                       const selected = newSubDepts.includes(dept);
                       return (
                         <button
@@ -1640,6 +2054,170 @@ export function SubsidiaryPortfolioView({
                       );
                     })}
                   </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                      placeholder="Add custom department name..."
+                      value={customDeptInput}
+                      onChange={(e) => setCustomDeptInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && customDeptInput.trim()) {
+                          e.preventDefault();
+                          if (!newSubDepts.includes(customDeptInput.trim())) {
+                            setNewSubDepts((prev) => [...prev, customDeptInput.trim()]);
+                          }
+                          setCustomDeptInput('');
+                        }
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '6px 10px',
+                        borderRadius: '7px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '11px',
+                        color: '#0f172a',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (customDeptInput.trim() && !newSubDepts.includes(customDeptInput.trim())) {
+                          setNewSubDepts((prev) => [...prev, customDeptInput.trim()]);
+                          setCustomDeptInput('');
+                        }
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '7px',
+                        border: '1px solid #cbd5e1',
+                        background: '#f8fafc',
+                        color: '#0f172a',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      + Add Dept
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 4: TAG / ASSIGN STAFF TO SUBSIDIARY */}
+              <div style={{ marginBottom: '18px', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 16px', background: '#ffffff' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+                  <div>
+                    <span style={{ fontSize: '10px', fontWeight: '800', letterSpacing: '0.08em', color: '#ea580c', textTransform: 'uppercase', display: 'block' }}>
+                      4. Tag & Assign Staff to Subsidiary ({newSubStaffIds.length} Selected)
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>
+                      Select staff members across BEMS Group to tag and assign to this subsidiary&apos;s active roster.
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      placeholder="Search staff by name, role, ID..."
+                      value={staffTagSearch}
+                      onChange={(e) => setStaffTagSearch(e.target.value)}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '7px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '11px',
+                        width: '210px',
+                        color: '#0f172a',
+                      }}
+                    />
+                    {newSubStaffIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setNewSubStaffIds([])}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          background: '#f8fafc',
+                          color: '#475569',
+                          fontSize: '10px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    maxHeight: '210px',
+                    overflowY: 'auto',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(255px, 1fr))',
+                    gap: '8px',
+                    padding: '4px',
+                  }}
+                >
+                  {(data?.allGroupStaff || [])
+                    .filter((emp) => {
+                      const q = staffTagSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return (
+                        emp.name.toLowerCase().includes(q) ||
+                        emp.employeeNumber.toLowerCase().includes(q) ||
+                        emp.positionName.toLowerCase().includes(q) ||
+                        emp.primarySubsidiaryName.toLowerCase().includes(q)
+                      );
+                    })
+                    .map((emp) => {
+                      const isTagged = newSubStaffIds.includes(emp.id);
+                      return (
+                        <div
+                          key={emp.id}
+                          onClick={() => toggleStaffTag(emp.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '8px',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: isTagged ? '1.5px solid #ea580c' : '1px solid #e2e8f0',
+                            background: isTagged ? '#fff7ed' : '#f8fafc',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <strong style={{ fontSize: '11px', color: '#0f172a', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {emp.name}
+                            </strong>
+                            <span style={{ fontSize: '9px', color: '#64748b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {emp.positionName} · {emp.primarySubsidiaryName}
+                            </span>
+                            <span style={{ fontSize: '9px', color: '#059669', fontWeight: '700' }}>
+                              {formatNaira(emp.grossMonthlySalary)}/mo
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              width: '20px',
+                              height: '20px',
+                              borderRadius: '5px',
+                              background: isTagged ? '#ea580c' : '#ffffff',
+                              border: isTagged ? 'none' : '1px solid #cbd5e1',
+                              color: '#ffffff',
+                              display: 'grid',
+                              placeItems: 'center',
+                              fontSize: '11px',
+                              fontWeight: '800',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isTagged ? '✓' : ''}
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
 
@@ -1676,7 +2254,11 @@ export function SubsidiaryPortfolioView({
                     boxShadow: '0 3px 8px rgba(234,88,12,0.25)',
                   }}
                 >
-                  {creatingSub ? 'Creating Workspace...' : 'Create Subsidiary Workspace →'}
+                  {creatingSub
+                    ? 'Saving Subsidiary...'
+                    : editingSubId
+                    ? 'Save Subsidiary Profile & Tagged Staff →'
+                    : 'Create Subsidiary Workspace →'}
                 </button>
               </div>
             </form>
@@ -1732,22 +2314,38 @@ export function SubsidiaryPortfolioView({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div
-                  style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '11px',
-                    background: dossierSub.color,
-                    color: '#ffffff',
-                    display: 'grid',
-                    placeItems: 'center',
-                    fontWeight: '800',
-                    fontSize: '17px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                  }}
-                >
-                  {dossierSub.initials}
-                </div>
+                {dossierSub.logoUrl ? (
+                  <img
+                    src={dossierSub.logoUrl}
+                    alt={dossierSub.name}
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '11px',
+                      objectFit: 'contain',
+                      background: '#ffffff',
+                      padding: '4px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '11px',
+                      background: dossierSub.color,
+                      color: '#ffffff',
+                      display: 'grid',
+                      placeItems: 'center',
+                      fontWeight: '800',
+                      fontSize: '17px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                    }}
+                  >
+                    {dossierSub.initials}
+                  </div>
+                )}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '3px' }}>
                     <span style={{ fontSize: '9px', fontWeight: '800', letterSpacing: '0.12em', color: '#93c5fd', textTransform: 'uppercase' }}>
@@ -1763,18 +2361,48 @@ export function SubsidiaryPortfolioView({
                   <h2 style={{ fontSize: '19px', fontWeight: '800', margin: '0 0 4px 0', letterSpacing: '-0.02em' }}>
                     {dossierSub.name}
                   </h2>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '11px', color: '#cbd5e1' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '11px', color: '#cbd5e1' }}>
                     <span>{dossierSub.industry}</span>
                     <span>•</span>
-                    <span>{dossierSub.rcNumber || 'RC-1849201'}</span>
+                    <span>{dossierSub.rcNumber || 'RC-REGISTERED'}</span>
+                    {dossierSub.tinNumber && (
+                      <>
+                        <span>•</span>
+                        <span>TIN: {dossierSub.tinNumber}</span>
+                      </>
+                    )}
                     <span>•</span>
                     <span>{dossierSub.headquarters || 'Lagos, Nigeria'}</span>
+                    {dossierSub.lead?.name && (
+                      <>
+                        <span>•</span>
+                        <span style={{ color: '#fdba74', fontWeight: '600' }}>
+                          Lead: {dossierSub.lead.name} {dossierSub.lead.phone ? `(${dossierSub.lead.phone})` : ''}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* HEADER ACTIONS */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => openEditModal(dossierSub)}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: '7px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                    color: '#ffffff',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(234,88,12,0.35)',
+                  }}
+                >
+                  ✎ Edit Subsidiary & Tag Staff
+                </button>
                 {onSelectBusiness && (
                   <button
                     onClick={() => {
@@ -1922,7 +2550,7 @@ export function SubsidiaryPortfolioView({
 
             {/* TAB CONTENTS (SCROLLABLE BODY) */}
             <div style={{ padding: '22px 26px', overflowY: 'auto', flex: 1 }}>
-              {/* TAB 1: FINANCIALS */}
+              {/* TAB 1: FINANCIALS & CORPORATE OVERVIEW */}
               {dossierTab === 'financials' && (
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '18px' }}>
@@ -1971,6 +2599,119 @@ export function SubsidiaryPortfolioView({
                           borderRadius: '4px',
                         }}
                       />
+                    </div>
+                  </div>
+
+                  {/* COMPREHENSIVE CORPORATE REGISTRATION & EXECUTIVE CONTACT DOSSIER */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: '14px', marginBottom: '18px' }}>
+                    {/* STATUTORY REGISTRATION & MANDATE */}
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '9px', fontWeight: '800', color: '#ea580c', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                          Statutory Corporate Registration & Mandate
+                        </span>
+                        <button
+                          onClick={() => openEditModal(dossierSub)}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            color: '#0f172a',
+                            fontSize: '10px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ✎ Edit Details
+                        </button>
+                      </div>
+
+                      <p style={{ fontSize: '11px', color: '#334155', margin: '0 0 12px 0', lineHeight: 1.55 }}>
+                        {dossierSub.description || `${dossierSub.name} operates as an autonomous business unit within BEMS Group focusing on ${dossierSub.industry.toLowerCase()}, governed under unified treasury, payroll, and executive expenditure controls.`}
+                      </p>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', background: '#ffffff', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <div>
+                          <small style={{ fontSize: '8px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', display: 'block' }}>CAC RC Number</small>
+                          <strong style={{ fontSize: '11px', color: '#0f172a', fontFamily: 'monospace' }}>{dossierSub.rcNumber || 'RC-REGISTERED'}</strong>
+                        </div>
+                        <div>
+                          <small style={{ fontSize: '8px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Tax ID (TIN)</small>
+                          <strong style={{ fontSize: '11px', color: '#0f172a', fontFamily: 'monospace' }}>{dossierSub.tinNumber || 'FIRS-VERIFIED'}</strong>
+                        </div>
+                        <div>
+                          <small style={{ fontSize: '8px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Incorporated</small>
+                          <strong style={{ fontSize: '11px', color: '#0f172a' }}>{dossierSub.incorporationDate || 'Active Entity'}</strong>
+                        </div>
+                        <div>
+                          <small style={{ fontSize: '8px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Entity Code</small>
+                          <strong style={{ fontSize: '11px', color: '#ea580c', fontFamily: 'monospace' }}>{dossierSub.code}</strong>
+                        </div>
+                        <div>
+                          <small style={{ fontSize: '8px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Monthly Payroll</small>
+                          <strong style={{ fontSize: '11px', color: '#059669' }}>{formatNaira(totalMonthlyPayroll)}</strong>
+                        </div>
+                        <div>
+                          <small style={{ fontSize: '8px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Website</small>
+                          <strong style={{ fontSize: '10px', color: '#105ee8', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {dossierSub.websiteUrl || 'bemsgroup.com'}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* EXECUTIVE CONTACT CARD */}
+                    <div style={{ background: '#ffffff', border: '1px solid #fed7aa', borderRadius: '12px', padding: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '9px', fontWeight: '800', color: '#ea580c', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                          Executive Contact & Directorate Lead
+                        </span>
+                        <span style={{ fontSize: '9px', fontWeight: '700', background: '#fff7ed', color: '#ea580c', padding: '2px 7px', borderRadius: '10px' }}>
+                          Authorized Signatory
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                        <div
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            background: dossierSub.color,
+                            color: '#ffffff',
+                            display: 'grid',
+                            placeItems: 'center',
+                            fontWeight: '800',
+                            fontSize: '13px',
+                          }}
+                        >
+                          {(dossierSub.lead?.name || 'MD').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <strong style={{ fontSize: '13px', color: '#0f172a', display: 'block' }}>
+                            {dossierSub.lead?.name || 'Managing Director'}
+                          </strong>
+                          <span style={{ fontSize: '10px', color: '#64748b' }}>
+                            {dossierSub.lead?.role || 'Managing Director / Executive Lead'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', fontSize: '11px', color: '#334155', background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Phone size={12} style={{ color: '#ea580c', flexShrink: 0 }} />
+                          <span><strong>Phone:</strong> {dossierSub.lead?.phone || 'Not set — click Edit to add phone'}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Mail size={12} style={{ color: '#ea580c', flexShrink: 0 }} />
+                          <span><strong>Email:</strong> {dossierSub.lead?.email || `executive@${dossierSub.code.toLowerCase()}.bemsgroup.com`}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <MapPin size={12} style={{ color: '#ea580c', flexShrink: 0 }} />
+                          <span><strong>HQ:</strong> {dossierSub.headquarters || 'Lagos, Nigeria'}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -2030,6 +2771,25 @@ export function SubsidiaryPortfolioView({
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => openEditModal(dossierSub)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '6px 12px',
+                          borderRadius: '7px',
+                          border: 'none',
+                          background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                          color: '#ffffff',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Plus size={12} /> Tag / Assign Staff
+                      </button>
+
                       {/* SEARCH INPUT */}
                       <div style={{ position: 'relative' }}>
                         <Search size={13} style={{ position: 'absolute', left: '10px', top: '9px', color: '#64748b' }} />
@@ -2422,9 +3182,26 @@ export function SubsidiaryPortfolioView({
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '16px' }}>
                     {/* LEADERSHIP PROFILE */}
                     <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
-                      <span style={{ fontSize: '9px', fontWeight: '800', color: '#ea580c', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
-                        EXECUTIVE LEADERSHIP
-                      </span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '9px', fontWeight: '800', color: '#ea580c', textTransform: 'uppercase' }}>
+                          EXECUTIVE LEADERSHIP & CONTACTS
+                        </span>
+                        <button
+                          onClick={() => openEditModal(dossierSub)}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            color: '#0f172a',
+                            fontSize: '10px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ✎ Edit Contact
+                        </button>
+                      </div>
                       <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 2px 0' }}>
                         {dossierSub.lead?.name || 'Managing Director'}
                       </h4>
@@ -2433,6 +3210,10 @@ export function SubsidiaryPortfolioView({
                       </p>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', color: '#334155' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Phone size={12} style={{ color: '#ea580c' }} />
+                          <span>{dossierSub.lead?.phone || 'Phone not set — click Edit Contact'}</span>
+                        </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <Mail size={12} style={{ color: '#64748b' }} />
                           <span>{dossierSub.lead?.email || `executive@${dossierSub.code.toLowerCase()}.bemsgroup.com`}</span>
@@ -2443,7 +3224,7 @@ export function SubsidiaryPortfolioView({
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <Briefcase size={12} style={{ color: '#64748b' }} />
-                          <span>Registration: {dossierSub.rcNumber || 'RC-1849201'}</span>
+                          <span>CAC: {dossierSub.rcNumber || 'RC-1849201'} {dossierSub.tinNumber ? `· TIN: ${dossierSub.tinNumber}` : ''}</span>
                         </div>
                       </div>
 

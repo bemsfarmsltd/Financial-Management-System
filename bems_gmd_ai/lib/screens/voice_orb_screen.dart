@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 import '../services/bemi_voice_service.dart';
 import '../services/chat_storage_service.dart';
 import '../widgets/kinetic_molten_orb.dart';
@@ -16,6 +17,8 @@ class VoiceOrbScreen extends StatefulWidget {
 class _VoiceOrbScreenState extends State<VoiceOrbScreen> with SingleTickerProviderStateMixin {
   bool _isListening = true;
   bool _isSpeaking = false;
+  bool _isLoadingLiveResponse = false;
+  String? _liveAiResponse;
   int _sampleIndex = 0;
   String _selectedPersona = 'Arya';
   final List<String> _personas = ['Arya (Executive)', 'Nova (Analytical)', 'Atlas (Tactical)'];
@@ -55,23 +58,51 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen> with SingleTickerProvid
     super.dispose();
   }
 
-  void _toggleVoiceState() {
-    setState(() {
-      if (_isListening) {
-        _isListening = false;
-        _isSpeaking = true;
-        BemiVoiceService.speak(
-          'Your BEMS Group ledger intelligence and expenditure queues are synchronized. ${_samplePrompts[_sampleIndex]}',
-          force: true,
-        );
-      } else if (_isSpeaking) {
-        _isSpeaking = false;
-        _isListening = true;
-        BemiVoiceService.stop();
-      } else {
-        _isListening = true;
+  Future<void> _toggleVoiceState() async {
+    if (_isSpeaking) {
+      await BemiVoiceService.stop();
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+          _isListening = true;
+        });
       }
+      return;
+    }
+
+    if (_isLoadingLiveResponse) return;
+
+    final query = _samplePrompts[_sampleIndex];
+    setState(() {
+      _isListening = false;
+      _isLoadingLiveResponse = true;
+      _liveAiResponse = 'Consulting live BEMS Group intelligence for: "$query"...';
     });
+
+    try {
+      final res = await ApiService.sendAiMessage(
+        message: query,
+        history: const [],
+        agentMode: 'auto',
+      );
+      final reply = (res['message'] ?? 'Your BEMS Group ledger intelligence and expenditure queues are synchronized.').toString();
+      if (!mounted) return;
+      setState(() {
+        _isLoadingLiveResponse = false;
+        _isSpeaking = true;
+        _liveAiResponse = reply;
+      });
+      await BemiVoiceService.speak(reply, force: true);
+    } catch (_) {
+      final fallback = 'Your BEMS Group ledger intelligence and expenditure queues are synchronized. $query';
+      if (!mounted) return;
+      setState(() {
+        _isLoadingLiveResponse = false;
+        _isSpeaking = true;
+        _liveAiResponse = fallback;
+      });
+      await BemiVoiceService.speak(fallback, force: true);
+    }
   }
 
   @override
@@ -271,12 +302,13 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen> with SingleTickerProvid
                 child: GestureDetector(
                   onTap: () {
                     setState(() {
+                      _liveAiResponse = null;
                       _sampleIndex = (_sampleIndex + 1) % _samplePrompts.length;
                     });
                   },
                   child: DynamicStreamingText(
-                    key: ValueKey(currentPrompt),
-                    text: currentPrompt,
+                    key: ValueKey(_liveAiResponse ?? currentPrompt),
+                    text: _liveAiResponse ?? currentPrompt,
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,

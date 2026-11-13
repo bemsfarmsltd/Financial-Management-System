@@ -15,6 +15,11 @@ import {
   Volume2,
   VolumeX,
   History,
+  Paperclip,
+  Mic,
+  MicOff,
+  FileText,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useAiFinancialManager } from './useAiFinancialManager';
 import { AiChatHistoryDrawer } from './AiChatHistoryDrawer';
@@ -44,10 +49,12 @@ interface Props {
   onNavigate?: (tab: string) => void;
   sharedMessages?: AiMessage[];
   sharedIsTyping?: boolean;
-  onSendMessage?: (text: string) => void;
+  onSendMessage?: (text: string, elementContext?: any, attachments?: any[]) => void;
   onConfirmAction?: (messageId: string, actionType: string, payload: any) => void;
   onCancelAction?: (messageId: string, stagedActionId: string) => void;
   onNewChat?: () => void;
+  agentMode?: 'financial' | 'hr' | 'both' | 'auto';
+  onSetAgentMode?: (mode: 'financial' | 'hr' | 'both' | 'auto') => void;
 }
 
 export function AiFinancialManagerDrawer({
@@ -66,13 +73,22 @@ export function AiFinancialManagerDrawer({
   onConfirmAction,
   onCancelAction,
   onNewChat,
+  agentMode: propAgentMode,
+  onSetAgentMode: propSetAgentMode,
 }: Props) {
   const isGroupScope = !businessName || isBemsGroup({ id: businessId }) || businessName === 'BEMS Group';
   const [isExpanded, setIsExpanded] = useState(false);
   const [inputText, setInputText] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<any[]>([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [isListeningVoice, setIsListeningVoice] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastPromptSentRef = useRef<string | null>(null);
+  const lastSpokenMessageIdRef = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   const internalAi = useAiFinancialManager({
     userRole,
@@ -88,6 +104,102 @@ export function AiFinancialManagerDrawer({
   const handleConfirmAction = onConfirmAction || internalAi.handleConfirmAction;
   const handleCancelAction = onCancelAction || internalAi.handleCancelAction;
   const startNewChat = onNewChat || internalAi.startNewChat;
+  const activeAgentMode = propAgentMode || internalAi.agentMode || 'auto';
+  const setAgentMode = propSetAgentMode || internalAi.setAgentMode;
+
+  const speakText = (text: string, msgId?: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const cleanText = text
+        .replace(/[#*_`~>-]/g, ' ')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!cleanText) return;
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.rate = 1.03;
+      utterance.pitch = 1.0;
+      if (msgId) setSpeakingMessageId(msgId);
+      utterance.onend = () => setSpeakingMessageId(null);
+      utterance.onerror = () => setSpeakingMessageId(null);
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      setSpeakingMessageId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!soundEnabled || messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.sender === 'assistant' && lastMsg.id !== 'welcome' && lastMsg.id !== lastSpokenMessageIdRef.current) {
+      lastSpokenMessageIdRef.current = lastMsg.id;
+      speakText(lastMsg.content, lastMsg.id);
+    }
+  }, [messages, soundEnabled]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setIsUploadingAttachment(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/ai/attachments', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        if (res.ok && data.attachment) {
+          setPendingAttachments((prev) => [...prev, data.attachment]);
+        }
+      }
+    } catch (err) {
+      console.error('Attachment upload error:', err);
+    } finally {
+      setIsUploadingAttachment(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const toggleVoiceDictation = () => {
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
+      return;
+    }
+
+    if (isListeningVoice && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListeningVoice(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => setIsListeningVoice(true);
+      recognition.onresult = (event: any) => {
+        const transcript = event.results?.[0]?.[0]?.transcript || '';
+        if (transcript) {
+          setInputText((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        }
+      };
+      recognition.onerror = () => setIsListeningVoice(false);
+      recognition.onend = () => setIsListeningVoice(false);
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch {
+      setIsListeningVoice(false);
+    }
+  };
 
   // If launched with an initial prompt from the ambient HUD, send it automatically
   useEffect(() => {
@@ -124,9 +236,12 @@ export function AiFinancialManagerDrawer({
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
-    sendMessage(inputText.trim());
+    if (!inputText.trim() && pendingAttachments.length === 0) return;
+    const textToSend = inputText.trim() || `Attached ${pendingAttachments.map((a) => a.fileName).join(', ')} for analysis.`;
+    const attachmentsToSend = [...pendingAttachments];
+    setPendingAttachments([]);
     setInputText('');
+    sendMessage(textToSend, undefined, attachmentsToSend);
   };
 
   const modalWidth = isExpanded ? 'min(1560px, calc(100vw - 28px))' : 'min(1240px, calc(100vw - 48px))';
@@ -214,7 +329,50 @@ export function AiFinancialManagerDrawer({
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {/* Agent Mode Selector Pills */}
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px',
+                background: 'rgba(241, 245, 249, 0.9)',
+                padding: '3px',
+                borderRadius: '999px',
+                border: '1px solid #e2e8f0',
+              }}
+            >
+              {([
+                { id: 'auto', label: '✦ Auto', activeColor: '#334155', activeBg: '#ffffff' },
+                { id: 'both', label: '✦ Both', activeColor: '#7c3aed', activeBg: '#f5f3ff' },
+                { id: 'financial', label: '⚡ Finance', activeColor: '#ea580c', activeBg: '#fff7ed' },
+                { id: 'hr', label: '👥 HR Ops', activeColor: '#0284c7', activeBg: '#f0f9ff' },
+              ] as const).map((pill) => {
+                const isActive = activeAgentMode === pill.id;
+                return (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    onClick={() => setAgentMode && setAgentMode(pill.id)}
+                    style={{
+                      background: isActive ? pill.activeBg : 'transparent',
+                      color: isActive ? pill.activeColor : '#64748b',
+                      border: isActive ? '1px solid rgba(15, 23, 42, 0.08)' : '1px solid transparent',
+                      borderRadius: '999px',
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      fontWeight: isActive ? 800 : 600,
+                      cursor: 'pointer',
+                      boxShadow: isActive ? '0 1px 3px rgba(15, 23, 42, 0.08)' : 'none',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {pill.label}
+                  </button>
+                );
+              })}
+            </div>
+
             <button
               type="button"
               title="View past executive chat sessions"
@@ -361,6 +519,35 @@ export function AiFinancialManagerDrawer({
                   </span>
                   <span>·</span>
                   <span>{msg.timestamp}</span>
+                  {!isUser && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (speakingMessageId === msg.id) {
+                          window.speechSynthesis?.cancel();
+                          setSpeakingMessageId(null);
+                        } else {
+                          speakText(msg.content, msg.id);
+                        }
+                      }}
+                      style={{
+                        background: speakingMessageId === msg.id ? '#fff7ed' : 'transparent',
+                        border: speakingMessageId === msg.id ? '1px solid #fdba74' : 'none',
+                        borderRadius: '999px',
+                        padding: '1px 6px',
+                        fontSize: '9.5px',
+                        fontWeight: 700,
+                        color: speakingMessageId === msg.id ? '#ea580c' : '#64748b',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                      }}
+                    >
+                      <Volume2 size={10} />
+                      {speakingMessageId === msg.id ? 'Stop' : 'Listen'}
+                    </button>
+                  )}
                 </div>
 
                 <div
@@ -555,6 +742,58 @@ export function AiFinancialManagerDrawer({
           onSelectPrompt={(prompt) => sendMessage(prompt)}
         />
 
+        {/* Pending Attachments Preview Strip */}
+        {pendingAttachments.length > 0 && (
+          <div
+            style={{
+              padding: '8px 18px',
+              background: 'rgba(255, 247, 237, 0.85)',
+              borderTop: '1px solid #fed7aa',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flexWrap: 'wrap',
+            }}
+          >
+            {pendingAttachments.map((att, idx) => (
+              <div
+                key={att.id || idx}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: '#ffffff',
+                  border: '1px solid #fdba74',
+                  borderRadius: '8px',
+                  padding: '4px 10px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: '#9a3412',
+                }}
+              >
+                {att.isImage ? <ImageIcon size={12} color="#ea580c" /> : <FileText size={12} color="#ea580c" />}
+                <span style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {att.fileName}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#9a3412',
+                    cursor: 'pointer',
+                    padding: 0,
+                    display: 'inline-flex',
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Input Bar */}
         <form
           onSubmit={handleSend}
@@ -563,15 +802,68 @@ export function AiFinancialManagerDrawer({
             background: 'rgba(255, 255, 255, 0.35)',
             borderTop: '1px solid rgba(255, 255, 255, 0.50)',
             display: 'flex',
-            gap: '10px',
+            gap: '8px',
             alignItems: 'center',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
           }}
         >
           <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,.pdf,.csv,.txt,.json,.md"
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            title="Attach File or Picture (Invoice, Receipt, Screenshot, CSV, PDF)"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploadingAttachment}
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              background: pendingAttachments.length > 0 ? '#fff7ed' : 'rgba(255, 255, 255, 0.75)',
+              border: pendingAttachments.length > 0 ? '1px solid #fdba74' : '1px solid #e2e8f0',
+              color: pendingAttachments.length > 0 ? '#ea580c' : '#475569',
+              display: 'grid',
+              placeItems: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            <Paperclip size={16} />
+          </button>
+
+          <button
+            type="button"
+            title={isListeningVoice ? 'Stop Voice Dictation' : 'Speak to BEMi (Voice Control)'}
+            onClick={toggleVoiceDictation}
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              background: isListeningVoice ? '#fef2f2' : 'rgba(255, 255, 255, 0.75)',
+              border: isListeningVoice ? '1px solid #fca5a5' : '1px solid #e2e8f0',
+              color: isListeningVoice ? '#dc2626' : '#475569',
+              display: 'grid',
+              placeItems: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            {isListeningVoice ? <MicOff size={16} /> : <Mic size={16} />}
+          </button>
+
+          <input
             type="text"
-            placeholder="Ask anything or instruct: e.g. What needs my attention today?"
+            placeholder={
+              isListeningVoice
+                ? 'Listening to your voice command…'
+                : 'Ask anything, attach a receipt/file, or use voice command…'
+            }
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             style={{
@@ -591,21 +883,27 @@ export function AiFinancialManagerDrawer({
 
           <button
             type="submit"
-            disabled={!inputText.trim() || isTyping}
+            disabled={(!inputText.trim() && pendingAttachments.length === 0) || isTyping}
             style={{
-              background: inputText.trim() && !isTyping ? 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)' : 'rgba(255, 255, 255, 0.08)',
+              background:
+                (inputText.trim() || pendingAttachments.length > 0) && !isTyping
+                  ? 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)'
+                  : 'rgba(148, 163, 184, 0.35)',
               color: '#ffffff',
               border: 'none',
               borderRadius: '12px',
               padding: '11px 18px',
-              cursor: inputText.trim() && !isTyping ? 'pointer' : 'not-allowed',
+              cursor: (inputText.trim() || pendingAttachments.length > 0) && !isTyping ? 'pointer' : 'not-allowed',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               fontWeight: 700,
               fontSize: '12.5px',
               transition: 'all 0.15s ease',
-              boxShadow: inputText.trim() && !isTyping ? '0 0 16px var(--brand-shadow-color, rgba(13, 138, 112, 0.4))' : 'none',
+              boxShadow:
+                (inputText.trim() || pendingAttachments.length > 0) && !isTyping
+                  ? '0 0 16px var(--brand-shadow-color, rgba(13, 138, 112, 0.4))'
+                  : 'none',
             }}
           >
             <span>Send</span>

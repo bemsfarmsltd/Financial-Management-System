@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/chat_models.dart';
 import '../services/api_service.dart';
+import '../services/bemi_voice_service.dart';
 import '../services/chat_storage_service.dart';
 import '../widgets/action_cards.dart';
 import '../widgets/chat_history_drawer.dart';
@@ -29,6 +31,10 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
   late ChatSession _currentSession;
   final List<ChatMessage> _messages = [];
   bool _isTyping = false;
+  String _agentMode = 'auto'; // 'auto', 'both', 'financial', 'hr'
+  bool _voiceReadoutEnabled = false;
+  final List<Map<String, dynamic>> _pendingAttachments = [];
+  bool _isUploadingAttachment = false;
 
   @override
   void initState() {
@@ -114,17 +120,176 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
     _scrollToBottom();
   }
 
+  Future<void> _showAttachmentModal() async {
+    final nameController = TextEditingController(text: 'executive-memo.txt');
+    final contentController = TextEditingController();
+
+    final result = await showModalBottomSheet<Map<String, String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Attach Document / Receipt Note for BEMi',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFF64748B)),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Upload a document, CSV snippet, invoice text, or executive brief for BEMi to audit.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameController,
+                style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
+                decoration: InputDecoration(
+                  labelText: 'File / Document Name',
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: contentController,
+                maxLines: 5,
+                style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
+                decoration: InputDecoration(
+                  labelText: 'Document / Receipt Content or CSV Rows',
+                  alignLabelWithHint: true,
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    if (contentController.text.trim().isEmpty) return;
+                    Navigator.pop(ctx, {
+                      'fileName': nameController.text.trim().isEmpty
+                          ? 'executive-attachment.txt'
+                          : nameController.text.trim(),
+                      'content': contentController.text.trim(),
+                    });
+                  },
+                  icon: const Icon(Icons.attach_file_rounded, size: 18),
+                  label: const Text('Attach to Prompt', style: TextStyle(fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEA580C),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (result == null) return;
+    setState(() {
+      _isUploadingAttachment = true;
+    });
+    try {
+      final bytes = utf8.encode(result['content']!);
+      final uploaded = await ApiService.uploadAiAttachmentBytes(
+        bytes: bytes,
+        fileName: result['fileName']!,
+      );
+      if (mounted) {
+        setState(() {
+          _pendingAttachments.add(uploaded);
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _pendingAttachments.add({
+            'fileName': result['fileName']!,
+            'mimeType': 'text/plain',
+            'textContent': result['content']!,
+          });
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingAttachment = false;
+        });
+      }
+    }
+  }
+
   Future<void> _handleSend([String? presetText]) async {
-    final text = (presetText ?? _textController.text).trim();
-    if (text.isEmpty || _isTyping) return;
+    var text = (presetText ?? _textController.text).trim();
+    if ((text.isEmpty && _pendingAttachments.isEmpty) || _isTyping) return;
+
+    // Parse explicit @finance / @hr / @both / @auto tag if typed
+    final tagMatch = RegExp(r'^[@/](finance|financial|hr|people|both|all|auto)\b\s*', caseSensitive: false).firstMatch(text);
+    if (tagMatch != null) {
+      final token = tagMatch.group(1)!.toLowerCase();
+      text = text.substring(tagMatch.group(0)!.length).trim();
+      setState(() {
+        if (token == 'finance' || token == 'financial') {
+          _agentMode = 'financial';
+        } else if (token == 'hr' || token == 'people') {
+          _agentMode = 'hr';
+        } else if (token == 'both' || token == 'all') {
+          _agentMode = 'both';
+        } else if (token == 'auto') {
+          _agentMode = 'auto';
+        }
+      });
+    }
+
+    if (text.isEmpty && _pendingAttachments.isNotEmpty) {
+      text = 'Attached ${_pendingAttachments.map((a) => a['fileName']).join(', ')} for executive analysis.';
+    }
 
     _textController.clear();
+    final attachmentsToSend = List<Map<String, dynamic>>.from(_pendingAttachments);
+    _pendingAttachments.clear();
 
     final userMsg = ChatMessage(
       id: 'user-${DateTime.now().millisecondsSinceEpoch}',
       sender: 'user',
       content: text,
       timestamp: 'Now',
+      attachments: attachmentsToSend.isNotEmpty ? attachmentsToSend : null,
     );
 
     // Update title if it's the first user message
@@ -147,6 +312,8 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
         message: text,
         history: _messages,
         conversationId: _currentSession.id,
+        agentMode: _agentMode,
+        attachments: attachmentsToSend,
       );
 
       Map<String, dynamic>? resolvedActionCard;
@@ -169,12 +336,18 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
         };
       }
 
+      final quickRepliesList = (response['quick_replies'] as List? ?? response['followUps'] as List?)
+          ?.map((e) => e.toString())
+          .where((s) => s.trim().isNotEmpty)
+          .toList();
+
       final assistantMsg = ChatMessage(
         id: 'ai-${DateTime.now().millisecondsSinceEpoch}',
         sender: 'assistant',
         content: response['message'] ?? 'Response generated.',
         timestamp: response['timestamp'] ?? 'Now',
         actionCard: resolvedActionCard,
+        quickReplies: quickRepliesList,
       );
 
       setState(() {
@@ -182,6 +355,10 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
         _isTyping = false;
       });
       _scrollToBottom();
+
+      if (_voiceReadoutEnabled && assistantMsg.content.isNotEmpty) {
+        BemiVoiceService.speak(assistantMsg.content, force: true);
+      }
 
       _currentSession.messages = List.from(_messages);
       ChatStorageService.upsertSession(_currentSession);
@@ -259,6 +436,22 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: Icon(
+              _voiceReadoutEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+              color: _voiceReadoutEnabled ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+              size: 20,
+            ),
+            tooltip: _voiceReadoutEnabled ? 'Mute Voice Readout' : 'Enable Voice Readout',
+            onPressed: () {
+              setState(() {
+                _voiceReadoutEnabled = !_voiceReadoutEnabled;
+              });
+              if (!_voiceReadoutEnabled) {
+                BemiVoiceService.stop();
+              }
+            },
+          ),
           IconButton(icon: const Icon(Icons.account_balance_wallet_outlined), tooltip: 'Wallet funding and releases', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletFundingScreen()))),
           IconButton(
             icon: const Icon(Icons.add_comment_outlined, color: Color(0xFFEA580C), size: 20),
@@ -271,9 +464,33 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
             onPressed: () => Navigator.pop(context),
           ),
         ],
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1),
-          child: Divider(color: Color(0xFFE2E8F0), height: 1),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(44),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF8FAFC),
+              border: Border(
+                top: BorderSide(color: Color(0xFFE2E8F0)),
+                bottom: BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildAgentPill('auto', '✦ Auto', const Color(0xFF334155), Colors.white),
+                  const SizedBox(width: 6),
+                  _buildAgentPill('both', '✦ Both', const Color(0xFF7C3AED), const Color(0xFFF5F3FF)),
+                  const SizedBox(width: 6),
+                  _buildAgentPill('financial', '⚡ Finance', const Color(0xFFEA580C), const Color(0xFFFFF7ED)),
+                  const SizedBox(width: 6),
+                  _buildAgentPill('hr', '👥 HR Ops', const Color(0xFF0284C7), const Color(0xFFF0F9FF)),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
       body: SafeArea(
@@ -370,6 +587,29 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
                 'BEMi Intelligence',
                 style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
               ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => BemiVoiceService.speak(msg.content, force: true),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFED7AA)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.volume_up_rounded, size: 11, color: Color(0xFFEA580C)),
+                      SizedBox(width: 3),
+                      Text(
+                        'Listen',
+                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Color(0xFFEA580C)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 6),
@@ -396,6 +636,35 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
                   const SizedBox(height: 12),
                   InteractiveActionCard(data: msg.actionCard!),
                 ],
+                if (msg.quickReplies != null && msg.quickReplies!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: msg.quickReplies!.map((qr) {
+                      return InkWell(
+                        onTap: _isTyping ? null : () => _handleSend(qr),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFCBD5E1)),
+                          ),
+                          child: Text(
+                            '$qr ›',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
               ],
             ),
           ),
@@ -404,67 +673,167 @@ class _ExecutiveChatScreenState extends State<ExecutiveChatScreen> {
     }
   }
 
+  Widget _buildAgentPill(String mode, String label, Color activeColor, Color activeBg) {
+    final isActive = _agentMode == mode;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _agentMode = mode;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: isActive ? activeBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isActive ? activeColor.withOpacity(0.4) : Colors.transparent,
+          ),
+          boxShadow: isActive
+              ? const [BoxShadow(color: Color(0x0A0F172A), blurRadius: 4, offset: Offset(0, 1))]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+            color: isActive ? activeColor : const Color(0xFF64748B),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Voice Orb screen trigger
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFED7AA)),
-              ),
-              child: const Icon(Icons.graphic_eq_rounded, color: Color(0xFFEA580C), size: 18),
-            ),
-            tooltip: 'Voice Command Mode',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const VoiceOrbScreen()),
-              );
-            },
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: TextField(
-                controller: _textController,
-                style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14),
-                decoration: const InputDecoration(
-                  hintText: 'Ask BEMi or instruct...',
-                  hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
-                  border: InputBorder.none,
+          if (_pendingAttachments.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SizedBox(
+                height: 30,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _pendingAttachments.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 6),
+                  itemBuilder: (context, idx) {
+                    final att = _pendingAttachments[idx];
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFFDBA74)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.description_outlined, size: 13, color: Color(0xFFEA580C)),
+                          const SizedBox(width: 4),
+                          Text(
+                            att['fileName']?.toString() ?? 'Attachment',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF9A3412)),
+                          ),
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _pendingAttachments.removeAt(idx);
+                              });
+                            },
+                            child: const Icon(Icons.close_rounded, size: 13, color: Color(0xFF9A3412)),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-                onSubmitted: (_) => _handleSend(),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () => _handleSend(),
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: const BoxDecoration(
-                color: Color(0xFFEA580C),
-                shape: BoxShape.circle,
+          Row(
+            children: [
+              // Attach File / Document button
+              IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: _pendingAttachments.isNotEmpty ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: _pendingAttachments.isNotEmpty ? const Color(0xFFFDBA74) : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.attach_file_rounded,
+                    color: _pendingAttachments.isNotEmpty ? const Color(0xFFEA580C) : const Color(0xFF475569),
+                    size: 18,
+                  ),
+                ),
+                tooltip: 'Attach File or Document',
+                onPressed: _isUploadingAttachment ? null : _showAttachmentModal,
               ),
-              child: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 20),
-            ),
+              // Voice Orb screen trigger
+              IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFED7AA)),
+                  ),
+                  child: const Icon(Icons.graphic_eq_rounded, color: Color(0xFFEA580C), size: 18),
+                ),
+                tooltip: 'Voice Command Mode',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const VoiceOrbScreen()),
+                  );
+                },
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: TextField(
+                    controller: _textController,
+                    style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14),
+                    decoration: const InputDecoration(
+                      hintText: 'Ask BEMi or instruct...',
+                      hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                      border: InputBorder.none,
+                    ),
+                    onSubmitted: (_) => _handleSend(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _handleSend(),
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEA580C),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 20),
+                ),
+              ),
+            ],
           ),
         ],
       ),

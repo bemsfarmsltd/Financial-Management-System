@@ -4,6 +4,8 @@ class ChatMessage {
   final String content;
   final String timestamp;
   final Map<String, dynamic>? actionCard;
+  final List<String>? quickReplies;
+  final List<Map<String, dynamic>>? attachments;
 
   ChatMessage({
     required this.id,
@@ -11,6 +13,8 @@ class ChatMessage {
     required this.content,
     required this.timestamp,
     this.actionCard,
+    this.quickReplies,
+    this.attachments,
   });
 
   bool get isUser => sender == 'user';
@@ -21,7 +25,16 @@ class ChatMessage {
       sender: json['sender'] ?? 'assistant',
       content: json['content'] ?? '',
       timestamp: json['timestamp'] ?? '',
-      actionCard: json['actionCard'],
+      actionCard: json['actionCard'] is Map<String, dynamic>
+          ? Map<String, dynamic>.from(json['actionCard'])
+          : null,
+      quickReplies: (json['quickReplies'] as List?)
+          ?.map((e) => e.toString())
+          .toList(),
+      attachments: (json['attachments'] as List?)
+          ?.whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(),
     );
   }
 
@@ -32,6 +45,8 @@ class ChatMessage {
       'content': content,
       'timestamp': timestamp,
       'actionCard': actionCard,
+      if (quickReplies != null) 'quickReplies': quickReplies,
+      if (attachments != null) 'attachments': attachments,
     };
   }
 }

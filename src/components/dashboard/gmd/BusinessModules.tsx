@@ -1313,6 +1313,38 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
     }
   };
 
+  const toggleSalaryExemption = async (employeeId: string, currentlyExempt: boolean, name: string) => {
+    if (currentlyExempt) {
+      setModalTab('payroll');
+      setSalaryType('SET_EXACT');
+      setTimeout(() => {
+        document.getElementById('staff-salary-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+      setNotice(`Enter the monthly gross salary below to re-enroll ${name} on salary payroll.`);
+      return;
+    }
+    const confirmPrompt = `Exempt ${name} from monthly salary payroll?\n\nTheir recurring salary will be set to ₦0 and they will be removed from all unpaid payroll batches.`;
+    if (!window.confirm(confirmPrompt)) return;
+    setSaving(true);
+    try {
+      const data = await api<{ message: string }>(`/api/staff/${encodeURIComponent(employeeId)}/salary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          changeType: 'REMOVE_FROM_PAYROLL',
+          amount: 0,
+          reason: `Salary payroll exemption enabled for ${name}`,
+        }),
+      });
+      setNotice(data.message || `${name} is now exempt from salary payroll.`);
+      await Promise.all([load(), open(employeeId)]);
+    } catch (e: any) {
+      setError(errorText(e) || 'Error updating salary exemption.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const deleteStaffAccount = async (employeeId: string, name: string) => {
     if (!window.confirm(`⚠️ PERMANENT ACTION:\nAre you sure you want to permanently delete the staff account for "${name}"?\n\nThis will remove their profile and credentials.`)) {
       return;
@@ -1911,7 +1943,15 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 13, fontWeight: 750, color: '#0f172a' }}>
-                      {comp ? fmt(comp.grossMinor) : <span style={{ color: '#94a3b8', fontSize: 12 }}>No salary set</span>}
+                      {comp ? (
+                        Number(comp.grossMinor) === 0 ? (
+                          <span style={{ color: '#b45309', fontSize: 12, fontWeight: 750 }}>Salary Exempt (₦0)</span>
+                        ) : (
+                          fmt(comp.grossMinor)
+                        )
+                      ) : (
+                        <span style={{ color: '#94a3b8', fontSize: 12 }}>No salary set</span>
+                      )}
                     </div>
                     <div style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       Monthly Gross
@@ -2276,6 +2316,49 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                     >
                       <Clock size={13} />
                       {selected.employee.isAttendanceExempt ? 'Exempt from Attendance ✓' : 'Exempt from Attendance'}
+                    </button>
+
+                    <button
+                      type="button"
+                      style={{
+                        background:
+                          selected.employee.salary && Number(selected.employee.salary.grossMinor) === 0
+                            ? '#fffbeb'
+                            : '#f8fafc',
+                        border:
+                          selected.employee.salary && Number(selected.employee.salary.grossMinor) === 0
+                            ? '1px solid #fde68a'
+                            : '1px solid #cbd5e1',
+                        color:
+                          selected.employee.salary && Number(selected.employee.salary.grossMinor) === 0
+                            ? '#b45309'
+                            : '#334155',
+                        fontWeight: 700,
+                        fontSize: 12,
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                      }}
+                      title={
+                        selected.employee.salary && Number(selected.employee.salary.grossMinor) === 0
+                          ? 'Staff is currently exempt from salary payroll (₦0). Click to set a monthly salary.'
+                          : 'Exempt this staff member from monthly salary payroll (sets recurring gross to ₦0 and removes from open payroll batches).'
+                      }
+                      onClick={() =>
+                        toggleSalaryExemption(
+                          selected.employee.id,
+                          Boolean(selected.employee.salary && Number(selected.employee.salary.grossMinor) === 0),
+                          selected.employee.legalName
+                        )
+                      }
+                    >
+                      <Wallet size={13} />
+                      {selected.employee.salary && Number(selected.employee.salary.grossMinor) === 0
+                        ? 'Salary Exempt ✓'
+                        : 'Exempt from Salary'}
                     </button>
 
                     <button

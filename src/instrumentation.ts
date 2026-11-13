@@ -3,6 +3,8 @@ export async function register() {
     if(process.env.NEXT_PHASE!=='phase-production-build'){
       const {startWalletWorker}=await import('./lib/wallet/runtime-worker');
       startWalletWorker();
+      const { ensureMorningDigestSchedulerStarted } = await import('./lib/notifications/scheduler');
+      ensureMorningDigestSchedulerStarted();
     }
     // Prevent unhandled server.close() errors during Hostinger Passenger / worker shutdown
     process.on('uncaughtException', (err: any) => {

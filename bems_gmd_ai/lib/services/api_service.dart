@@ -303,6 +303,8 @@ class ApiService {
     required String message,
     required List<ChatMessage> history,
     String? conversationId,
+    String agentMode = 'auto',
+    List<Map<String, dynamic>>? attachments,
   }) async {
     // Sliding window: send at most the last 4 turns, with text truncated to 350 chars
     final recentHistory = history.length > 4 ? history.sublist(history.length - 4) : history;
@@ -310,6 +312,8 @@ class ApiService {
       final content = m.content.length > 350 ? '${m.content.substring(0, 350)}... [prior context summarized]' : m.content;
       return {'role': m.sender, 'content': content};
     }).toList();
+
+    final isLocked = agentMode != 'auto';
 
     final response = await _executeWithFailover(
       (host) => http.post(
@@ -319,6 +323,15 @@ class ApiService {
           'message': message,
           'conversation_id': conversationId,
           'history': compactHistory,
+          'agentMode': agentMode,
+          'isTagLocked': isLocked,
+          if (attachments != null && attachments.isNotEmpty) 'attachments': attachments,
+          'context': {
+            'agentMode': agentMode,
+            'isTagLocked': isLocked,
+            'currentPage': 'GMD Executive Mobile Copilot',
+            if (attachments != null && attachments.isNotEmpty) 'attachments': attachments,
+          },
         }),
       ),
       timeout: const Duration(seconds: 120),
@@ -335,6 +348,7 @@ class ApiService {
   static Future<Map<String, dynamic>> confirmStagedAction({
     required String stagedActionId,
     required String confirmationHash,
+    String? password,
   }) async {
     final response = await _executeWithFailover(
       (host) => http.post(
@@ -342,6 +356,7 @@ class ApiService {
         headers: authHeaders,
         body: jsonEncode({
           'confirmation_hash': confirmationHash,
+          if (password != null && password.isNotEmpty) 'password': password,
         }),
       ),
       timeout: const Duration(seconds: 25),
@@ -361,6 +376,27 @@ class ApiService {
       'ok': false,
       'error': 'Server returned status ${response.statusCode}',
     };
+  }
+
+  static Future<Map<String, dynamic>> uploadAiAttachmentBytes({
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/ai/attachments');
+    final request = http.MultipartRequest('POST', uri);
+    authHeaders.forEach((key, value) {
+      if (key.toLowerCase() != 'content-type') {
+        request.headers[key] = value;
+      }
+    });
+    request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: fileName));
+    final streamed = await request.send().timeout(const Duration(seconds: 30));
+    final response = await http.Response.fromStream(streamed);
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode != 200 || data['attachment'] == null) {
+      throw Exception(data['error'] ?? 'Failed to upload attachment.');
+    }
+    return Map<String, dynamic>.from(data['attachment'] as Map);
   }
 
   static Future<Map<String, dynamic>> cancelStagedAction({

@@ -34,6 +34,7 @@ export const SAFE_EMPLOYEE_SELECT = {
   bvn: true,
   highestEducation: true,
   isOfflineStaff: true,
+  isAttendanceExempt: true,
   bankName: true,
   accountNumber: true,
   accountName: true,

@@ -28,6 +28,13 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
   String? _stagedErrorMessage;
   String? _stagedAuditEventId;
   bool _isStagedProcessing = false;
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -69,6 +76,19 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
     final hash = widget.data['confirmation_hash']?.toString() ?? '';
     if (stagedId.isEmpty || hash.isEmpty || _isStagedProcessing) return;
 
+    final rawActionType = (widget.data['actionType'] ?? widget.data['type'] ?? '').toString().toLowerCase();
+    final previewMap = widget.data['preview'] is Map
+        ? Map<String, dynamic>.from(widget.data['preview'] as Map)
+        : <String, dynamic>{};
+    final requiresPassword = rawActionType == 'payroll_batch_approval' || previewMap['requires_password'] == true;
+
+    if (requiresPassword && _passwordController.text.trim().isEmpty) {
+      setState(() {
+        _stagedErrorMessage = 'Please enter your GMD Executive Password to authorize salary disbursement.';
+      });
+      return;
+    }
+
     setState(() {
       _isStagedProcessing = true;
       _stagedErrorMessage = null;
@@ -77,6 +97,7 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
     final res = await ApiService.confirmStagedAction(
       stagedActionId: stagedId,
       confirmationHash: hash,
+      password: _passwordController.text.trim().isNotEmpty ? _passwordController.text.trim() : null,
     );
 
     if (!mounted) return;
@@ -341,7 +362,10 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
                 border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: Column(
-                children: previewMap.entries.take(8).map((entry) {
+                children: previewMap.entries
+                    .where((e) => e.key != 'register' && e.key != 'requires_password')
+                    .take(8)
+                    .map((entry) {
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 3),
                     child: Row(
@@ -372,6 +396,76 @@ class _InteractiveActionCardState extends State<InteractiveActionCard> {
                     ),
                   );
                 }).toList(),
+              ),
+            ),
+          ],
+          if (previewMap['register'] is List && (previewMap['register'] as List).isNotEmpty) ...[
+            const SizedBox(height: 10),
+            const Text(
+              'MONTHLY SALARY REGISTER PREVIEW',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF475569), letterSpacing: 0.5),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 180),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.all(8),
+                itemCount: (previewMap['register'] as List).length,
+                separatorBuilder: (_, __) => const Divider(height: 8, color: Color(0xFFE2E8F0)),
+                itemBuilder: (context, idx) {
+                  final row = (previewMap['register'] as List)[idx];
+                  if (row is! Map) return const SizedBox.shrink();
+                  final staffName = (row['name'] ?? row['legalName'] ?? 'Staff').toString();
+                  final netPay = (row['net'] ?? row['netPay'] ?? '₦0').toString();
+                  final deductions = (row['deductions'] ?? '₦0').toString();
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          staffName,
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        'Ded: $deductions  ·  Net: $netPay',
+                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF059669)),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+          if (status == 'PENDING' &&
+              ((widget.data['actionType'] ?? widget.data['type'] ?? '').toString().toLowerCase() == 'payroll_batch_approval' ||
+                  previewMap['requires_password'] == true)) ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF0F172A)),
+              decoration: InputDecoration(
+                labelText: 'GMD Executive Password (Required to Disburse)',
+                labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF9A3412)),
+                filled: true,
+                fillColor: const Color(0xFFFFF7ED),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFFFDBA74)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFFFDBA74)),
+                ),
               ),
             ),
           ],

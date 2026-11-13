@@ -1,4 +1,5 @@
 import { executeDashboardCommand } from '@/lib/staged-actions';
+import { dispatchNotificationBridge, resolveGmdNotificationTarget } from '@/lib/notifications/bridge';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedEmployee, getHrAuthorizationScope } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -108,6 +109,24 @@ export async function POST(req: Request) {
     const sub_action = actions[String(body.action || '').toUpperCase()];
     if (!sub_action) return NextResponse.json({ error: 'Unknown leave action.' }, { status: 400 });
     const leave = await executeDashboardCommand(actor, 'leave_action', { ...body, sub_action, rejectionReason: body.reviewNote });
+    if (sub_action === 'CREATE_LEAVE') {
+      resolveGmdNotificationTarget()
+        .then((gmdTarget) => {
+          if (!gmdTarget.phone) return;
+          return dispatchNotificationBridge({
+            channel: 'WHATSAPP',
+            recipient: gmdTarget.phone,
+            eventType: 'LEAVE_REQUESTED',
+            title: `Leave Approval Needed: ${actor.legalName}`,
+            summary: `${actor.legalName} submitted a ${body.leaveType || 'Leave'} request awaiting executive review.`,
+            correlationId: `leave_req_${Date.now()}`,
+            metadata: {
+              rawText: `📅 *BEMS Leave Approval Request*\nStaff: *${actor.legalName}*\nType: *${body.leaveType || 'Leave'}*\nDates: ${body.startDate || 'TBD'} → ${body.endDate || 'TBD'}\n\n🔗 Review: https://bemserp.work`,
+            },
+          });
+        })
+        .catch((err) => console.error('Failed to dispatch WhatsApp leave alert:', err));
+    }
     return NextResponse.json({ success: true, leave });
   } catch (error: any) { return NextResponse.json({ error: error.message }, { status: 400 }); }
 }

@@ -16,11 +16,13 @@ export async function GET(req: Request) {
     }
     const { searchParams } = new URL(req.url);
     const orgId = searchParams.get('orgId') || searchParams.get('subsidiary');
+    const includeTerminated = searchParams.get('includeTerminated') === 'true';
     const now = new Date();
 
     const employees = await prisma.employee.findMany({
       where: {
         role: 'STAFF',
+        ...(includeTerminated ? {} : { status: { not: 'TERMINATED' } }),
       },
       include: {
         assignments: {

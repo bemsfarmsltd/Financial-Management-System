@@ -682,21 +682,31 @@ export async function POST(req: NextRequest) {
   // -------------------------------------------------------------
   // ACTION 4: ADJUST_SALARY (Staff base pay modification / cut)
   // -------------------------------------------------------------
-  if (action === 'ADJUST_SALARY' || action === 'SALARY_CHANGE' || action === 'CHANGE_SALARY') {
-    const employeeId = body.employeeId || body.employee_id;
-    const amount = Number(body.amount || body.new_base_salary || 0);
+  if (
+    action === 'ADJUST_SALARY' ||
+    action === 'SALARY_CHANGE' ||
+    action === 'CHANGE_SALARY' ||
+    action === 'UPDATE_SALARY' ||
+    action === 'REDUCE_SALARY' ||
+    action === 'INCREASE_SALARY'
+  ) {
+    const employeeLookup =
+      body.employeeId ||
+      body.employee_id ||
+      body.employeeNumber ||
+      body.employee_number ||
+      body.employeeName ||
+      body.employee_name ||
+      body.name ||
+      body.employee ||
+      body.lookup;
     const effectiveDate = body.effectiveDate || body.effective_date;
-    const reason = String(body.reason || 'Salary modification authorized by Executive').trim();
+    const rawReason = String(body.reason || body.justification || 'Salary modification authorized by Executive').trim();
+    const reason = rawReason.length >= 5 ? rawReason : `${rawReason || 'Executive review'} — Authorized salary adjustment`;
 
-    if (!employeeId || isNaN(amount) || amount <= 0) {
+    if (!employeeLookup) {
       return NextResponse.json(
-        { ok: false, error_code: 'VALIDATION_FAILED', message: 'employeeId and a positive numeric amount are required.' },
-        { status: 400 }
-      );
-    }
-    if (reason.length < 5) {
-      return NextResponse.json(
-        { ok: false, error_code: 'VALIDATION_FAILED', message: 'reason must be at least 5 characters.' },
+        { ok: false, error_code: 'VALIDATION_FAILED', message: 'employeeId, employeeNumber, or employeeName is required.' },
         { status: 400 }
       );
     }
@@ -704,11 +714,84 @@ export async function POST(req: NextRequest) {
     const { inspectEmployeeCompensationContext } = await import('@/lib/services/compensation');
     let ctx;
     try {
-      ctx = await inspectEmployeeCompensationContext(String(employeeId));
+      ctx = await inspectEmployeeCompensationContext(String(employeeLookup));
     } catch (err: any) {
       const msg = err?.message || 'Employee compensation lookup failed.';
       const status = msg.includes('not found') ? 404 : 409;
       return NextResponse.json({ ok: false, error_code: status === 404 ? 'NOT_FOUND' : 'PRECONDITION_FAILED', message: msg }, { status });
+    }
+
+    let amount = Number(
+      body.amount ??
+        body.new_base_salary ??
+        body.newBaseSalary ??
+        body.new_salary ??
+        body.newSalary ??
+        body.target_salary ??
+        body.proposed_salary ??
+        0
+    );
+    const rawChangeType = String(body.change_type || body.changeType || action || '').toUpperCase();
+    const pct = Number(
+      body.percentage ??
+        body.percent ??
+        body.reduction_percent ??
+        body.reductionPercent ??
+        body.increase_percent ??
+        body.increasePercent ??
+        0
+    );
+    const deltaInput = Number(
+      body.deduction_amount ??
+        body.reduction_amount ??
+        body.addition_amount ??
+        body.delta_amount ??
+        body.delta ??
+        0
+    );
+
+    if ((!Number.isFinite(amount) || amount <= 0) && Number.isFinite(pct) && pct > 0 && ctx.currentGrossNaira > 0) {
+      const isReduction =
+        rawChangeType.includes('DEDUCT') ||
+        rawChangeType.includes('REDUC') ||
+        rawChangeType.includes('CUT') ||
+        body.reduction_percent !== undefined ||
+        body.reductionPercent !== undefined ||
+        reason.toLowerCase().includes('reduc') ||
+        reason.toLowerCase().includes('cut') ||
+        reason.toLowerCase().includes('deduct');
+      amount = isReduction
+        ? Math.round(ctx.currentGrossNaira * (1 - pct / 100))
+        : Math.round(ctx.currentGrossNaira * (1 + pct / 100));
+    } else if ((!Number.isFinite(amount) || amount <= 0) && Number.isFinite(deltaInput) && deltaInput !== 0 && ctx.currentGrossNaira > 0) {
+      const isReduction =
+        deltaInput < 0 ||
+        rawChangeType.includes('DEDUCT') ||
+        rawChangeType.includes('REDUC') ||
+        rawChangeType.includes('CUT') ||
+        body.deduction_amount !== undefined ||
+        body.reduction_amount !== undefined;
+      amount = isReduction
+        ? Math.round(ctx.currentGrossNaira - Math.abs(deltaInput))
+        : Math.round(ctx.currentGrossNaira + Math.abs(deltaInput));
+    } else if (
+      Number.isFinite(amount) &&
+      amount > 0 &&
+      amount < ctx.currentGrossNaira &&
+      (rawChangeType === 'DEDUCTION' || rawChangeType === 'ADDITION') &&
+      body.is_delta === true
+    ) {
+      amount =
+        rawChangeType === 'DEDUCTION'
+          ? Math.round(ctx.currentGrossNaira - amount)
+          : Math.round(ctx.currentGrossNaira + amount);
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return NextResponse.json(
+        { ok: false, error_code: 'VALIDATION_FAILED', message: 'A positive target salary amount (or percentage adjustment) is required.' },
+        { status: 400 }
+      );
     }
 
     let parsedEffectiveDate = new Date();

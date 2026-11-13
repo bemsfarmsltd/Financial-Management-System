@@ -178,10 +178,20 @@ export async function POST(req: NextRequest) {
       defaultCurrency: body.defaultCurrency || body.currency,
       type: body.type,
       brandColor: body.brandColor || body.color,
+      logoUrl: body.logoUrl || body.logo,
       industry: body.industry || body.sector,
       headquarters: body.headquarters || body.location || body.address,
       rcNumber: body.rcNumber || body.rc_number,
+      tinNumber: body.tinNumber || body.tin_number || body.tin,
+      incorporationDate: body.incorporationDate || body.incorporation_date,
+      websiteUrl: body.websiteUrl || body.website_url || body.website,
+      description: body.description || body.mission,
+      leadName: body.leadName || body.executiveName || body.executive_name || body.mdName,
+      leadTitle: body.leadTitle || body.executiveTitle || body.executive_title,
+      leadEmail: body.leadEmail || body.executiveEmail || body.executive_email,
+      leadPhone: body.leadPhone || body.executivePhone || body.executive_phone,
       monthlyBudget: body.monthlyBudget ?? body.monthly_budget,
+      staffIds: Array.isArray(body.staffIds) ? body.staffIds : Array.isArray(body.staff_ids) ? body.staff_ids : undefined,
     };
 
     const preview: Record<string, any> = {
@@ -195,8 +205,14 @@ export async function POST(req: NextRequest) {
     if (materialPayload.industry) preview.new_industry = materialPayload.industry;
     if (materialPayload.headquarters) preview.new_headquarters = materialPayload.headquarters;
     if (materialPayload.rcNumber !== undefined) preview.new_rc_number = materialPayload.rcNumber;
+    if (materialPayload.leadName) preview.executive_contact_name = materialPayload.leadName;
+    if (materialPayload.leadEmail) preview.executive_contact_email = materialPayload.leadEmail;
+    if (materialPayload.leadPhone) preview.executive_contact_phone = materialPayload.leadPhone;
     if (materialPayload.monthlyBudget !== undefined) {
       preview.new_monthly_budget = `₦${Number(materialPayload.monthlyBudget).toLocaleString()}`;
+    }
+    if (Array.isArray(materialPayload.staffIds) && materialPayload.staffIds.length > 0) {
+      preview.tagged_staff_count = `${materialPayload.staffIds.length} staff member(s)`;
     }
 
     const staged = await stageAction({
@@ -223,38 +239,51 @@ export async function POST(req: NextRequest) {
   let code: string = (body.code || '').trim().toUpperCase();
   const type: string = (body.type || 'OPERATING_SUBSIDIARY').trim();
   const currency: string = (body.currency || 'NGN').toUpperCase().trim();
-  const brandColor: string = (body.brandColor || body.color || '').trim();
-  const industry: string = (body.industry || body.sector || '').trim();
-  const headquarters: string = (body.headquarters || body.location || body.address || '').trim();
+  const brandColor: string = (body.brandColor || body.color || '#EA580C').trim();
+  const industry: string = (body.industry || body.sector || 'Corporate Group Operations').trim();
+  const headquarters: string = (body.headquarters || body.location || body.address || 'Lagos, Nigeria').trim();
   const logoUrl: string = (body.logoUrl || body.logo || '').trim();
+  const rcNumber: string = (body.rcNumber || body.rc_number || '').trim();
+  const tinNumber: string = (body.tinNumber || body.tin_number || body.tin || '').trim();
+  const incorporationDate: string = (body.incorporationDate || body.incorporation_date || '').trim();
+  const websiteUrl: string = (body.websiteUrl || body.website_url || body.website || '').trim();
+  const description: string = (body.description || body.mission || '').trim();
+  const leadName: string = (body.leadName || body.executiveName || body.executive_name || body.mdName || '').trim();
+  const leadTitle: string = (body.leadTitle || body.executiveTitle || body.executive_title || 'Managing Director').trim();
+  const leadEmail: string = (body.leadEmail || body.executiveEmail || body.executive_email || '').trim();
+  const leadPhone: string = (body.leadPhone || body.executivePhone || body.executive_phone || '').trim();
+  const monthlyBudget = Number(body.monthlyBudget ?? body.monthly_budget ?? body.initialBudget ?? 0);
+  const staffIds: string[] = Array.isArray(body.staffIds)
+    ? body.staffIds
+    : Array.isArray(body.staff_ids)
+    ? body.staff_ids
+    : [];
 
-  // Validate missing fields
+  // Validate missing name
   const missing: string[] = [];
   if (!name || name.length < 2) missing.push('name (Legal corporate name)');
-  if (!brandColor) missing.push('brandColor (Corporate brand hex color, e.g. #EA580C, #2563EB)');
-  if (!industry) missing.push('industry (Primary operational sector, e.g. Agribusiness, Media Production)');
-  if (!headquarters) missing.push('headquarters (City / State / Physical headquarters address)');
 
   if (missing.length > 0) {
     return NextResponse.json(
       {
         ok: false,
         error_code: 'INCOMPLETE_PARAMETERS',
-        message: 'To create a subsidiary, all corporate specifications are mandatory. The AI must ask the GMD for the missing details before execution.',
+        message: 'To create a subsidiary, please provide at least the legal corporate name.',
         missing_fields: missing,
         required_fields: [
           { field: 'name', label: 'Legal Corporate Name', example: 'Studio Arella Ltd' },
-          { field: 'brandColor', label: 'Brand Color (Hex)', example: '#EA580C' },
           { field: 'industry', label: 'Industry / Business Sector', example: 'Media & Creative Production' },
           { field: 'headquarters', label: 'Headquarters Location', example: 'Lagos, Nigeria' },
-          { field: 'code', label: 'Shortcode (Optional)', example: 'SAL' },
-          { field: 'type', label: 'Entity Structure', example: 'OPERATING_SUBSIDIARY' },
-          { field: 'currency', label: 'Operating Currency', example: 'NGN' },
+          { field: 'leadName', label: 'Executive Contact Name', example: 'Dr. Pastra' },
+          { field: 'leadEmail', label: 'Executive Contact Email', example: 'lead@bems.group' },
+          { field: 'leadPhone', label: 'Executive Contact Phone', example: '+234 800 000 0000' },
         ],
-        note: 'File uploads (logos, certificates, brand assets) are excluded from AI tools and handled directly on the Web Dashboard.',
-        conversational_prompt: `To create this subsidiary, please provide the following details:\n` +
-          missing.map((m, i) => `${i + 1}. **${m}**`).join('\n') +
-          `\n\n*(Optional: Shortcode, Entity Structure, and Operating Currency. Logo and file uploads are managed on the web dashboard).*`,
+        conversational_prompt:
+          `To create this subsidiary, please provide:\n` +
+          `1. **Legal Corporate Name**\n` +
+          `2. **Industry / Sector & Headquarters**\n` +
+          `3. **Executive Contact Name, Email & Phone Number**\n` +
+          `*(You can also specify RC Number, Monthly Budget, Brand Color, and Staff to tag).*`,
       },
       { status: 400 }
     );
@@ -302,6 +331,17 @@ export async function POST(req: NextRequest) {
       industry,
       headquarters,
       logoUrl: logoUrl || null,
+      rcNumber: rcNumber || null,
+      tinNumber: tinNumber || null,
+      incorporationDate: incorporationDate || null,
+      websiteUrl: websiteUrl || null,
+      description: description || null,
+      leadName: leadName || null,
+      leadTitle: leadTitle || null,
+      leadEmail: leadEmail || null,
+      leadPhone: leadPhone || null,
+      monthlyBudget: Number.isFinite(monthlyBudget) && monthlyBudget > 0 ? monthlyBudget : null,
+      staffIds,
     },
     preview: {
       name,
@@ -311,6 +351,12 @@ export async function POST(req: NextRequest) {
       brandColor,
       industry,
       headquarters,
+      ...(rcNumber ? { rc_number: rcNumber } : {}),
+      ...(leadName ? { executive_contact_name: leadName } : {}),
+      ...(leadEmail ? { executive_contact_email: leadEmail } : {}),
+      ...(leadPhone ? { executive_contact_phone: leadPhone } : {}),
+      ...(monthlyBudget > 0 ? { initial_monthly_budget: `₦${monthlyBudget.toLocaleString()}` } : {}),
+      ...(staffIds.length > 0 ? { tagged_staff_count: `${staffIds.length} staff member(s)` } : {}),
     },
   });
 

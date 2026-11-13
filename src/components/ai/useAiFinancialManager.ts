@@ -244,10 +244,22 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
 
   // Send a user prompt and generate an intelligent response with interactive action cards
   const sendMessage = useCallback(
-    async (text: string, elementContext?: ElementContextPayload) => {
-      if(!canUseAi)return;
+    async (
+      text: string,
+      elementContext?: ElementContextPayload,
+      attachments?: Array<{
+        id?: string;
+        name: string;
+        type: string;
+        size?: number;
+        url?: string;
+        dataUrl?: string;
+        textContent?: string;
+      }>
+    ) => {
+      if (!canUseAi) return;
       let effectiveMode = agentMode;
-      let isTagLocked = false;
+      let isTagLocked = effectiveMode !== 'auto';
       const tagMatch = text.trim().match(/^[@/](finance|financial|hr|people|both|all|auto)\b\s*/i);
       let payloadText = text;
       if (tagMatch) {
@@ -272,9 +284,13 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
         }
       }
 
+      const attachmentBanner =
+        Array.isArray(attachments) && attachments.length > 0
+          ? `\n\n📎 Attached: ${attachments.map((a) => a.name).join(', ')}`
+          : '';
       const displayContent = elementContext
-        ? `[Re: ${elementContext.label}${elementContext.value ? ` · ${elementContext.value}` : ''}] ${payloadText || text}`
-        : payloadText || text;
+        ? `[Re: ${elementContext.label}${elementContext.value ? ` · ${elementContext.value}` : ''}] ${payloadText || text}${attachmentBanner}`
+        : `${payloadText || text}${attachmentBanner}`;
 
       const userMsg: AiMessage = {
         id: `user-${Date.now()}`,
@@ -295,6 +311,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
           body: JSON.stringify({
             message: payloadText || text,
             conversation_id: activeSessionId.startsWith(`conv_${accountId}_`) ? activeSessionId : `conv_${accountId}_${crypto.randomUUID()}`,
+            attachments: attachments || [],
             history: messages.slice(-4).map((m) => ({
               role: m.sender === 'assistant' ? 'assistant' : 'user',
               content: typeof m.content === 'string' && m.content.length > 350
@@ -304,11 +321,12 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
             context: {
               agent_mode: effectiveMode,
               is_tag_locked: isTagLocked,
-              thread_domain: threadDomain,
+              thread_domain: effectiveMode !== 'auto' ? effectiveMode : threadDomain,
               active_business_id: businessId,
               business_name: businessName,
               is_group_scope: isGroupScope,
               target_element: elementContext,
+              attachments: attachments || [],
             },
           }),
         });
@@ -321,10 +339,16 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
           let actionCard: any = undefined;
 
           if (rawAction) {
-            const rawType = (rawAction.actionType || rawAction.type || rawAction.cardType || '').toLowerCase();
+            const rawType = (
+              rawAction.action_type ||
+              rawAction.actionType ||
+              (rawAction.type && String(rawAction.type).toUpperCase() !== 'STAGED_ACTION' ? rawAction.type : '') ||
+              rawAction.cardType ||
+              'staged_action'
+            ).toLowerCase();
             const stagedId = rawAction.staged_action_id || rawAction.id;
             const confHash = rawAction.confirmation_hash || rawAction.confirmationHash;
-            const preview = rawAction.preview || rawAction.data || rawAction;
+            const preview = rawAction.preview || rawAction.payload_preview || rawAction.data || rawAction;
             const summary = rawAction.summary || (typeof preview === 'object' ? preview.summary || preview.title : '') || 'Executive Action Required';
 
             if (rawType === 'wallet_release') {
@@ -367,9 +391,10 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
               const propSalary = typeof preview.new_base_gross === 'string'
                 ? Number(preview.new_base_gross.replace(/[^0-9.]/g, ''))
                 : Number(preview.new_base_salary || preview.amount || 0);
-              const currSalary = typeof preview.prior_base_gross === 'string'
-                ? Number(preview.prior_base_gross.replace(/[^0-9.]/g, ''))
-                : Number(preview.current_salary || 0);
+              const rawCurrStr = preview.current_base_gross || preview.prior_base_gross;
+              const currSalary = typeof rawCurrStr === 'string'
+                ? Number(rawCurrStr.replace(/[^0-9.]/g, ''))
+                : Number(preview.current_salary || preview.prior_base_salary || 0);
 
               actionCard = {
                 type: 'salary_adjustment',
@@ -451,7 +476,7 @@ export function useAiFinancialManager({ userRole, userName, businessName, busine
       }]);
       setIsTyping(false);
     },
-    [businessName, businessId, isGroupScope, activeSessionId, accountId, userRole, canUseAi]
+    [businessName, businessId, isGroupScope, activeSessionId, accountId, userRole, canUseAi, agentMode, threadDomain, messages]
   );
 
   // Execute confirmation for an action card (strictly bound to backend confirmation endpoint)

@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { KineticAiOrb } from './KineticAiOrb';
 import { useAmbientTelemetry } from './useAmbientTelemetry';
 import { AiMessage } from './types';
-import { Send, Maximize2, Minimize2, X, Trash2, Sparkles, ChevronUp, ChevronDown, Target, RotateCcw, History } from 'lucide-react';
+import { Send, Maximize2, Minimize2, X, Trash2, Sparkles, ChevronUp, ChevronDown, Target, RotateCcw, History, Paperclip, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { BriefingActionCard } from './cards/BriefingActionCard';
 import { ApprovalDecisionCard } from './cards/ApprovalDecisionCard';
 import { BudgetProposalCard } from './cards/BudgetProposalCard';
@@ -25,7 +25,11 @@ interface Props {
   isTyping: boolean;
   isInspectMode?: boolean;
   onToggleInspectMode?: () => void;
-  onSendMessage: (text: string) => void;
+  onSendMessage: (
+    text: string,
+    elementContext?: any,
+    attachments?: Array<{ name: string; url: string; type: string; textContent?: string }>
+  ) => void;
   onConfirmAction: (messageId: string, actionType: string, payload: any) => void;
   onCancelAction?: (messageId: string, stagedActionId: string) => void;
   onNewChat?: () => void;
@@ -61,8 +65,123 @@ export function AmbientBottomAiBar({
   const [isOrbitActive, setIsOrbitActive] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const lastSpokenMessageIdRef = useRef<string | null>(null);
   const [menuIndex, setMenuIndex] = useState(0);
   const [isMenuDismissed, setIsMenuDismissed] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<
+    Array<{ name: string; url: string; type: string; textContent?: string }>
+  >([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceReadoutEnabled, setVoiceReadoutEnabled] = useState(false);
+
+  const speakMessage = (text: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const cleanText = text
+        .replace(/[#*_`>|~-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.rate = 1.03;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (!voiceReadoutEnabled || messages.length === 0) return;
+    const latest = messages[messages.length - 1];
+    if (latest.sender === 'assistant' && latest.id !== 'welcome-1' && latest.id !== lastSpokenMessageIdRef.current) {
+      lastSpokenMessageIdRef.current = latest.id;
+      speakMessage(latest.content);
+    }
+  }, [messages, voiceReadoutEnabled]);
+
+  const toggleVoiceDictation = () => {
+    if (typeof window === 'undefined') return;
+    if (isListening && recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognitionCtor =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) {
+      alert('Voice dictation is supported in Chrome, Edge, and Safari.');
+      return;
+    }
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = 'en-NG';
+    recognition.interimResults = true;
+    recognition.continuous = false;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      let transcript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      if (transcript.trim()) {
+        setInputText(transcript.trim());
+      }
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const handleAttachmentSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAttachment(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/ai/attachments', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const json = await res.json();
+      if (res.ok && json.url) {
+        setPendingAttachments((prev) => [
+          ...prev,
+          {
+            name: json.name || file.name,
+            url: json.url,
+            type: json.type || file.type,
+            textContent: json.textContent,
+          },
+        ]);
+      } else {
+        alert(json.error || 'Failed to upload file attachment.');
+      }
+    } catch {
+      alert('Network error uploading attachment.');
+    } finally {
+      setUploadingAttachment(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   // Auto-stop attention-grabbing orbit 1 minute (60 seconds) after entering the dashboard
   useEffect(() => {
@@ -145,7 +264,7 @@ export function AmbientBottomAiBar({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
+    if (!inputText.trim() && pendingAttachments.length === 0) return;
     notifyAiInteraction();
 
     let textToSend = inputText.trim();
@@ -161,9 +280,20 @@ export function AmbientBottomAiBar({
       }
     }
 
-    if (textToSend) {
-      onSendMessage(textToSend);
+    const finalMessage =
+      textToSend ||
+      (pendingAttachments.length > 0
+        ? `Please review the attached file(s): ${pendingAttachments.map((a) => a.name).join(', ')}`
+        : '');
+
+    if (finalMessage) {
+      onSendMessage(
+        finalMessage,
+        undefined,
+        pendingAttachments.length > 0 ? [...pendingAttachments] : undefined
+      );
       setInputText('');
+      setPendingAttachments([]);
       setIsDeckOpen(true);
       setIsMenuDismissed(false);
     }
@@ -351,6 +481,34 @@ export function AmbientBottomAiBar({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !voiceReadoutEnabled;
+                  setVoiceReadoutEnabled(next);
+                  if (!next && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                  }
+                }}
+                title={voiceReadoutEnabled ? 'Mute AI Voice Readout' : 'Enable AI Voice Readout (TTS)'}
+                style={{
+                  background: voiceReadoutEnabled ? '#fff7ed' : 'rgba(255, 255, 255, 0.55)',
+                  border: voiceReadoutEnabled ? '1px solid #fdba74' : '1px solid rgba(255, 255, 255, 0.70)',
+                  color: voiceReadoutEnabled ? '#ea580c' : '#334155',
+                  padding: '5px 8px',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                {voiceReadoutEnabled ? <Volume2 size={12} color="#ea580c" /> : <VolumeX size={12} />}
+                <span>{voiceReadoutEnabled ? 'Voice On' : 'Voice'}</span>
+              </button>
+
               {onOpenHistory && (
                 <button
                   type="button"
@@ -479,6 +637,26 @@ export function AmbientBottomAiBar({
                     </span>
                     <span>·</span>
                     <span>{msg.timestamp}</span>
+                    {!isUser && (
+                      <button
+                        type="button"
+                        onClick={() => speakMessage(msg.content)}
+                        title="Read this response aloud"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#64748b',
+                          fontSize: '10px',
+                          cursor: 'pointer',
+                          padding: '0 4px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '2px',
+                        }}
+                      >
+                        <Volume2 size={10} /> Listen
+                      </button>
+                    )}
                   </div>
 
                   <div
@@ -893,7 +1071,7 @@ export function AmbientBottomAiBar({
               width: '100%',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '5px',
               minWidth: 0,
             }}
           >
@@ -933,10 +1111,89 @@ export function AmbientBottomAiBar({
               +
             </button>
 
+            {/* File / Picture Attachment Upload */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,application/pdf,.csv,.txt,.json,.md"
+              onChange={handleAttachmentSelect}
+              style={{ display: 'none' }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              title={uploadingAttachment ? 'Uploading attachment...' : 'Upload file or picture for AI review'}
+              style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                border: '1px solid rgba(226, 232, 240, 0.9)',
+                background: pendingAttachments.length > 0 ? '#fff7ed' : 'rgba(255, 255, 255, 0.65)',
+                color: pendingAttachments.length > 0 ? '#ea580c' : '#475569',
+                display: 'grid',
+                placeItems: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              <Paperclip size={11} />
+            </button>
+
+            {/* Pending Attachment Chips */}
+            {pendingAttachments.map((att, idx) => (
+              <span
+                key={`${att.url}-${idx}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: '#fff7ed',
+                  border: '1px solid #fdba74',
+                  color: '#c2410c',
+                  fontSize: '9.5px',
+                  fontWeight: 700,
+                  padding: '2px 7px',
+                  borderRadius: '999px',
+                  maxWidth: '140px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>📎 {att.name}</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))
+                  }
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#c2410c',
+                    cursor: 'pointer',
+                    padding: 0,
+                    fontSize: '11px',
+                    fontWeight: 800,
+                  }}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+
             <input
               ref={inputRef}
               type="text"
-              placeholder={isTelemetryTyping ? displayText : `Ask AI or type @ or / to choose agent...`}
+              placeholder={
+                isListening
+                  ? 'Listening... speak your command now'
+                  : uploadingAttachment
+                  ? 'Uploading attachment...'
+                  : isTelemetryTyping
+                  ? displayText
+                  : `Ask AI, upload file, or speak...`
+              }
               value={inputText}
               onChange={(e) => {
                 notifyAiInteraction();
@@ -953,8 +1210,8 @@ export function AmbientBottomAiBar({
               }}
               style={{
                 width: '100%',
-                background: 'rgba(255, 255, 255, 0.55)',
-                border: '1px solid rgba(255, 255, 255, 0.75)',
+                background: isListening ? '#fff7ed' : 'rgba(255, 255, 255, 0.55)',
+                border: isListening ? '1px solid #ea580c' : '1px solid rgba(255, 255, 255, 0.75)',
                 borderRadius: '999px',
                 padding: '3px 12px',
                 height: '26px',
@@ -967,19 +1224,43 @@ export function AmbientBottomAiBar({
               }}
             />
 
+            {/* Voice Dictation (Speech-to-Text) Button */}
+            <button
+              type="button"
+              onClick={toggleVoiceDictation}
+              title={isListening ? 'Stop voice dictation' : 'Speak to AI (Voice Command & Dictation)'}
+              style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                border: isListening ? '1px solid #ea580c' : '1px solid rgba(226, 232, 240, 0.9)',
+                background: isListening ? '#ea580c' : 'rgba(255, 255, 255, 0.65)',
+                color: isListening ? '#ffffff' : '#475569',
+                display: 'grid',
+                placeItems: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              {isListening ? <MicOff size={11} /> : <Mic size={11} />}
+            </button>
+
             <button
               type="submit"
-              disabled={!inputText.trim() || isTyping}
+              disabled={(!inputText.trim() && pendingAttachments.length === 0) || isTyping}
               style={{
-                background: inputText.trim() && !isTyping ? 'var(--brand-gradient, linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%))' : 'rgba(255, 255, 255, 0.45)',
-                color: inputText.trim() && !isTyping ? '#ffffff' : '#94a3b8',
+                background:
+                  (inputText.trim() || pendingAttachments.length > 0) && !isTyping
+                    ? 'var(--brand-gradient, linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%))'
+                    : 'rgba(255, 255, 255, 0.45)',
+                color: (inputText.trim() || pendingAttachments.length > 0) && !isTyping ? '#ffffff' : '#94a3b8',
                 border: '1px solid rgba(255, 255, 255, 0.60)',
                 borderRadius: '50%',
                 width: '24px',
                 height: '24px',
                 display: 'grid',
                 placeItems: 'center',
-                cursor: inputText.trim() && !isTyping ? 'pointer' : 'default',
+                cursor: (inputText.trim() || pendingAttachments.length > 0) && !isTyping ? 'pointer' : 'default',
                 flexShrink: 0,
                 transition: 'all 0.15s ease',
               }}

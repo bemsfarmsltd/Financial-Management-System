@@ -4242,6 +4242,8 @@ function AppWorkspace({user,onSignOut,onAddBusiness,onEditBusiness,businesses,cu
               onConfirmAction={aiManager.handleConfirmAction}
               onCancelAction={aiManager.handleCancelAction}
               onNewChat={aiManager.startNewChat}
+              agentMode={aiManager.agentMode}
+              onSetAgentMode={aiManager.setAgentMode}
             />
           </>
         )}

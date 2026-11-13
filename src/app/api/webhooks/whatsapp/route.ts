@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { hashPassword, verifyPassword } from "@/lib/auth";
-import { executeDashboardCommand } from "@/lib/staged-actions";
+import { hashPassword, verifyPassword, hashToken } from "@/lib/auth";
+import { executeDashboardCommand, executeStagedAction } from "@/lib/staged-actions";
+import { POST as handleAiChatPost } from "@/app/api/ai/chat/route";
 
 export const dynamic = "force-dynamic";
 
@@ -133,17 +134,14 @@ export async function POST(request: Request) {
     }
 
     const senderDigits10 = normalizeLast10Digits(senderRawPhone);
-    const gmdPhoneDigits10 = normalizeLast10Digits(process.env.GMD_WHATSAPP_PHONE);
+    const configuredGmdPhones = `${process.env.GMD_WHATSAPP_PHONE || ""},${process.env.GMD_WHATSAPP_CC_PHONES || ""}`
+      .split(/[;,]+/)
+      .map((p) => normalizeLast10Digits(p))
+      .filter((p) => p.length === 10);
 
-    // 1. Resolve employee identity (GMD fallback or database phone lookup)
+    // 1. Resolve employee identity (database phone lookup first, then GMD configured phone list)
     let employee = null;
-    if (gmdPhoneDigits10 && senderDigits10 === gmdPhoneDigits10) {
-      employee = await prisma.employee.findFirst({
-        where: { role: "GMD", status: "ACTIVE" },
-      });
-    }
-
-    if (!employee && senderDigits10) {
+    if (senderDigits10) {
       const candidates = await prisma.employee.findMany({
         where: {
           status: "ACTIVE",
@@ -152,6 +150,12 @@ export async function POST(request: Request) {
         },
       });
       employee = candidates.find((c) => normalizeLast10Digits(c.phone) === senderDigits10) || null;
+    }
+
+    if (!employee && senderDigits10 && configuredGmdPhones.includes(senderDigits10)) {
+      employee = await prisma.employee.findFirst({
+        where: { role: "GMD", status: "ACTIVE" },
+      });
     }
 
     // 2. Authorization validation
@@ -517,23 +521,161 @@ export async function POST(request: Request) {
     }
 
     // -------------------------------------------------------------
-    // COMMAND 7: HELP / Guidance Fallback
+    // COMMAND 7: CONFIRM / CANCEL staged BEMi action
     // -------------------------------------------------------------
-    const hasPin = Boolean(employee.securityPinHash);
-    const helpText =
-      `👋 *BEMS ERP Executive Assistant*\n\n` +
-      `Welcome ${employee.legalName} (${employee.role}).\n` +
-      `PIN Status: ${hasPin ? "✅ Active" : "⚠️ Not set"}\n\n` +
-      `*Available Commands:*\n` +
-      `• *PENDING* - View requisitions awaiting approval\n` +
-      `• *APPROVE <Request#>* - Authorize a request (e.g. *APPROVE REQ-2026-0006*)\n` +
-      `• *DECLINE <Request#>* - Decline a request\n` +
-      `• *STATUS <Request#>* - Check status of any request\n` +
-      `• *SETPIN <4-digit PIN>* - ${hasPin ? "Update" : "Create"} your 4-digit approval PIN\n` +
-      `• *HELP* - Show this menu`;
+    if (/^(?:CONFIRM|EXECUTE|CANCEL|DISCARD)(?:\s+([a-zA-Z0-9_-]+))?$/i.test(command)) {
+      const isCancel = /^(?:CANCEL|DISCARD)/i.test(command);
+      const idMatch = command.match(/^(?:CONFIRM|EXECUTE|CANCEL|DISCARD)\s+([a-zA-Z0-9_-]+)$/i);
+      const explicitId = idMatch?.[1]?.trim();
 
-    await sendWhatsAppReply(senderRawPhone, helpText);
-    return NextResponse.json({ status: "HELP_SENT" }, { status: 200 });
+      const pendingStaged = await prisma.stagedAction.findFirst({
+        where: {
+          userId: employee.id,
+          status: "PENDING",
+          expiresAt: { gt: new Date() },
+          ...(explicitId ? { id: { startsWith: explicitId } } : {}),
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (!pendingStaged) {
+        await sendWhatsAppReply(
+          senderRawPhone,
+          `⚠️ *No Pending BEMi Action Found*\n\nThere is no active staged proposal waiting for confirmation.`
+        );
+        return NextResponse.json({ status: "NO_PENDING_STAGED_ACTION" }, { status: 200 });
+      }
+
+      if (isCancel) {
+        await prisma.stagedAction.update({
+          where: { id: pendingStaged.id },
+          data: { status: "CANCELLED" },
+        });
+        await sendWhatsAppReply(
+          senderRawPhone,
+          `🗑️ *Staged Action Cancelled*\n\n"${pendingStaged.summary}" has been discarded.`
+        );
+        return NextResponse.json({ status: "STAGED_ACTION_CANCELLED" }, { status: 200 });
+      }
+
+      const execRes = await executeStagedAction({
+        actionId: pendingStaged.id,
+        confirmationHash: pendingStaged.confirmationHash,
+        actor: {
+          id: employee.id,
+          legalName: employee.legalName,
+          role: employee.role,
+          employeeNumber: employee.employeeNumber,
+        },
+      });
+
+      if (!execRes.ok) {
+        await sendWhatsAppReply(
+          senderRawPhone,
+          `⚠️ *Could Not Execute Staged Action*\n\n${execRes.message || "Please review and confirm in the BEMS Cockpit."}`
+        );
+        return NextResponse.json({ status: "STAGED_ACTION_FAILED" }, { status: 200 });
+      }
+
+      await sendWhatsAppReply(
+        senderRawPhone,
+        `✅ *BEMi Action Executed*\n\n${execRes.message || pendingStaged.summary}`
+      );
+      return NextResponse.json({ status: "STAGED_ACTION_EXECUTED" }, { status: 200 });
+    }
+
+    // -------------------------------------------------------------
+    // COMMAND 8: HELP Menu
+    // -------------------------------------------------------------
+    if (/^(?:HELP|\?|MENU|COMMANDS)$/i.test(command)) {
+      const hasPin = Boolean(employee.securityPinHash);
+      const helpText =
+        `👋 *BEMS ERP & BEMi Executive Assistant*\n\n` +
+        `Welcome ${employee.legalName} (${employee.role}).\n` +
+        `PIN Status: ${hasPin ? "✅ Active" : "⚠️ Not set"}\n\n` +
+        `*You can chat naturally with BEMi*, or use quick commands:\n` +
+        `• *PENDING* - View requisitions awaiting approval\n` +
+        `• *APPROVE <Request#>* - Authorize a request\n` +
+        `• *DECLINE <Request#>* - Decline a request\n` +
+        `• *STATUS <Request#>* - Check status of any request\n` +
+        `• *CONFIRM* / *CANCEL* - Commit or discard BEMi's staged proposal\n` +
+        `• *SETPIN <4-digit PIN>* - ${hasPin ? "Update" : "Create"} your 4-digit approval PIN`;
+
+      await sendWhatsAppReply(senderRawPhone, helpText);
+      return NextResponse.json({ status: "HELP_SENT" }, { status: 200 });
+    }
+
+    // -------------------------------------------------------------
+    // COMMAND 9: Conversational BEMi AI Bridge
+    // -------------------------------------------------------------
+    const waConversationId = `wa_bemi_${employee.id}`;
+    const rawSessionToken = `wa_${crypto.randomBytes(24).toString("hex")}`;
+    const sessionRow = await prisma.authSession.create({
+      data: {
+        employeeId: employee.id,
+        tokenHash: hashToken(rawSessionToken),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      },
+    });
+
+    try {
+      const recentTurns = await prisma.n8nChatHistory.findMany({
+        where: { sessionId: waConversationId },
+        orderBy: { id: "desc" },
+        take: 6,
+      });
+
+      const compactHistory = recentTurns.reverse().map((row) => {
+        let parsed: any = {};
+        try {
+          parsed = typeof row.message === "string" ? JSON.parse(row.message) : row.message || {};
+        } catch {}
+        const role = parsed.type === "human" || parsed.role === "user" ? "user" : "assistant";
+        const content = String(parsed.content || parsed.text || "").slice(0, 350);
+        return { role, content };
+      });
+
+      const syntheticReq = new NextRequest("https://bemserp.work/api/ai/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${rawSessionToken}`,
+          "x-user-id": employee.id,
+        },
+        body: JSON.stringify({
+          message: command,
+          conversation_id: waConversationId,
+          history: compactHistory,
+          agentMode: "auto",
+          context: {
+            channel: "WHATSAPP",
+            currentPage: "WhatsApp Executive Assistant",
+          },
+        }),
+      });
+
+      const aiRes = await handleAiChatPost(syntheticReq);
+      const aiData = await aiRes.json().catch(() => ({}));
+
+      let replyText = String(aiData?.message || aiData?.error || "BEMi processed your request.").trim();
+      // Convert standard Markdown **bold** to WhatsApp *bold*
+      replyText = replyText.replace(/\*\*(.+?)\*\*/g, "*$1*");
+
+      const staged = aiData?.staged_action || aiData?.actionCard;
+      if (staged?.staged_action_id) {
+        const shortId = String(staged.staged_action_id).slice(0, 8);
+        replyText += `\n\n📌 *Staged Proposal Ready:*\n${staged.summary || "Executive Action"}\n👉 Reply *CONFIRM ${shortId}* to execute or *CANCEL ${shortId}* to discard.`;
+      }
+
+      if (replyText.length > 3800) {
+        replyText = `${replyText.slice(0, 3750)}\n\n_(Truncated — open https://bemserp.work for full view)_`;
+      }
+
+      await sendWhatsAppReply(senderRawPhone, replyText);
+      return NextResponse.json({ status: "BEMI_REPLY_SENT" }, { status: 200 });
+    } finally {
+      await prisma.authSession.delete({ where: { id: sessionRow.id } }).catch(() => {});
+    }
   } catch (error: any) {
     console.error("[WhatsApp Webhook] Handler error:", error);
     return NextResponse.json({ error: error.message || "Failed to process WhatsApp webhook" }, { status: 500 });

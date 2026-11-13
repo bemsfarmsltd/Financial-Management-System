@@ -42,32 +42,53 @@ export async function inspectEmployeeCompensationContext(
     throw new Error('employee_id is required.');
   }
 
-  const emp = await prisma.employee.findFirst({
+  const includeSpec = {
+    assignments: {
+      where: { status: 'ACTIVE' },
+      orderBy: [{ isPrimary: 'desc' as const }, { startsOn: 'desc' as const }],
+      include: { subsidiary: { select: { id: true, legalName: true } } },
+    },
+    employmentAgreements: {
+      where: { status: 'ACTIVE' },
+      orderBy: { startDate: 'desc' as const },
+      take: 1,
+      include: {
+        compensations: {
+          orderBy: [{ version: 'desc' as const }, { effectiveFrom: 'desc' as const }],
+        },
+      },
+    },
+  };
+
+  let emp = await prisma.employee.findFirst({
     where: {
+      role: 'STAFF',
+      status: 'ACTIVE',
       OR: [
         { id: cleanQuery },
         { employeeNumber: { equals: cleanQuery, mode: 'insensitive' } },
         { workEmail: { equals: cleanQuery, mode: 'insensitive' } },
+        { legalName: { equals: cleanQuery, mode: 'insensitive' } },
+        { legalName: { contains: cleanQuery, mode: 'insensitive' } },
       ],
     },
-    include: {
-      assignments: {
-        where: { status: 'ACTIVE' },
-        orderBy: [{ isPrimary: 'desc' }, { startsOn: 'desc' }],
-        include: { subsidiary: { select: { id: true, legalName: true } } },
-      },
-      employmentAgreements: {
-        where: { status: 'ACTIVE' },
-        orderBy: { startDate: 'desc' },
-        take: 1,
-        include: {
-          compensations: {
-            orderBy: [{ version: 'desc' }, { effectiveFrom: 'desc' }],
-          },
-        },
-      },
-    },
+    include: includeSpec,
   });
+
+  if (!emp) {
+    emp = await prisma.employee.findFirst({
+      where: {
+        OR: [
+          { id: cleanQuery },
+          { employeeNumber: { equals: cleanQuery, mode: 'insensitive' } },
+          { workEmail: { equals: cleanQuery, mode: 'insensitive' } },
+          { legalName: { contains: cleanQuery, mode: 'insensitive' } },
+        ],
+      },
+      orderBy: [{ role: 'desc' }, { status: 'asc' }],
+      include: includeSpec,
+    });
+  }
 
   if (!emp) {
     throw new Error(`Employee "${cleanQuery}" not found.`);
@@ -363,19 +384,28 @@ export async function applyCanonicalCompensationChange(
     const activeItems = await tx.payrollItem.findMany({
       where: {
         employeeId,
+        status: { notIn: ['PAID', 'WALLET_CREDITED'] },
+        batch: { status: { not: 'PAID' } },
       },
       include: {
         batch: { include: { period: true } },
+        disbursement: true,
       },
     });
 
     for (const it of activeItems) {
+      if (it.disbursement && it.disbursement.status !== 'UNPAID') {
+        continue;
+      }
       const p = it.batch.period;
       const monthName = new Intl.DateTimeFormat('en', { month: 'long' }).format(
         new Date(p.year, p.month - 1, 1)
       );
       affectedPeriodsSet.add(`${monthName} ${p.year}`);
 
+      if (it.disbursement) {
+        await tx.disbursement.delete({ where: { id: it.disbursement.id } });
+      }
       await tx.payrollItemAllocation.deleteMany({ where: { itemId: it.id } });
       await tx.payrollItem.delete({ where: { id: it.id } });
 
@@ -395,10 +425,12 @@ export async function applyCanonicalCompensationChange(
       });
     }
   } else {
-    // Synchronize all payroll items for this employee in current/active payroll periods
+    // Synchronize all unpaid payroll items for this employee in open/unpaid payroll batches
     const openUnpaidItems = await tx.payrollItem.findMany({
       where: {
         employeeId,
+        status: { notIn: ['PAID', 'WALLET_CREDITED'] },
+        batch: { status: { not: 'PAID' } },
       },
       include: {
         batch: { include: { period: true } },
@@ -453,6 +485,65 @@ export async function applyCanonicalCompensationChange(
         where: { id: it.batchId },
         data: { totalGrossMinor: totalG, totalNetMinor: totalN },
       });
+    }
+
+    // If employee had no PayrollItem in the latest open/unpaid batch (e.g. previously exempt/no salary set), insert them
+    if (openUnpaidItems.length === 0 && newGrossMinor > BigInt(0)) {
+      const openBatches = await tx.payrollBatch.findMany({
+        where: {
+          status: { in: ['DRAFT', 'SUBMITTED'] },
+          period: { lockStatus: 'OPEN' },
+        },
+        include: { period: true },
+        orderBy: [{ createdAt: 'desc' }],
+        take: 1,
+      });
+      for (const ob of openBatches) {
+        const existingInBatch = await tx.payrollItem.findFirst({
+          where: { batchId: ob.id, employeeId },
+        });
+        if (!existingInBatch) {
+          const createdItem = await tx.payrollItem.create({
+            data: {
+              batchId: ob.id,
+              employeeId,
+              agreementId: agreement.id,
+              grossMinor: newGrossMinor,
+              employeeDeductionsMinor: BigInt(0),
+              employerCostMinor: BigInt(0),
+              netMinor: newGrossMinor,
+              currency: effectiveSalary?.currency || 'NGN',
+              status: 'CALCULATED',
+            },
+          });
+          await tx.payrollItemAllocation.create({
+            data: {
+              itemId: createdItem.id,
+              subsidiaryId: agreement.employerEntityId,
+              percentage: 100,
+              allocableCostMinor: newGrossMinor,
+            },
+          });
+          const batchItems = await tx.payrollItem.findMany({
+            where: { batchId: ob.id },
+            select: { grossMinor: true, netMinor: true },
+          });
+          let totalG = BigInt(0);
+          let totalN = BigInt(0);
+          for (const bi of batchItems) {
+            totalG += bi.grossMinor;
+            totalN += bi.netMinor;
+          }
+          await tx.payrollBatch.update({
+            where: { id: ob.id },
+            data: { totalGrossMinor: totalG, totalNetMinor: totalN },
+          });
+          const monthName = new Intl.DateTimeFormat('en', { month: 'long' }).format(
+            new Date(ob.period.year, ob.period.month - 1, 1)
+          );
+          affectedPeriodsSet.add(`${monthName} ${ob.period.year}`);
+        }
+      }
     }
   }
 

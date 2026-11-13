@@ -14,6 +14,14 @@ import {
   CheckCircle2,
   Lock,
   History,
+  Paperclip,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  FileText,
+  Image as ImageIcon,
+  X,
 } from 'lucide-react';
 import { useAiFinancialManager } from './useAiFinancialManager';
 import { AiChatHistoryDrawer } from './AiChatHistoryDrawer';
@@ -64,8 +72,16 @@ export function AiChatWorkspaceView({
   const [inputText, setInputText] = useState('');
   const [menuIndex, setMenuIndex] = useState(0);
   const [isMenuDismissed, setIsMenuDismissed] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<any[]>([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [isListeningVoice, setIsListeningVoice] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const lastSpokenMessageIdRef = useRef<string | null>(null);
 
   const aiManager = useAiFinancialManager({
     userRole,
@@ -76,6 +92,100 @@ export function AiChatWorkspaceView({
   });
 
   const { messages, isTyping, sendMessage, handleConfirmAction, handleCancelAction, startNewChat, setAgentMode } = aiManager;
+
+  const speakText = (text: string, msgId?: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const cleanText = text
+        .replace(/[#*_`~>-]/g, ' ')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!cleanText) return;
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.rate = 1.03;
+      utterance.pitch = 1.0;
+      if (msgId) setSpeakingMessageId(msgId);
+      utterance.onend = () => setSpeakingMessageId(null);
+      utterance.onerror = () => setSpeakingMessageId(null);
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      setSpeakingMessageId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!soundEnabled || messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.sender === 'assistant' && lastMsg.id !== 'welcome' && lastMsg.id !== lastSpokenMessageIdRef.current) {
+      lastSpokenMessageIdRef.current = lastMsg.id;
+      speakText(lastMsg.content, lastMsg.id);
+    }
+  }, [messages, soundEnabled]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setIsUploadingAttachment(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/ai/attachments', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        if (res.ok && data.attachment) {
+          setPendingAttachments((prev) => [...prev, data.attachment]);
+        }
+      }
+    } catch (err) {
+      console.error('Attachment upload error:', err);
+    } finally {
+      setIsUploadingAttachment(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const toggleVoiceDictation = () => {
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
+      return;
+    }
+
+    if (isListeningVoice && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListeningVoice(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => setIsListeningVoice(true);
+      recognition.onresult = (event: any) => {
+        const transcript = event.results?.[0]?.[0]?.transcript || '';
+        if (transcript) {
+          setInputText((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        }
+      };
+      recognition.onerror = () => setIsListeningVoice(false);
+      recognition.onend = () => setIsListeningVoice(false);
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch {
+      setIsListeningVoice(false);
+    }
+  };
 
   // Auto-scroll when messages update or typing state changes
   useEffect(() => {
@@ -135,21 +245,37 @@ export function AiChatWorkspaceView({
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || isTyping || !isChatEnabled) return;
+    if ((!inputText.trim() && pendingAttachments.length === 0) || isTyping || !isChatEnabled) return;
     
     let textToSend = inputText.trim();
+    let explicitOverride: 'financial' | 'hr' | 'both' | 'auto' | undefined = undefined;
     const tagMatch = textToSend.match(/^[@/](finance|financial|hr|people|both|all|auto)\b\s*/i);
     if (tagMatch) {
       const token = tagMatch[1].toLowerCase();
       textToSend = textToSend.slice(tagMatch[0].length).trim();
-      if (token === 'finance' || token === 'financial') setAgentMode('financial');
-      else if (token === 'hr' || token === 'people') setAgentMode('hr');
-      else if (token === 'both' || token === 'all') setAgentMode('both');
-      else if (token === 'auto') setAgentMode('auto');
+      if (token === 'finance' || token === 'financial') {
+        setAgentMode('financial');
+        explicitOverride = 'financial';
+      } else if (token === 'hr' || token === 'people') {
+        setAgentMode('hr');
+        explicitOverride = 'hr';
+      } else if (token === 'both' || token === 'all') {
+        setAgentMode('both');
+        explicitOverride = 'both';
+      } else if (token === 'auto') {
+        setAgentMode('auto');
+        explicitOverride = 'auto';
+      }
+    }
+
+    if (!textToSend && pendingAttachments.length > 0) {
+      textToSend = `Attached ${pendingAttachments.map((a) => a.fileName).join(', ')} for analysis.`;
     }
 
     if (textToSend) {
-      sendMessage(textToSend);
+      const attachmentsToSend = [...pendingAttachments];
+      setPendingAttachments([]);
+      sendMessage(textToSend, undefined, attachmentsToSend);
       setInputText('');
       setIsMenuDismissed(false);
     }
@@ -284,6 +410,36 @@ export function AiChatWorkspaceView({
               👥 HR Ops
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const nextState = !soundEnabled;
+              setSoundEnabled(nextState);
+              if (!nextState && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                setSpeakingMessageId(null);
+              }
+            }}
+            title={soundEnabled ? 'Mute AI Voice Readout' : 'Enable AI Voice Readout (TTS)'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 14px',
+              borderRadius: '999px',
+              background: soundEnabled ? '#fff7ed' : '#f8fafc',
+              border: soundEnabled ? '1px solid #fdba74' : '1px solid #cbd5e1',
+              color: soundEnabled ? '#ea580c' : '#334155',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+            }}
+          >
+            {soundEnabled ? <Volume2 size={13} color="#ea580c" /> : <VolumeX size={13} />}
+            {soundEnabled ? 'Voice On' : 'Voice Readout'}
+          </button>
 
           <button
             type="button"
@@ -555,6 +711,35 @@ export function AiChatWorkspaceView({
                   </span>
                   <span>·</span>
                   <span>{msg.timestamp}</span>
+                  {!isUser && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (speakingMessageId === msg.id) {
+                          window.speechSynthesis?.cancel();
+                          setSpeakingMessageId(null);
+                        } else {
+                          speakText(msg.content, msg.id);
+                        }
+                      }}
+                      style={{
+                        background: speakingMessageId === msg.id ? '#fff7ed' : 'transparent',
+                        border: speakingMessageId === msg.id ? '1px solid #fdba74' : 'none',
+                        borderRadius: '999px',
+                        padding: '1px 6px',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        color: speakingMessageId === msg.id ? '#ea580c' : '#64748b',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                      }}
+                    >
+                      <Volume2 size={11} />
+                      {speakingMessageId === msg.id ? 'Stop' : 'Listen'}
+                    </button>
+                  )}
                 </div>
 
                 {/* Bubble */}
@@ -755,14 +940,116 @@ export function AiChatWorkspaceView({
             background: '#ffffff',
           }}
         >
+          {pendingAttachments.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                flexWrap: 'wrap',
+                marginBottom: '10px',
+                padding: '6px 10px',
+                background: '#fff7ed',
+                border: '1px solid #fed7aa',
+                borderRadius: '10px',
+              }}
+            >
+              {pendingAttachments.map((att, idx) => (
+                <div
+                  key={att.id || idx}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: '#ffffff',
+                    border: '1px solid #fdba74',
+                    borderRadius: '8px',
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#9a3412',
+                  }}
+                >
+                  {att.isImage ? <ImageIcon size={12} color="#ea580c" /> : <FileText size={12} color="#ea580c" />}
+                  <span style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {att.fileName}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#9a3412',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'inline-flex',
+                    }}
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <form
             onSubmit={handleSend}
             style={{
               display: 'flex',
-              gap: 12,
+              gap: 10,
               alignItems: 'center',
             }}
           >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,.pdf,.csv,.txt,.json,.md"
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+            />
+            <button
+              type="button"
+              title="Attach File or Picture (Invoice, Receipt, Screenshot, CSV, PDF)"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!isChatEnabled || isUploadingAttachment}
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 12,
+                background: pendingAttachments.length > 0 ? '#fff7ed' : '#f8fafc',
+                border: pendingAttachments.length > 0 ? '1px solid #fdba74' : '1px solid #cbd5e1',
+                color: pendingAttachments.length > 0 ? '#ea580c' : '#475569',
+                display: 'grid',
+                placeItems: 'center',
+                cursor: !isChatEnabled ? 'not-allowed' : 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              <Paperclip size={17} />
+            </button>
+
+            <button
+              type="button"
+              title={isListeningVoice ? 'Stop Voice Dictation' : 'Speak to BEMi (Voice Control)'}
+              onClick={toggleVoiceDictation}
+              disabled={!isChatEnabled}
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 12,
+                background: isListeningVoice ? '#fef2f2' : '#f8fafc',
+                border: isListeningVoice ? '1px solid #fca5a5' : '1px solid #cbd5e1',
+                color: isListeningVoice ? '#dc2626' : '#475569',
+                display: 'grid',
+                placeItems: 'center',
+                cursor: !isChatEnabled ? 'not-allowed' : 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              {isListeningVoice ? <MicOff size={17} /> : <Mic size={17} />}
+            </button>
             <div
               style={{
                 flex: 1,
@@ -863,9 +1150,9 @@ export function AiChatWorkspaceView({
 
             <button
               type="submit"
-              disabled={!isChatEnabled || !inputText.trim() || isTyping}
+              disabled={!isChatEnabled || (!inputText.trim() && pendingAttachments.length === 0) || isTyping}
               style={{
-                background: !isChatEnabled || !inputText.trim() || isTyping
+                background: !isChatEnabled || (!inputText.trim() && pendingAttachments.length === 0) || isTyping
                   ? '#94a3b8'
                   : 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
                 color: '#ffffff',
@@ -874,11 +1161,11 @@ export function AiChatWorkspaceView({
                 padding: '13px 22px',
                 fontSize: '14px',
                 fontWeight: 700,
-                cursor: !isChatEnabled || !inputText.trim() || isTyping ? 'not-allowed' : 'pointer',
+                cursor: !isChatEnabled || (!inputText.trim() && pendingAttachments.length === 0) || isTyping ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                boxShadow: !isChatEnabled || !inputText.trim() || isTyping ? 'none' : '0 4px 12px rgba(124, 58, 237, 0.3)',
+                boxShadow: !isChatEnabled || (!inputText.trim() && pendingAttachments.length === 0) || isTyping ? 'none' : '0 4px 12px rgba(124, 58, 237, 0.3)',
                 whiteSpace: 'nowrap',
                 transition: 'all 0.15s ease',
               }}
