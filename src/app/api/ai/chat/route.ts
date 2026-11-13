@@ -424,7 +424,9 @@ title: "<Chart Title>"
           const isN8nGenericFailure =
             !n8nData.staged_action &&
             !n8nData.actionCard &&
-            /i could not complete that just now|nothing was changed in bems/i.test(String(rawReply));
+            /i could not complete that just now|nothing was changed in bems|bems real-time intelligence synchronized|treasury records are intact|^workflow executed\.?$/i.test(
+              String(rawReply).trim()
+            );
           if (isN8nGenericFailure) {
             console.warn(
               `[AI Chat] n8n webhook (${activeAgentMode}) returned generic failure reply; falling back to built-in BEMS AI engine.`
@@ -1368,6 +1370,62 @@ title: "<Chart Title>"
         reply = `There are currently no pending requests requiring approval. The queue is all clear!`;
       }
       }
+    } else if (
+      normalized.includes('executive audit') ||
+      normalized.includes('complete audit') ||
+      normalized.includes('full audit') ||
+      (normalized.includes('audit') &&
+        (normalized.includes('reserve') ||
+          normalized.includes('cash') ||
+          normalized.includes('pending') ||
+          normalized.includes('approval') ||
+          normalized.includes('advance') ||
+          normalized.includes('72h'))) ||
+      (normalized.includes('cash reserve') &&
+        (normalized.includes('pending') ||
+          normalized.includes('approval') ||
+          normalized.includes('advance') ||
+          normalized.includes('72h')))
+    ) {
+      const pendingDetails =
+        pendingCount === 0
+          ? '• **Pending Approvals:** **0 requests** awaiting executive sign-off.'
+          : `• **Pending Approvals:** **${pendingCount} request${pendingCount > 1 ? 's' : ''}** totaling **${formatNaira(pendingSum)}**:\n` +
+            pendingRequests
+              .slice(0, 5)
+              .map(
+                (r, i) =>
+                  `  ${i + 1}. **${r.requestNumber}** — ${r.title} by ${r.requester?.legalName || 'Staff'} (**${formatNaira(Number(r.amountMinor) / 100)}**)`
+              )
+              .join('\n');
+
+      const advanceDetails =
+        openCases.length === 0
+          ? '• **72h Cash Advances & Accountability:** **0 open cases** (100% receipt compliance).'
+          : `• **72h Cash Advances & Accountability:** **${openCases.length} open case${openCases.length > 1 ? 's' : ''}** pending receipt clearance:\n` +
+            openCases
+              .slice(0, 5)
+              .map(
+                (c, i) =>
+                  `  ${i + 1}. **${c.request?.requestNumber || 'ADV'}** — ${c.owner?.legalName || 'Requester'} (${c.status})`
+              )
+              .join('\n');
+
+      reply =
+        `**Complete Executive Audit — BEMS Group (${userName}):**\n\n` +
+        `• **Group Cash Reserves:** **${formatNaira(totalCash)}** across registered bank reserves.\n` +
+        `${pendingDetails}\n` +
+        `${advanceDetails}\n` +
+        `• **Active Workforce:** **${totalActiveStaff} employees** registered across group entities.`;
+
+      actionCard = {
+        type: 'BRIEFING',
+        title: 'BEMS Executive Group Audit',
+        cash: formatNaira(totalCash),
+        pending: pendingCount,
+        openCases: openCases.length,
+        staff: totalActiveStaff,
+      };
     } else if (
       normalized.includes('approval') ||
       normalized.includes('pending') ||
