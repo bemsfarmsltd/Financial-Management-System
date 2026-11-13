@@ -15,6 +15,14 @@
 
 export type AiAgentDomain = 'financial' | 'hr' | 'both';
 
+export type SemanticAiIntent =
+  | 'SUBSIDIARY_CREATE'
+  | 'STAFF_MESSAGE'
+  | 'ATTENDANCE_QUERY'
+  | 'TREASURY_QUERY'
+  | 'APPROVAL_QUERY'
+  | 'GENERAL';
+
 export interface RouteResolutionInput {
   message: string;
   explicitMode?: 'financial' | 'hr' | 'auto' | 'both';
@@ -37,6 +45,7 @@ export interface RouteResolutionResult {
   confidence: number;
   reason: string;
   cleanMessage?: string;
+  intent?: SemanticAiIntent;
 }
 
 // Extract any leading @agent or /agent command tag from the input prompt
@@ -549,4 +558,133 @@ export function resolveAiAgentRoute(input: RouteResolutionInput): RouteResolutio
     reason: 'Default domain fallback: Financial Manager.',
     cleanMessage: effectiveMessage,
   };
+}
+
+const VALID_DOMAINS: ReadonlySet<string> = new Set(['financial', 'hr', 'both']);
+const VALID_INTENTS: ReadonlySet<string> = new Set([
+  'SUBSIDIARY_CREATE',
+  'STAFF_MESSAGE',
+  'ATTENDANCE_QUERY',
+  'TREASURY_QUERY',
+  'APPROVAL_QUERY',
+  'GENERAL',
+]);
+
+/**
+ * Gemini-powered semantic intent router with deterministic fallback.
+ * Uses Gemini Flash (when GEMINI_API_KEY / GOOGLE_AI_API_KEY is configured) to
+ * classify domain & intent even with typos, idioms, or multi-turn references.
+ */
+export async function resolveAiAgentRouteSmart(
+  input: RouteResolutionInput
+): Promise<RouteResolutionResult> {
+  const baseline = resolveAiAgentRoute(input);
+  const parsedTag = extractAgentCommandTag(input.message || '');
+
+  // Never override explicit @tag locks, explicit 'both' mode, or Point & Ask DOM domain locks
+  if (
+    parsedTag.tag ||
+    (input.isTagLocked && input.explicitMode && input.explicitMode !== 'auto') ||
+    input.explicitMode === 'both' ||
+    input.targetElement?.domain
+  ) {
+    return baseline;
+  }
+
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || '').trim();
+  if (!apiKey) {
+    return baseline;
+  }
+
+  const cleanMessage = parsedTag.cleanMessage || input.message.trim();
+  const recentHistory = (input.history || [])
+    .slice(-4)
+    .map((m) => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${String(m.content || '').slice(0, 220)}`)
+    .join('\n');
+
+  const systemPrompt = [
+    'You are the BEMS Enterprise AI Intent Router. Classify the user message into the right agent domain and high-level intent.',
+    'Domains:',
+    '- "hr": attendance, clock-in/out, late/absent staff, leave, staff directory/profiles, payroll roster, messaging/notifying staff members.',
+    '- "financial": bank balances, treasury, budgets, fund requests, approvals, disbursements, vendors, accountability retirement, intercompany notes, creating/editing subsidiaries.',
+    '- "both": explicitly spans both financial/budget/approval AND workforce/attendance/staffing.',
+    'Intents: SUBSIDIARY_CREATE, STAFF_MESSAGE, ATTENDANCE_QUERY, TREASURY_QUERY, APPROVAL_QUERY, GENERAL.',
+    'Handle typos (e.g. "cretae one" = SUBSIDIARY_CREATE if context discusses subsidiaries), Nigerian enterprise English, and pronouns ("one", "her", "him") using conversation history.',
+    'Return strict JSON: {"domain":"financial|hr|both","intent":"...","confidence":0.0-1.0,"reason":"short reason"}.',
+  ].join('\n');
+
+  const userPrompt = [
+    `Current Page: ${input.currentPage || 'unknown'}`,
+    `Active UI Pill: ${input.explicitMode || 'auto'}`,
+    recentHistory ? `Recent History:\n${recentHistory}` : '',
+    `User Message: ${cleanMessage}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 1800);
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [
+            { role: 'user', parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 160,
+            responseMimeType: 'application/json',
+          },
+        }),
+      }
+    );
+
+    if (!res.ok) return baseline;
+    const payload = await res.json();
+    const rawText = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (typeof rawText !== 'string' || !rawText.trim()) return baseline;
+
+    const parsed = JSON.parse(rawText);
+    const domain = String(parsed?.domain || '').toLowerCase();
+    const intent = String(parsed?.intent || 'GENERAL').toUpperCase();
+    const confidence = Number(parsed?.confidence ?? 0);
+    const reason = String(parsed?.reason || 'Gemini semantic classification');
+
+    if (!VALID_DOMAINS.has(domain) || !Number.isFinite(confidence)) {
+      return baseline;
+    }
+
+    const resolvedIntent: SemanticAiIntent = VALID_INTENTS.has(intent)
+      ? (intent as SemanticAiIntent)
+      : 'GENERAL';
+
+    // If user clicked a specific pill ('hr' or 'financial'), require high confidence (>= 0.82) to override it
+    const pillActive = input.explicitMode === 'hr' || input.explicitMode === 'financial';
+    if (pillActive && domain !== input.explicitMode && confidence < 0.82) {
+      return { ...baseline, intent: resolvedIntent };
+    }
+
+    if (confidence >= 0.72) {
+      return {
+        domain: domain as AiAgentDomain,
+        isCrossDomain: domain === 'both',
+        confidence: Math.min(1, Math.max(0, confidence)),
+        reason: `Gemini Smart Router: ${reason}`,
+        cleanMessage,
+        intent: resolvedIntent,
+      };
+    }
+
+    return { ...baseline, intent: resolvedIntent };
+  } catch {
+    return baseline;
+  } finally {
+    clearTimeout(timer);
+  }
 }

@@ -14,7 +14,7 @@ import { enforceMobileVersionGate } from '@/lib/mobile-gate';
 import { checkAiScopeOrResponse } from '@/lib/ai-access-control';
 import { createScopedAutomationToken, normalizeCanonicalRole } from '@/lib/platform/actor-scope';
 import { redactUntrustedAndSensitiveFields } from '@/lib/platform/read-catalog';
-import { resolveAiAgentRoute } from '@/lib/ai-intent-router';
+import { resolveAiAgentRouteSmart } from '@/lib/ai-intent-router';
 
 function formatNaira(amount: number): string {
   return new Intl.NumberFormat('en-NG', {
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
     const explicitTagLocked =
       body.context?.is_tag_locked === true ||
       body.is_tag_locked === true;
-    const routeDecision = resolveAiAgentRoute({
+    const routeDecision = await resolveAiAgentRouteSmart({
       message,
       explicitMode: explicitAgentMode,
       isTagLocked: explicitTagLocked,
@@ -692,10 +692,16 @@ title: "<Chart Title>"
               }
 
               // 2. Subsidiary creation / editing capability response & staging
+              const mentionsSubsidiaryContext =
+                routeDecision.intent === 'SUBSIDIARY_CREATE' ||
+                /\b(subsidiary|subsidiaries)\b/i.test(combinedContextText);
+              const wantsSubsidiaryMutation =
+                routeDecision.intent === 'SUBSIDIARY_CREATE' ||
+                /\b(create|cretae|crate|add|new|edit|update|modify|open|set\s*up)\b/i.test(cleanUserMessage);
               if (
                 !verifiedActionCard &&
-                /\b(subsidiary|subsidiaries)\b/i.test(cleanUserMessage) &&
-                /\b(create|add|new|edit|update|modify|open)\b/i.test(cleanUserMessage)
+                mentionsSubsidiaryContext &&
+                wantsSubsidiaryMutation
               ) {
                 const { stageAction } = await import('@/lib/staged-actions');
                 const quotedNameMatch =
@@ -749,7 +755,10 @@ title: "<Chart Title>"
                   lowerReply.includes('cannot create') ||
                   lowerReply.includes("can't create") ||
                   lowerReply.includes('not able to create') ||
-                  lowerReply.includes('only view')
+                  lowerReply.includes('only view') ||
+                  lowerReply.includes("isn't something i can") ||
+                  lowerReply.includes('not something i can') ||
+                  lowerReply.includes('only lets me look at')
                 ) {
                   reply = `Yes — I can **create** a new subsidiary or **edit** any existing subsidiary directly from here and stage the confirmation card for your sign-off.\n\nTo stage a **New Subsidiary**, tell me:\n1. **Legal Corporate Name & Shortcode** (e.g., *Bems Logistics Ltd*, ` + '`BLOG`' + `)\n2. **Industry Sector & Headquarters Location**\n3. **Executive Contact Name, Email & Phone Number**\n4. **Initial Monthly Budget & Staff to Tag** *(optional)*\n\nOr tell me which existing subsidiary you would like to edit and what fields to update.`;
                 }
@@ -1926,6 +1935,7 @@ title: "<Chart Title>"
         ? `**Active Workspace Subsidiary:**\n\n• **${scopedOrgName}** (Code: \`${scopedOrgCode}\`)\n\n*The AI Copilot is strictly isolated to this subsidiary. To view the group conglomerate portfolio, switch to BEMS Group.*`
         : `**BEMS Group Multi-Subsidiary Architecture:**\n\n${orgNames}\n\nAll intercompany transactions generate automated bilateral Debit/Credit notes with zero double-counting.`;
     } else if (
+      routeDecision.intent === 'STAFF_MESSAGE' ||
       /\b(message|notify|tell|send\s+(?:a\s+)?message\s+to|follow\s*up\s+with)\s+[a-z]{2,}/i.test(cleanUserMessage) ||
       /\bsend\s+.+?\s+to\s+[a-z]{2,}/i.test(cleanUserMessage)
     ) {
@@ -2025,6 +2035,7 @@ title: "<Chart Title>"
         reply = `I could not match an active staff member in **${scopedOrgName}** from that name. Please include the staff member's full name or employee number (for example: *"Message Osuji Jideobi Samuel to..."*).`;
       }
     } else if (
+      routeDecision.intent === 'ATTENDANCE_QUERY' ||
       normalized.includes('clocked in') ||
       normalized.includes("hasn't clocked") ||
       normalized.includes("haven't clocked") ||
