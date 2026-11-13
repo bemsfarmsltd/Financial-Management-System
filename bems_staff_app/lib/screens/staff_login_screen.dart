@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
 import 'staff_module_gallery_screen.dart';
-import 'subsidiary_welcome_screen.dart';
 import 'staff_register_screen.dart';
 import 'staff_forgot_password_screen.dart';
 
@@ -91,12 +90,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
   void _navigateToMain(StaffUser user) {
     Navigator.pushReplacement(
       context,
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 400),
-        pageBuilder: (_, __, ___) => SubsidiaryWelcomeScreen(user: user),
-        transitionsBuilder: (_, animation, __, child) =>
-            FadeTransition(opacity: animation, child: child),
-      ),
+      MaterialPageRoute(builder: (_) => StaffModuleGalleryScreen(user: user)),
     );
   }
 
