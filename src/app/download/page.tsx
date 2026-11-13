@@ -253,6 +253,13 @@ export default async function PublicDownloadPage() {
               >
                 Direct Mirror Link
               </a>
+              <span style={{ color: '#cbd5e1' }}>·</span>
+              <a
+                href="/gmd-app/index.html"
+                style={{ fontSize: 11, color: '#0f172a', fontWeight: 700, textDecoration: 'underline' }}
+              >
+                Launch Web App
+              </a>
             </div>
             <small style={{ display: 'block', textAlign: 'center', fontSize: 11, color: '#64748b', marginTop: 8 }}>
               Android 8.0+ · com.bemsgroup.bems_gmd_ai
