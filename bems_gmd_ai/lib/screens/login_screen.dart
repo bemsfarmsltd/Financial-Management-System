@@ -172,24 +172,36 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: Center(
                         child: Container(
-                          width: 50,
-                          height: 50,
+                          width: 60,
+                          height: 60,
+                          padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFEA580C), Color(0xFFC2410C)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(14),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
-                          child: const Center(
-                            child: Text(
-                              'GMD',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 16,
-                                color: Colors.white,
-                                letterSpacing: 0.8,
+                          child: Image.asset(
+                            'assets/images/bems_group_logo.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => Container(
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFEA580C), Color(0xFFC2410C)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'GMD',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
                               ),
                             ),
                           ),

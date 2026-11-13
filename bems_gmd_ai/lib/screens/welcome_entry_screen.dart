@@ -6,7 +6,7 @@ import '../services/api_service.dart';
 import '../services/bemi_voice_service.dart';
 import '../services/chat_storage_service.dart';
 import '../widgets/kinetic_torus_iris.dart';
-import 'executive_home_screen.dart';
+import 'executive_module_gallery_screen.dart';
 
 class WelcomeEntryScreen extends StatefulWidget {
   final String userName;
@@ -185,10 +185,10 @@ class _WelcomeEntryScreenState extends State<WelcomeEntryScreen> {
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 600),
-        pageBuilder: (context, animation, secondaryAnimation) => ExecutiveHomeScreen(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            ExecutiveModuleGalleryScreen(
           userName: widget.userName,
           businessName: widget.businessName,
-          initialMode: 'dashboard',
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
