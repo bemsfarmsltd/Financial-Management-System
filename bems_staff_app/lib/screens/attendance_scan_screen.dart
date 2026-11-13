@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/staff_models.dart';
 import '../services/staff_api_service.dart';
+import '../theme/subsidiary_theme.dart';
 
 class AttendanceScanScreen extends StatefulWidget {
   final StaffUser currentUser;
@@ -20,7 +21,7 @@ class AttendanceScanScreen extends StatefulWidget {
 
 class _AttendanceScanScreenState extends State<AttendanceScanScreen>
     with SingleTickerProviderStateMixin {
-  static const Color brandOrange = Color(0xFFEA580C);
+  Color get brandOrange => SubsidiaryTheme.current.color;
   static const Color cobaltDark = Color(0xFF0F172A);
   static const Color textPrimary = Color(0xFF0F172A);
   static const Color textSecondary = Color(0xFF64748B);
@@ -331,7 +332,7 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen>
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: status == 'LATE' ? const Color(0xFFEA580C) : const Color(0xFF059669),
+                          color: status == 'LATE' ? SubsidiaryTheme.current.color : const Color(0xFF059669),
                         ),
                       ),
                     ],
@@ -476,7 +477,7 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen>
               ),
             ),
             const Text(
-              'BEMS Enterprise Timekeeping',
+              'Enterprise Timekeeping',
               style: TextStyle(
                 fontSize: 11,
                 color: textSecondary,
@@ -584,7 +585,7 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen>
                                   child: Container(
                                     height: 3,
                                     decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
+                                      gradient: LinearGradient(
                                         colors: [
                                           Colors.transparent,
                                           brandOrange,

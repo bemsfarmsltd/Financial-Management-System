@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../theme/subsidiary_theme.dart';
 
 class PieChartSegment {
   final String label;
@@ -209,7 +210,7 @@ class BemsAnalyticsChartCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: const Color(0xFFFFEDD5)),
                     ),
-                    child: Icon(icon, color: const Color(0xFFEA580C), size: 17),
+                    child: Icon(icon, color: SubsidiaryTheme.current.color, size: 17),
                   ),
                   const SizedBox(width: 10),
                   Column(
@@ -258,7 +259,7 @@ class BemsAnalyticsChartCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 10.5,
                               fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                              color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                              color: isSelected ? SubsidiaryTheme.current.color : const Color(0xFF64748B),
                             ),
                           ),
                         ),

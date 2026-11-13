@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/staff_models.dart';
 import '../services/staff_api_service.dart';
+import '../theme/subsidiary_theme.dart';
 
 class AttendanceMonthlyScreen extends StatefulWidget {
   final StaffUser currentUser;
@@ -12,7 +13,7 @@ class AttendanceMonthlyScreen extends StatefulWidget {
 }
 
 class _AttendanceMonthlyScreenState extends State<AttendanceMonthlyScreen> {
-  static const Color brandOrange = Color(0xFFEA580C);
+  Color get brandOrange => SubsidiaryTheme.current.color;
   static const Color cobaltDark = Color(0xFF0F172A);
   static const Color textPrimary = Color(0xFF0F172A);
   static const Color textSecondary = Color(0xFF64748B);
@@ -108,7 +109,7 @@ class _AttendanceMonthlyScreenState extends State<AttendanceMonthlyScreen> {
       badgeBg = const Color(0xFFECFDF5);
       statusTitle = 'PRESENT (ON-TIME)';
     } else if (status == 'LATE') {
-      badgeColor = const Color(0xFFEA580C);
+      badgeColor = SubsidiaryTheme.current.color;
       badgeBg = const Color(0xFFFFF7ED);
       statusTitle = 'LATE ARRIVAL';
     } else if (status == 'ABSENT') {
@@ -317,7 +318,7 @@ class _AttendanceMonthlyScreenState extends State<AttendanceMonthlyScreen> {
       ),
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: brandOrange))
+            ? Center(child: CircularProgressIndicator(color: brandOrange))
             : _errorMessage != null
                 ? Center(
                     child: Padding(
@@ -359,7 +360,7 @@ class _AttendanceMonthlyScreenState extends State<AttendanceMonthlyScreen> {
                               ),
                               Row(
                                 children: [
-                                  const Icon(Icons.calendar_month_rounded, color: brandOrange, size: 20),
+                                  Icon(Icons.calendar_month_rounded, color: brandOrange, size: 20),
                                   const SizedBox(width: 8),
                                   Text(
                                     '${_monthNames[_currentMonth - 1]} $_currentYear',
@@ -387,7 +388,7 @@ class _AttendanceMonthlyScreenState extends State<AttendanceMonthlyScreen> {
                           children: [
                             _buildKpiCard('Present', '${_summary['present'] ?? 0}', const Color(0xFF059669), const Color(0xFFECFDF5)),
                             const SizedBox(width: 8),
-                            _buildKpiCard('Late', '${_summary['late'] ?? 0}', const Color(0xFFEA580C), const Color(0xFFFFF7ED)),
+                            _buildKpiCard('Late', '${_summary['late'] ?? 0}', SubsidiaryTheme.current.color, const Color(0xFFFFF7ED)),
                             const SizedBox(width: 8),
                             _buildKpiCard('Absent', '${_summary['absent'] ?? 0}', const Color(0xFFDC2626), const Color(0xFFFEF2F2)),
                             const SizedBox(width: 8),
@@ -453,7 +454,7 @@ class _AttendanceMonthlyScreenState extends State<AttendanceMonthlyScreen> {
                                 runSpacing: 6,
                                 children: [
                                   _buildLegendItem(const Color(0xFF059669), 'Present (On-Time)'),
-                                  _buildLegendItem(const Color(0xFFEA580C), 'Late Arrival (+5% Ded.)'),
+                                  _buildLegendItem(SubsidiaryTheme.current.color, 'Late Arrival (+5% Ded.)'),
                                   _buildLegendItem(const Color(0xFFDC2626), 'Absent (100% Ded.)'),
                                   _buildLegendItem(const Color(0xFF64748B), 'Weekly Off-Day'),
                                   _buildLegendItem(const Color(0xFF6366F1), 'HR Excused'),
@@ -564,7 +565,7 @@ class _AttendanceMonthlyScreenState extends State<AttendanceMonthlyScreen> {
       subLabel = checkIn != null ? checkIn.split(' ')[0] : '✓';
     } else if (status == 'LATE') {
       bgColor = const Color(0xFFFFF7ED);
-      textColor = const Color(0xFFEA580C);
+      textColor = SubsidiaryTheme.current.color;
       borderColor = const Color(0xFFFED7AA);
       subLabel = checkIn != null ? checkIn.split(' ')[0] : 'Late';
     } else if (status == 'ABSENT') {
@@ -640,7 +641,7 @@ class _DayHeader extends StatelessWidget {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w800,
-            color: isWeekend ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+            color: isWeekend ? SubsidiaryTheme.current.color : const Color(0xFF64748B),
           ),
         ),
       ),

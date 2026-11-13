@@ -5,6 +5,7 @@ import '../models/staff_models.dart';
 import '../services/staff_biometric_service.dart';
 import 'staff_module_gallery_screen.dart';
 import 'staff_login_screen.dart';
+import '../theme/subsidiary_theme.dart';
 
 class StaffBiometricAuthScreen extends StatefulWidget {
   final StaffUser user;
@@ -63,7 +64,7 @@ class _StaffBiometricAuthScreenState extends State<StaffBiometricAuthScreen>
     final hasHardware = await StaffBiometricService.isHardwareAvailable();
     if (hasHardware) {
       final success = await StaffBiometricService.authenticateWithPhoneFingerprint(
-        reason: 'Verify your fingerprint to access BEMS Staff Workspace',
+        reason: 'Verify your fingerprint to access your Staff Workspace',
       );
       if (!mounted) return;
 
@@ -130,11 +131,11 @@ class _StaffBiometricAuthScreenState extends State<StaffBiometricAuthScreen>
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEA580C),
+                  color: SubsidiaryTheme.current.color,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFEA580C).withOpacity(0.2),
+                      color: SubsidiaryTheme.current.color.withOpacity(0.2),
                       blurRadius: 18,
                       offset: const Offset(0, 6),
                     ),
@@ -172,11 +173,11 @@ class _StaffBiometricAuthScreenState extends State<StaffBiometricAuthScreen>
                 ),
                 child: Text(
                   widget.user.jobTitle.isNotEmpty ? widget.user.jobTitle : 'STAFF',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
-                    color: Color(0xFFEA580C),
+                    color: SubsidiaryTheme.current.color,
                   ),
                 ),
               ),
@@ -195,18 +196,18 @@ class _StaffBiometricAuthScreenState extends State<StaffBiometricAuthScreen>
                       shape: BoxShape.circle,
                       color: _authSuccess
                           ? const Color(0xFF10B981).withOpacity(0.12)
-                          : const Color(0xFFEA580C).withOpacity(0.06),
+                          : SubsidiaryTheme.current.color.withOpacity(0.06),
                       border: Border.all(
                         color: _authSuccess
                             ? const Color(0xFF10B981)
-                            : const Color(0xFFEA580C).withOpacity(0.35),
+                            : SubsidiaryTheme.current.color.withOpacity(0.35),
                         width: 2.2,
                       ),
                       boxShadow: [
                         BoxShadow(
                           color: (_authSuccess
                                   ? const Color(0xFF10B981)
-                                  : const Color(0xFFEA580C))
+                                  : SubsidiaryTheme.current.color)
                               .withOpacity(0.14),
                           blurRadius: 24,
                           spreadRadius: 2,
@@ -221,7 +222,7 @@ class _StaffBiometricAuthScreenState extends State<StaffBiometricAuthScreen>
                         size: 58,
                         color: _authSuccess
                             ? const Color(0xFF10B981)
-                            : const Color(0xFFEA580C),
+                            : SubsidiaryTheme.current.color,
                       ),
                     ),
                   ),

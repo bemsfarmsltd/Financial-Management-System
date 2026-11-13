@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/staff_models.dart';
+import '../../theme/subsidiary_theme.dart';
 
 class ModuleConfig {
   final String id;
@@ -157,10 +158,10 @@ class StaffModuleWorkstationScreen extends StatelessWidget {
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: (qa['color'] as Color? ?? const Color(0xFFEA580C)).withOpacity(0.1),
+                    color: (qa['color'] as Color? ?? SubsidiaryTheme.current.color).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(qa['icon'] as IconData? ?? Icons.star_rounded, color: qa['color'] as Color? ?? const Color(0xFFEA580C), size: 20),
+                  child: Icon(qa['icon'] as IconData? ?? Icons.star_rounded, color: qa['color'] as Color? ?? SubsidiaryTheme.current.color, size: 20),
                 ),
                 title: Text(qa['title'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A))),
                 subtitle: Text(qa['desc'] as String? ?? '', style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),

@@ -15,7 +15,7 @@ class StaffNotificationService {
   Timer? _periodicSyncTimer;
 
   static const String channelId = 'bems_staff_alerts';
-  static const String channelName = 'BEMS Alerts & Dispatches';
+  static const String channelName = 'Workspace Alerts & Dispatches';
   static const String channelDesc = 'Real-time notifications for fund requisitions, wallet disbursements, approvals, and attendance.';
 
   /// Initialize native notification channels and permissions
@@ -96,7 +96,7 @@ class StaffNotificationService {
         styleInformation: BigTextStyleInformation(
           body,
           contentTitle: title,
-          summaryText: 'BEMS ERP',
+          summaryText: 'Staff Workspace',
         ),
       );
 
@@ -148,7 +148,7 @@ class StaffNotificationService {
           break; // reached previously notified items
         }
 
-        final title = n['title']?.toString() ?? 'BEMS Notification';
+        final title = n['title']?.toString() ?? 'Workspace Notification';
         final body = n['body']?.toString() ?? (n['message']?.toString() ?? 'You have a new update.');
         final notificationHash = nid.hashCode.abs();
 

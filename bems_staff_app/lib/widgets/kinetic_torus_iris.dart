@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../theme/subsidiary_theme.dart';
 
 class KineticTorusIris extends StatefulWidget {
   final double size;
@@ -125,7 +126,7 @@ class _TorusIrisPainter extends CustomPainter {
 
       Color finColor;
       if (isOrange) {
-        finColor = const Color(0xFFEA580C);
+        finColor = SubsidiaryTheme.current.color;
       } else {
         finColor = const Color(0xFF475569);
       }

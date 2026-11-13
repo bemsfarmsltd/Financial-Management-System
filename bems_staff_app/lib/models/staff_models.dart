@@ -12,6 +12,11 @@ class StaffUser {
   final String employeeNumber;
   final String role;
   final String subsidiary;
+  final String subsidiaryId;
+  final String subsidiaryCode;
+  final String subsidiaryType;
+  final String subsidiaryBrandColor;
+  final String subsidiaryLogoUrl;
   final String department;
   final String jobTitle;
   final String employmentType;
@@ -55,6 +60,11 @@ class StaffUser {
     this.employeeNumber = '',
     this.role = '',
     this.subsidiary = '',
+    this.subsidiaryId = '',
+    this.subsidiaryCode = '',
+    this.subsidiaryType = 'SUBSIDIARY',
+    this.subsidiaryBrandColor = '#EA580C',
+    this.subsidiaryLogoUrl = '',
     this.department = '',
     this.jobTitle = '',
     this.employmentType = '',
@@ -110,6 +120,11 @@ class StaffUser {
       employeeNumber: employeeNumber,
       role: role,
       subsidiary: subsidiary,
+      subsidiaryId: subsidiaryId,
+      subsidiaryCode: subsidiaryCode,
+      subsidiaryType: subsidiaryType,
+      subsidiaryBrandColor: subsidiaryBrandColor,
+      subsidiaryLogoUrl: subsidiaryLogoUrl,
       department: department,
       jobTitle: jobTitle,
       employmentType: employmentType,
@@ -149,6 +164,11 @@ class StaffUser {
       employeeNumber: json['employeeNumber']?.toString() ?? '',
       role: json['role']?.toString() ?? '',
       subsidiary: json['subsidiary'] is Map ? (json['subsidiary']['legalName'] ?? '') : (json['subsidiary'] ?? json['subsidiaryName'] ?? ''),
+      subsidiaryId: json['subsidiaryId']?.toString() ?? '',
+      subsidiaryCode: json['subsidiaryCode']?.toString() ?? '',
+      subsidiaryType: json['subsidiaryType']?.toString() ?? 'SUBSIDIARY',
+      subsidiaryBrandColor: json['subsidiaryBrandColor']?.toString() ?? '#EA580C',
+      subsidiaryLogoUrl: json['subsidiaryLogoUrl']?.toString() ?? '',
       department: json['department']?.toString() ?? '',
       jobTitle: json['jobTitle']?.toString() ?? '',
       employmentType: json['employmentType']?.toString() ?? '',
@@ -187,6 +207,11 @@ class StaffUser {
         'employeeNumber': employeeNumber,
         'role': role,
         'subsidiary': subsidiary,
+        'subsidiaryId': subsidiaryId,
+        'subsidiaryCode': subsidiaryCode,
+        'subsidiaryType': subsidiaryType,
+        'subsidiaryBrandColor': subsidiaryBrandColor,
+        'subsidiaryLogoUrl': subsidiaryLogoUrl,
         'department': department,
         'jobTitle': jobTitle,
         'employmentType': employmentType,

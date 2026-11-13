@@ -4,6 +4,7 @@ import '../../models/staff_models.dart';
 import '../../services/staff_api_service.dart';
 import '../../services/staff_storage_service.dart';
 import '../staff_admin_chat_screen.dart';
+import '../../theme/subsidiary_theme.dart';
 
 String walletMoney(String value) {
   final amount = BigInt.tryParse(value) ?? BigInt.zero;
@@ -86,7 +87,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
           surfaceTintColor: Colors.transparent,
           title: Row(
             children: [
-              const Icon(Icons.lock_outline_rounded, color: Color(0xFFEA580C), size: 20),
+              Icon(Icons.lock_outline_rounded, color: SubsidiaryTheme.current.color, size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF0F172A))),
@@ -106,7 +107,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                 decoration: InputDecoration(
                   labelText: 'Account Login Password',
                   hintText: 'Enter your portal login password',
-                  helperText: 'Your BEMS Staff portal login password',
+                  helperText: 'Your ${widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Staff'} portal login password',
                   helperMaxLines: 2,
                   labelStyle: const TextStyle(fontSize: 12),
                   filled: true,
@@ -131,7 +132,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
             FilledButton(
               onPressed: () => Navigator.pop(c, controller.text),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFEA580C),
+                backgroundColor: SubsidiaryTheme.current.color,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               child: const Text('Authorize'),
@@ -220,7 +221,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: isReg ? const Color(0xFFEA580C) : const Color(0xFF2563EB),
+                            color: isReg ? SubsidiaryTheme.current.color : const Color(0xFF2563EB),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(Icons.account_balance_rounded, size: 20, color: Colors.white),
@@ -244,7 +245,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFEA580C),
+                                        color: SubsidiaryTheme.current.color,
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: const Text(
@@ -276,10 +277,10 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                     Navigator.pop(sheetCtx);
                     _addNewAccountModal();
                   },
-                  icon: const Icon(Icons.add_rounded, size: 18, color: Color(0xFFEA580C)),
-                  label: const Text('Add & Verify New Account', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+                  icon: Icon(Icons.add_rounded, size: 18, color: SubsidiaryTheme.current.color),
+                  label: Text('Add & Verify New Account', style: TextStyle(fontWeight: FontWeight.w800, color: SubsidiaryTheme.current.color)),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFEA580C)),
+                    side: BorderSide(color: SubsidiaryTheme.current.color),
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -342,9 +343,9 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.verified_user_rounded, color: Color(0xFFEA580C), size: 22),
+                  Icon(Icons.verified_user_rounded, color: SubsidiaryTheme.current.color, size: 22),
                   SizedBox(width: 8),
                   Text('Verify Bank Account', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF0F172A))),
                 ],
@@ -441,7 +442,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                       value: saveAsBeneficiary,
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      activeColor: const Color(0xFFEA580C),
+                      activeColor: SubsidiaryTheme.current.color,
                       title: const Text('Save as beneficiary for future withdrawals', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
                       onChanged: (v) => setModalState(() => saveAsBeneficiary = v ?? true),
                     ),
@@ -457,7 +458,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                   onPressed: resolvedAccountName != null
                       ? () => Navigator.pop(dialogCtx, true)
                       : null,
-                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEA580C)),
+                  style: FilledButton.styleFrom(backgroundColor: SubsidiaryTheme.current.color),
                   child: const Text('Verify & Save'),
                 ),
               ],
@@ -469,7 +470,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
       if (verified != true || !mounted) return null;
       final password = await _password(
         'Authorize Account Link',
-        'Enter your BEMS Staff account login password to link $resolvedAccountName (${numberController.text}).',
+        'Enter your ${widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Staff'} account login password to link $resolvedAccountName (${numberController.text}).',
       );
       if (password == null || !mounted) return null;
 
@@ -546,9 +547,9 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Row(
+                      Row(
                         children: [
-                          Icon(Icons.arrow_upward_rounded, color: Color(0xFFEA580C), size: 22),
+                          Icon(Icons.arrow_upward_rounded, color: SubsidiaryTheme.current.color, size: 22),
                           SizedBox(width: 8),
                           Text('Withdraw Approved Funds', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: Color(0xFF0F172A))),
                         ],
@@ -597,12 +598,12 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: const Color(0xFFFDBA74)),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add_circle_outline_rounded, color: Color(0xFFEA580C), size: 20),
+                            Icon(Icons.add_circle_outline_rounded, color: SubsidiaryTheme.current.color, size: 20),
                             SizedBox(width: 10),
-                            Text('+ Verify & Add Destination Account', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+                            Text('+ Verify & Add Destination Account', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: SubsidiaryTheme.current.color)),
                           ],
                         ),
                       ),
@@ -621,7 +622,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                             color: isSelected ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: isSelected ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0),
+                              color: isSelected ? SubsidiaryTheme.current.color : const Color(0xFFE2E8F0),
                               width: isSelected ? 1.5 : 1,
                             ),
                           ),
@@ -629,7 +630,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                             children: [
                               Icon(
                                 isSelected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
-                                color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF94A3B8),
+                                color: isSelected ? SubsidiaryTheme.current.color : const Color(0xFF94A3B8),
                                 size: 18,
                               ),
                               const SizedBox(width: 10),
@@ -650,7 +651,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                                           const SizedBox(width: 6),
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                            decoration: BoxDecoration(color: const Color(0xFFEA580C), borderRadius: BorderRadius.circular(4)),
+                                            decoration: BoxDecoration(color: SubsidiaryTheme.current.color, borderRadius: BorderRadius.circular(4)),
                                             child: const Text('Default', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: Colors.white)),
                                           ),
                                         ],
@@ -695,12 +696,12 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: const Color(0xFFFED7AA)),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add_circle_outline_rounded, size: 18, color: Color(0xFFEA580C)),
+                            Icon(Icons.add_circle_outline_rounded, size: 18, color: SubsidiaryTheme.current.color),
                             SizedBox(width: 8),
-                            Text('+ Add / Select Another Bank Account', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+                            Text('+ Add / Select Another Bank Account', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: SubsidiaryTheme.current.color)),
                           ],
                         ),
                       ),
@@ -718,7 +719,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
                     decoration: InputDecoration(
                       prefixText: '₦ ',
-                      prefixStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFFEA580C)),
+                      prefixStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color),
                       hintText: '0.00',
                       filled: true,
                       fillColor: const Color(0xFFF8FAFC),
@@ -797,7 +798,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                             }
                           : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEA580C),
+                        backgroundColor: SubsidiaryTheme.current.color,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1006,7 +1007,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
               const SizedBox(height: 16),
               Text(
                 walletMoney(amountMinor),
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFFEA580C)),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color),
               ),
               const SizedBox(height: 16),
               Container(
@@ -1035,7 +1036,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                               style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.copy_rounded, size: 14, color: Color(0xFFEA580C)),
+                              icon: Icon(Icons.copy_rounded, size: 14, color: SubsidiaryTheme.current.color),
                               visualDensity: VisualDensity.compact,
                               padding: EdgeInsets.zero,
                               onPressed: () {
@@ -1107,7 +1108,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Return unused project advance back to BEMS Group Treasury.', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                Text('Return unused project advance back to ${widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Company'} Treasury.', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: credit,
@@ -1138,7 +1139,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
               TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
               FilledButton(
                 onPressed: () => Navigator.pop(c, true),
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEA580C)),
+                style: FilledButton.styleFrom(backgroundColor: SubsidiaryTheme.current.color),
                 child: const Text('Submit Return'),
               ),
             ],
@@ -1149,7 +1150,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
       final value = _minor(amount.text);
       final password = await _password(
         'Authorize Project Return',
-        'Return ${walletMoney(value)} surplus back to BEMS Group Treasury.',
+        'Return ${walletMoney(value)} surplus back to ${widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Company'} Treasury.',
       );
       if (password == null || !mounted) return;
       setState(() => _busy = true);
@@ -1226,13 +1227,13 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
               const SizedBox(height: 8),
               _receiptRow('Currency', 'Nigerian Naira (NGN)'),
               const SizedBox(height: 8),
-              _receiptRow('Banking Infrastructure', 'Monnify / BEMS Treasury'),
+              _receiptRow('Banking Infrastructure', 'Monnify / ${widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Company'} Treasury'),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: () => Navigator.pop(c),
-                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEA580C)),
+                  style: FilledButton.styleFrom(backgroundColor: SubsidiaryTheme.current.color),
                   child: const Text('Close'),
                 ),
               ),
@@ -1315,7 +1316,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                   const SizedBox(height: 8),
                   _receiptRow('Date / Timestamp', txItem['createdAt']?.toString().split('T').first ?? 'Today'),
                   const SizedBox(height: 8),
-                  _receiptRow('Beneficiary / Source', isCredit ? 'BEMS Central Treasury' : (txItem['accountName']?.toString() ?? widget.user.fullName)),
+                  _receiptRow('Beneficiary / Source', isCredit ? '${widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Company'} Treasury' : (txItem['accountName']?.toString() ?? widget.user.fullName)),
                   const SizedBox(height: 8),
                   _receiptRow('Monnify Transfer Fee', '₦0.00 (Zero Fee Guarantee)'),
                   const SizedBox(height: 8),
@@ -1330,7 +1331,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.copy_rounded, size: 14, color: Color(0xFFEA580C)),
+                            icon: Icon(Icons.copy_rounded, size: 14, color: SubsidiaryTheme.current.color),
                             padding: EdgeInsets.zero,
                             visualDensity: VisualDensity.compact,
                             onPressed: () {
@@ -1376,7 +1377,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
                     icon: const Icon(Icons.refresh_rounded, size: 16),
                     label: const Text('Retry Connection'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEA580C),
+                      backgroundColor: SubsidiaryTheme.current.color,
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -1387,8 +1388,8 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
         }
 
         if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(color: Color(0xFFEA580C), strokeWidth: 2.5),
+          return Center(
+            child: CircularProgressIndicator(color: SubsidiaryTheme.current.color, strokeWidth: 2.5),
           );
         }
 
@@ -1400,7 +1401,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
 
         return RefreshIndicator(
           onRefresh: () async => _reload(),
-          color: const Color(0xFFEA580C),
+          color: SubsidiaryTheme.current.color,
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
             children: [
@@ -1463,15 +1464,15 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFEA580C), Color(0xFFC2410C), Color(0xFF9A3412)],
+        gradient: LinearGradient(
+          colors: [SubsidiaryTheme.current.color, Color(0xFFC2410C), Color(0xFF9A3412)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFEA580C).withOpacity(0.32),
+            color: SubsidiaryTheme.current.color.withOpacity(0.32),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -1649,7 +1650,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
               _buildGridServiceItem(
                 label: 'To Bank',
                 icon: Icons.account_balance_rounded,
-                iconColor: const Color(0xFFEA580C),
+                iconColor: SubsidiaryTheme.current.color,
                 bgColor: const Color(0xFFFFF7ED),
                 onTap: () => _withdraw(wallet),
               ),
@@ -1777,16 +1778,16 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
             child: const Icon(Icons.shield_rounded, size: 20, color: Color(0xFF15803D)),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'BEMS Central Treasury Assurance',
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: Color(0xFF15803D)),
+                  '${widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Company'} Treasury Assurance',
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: Color(0xFF15803D)),
                 ),
-                SizedBox(height: 2),
-                Text(
+                const SizedBox(height: 2),
+                const Text(
                   'Zero transfer fees · Monnify instant settlement · Company sponsored',
                   style: TextStyle(fontSize: 11, color: Color(0xFF166534), fontWeight: FontWeight.w600),
                 ),
@@ -1979,10 +1980,10 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
           Center(
             child: TextButton.icon(
               onPressed: () => setState(() => _isExpanded = !_isExpanded),
-              icon: Icon(_isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, size: 18, color: const Color(0xFFEA580C)),
+              icon: Icon(_isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, size: 18, color: SubsidiaryTheme.current.color),
               label: Text(
                 _isExpanded ? 'Show Less' : 'See More (${totalCount - 8} more)',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFEA580C)),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: SubsidiaryTheme.current.color),
               ),
             ),
           ),
@@ -1999,9 +2000,9 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEA580C) : Colors.white,
+          color: isSelected ? SubsidiaryTheme.current.color : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isSelected ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0)),
+          border: Border.all(color: isSelected ? SubsidiaryTheme.current.color : const Color(0xFFE2E8F0)),
         ),
         child: Text(
           label,
@@ -2062,7 +2063,7 @@ class _StaffWalletScreenState extends State<StaffWalletScreen> {
             child: Icon(
               Icons.arrow_upward_rounded,
               size: 18,
-              color: isSettled ? const Color(0xFF16A34A) : const Color(0xFFEA580C),
+              color: isSettled ? const Color(0xFF16A34A) : SubsidiaryTheme.current.color,
             ),
           ),
           const SizedBox(width: 12),

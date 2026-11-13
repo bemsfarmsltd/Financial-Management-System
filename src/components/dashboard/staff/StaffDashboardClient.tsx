@@ -528,7 +528,9 @@ export function StaffDashboardClient({
 
   // Computed Values
   const firstName = user.fullName ? user.fullName.split(' ')[0] : 'Staff';
-  const displaySubsidiary = user.subsidiary || businessName || 'BEMS Group';
+  const displaySubsidiary = user.subsidiary || businessName || 'Staff Workspace';
+  const brandColor = (user as any).subsidiaryBrandColor || '#ea580c';
+  const subsidiaryLogoUrl = (user as any).subsidiaryLogoUrl || null;
   const displayJobTitle = user.jobTitle || 'Staff Personnel';
   const displayDepartment = user.department || 'Operations';
   const displayEmployeeNumber = user.employeeNumber || 'STAFF';
@@ -1451,18 +1453,32 @@ export function StaffDashboardClient({
               </div>
             </div>
 
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-sm font-black text-[#0F172A] tracking-tight">
-                  {user.fullName}
-                </h1>
-                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-orange-600 text-white text-[9px] font-black">
-                  ✓
-                </span>
+            <div className="flex items-center gap-2.5">
+              {subsidiaryLogoUrl && (
+                <div
+                  className="w-10 h-10 rounded-xl bg-white border flex items-center justify-center overflow-hidden p-1 shadow-sm"
+                  style={{ borderColor: `${brandColor}40` }}
+                  title={displaySubsidiary}
+                >
+                  <img src={subsidiaryLogoUrl} alt={displaySubsidiary} className="w-full h-full object-contain" />
+                </div>
+              )}
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-sm font-black text-[#0F172A] tracking-tight">
+                    {user.fullName}
+                  </h1>
+                  <span
+                    className="inline-flex items-center justify-center w-4 h-4 rounded-full text-white text-[9px] font-black"
+                    style={{ backgroundColor: brandColor }}
+                  >
+                    ✓
+                  </span>
+                </div>
+                <p className="text-[11px] font-bold text-[#64748B] tracking-tight">
+                  {displayEmployeeNumber} · {displaySubsidiary}
+                </p>
               </div>
-              <p className="text-[11px] font-bold text-[#64748B] tracking-tight">
-                {displayEmployeeNumber} · {displaySubsidiary}
-              </p>
             </div>
           </div>
 
@@ -1663,15 +1679,18 @@ export function StaffDashboardClient({
 
               {/* CARD 1: 4-SLIDE FINANCIAL CAROUSEL (Exact 1-to-1 Replica of Flutter Mobile _buildMultiMetricFinancialCarousel) */}
               <div className="relative rounded-[26px] overflow-hidden shadow-xl border border-slate-800/10">
-                {/* SLIDE 0: BEMS DIGITAL WALLET & ADVANCES (Vibrant Orange Gradient) */}
+                {/* SLIDE 0: SUBSIDIARY DIGITAL WALLET & ADVANCES */}
                 {financialSlideIndex === 0 && (
-                  <div className="rounded-t-[26px] bg-gradient-to-br from-[#EA580C] via-[#C2410C] to-[#9A3412] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300">
+                  <div
+                    className="rounded-t-[26px] text-white p-5 sm:p-6 relative overflow-hidden transition-all duration-300"
+                    style={{ background: `linear-gradient(135deg, ${brandColor} 0%, #0f172a 140%)` }}
+                  >
                     <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-white/10 rounded-full blur-2xl pointer-events-none" />
                     <div className="relative z-10 space-y-4">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-extrabold uppercase tracking-wider text-white/95 flex items-center gap-1.5">
                           <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
-                          SLIDE 1/4 · BEMS DIGITAL WALLET &amp; ADVANCES
+                          SLIDE 1/4 · {displaySubsidiary.toUpperCase()} WALLET &amp; ADVANCES
                         </span>
                         <button
                           onClick={() => setHideBalance(!hideBalance)}
@@ -4086,7 +4105,7 @@ export function StaffDashboardClient({
                     {todayAttendance ? 'Check-Out Desk' : 'Attendance Clock-In'}
                   </h3>
                   <p className="text-[10px] font-medium text-[#64748B]">
-                    BEMS Enterprise Timekeeping
+                    {displaySubsidiary} Timekeeping
                   </p>
                 </div>
 
@@ -5098,7 +5117,7 @@ export function StaffDashboardClient({
                   <Bell className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="font-extrabold text-[#0F172A] text-sm">BEMS Notification Centre</p>
+                  <p className="font-extrabold text-[#0F172A] text-sm">{displaySubsidiary} Notification Centre</p>
                   <p className="text-xs text-slate-500 max-w-xs mx-auto">
                     View real-time attendance confirmations, lateness deductions, payroll slips, and announcements.
                   </p>

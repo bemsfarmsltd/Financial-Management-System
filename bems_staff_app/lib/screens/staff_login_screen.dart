@@ -7,6 +7,7 @@ import 'staff_forgot_password_screen.dart';
 
 import '../models/staff_models.dart';
 import '../services/staff_biometric_service.dart';
+import '../theme/subsidiary_theme.dart';
 
 class StaffLoginScreen extends StatefulWidget {
   const StaffLoginScreen({super.key});
@@ -112,7 +113,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                 shape: BoxShape.circle,
                 border: Border.all(color: const Color(0xFFFED7AA)),
               ),
-              child: const Icon(Icons.fingerprint_rounded, size: 44, color: Color(0xFFEA580C)),
+              child: Icon(Icons.fingerprint_rounded, size: 44, color: SubsidiaryTheme.current.color),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -120,10 +121,10 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Use your phone\'s fingerprint or Face ID to quickly unlock your BEMS Staff Workspace without typing your password each time.',
+            Text(
+              'Use your phone\'s fingerprint or Face ID to quickly unlock your ${SubsidiaryTheme.current.name} workspace without typing your password each time.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B), height: 1.4),
+              style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B), height: 1.4),
             ),
             const SizedBox(height: 24),
             Row(
@@ -153,7 +154,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                       _navigateToMain(user);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEA580C),
+                      backgroundColor: SubsidiaryTheme.current.color,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -200,7 +201,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Understood', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+              child: Text('Understood', style: TextStyle(fontWeight: FontWeight.w800, color: SubsidiaryTheme.current.color)),
             ),
           ],
         ),
@@ -209,7 +210,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
     }
 
     final verified = await StaffBiometricService.authenticateWithPhoneFingerprint(
-      reason: 'Touch your fingerprint sensor to sign in to BEMS Staff Portal',
+      reason: 'Touch your fingerprint sensor to sign in to ${SubsidiaryTheme.current.name}',
     );
 
     if (verified && mounted) {
@@ -234,35 +235,42 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
               children: [
                 // Brand Header
                 Center(
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFEA580C), Color(0xFFFB923C)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(22),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFEA580C).withOpacity(0.3),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
+                  child: SubsidiaryTheme.current.id.isNotEmpty
+                      ? const SubsidiaryLogoBadge(size: 72, borderRadius: 22)
+                      : Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                SubsidiaryTheme.current.color,
+                                Color.lerp(SubsidiaryTheme.current.color, Colors.white, 0.25) ?? SubsidiaryTheme.current.color,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(22),
+                            boxShadow: [
+                              BoxShadow(
+                                color: SubsidiaryTheme.current.color.withOpacity(0.3),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 36),
                         ),
-                      ],
-                    ),
-                    child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 36),
-                  ),
                 ),
 
                 const SizedBox(height: 20),
 
-                const Text(
-                  'BEMS Staff Workspace',
+                Text(
+                  SubsidiaryTheme.current.id.isNotEmpty
+                      ? '${SubsidiaryTheme.current.name} Workspace'
+                      : 'Staff Workspace',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 26,
+                  style: const TextStyle(
+                    fontSize: 24,
                     fontWeight: FontWeight.w900,
                     color: Color(0xFF0F172A),
                     letterSpacing: -0.6,
@@ -338,7 +346,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                           style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600),
                           decoration: const InputDecoration(
                             prefixIcon: Icon(Icons.mail_outline_rounded, color: Color(0xFF94A3B8), size: 18),
-                            hintText: 'name@bemsgroup.com',
+                            hintText: 'name@company.com',
                             hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -363,9 +371,9 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                                 MaterialPageRoute(builder: (_) => const StaffForgotPasswordScreen()),
                               );
                             },
-                            child: const Text(
+                            child: Text(
                               'Forgot Password?',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFFEA580C)),
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: SubsidiaryTheme.current.color),
                             ),
                           ),
                         ],
@@ -401,12 +409,12 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                       ElevatedButton(
                         onPressed: _isLoading ? null : () => _handleLogin(),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFEA580C),
+                          backgroundColor: SubsidiaryTheme.current.color,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 2,
-                          shadowColor: const Color(0xFFEA580C).withOpacity(0.4),
+                          shadowColor: SubsidiaryTheme.current.color.withOpacity(0.4),
                         ),
                         child: _isLoading
                             ? const SizedBox(
@@ -425,7 +433,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                       // Biometric button
                       OutlinedButton.icon(
                         onPressed: _handleBiometricAuth,
-                        icon: const Icon(Icons.fingerprint_rounded, size: 20, color: Color(0xFFEA580C)),
+                        icon: Icon(Icons.fingerprint_rounded, size: 20, color: SubsidiaryTheme.current.color),
                         label: const Text('Quick Sign In with Biometrics', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 13),
@@ -476,7 +484,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                           );
                         },
                         style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFFEA580C),
+                          foregroundColor: SubsidiaryTheme.current.color,
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         ),
                         child: const Text('Register', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),

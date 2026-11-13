@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee, publicEmployee } from '@/lib/auth';
+import { resolveOrganizationBranding } from '@/lib/subsidiary-branding';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -43,7 +44,13 @@ export async function GET(req: Request) {
           where: { status: 'ACTIVE' },
           orderBy: [{ isPrimary: 'desc' }, { startsOn: 'desc' }],
           include: {
-            subsidiary: true,
+            subsidiary: {
+              include: {
+                settings: {
+                  where: { key: { in: ['BRAND_COLOR', 'BRAND_LOGO_URL'] } },
+                },
+              },
+            },
             department: true,
           },
         },
@@ -55,6 +62,7 @@ export async function GET(req: Request) {
     }
 
     const primaryAssignment = fullEmployee.assignments?.[0];
+    const branding = resolveOrganizationBranding(primaryAssignment?.subsidiary);
 
     const safeProfile = {
       ...publicEmployee(fullEmployee),
@@ -65,6 +73,7 @@ export async function GET(req: Request) {
       residentialAddress: fullEmployee.residentialAddress || '',
       cityState: fullEmployee.cityState || '',
       subsidiary: primaryAssignment?.subsidiary?.legalName || primaryAssignment?.subsidiary?.code || '',
+      ...branding,
       department: primaryAssignment?.department?.name || '',
       jobTitle: fullEmployee.jobTitle || primaryAssignment?.positionName || '',
       employmentType: fullEmployee.employmentType || '',

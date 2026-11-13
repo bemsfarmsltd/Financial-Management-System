@@ -2,6 +2,7 @@ import React from 'react';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedEmployee } from '@/lib/auth';
+import { resolveOrganizationBranding } from '@/lib/subsidiary-branding';
 import { StaffDashboardClient } from '@/components/dashboard/staff/StaffDashboardClient';
 
 export const dynamic = 'force-dynamic';
@@ -19,11 +20,21 @@ export default async function StaffPage() {
     redirect('/');
   }
 
-  let businessName = 'BEMS Group';
+  let businessName = 'Staff Workspace';
   const [assignment, subsidiaries, vendors, currentStaff] = await Promise.all([
     prisma.employeeAssignment.findFirst({
       where: { employeeId: actor.id },
-      include: { subsidiary: true, department: true },
+      orderBy: [{ isPrimary: 'desc' }, { startsOn: 'desc' }],
+      include: {
+        subsidiary: {
+          include: {
+            settings: {
+              where: { key: { in: ['BRAND_COLOR', 'BRAND_LOGO_URL'] } },
+            },
+          },
+        },
+        department: true,
+      },
     }),
     prisma.organization.findMany({
       where: { status: 'ACTIVE' },
@@ -89,8 +100,12 @@ export default async function StaffPage() {
   const staffDepartment = primaryAssignment?.department?.name || 'General Operations';
   const staffPosition = primaryAssignment?.positionName || currentStaff?.jobTitle || 'Staff Personnel';
 
+  const branding = resolveOrganizationBranding(assignment?.subsidiary);
+  businessName = branding.subsidiaryName;
+
   const staffUser = {
     id: actor.id,
+    ...branding,
     fullName: actor.legalName,
     email: actor.workEmail,
     role: actor.role,

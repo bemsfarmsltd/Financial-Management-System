@@ -34,7 +34,7 @@ class StaffBiometricService {
   /// On Android: Android BiometricPrompt ("Verify your fingerprint")
   /// On iOS: Touch ID / Face ID
   static Future<bool> authenticateWithPhoneFingerprint({
-    String reason = 'Verify your fingerprint to access BEMS Staff Workspace',
+    String reason = 'Verify your fingerprint to access your Staff Workspace',
   }) async {
     final available = await isHardwareAvailable();
     if (!available) {

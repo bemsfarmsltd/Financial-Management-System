@@ -28,6 +28,8 @@ interface StaffAppShellProps {
   staffRole?: string;
   staffEmail?: string;
   subsidiaryName?: string;
+  subsidiaryLogoUrl?: string | null;
+  subsidiaryBrandColor?: string;
   pendingRetirementsCount?: number;
   notice?: string | null;
   onDismissNotice?: () => void;
@@ -38,10 +40,12 @@ export function StaffAppShell({
   activeTab,
   onTabChange,
   onRequestNew,
-  staffName = "Temitope Bakare",
-  staffRole = "Lead DevOps Engineer",
-  staffEmail = "temitope@bemsgroup.com",
-  subsidiaryName = "Bems Group Cloud & Technologies Ltd",
+  staffName = "Staff Member",
+  staffRole = "Staff",
+  staffEmail = "staff@company.com",
+  subsidiaryName = "Staff Workspace",
+  subsidiaryLogoUrl,
+  subsidiaryBrandColor = "#ea580c",
   pendingRetirementsCount = 1,
   notice,
   onDismissNotice,
@@ -94,20 +98,34 @@ export function StaffAppShell({
             </Link>
 
             <div className="flex items-center gap-2.5">
-              <div className="h-9 w-9 rounded-xl overflow-hidden flex items-center justify-center bg-slate-900 border border-slate-700 shadow-md shadow-orange-500/10">
-                <img
-                  src="/bems-group-logo.png?v=20261024"
-                  alt="BEMS Group Logo"
-                  className="h-full w-full object-contain"
-                />
+              <div
+                className="h-9 w-9 rounded-xl overflow-hidden flex items-center justify-center bg-white border border-slate-200 shadow-md"
+                style={{ borderColor: subsidiaryBrandColor ? `${subsidiaryBrandColor}44` : undefined }}
+              >
+                {subsidiaryLogoUrl ? (
+                  <img
+                    src={subsidiaryLogoUrl}
+                    alt={`${subsidiaryName || 'Subsidiary'} Logo`}
+                    className="h-full w-full object-contain p-1"
+                  />
+                ) : (
+                  <Building2 className="h-4 w-4" style={{ color: subsidiaryBrandColor || '#ea580c' }} />
+                )}
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
                   <h1 className="font-bold text-sm sm:text-base tracking-tight text-white leading-tight">
-                    BEMS Staff
+                    {subsidiaryName || 'Staff Workspace'}
                   </h1>
-                  <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
-                    Mobile Desk
+                  <span
+                    className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded border"
+                    style={{
+                      backgroundColor: `${subsidiaryBrandColor || '#ea580c'}22`,
+                      color: subsidiaryBrandColor || '#fb923c',
+                      borderColor: `${subsidiaryBrandColor || '#ea580c'}44`,
+                    }}
+                  >
+                    Staff Desk
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 truncate max-w-[180px] sm:max-w-xs">

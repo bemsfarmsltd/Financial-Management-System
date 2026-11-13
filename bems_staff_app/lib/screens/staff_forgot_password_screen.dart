@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/staff_api_service.dart';
+import '../theme/subsidiary_theme.dart';
 
 class StaffForgotPasswordScreen extends StatefulWidget {
   const StaffForgotPasswordScreen({super.key});
@@ -148,7 +149,7 @@ class _StaffForgotPasswordScreenState extends State<StaffForgotPasswordScreen> {
                     Navigator.pop(context); // return to login
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEA580C),
+                    backgroundColor: SubsidiaryTheme.current.color,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -200,7 +201,7 @@ class _StaffForgotPasswordScreenState extends State<StaffForgotPasswordScreen> {
                     shape: BoxShape.circle,
                     border: Border.all(color: const Color(0xFFFED7AA)),
                   ),
-                  child: const Icon(Icons.lock_reset_rounded, color: Color(0xFFEA580C), size: 32),
+                  child: Icon(Icons.lock_reset_rounded, color: SubsidiaryTheme.current.color, size: 32),
                 ),
               ),
               const SizedBox(height: 16),
@@ -294,7 +295,7 @@ class _StaffForgotPasswordScreenState extends State<StaffForgotPasswordScreen> {
                         style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600),
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.mail_outline_rounded, color: Color(0xFF94A3B8), size: 18),
-                          hintText: 'name@bemsgroup.com',
+                          hintText: 'name@company.com',
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                         ),
@@ -306,7 +307,7 @@ class _StaffForgotPasswordScreenState extends State<StaffForgotPasswordScreen> {
                       ElevatedButton(
                         onPressed: _isLoading ? null : _handleSendResetCode,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFEA580C),
+                          backgroundColor: SubsidiaryTheme.current.color,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 15),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -329,7 +330,7 @@ class _StaffForgotPasswordScreenState extends State<StaffForgotPasswordScreen> {
                           else
                             InkWell(
                               onTap: _isLoading ? null : _handleSendResetCode,
-                              child: const Text('Resend Code', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+                              child: Text('Resend Code', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: SubsidiaryTheme.current.color)),
                             ),
                         ],
                       ),
@@ -416,7 +417,7 @@ class _StaffForgotPasswordScreenState extends State<StaffForgotPasswordScreen> {
                       ElevatedButton(
                         onPressed: _isLoading ? null : _handleResetPassword,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFEA580C),
+                          backgroundColor: SubsidiaryTheme.current.color,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 15),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

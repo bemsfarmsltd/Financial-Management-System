@@ -365,7 +365,7 @@ class _StaffHRHubScreenState extends State<StaffHRHubScreen> {
                   iconColor: const Color(0xFF7C3AED),
                   bgColor: const Color(0xFFF5F3FF),
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('BEMS Group 2026 Employee Handbook is active.')));
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Company'} 2026 Employee Handbook is active.')));
                   },
                 ),
               ),
@@ -383,8 +383,8 @@ class _StaffHRHubScreenState extends State<StaffHRHubScreen> {
               children: [
                 const Text('Staff Record Information', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A))),
                 const SizedBox(height: 10),
-                _buildInfoRow('Employee Number', widget.user.employeeNumber.isNotEmpty ? widget.user.employeeNumber : 'BEMS-STAFF'),
-                _buildInfoRow('Work Location', widget.user.workLocation.isNotEmpty ? widget.user.workLocation : 'BEMS Group'),
+                _buildInfoRow('Employee Number', widget.user.employeeNumber.isNotEmpty ? widget.user.employeeNumber : 'STAFF'),
+                _buildInfoRow('Work Location', widget.user.workLocation.isNotEmpty ? widget.user.workLocation : (widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Head Office')),
                 _buildInfoRow('Staff Grade', widget.user.staffGrade.isNotEmpty ? widget.user.staffGrade : 'Grade Specialist'),
                 _buildInfoRow('Salary Bank', '${widget.user.salaryBankName.isNotEmpty ? widget.user.salaryBankName : widget.user.bankName} (${widget.user.salaryAccountNumber.isNotEmpty ? widget.user.salaryAccountNumber : widget.user.accountNumber})'),
               ],

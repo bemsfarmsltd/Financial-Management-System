@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import '../models/staff_models.dart';
+import '../theme/subsidiary_theme.dart';
 import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
 import '../services/staff_download_helper.dart';
@@ -113,7 +114,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Direct link copied: $effectiveUrl'),
-            backgroundColor: const Color(0xFFEA580C),
+            backgroundColor: SubsidiaryTheme.current.color,
             duration: const Duration(seconds: 4),
           ),
         );
@@ -201,9 +202,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             _isBiometricEnabled = true;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text('Fingerprint unlock enabled for this device.'),
-              backgroundColor: Color(0xFFEA580C),
+              backgroundColor: SubsidiaryTheme.current.color,
             ),
           );
         }
@@ -325,9 +326,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: const Color(0xFFFED7AA)),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.access_time_filled_rounded,
-                      color: Color(0xFFEA580C),
+                      color: SubsidiaryTheme.current.color,
                       size: 24,
                     ),
                   ),
@@ -404,7 +405,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.3),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEA580C),
+                    backgroundColor: SubsidiaryTheme.current.color,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -612,8 +613,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       // Header
                       Container(
                         padding: const EdgeInsets.all(18),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFEA580C),
+                        decoration: BoxDecoration(
+                          color: SubsidiaryTheme.current.color,
                           borderRadius: BorderRadius.only(
                             topLeft: Radius.circular(20),
                             topRight: Radius.circular(20),
@@ -679,7 +680,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                   child: Row(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Icon(Icons.info_outline, color: Color(0xFFEA580C), size: 18),
+                                      Icon(Icons.info_outline, color: SubsidiaryTheme.current.color, size: 18),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
@@ -756,7 +757,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                           : const Icon(Icons.upload, size: 16),
                                       label: Text(isUploadingPhoto ? 'Uploading...' : 'Upload Passport Photo'),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFEA580C),
+                                        backgroundColor: SubsidiaryTheme.current.color,
                                         foregroundColor: Colors.white,
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                         textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
@@ -1027,7 +1028,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                     }
                                   },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFEA580C),
+                              backgroundColor: SubsidiaryTheme.current.color,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1092,7 +1093,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         const SizedBox(height: 2),
                         Text(
                           '${req.requestNumber} · ${req.subsidiary}${req.department.isNotEmpty ? " · ${req.department}" : ""}',
-                          style: const TextStyle(fontSize: 11, color: Color(0xFFEA580C), fontWeight: FontWeight.w700),
+                          style: TextStyle(fontSize: 11, color: SubsidiaryTheme.current.color, fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
@@ -1129,14 +1130,14 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                   width: 48,
                                   height: 48,
                                   color: const Color(0xFFFFF7ED),
-                                  child: const Icon(Icons.business_rounded, color: Color(0xFFEA580C), size: 24),
+                                  child: Icon(Icons.business_rounded, color: SubsidiaryTheme.current.color, size: 24),
                                 ),
                               )
                             : Container(
                                 width: 48,
                                 height: 48,
                                 color: const Color(0xFFFFF7ED),
-                                child: const Icon(Icons.business_rounded, color: Color(0xFFEA580C), size: 24),
+                                child: Icon(Icons.business_rounded, color: SubsidiaryTheme.current.color, size: 24),
                               ),
                       ),
                       const SizedBox(width: 14),
@@ -1151,7 +1152,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                   ? req.payeeName
                                   : (req.vendorName != null && req.vendorName!.isNotEmpty
                                       ? req.vendorName!
-                                      : (req.subsidiary.isNotEmpty ? req.subsidiary : 'BEMS Internal Payee')),
+                                      : (req.subsidiary.isNotEmpty ? req.subsidiary : 'Internal Payee')),
                               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
                             ),
                             Text('Category: ${req.category} · Priority: ${req.urgency}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
@@ -1209,7 +1210,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       icon: const Icon(Icons.receipt_long_rounded, size: 18),
                       label: const Text('Upload Proof of Expenditure & Receipts', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEA580C),
+                        backgroundColor: SubsidiaryTheme.current.color,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -1223,9 +1224,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 const SizedBox(height: 20),
 
                 // 5-Stage Approval Hierarchy Visualizer
-                const Text(
+                Text(
                   'CORPORATE APPROVAL TIMELINE',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFFEA580C), letterSpacing: 0.8),
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color, letterSpacing: 0.8),
                 ),
                 const SizedBox(height: 12),
 
@@ -1281,7 +1282,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
                   label: const Text('Open Request Chat & Queries', style: TextStyle(fontWeight: FontWeight.w800)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEA580C),
+                    backgroundColor: SubsidiaryTheme.current.color,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -1395,10 +1396,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: const Color(0xFFFFEDD5)),
                     ),
-                    child: const Row(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFFEA580C)),
+                        Icon(Icons.info_outline_rounded, size: 16, color: SubsidiaryTheme.current.color),
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -1502,7 +1503,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     Color circleColor = isDone
         ? const Color(0xFF10B981)
         : isCurrent
-            ? const Color(0xFFEA580C)
+            ? SubsidiaryTheme.current.color
             : const Color(0xFFCBD5E1);
 
     return IntrinsicHeight(
@@ -1552,7 +1553,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 11, color: isCurrent ? const Color(0xFFEA580C) : const Color(0xFF64748B)),
+                    style: TextStyle(fontSize: 11, color: isCurrent ? SubsidiaryTheme.current.color : const Color(0xFF64748B)),
                   ),
                 ],
               ),
@@ -1609,7 +1610,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                 if (notifications.isNotEmpty)
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(color: const Color(0xFFEA580C), borderRadius: BorderRadius.circular(10)),
+                                    decoration: BoxDecoration(color: SubsidiaryTheme.current.color, borderRadius: BorderRadius.circular(10)),
                                     child: Text('${notifications.length}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
                                   ),
                               ],
@@ -1620,16 +1621,16 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                   await StaffApiService.markNotificationsRead(employeeId: _currentUser.id);
                                   setModalState(() {});
                                 },
-                                child: const Text('Mark all read', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFEA580C))),
+                                child: Text('Mark all read', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: SubsidiaryTheme.current.color)),
                               ),
                           ],
                         ),
                         const SizedBox(height: 12),
                         const Divider(color: Color(0xFFF1F5F9)),
                         if (isLoading)
-                          const Padding(
+                          Padding(
                             padding: EdgeInsets.all(40),
-                            child: Center(child: CircularProgressIndicator(color: Color(0xFFEA580C))),
+                            child: Center(child: CircularProgressIndicator(color: SubsidiaryTheme.current.color)),
                           )
                         else if (notifications.isEmpty)
                           Padding(
@@ -1660,7 +1661,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                     width: 38,
                                     height: 38,
                                     decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
-                                    child: const Icon(Icons.notifications_active_outlined, color: Color(0xFFEA580C), size: 20),
+                                    child: Icon(Icons.notifications_active_outlined, color: SubsidiaryTheme.current.color, size: 20),
                                   ),
                                   title: Text(n['title']?.toString() ?? 'Alert', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A))),
                                   subtitle: Padding(
@@ -1807,9 +1808,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(color: const Color(0xFFFED7AA)),
                               ),
-                              child: const Column(
+                              child: Column(
                                 children: [
-                                  Icon(Icons.camera_alt_rounded, color: Color(0xFFEA580C), size: 22),
+                                  Icon(Icons.camera_alt_rounded, color: SubsidiaryTheme.current.color, size: 22),
                                   SizedBox(height: 5),
                                   Text('Camera', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFF9A3412))),
                                   SizedBox(height: 2),
@@ -1952,7 +1953,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                             ),
                             child: Row(
                               children: [
-                                Icon(isPhoto ? Icons.photo_outlined : Icons.picture_as_pdf_outlined, size: 18, color: isPhoto ? const Color(0xFFEA580C) : const Color(0xFF2563EB)),
+                                Icon(isPhoto ? Icons.photo_outlined : Icons.picture_as_pdf_outlined, size: 18, color: isPhoto ? SubsidiaryTheme.current.color : const Color(0xFF2563EB)),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Column(
@@ -2001,7 +2002,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         labelText: 'ACTUAL AMOUNT SPENT (NGN)',
                         labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
                         prefixText: '₦ ',
-                        prefixStyle: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFEA580C)),
+                        prefixStyle: TextStyle(fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color),
                         filled: true,
                         fillColor: const Color(0xFFF8FAFC),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
@@ -2028,13 +2029,13 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Refund Due to BEMS Treasury: ${formatter.format(diff)}',
+                                    'Refund Due to ${_currentUser.subsidiary.isNotEmpty ? _currentUser.subsidiary : 'Company'} Treasury: ${formatter.format(diff)}',
                                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF065F46)),
                                   ),
                                   const SizedBox(height: 2),
-                                  const Text(
-                                    'Please refund unspent balance into BEMS Advance Settlement Account.',
-                                    style: TextStyle(fontSize: 10.5, color: Color(0xFF047857)),
+                                  Text(
+                                    'Please refund unspent balance into ${_currentUser.subsidiary.isNotEmpty ? _currentUser.subsidiary : 'Company'} Advance Settlement Account.',
+                                    style: const TextStyle(fontSize: 10.5, color: Color(0xFF047857)),
                                   ),
                                 ],
                               ),
@@ -2169,7 +2170,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEA580C),
+                        backgroundColor: SubsidiaryTheme.current.color,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -2277,7 +2278,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   const SnackBar(content: Text('✓ Password successfully updated!'), backgroundColor: Color(0xFF059669)),
                 );
               },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEA580C)),
+              style: ElevatedButton.styleFrom(backgroundColor: SubsidiaryTheme.current.color),
               child: const Text('Update Password'),
             ),
           ],
@@ -2304,7 +2305,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             decoration: InputDecoration(
               labelText: 'MOBILE PHONE NUMBER',
               labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.w800),
-              prefixIcon: const Icon(Icons.phone_outlined, color: Color(0xFFEA580C), size: 18),
+              prefixIcon: Icon(Icons.phone_outlined, color: SubsidiaryTheme.current.color, size: 18),
               filled: true,
               fillColor: const Color(0xFFF8FAFC),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
@@ -2328,7 +2329,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   const SnackBar(content: Text('✓ Phone number updated!'), backgroundColor: Color(0xFF059669)),
                 );
               },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEA580C)),
+              style: ElevatedButton.styleFrom(backgroundColor: SubsidiaryTheme.current.color),
               child: const Text('Save Phone'),
             ),
           ],
@@ -2373,7 +2374,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('PRIMARY ADVANCE SETTLEMENT BANK', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+                    Text('PRIMARY ADVANCE SETTLEMENT BANK', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: SubsidiaryTheme.current.color)),
                     const SizedBox(height: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -2423,7 +2424,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       children: [
                         Checkbox(
                           value: useSameForSalary,
-                          activeColor: const Color(0xFFEA580C),
+                          activeColor: SubsidiaryTheme.current.color,
                           onChanged: (v) => setDialogState(() => useSameForSalary = v ?? true),
                         ),
                         const Expanded(
@@ -2528,7 +2529,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       const SnackBar(content: Text('✓ Corporate banking accounts updated!'), backgroundColor: Color(0xFF059669)),
                     );
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEA580C)),
+                  style: ElevatedButton.styleFrom(backgroundColor: SubsidiaryTheme.current.color),
                   child: const Text('Save Accounts'),
                 ),
               ],
@@ -2596,7 +2597,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                           borderRadius: BorderRadius.circular(6),
                                           border: Border.all(color: const Color(0xFFFED7AA)),
                                         ),
-                                        child: const Text('PAYDAY: 3RD', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                                        child: Text('PAYDAY: 3RD', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color)),
                                       ),
                                     ],
                                   ),
@@ -2613,7 +2614,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           const SizedBox(height: 16),
                           if (snapshot.connectionState == ConnectionState.waiting) ...[
                             const SizedBox(height: 60),
-                            const Center(child: CircularProgressIndicator(color: Color(0xFFEA580C))),
+                            Center(child: CircularProgressIndicator(color: SubsidiaryTheme.current.color)),
                             const SizedBox(height: 12),
                             const Center(child: Text('Loading salary agreement & payslips...', style: TextStyle(fontSize: 12, color: Color(0xFF64748B)))),
                           ] else if (snapshot.hasError) ...[
@@ -2640,20 +2641,20 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                         borderRadius: BorderRadius.circular(20),
                                         border: Border.all(color: const Color(0xFFFED7AA)),
                                         boxShadow: [
-                                          BoxShadow(color: const Color(0xFFEA580C).withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 4)),
+                                          BoxShadow(color: SubsidiaryTheme.current.color.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 4)),
                                         ],
                                       ),
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          const Text('ACTIVE COMPENSATION AGREEMENT', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFFEA580C), letterSpacing: 0.8)),
+                                          Text('ACTIVE COMPENSATION AGREEMENT', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color, letterSpacing: 0.8)),
                                           const SizedBox(height: 6),
                                           Text(
                                             comp?['grossFormatted'] ?? '₦0',
                                             style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -0.5),
                                           ),
                                           Text(
-                                            'Gross Monthly Pay · ${comp?['primarySubsidiary'] ?? 'BEMS Group'}',
+                                            'Gross Monthly Pay · ${comp?['primarySubsidiary'] ?? (_currentUser.subsidiary.isNotEmpty ? _currentUser.subsidiary : 'Company')}',
                                             style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
                                           ),
                                           const Divider(color: Color(0xFFF1F5F9), height: 20),
@@ -2950,15 +2951,15 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           errorBuilder: (_, __, ___) => Container(
                             width: 40,
                             height: 40,
-                            color: const Color(0xFFEA580C).withOpacity(0.1),
-                            child: const Icon(Icons.person, color: Color(0xFFEA580C), size: 22),
+                            color: SubsidiaryTheme.current.color.withOpacity(0.1),
+                            child: Icon(Icons.person, color: SubsidiaryTheme.current.color, size: 22),
                           ),
                         )
                       : Container(
                           width: 40,
                           height: 40,
-                          color: const Color(0xFFEA580C).withOpacity(0.1),
-                          child: const Icon(Icons.person, color: Color(0xFFEA580C), size: 22),
+                          color: SubsidiaryTheme.current.color.withOpacity(0.1),
+                          child: Icon(Icons.person, color: SubsidiaryTheme.current.color, size: 22),
                         ),
                 ),
                 const SizedBox(width: 10),
@@ -2978,12 +2979,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Icon(Icons.verified_rounded, size: 14, color: Color(0xFFEA580C)),
+                        Icon(Icons.verified_rounded, size: 14, color: SubsidiaryTheme.current.color),
                       ],
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      '${_currentUser.employeeNumber} · ${_currentUser.subsidiary.isNotEmpty ? _currentUser.subsidiary : "BEMS Group"}',
+                      '${_currentUser.employeeNumber} · ${_currentUser.subsidiary.isNotEmpty ? _currentUser.subsidiary : "Staff Workspace"}',
                       style: const TextStyle(
                         fontSize: 11,
                         color: Color(0xFF64748B),
@@ -3005,14 +3006,14 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: const Color(0xFFEA580C).withOpacity(0.08),
+                color: SubsidiaryTheme.current.color.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.2)),
+                border: Border.all(color: SubsidiaryTheme.current.color.withOpacity(0.2)),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.grid_view_rounded,
                 size: 19,
-                color: Color(0xFFEA580C),
+                color: SubsidiaryTheme.current.color,
               ),
             ),
           ),
@@ -3038,8 +3039,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFFEA580C), strokeWidth: 2.5),
+            ? Center(
+                child: CircularProgressIndicator(color: SubsidiaryTheme.current.color, strokeWidth: 2.5),
               )
             : PageView(
                 controller: _pageController,
@@ -3071,7 +3072,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             ),
           );
         },
-        backgroundColor: const Color(0xFFEA580C),
+        backgroundColor: SubsidiaryTheme.current.color,
         elevation: 6,
         shape: const CircleBorder(),
         tooltip: 'Admin Helpdesk Chat',
@@ -3119,7 +3120,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             }
           },
           backgroundColor: Colors.white,
-          selectedItemColor: const Color(0xFFEA580C),
+          selectedItemColor: SubsidiaryTheme.current.color,
           unselectedItemColor: const Color(0xFF94A3B8),
           selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
@@ -3141,7 +3142,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       top: 0,
                       child: Container(
                         padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(color: Color(0xFFEA580C), shape: BoxShape.circle),
+                        decoration: BoxDecoration(color: SubsidiaryTheme.current.color, shape: BoxShape.circle),
                         constraints: const BoxConstraints(minWidth: 8, minHeight: 8),
                       ),
                     ),
@@ -3156,15 +3157,15 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFEA580C), Color(0xFFFB923C)],
+                  gradient: LinearGradient(
+                    colors: [SubsidiaryTheme.current.color, Color(0xFFFB923C)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFEA580C).withOpacity(0.4),
+                      color: SubsidiaryTheme.current.color.withOpacity(0.4),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -3238,10 +3239,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: const Color(0xFFEA580C).withOpacity(0.12),
+                color: SubsidiaryTheme.current.color.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFFEA580C), size: 20),
+              child: Icon(Icons.qr_code_scanner_rounded, color: SubsidiaryTheme.current.color, size: 20),
             ),
             const SizedBox(width: 12),
             const Expanded(
@@ -3279,7 +3280,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 if (result == true) _loadData();
               },
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFEA580C),
+                backgroundColor: SubsidiaryTheme.current.color,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 elevation: 0,
@@ -3395,7 +3396,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
     return RefreshIndicator(
       onRefresh: _loadData,
-      color: const Color(0xFFEA580C),
+      color: SubsidiaryTheme.current.color,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
         children: [
@@ -3425,7 +3426,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: const Color(0xFFFED7AA)),
                   ),
-                  child: const Icon(Icons.wallet_outlined, color: Color(0xFFEA580C), size: 22),
+                  child: Icon(Icons.wallet_outlined, color: SubsidiaryTheme.current.color, size: 22),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -3501,7 +3502,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           child: ElevatedButton(
                             onPressed: () => _handleConfirmPayment(disb),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFEA580C),
+                              backgroundColor: SubsidiaryTheme.current.color,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3539,7 +3540,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   title: 'New Request',
                   subtitle: 'Operational',
                   icon: Icons.add_shopping_cart_rounded,
-                  iconColor: const Color(0xFFEA580C),
+                  iconColor: SubsidiaryTheme.current.color,
                   iconBgColor: const Color(0xFFFFF7ED),
                   onTap: _openNewRequestModal,
                 ),
@@ -3550,7 +3551,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   title: 'Confirm Funds',
                   subtitle: 'Dual-Key Auth',
                   icon: Icons.price_check_rounded,
-                  iconColor: const Color(0xFFEA580C),
+                  iconColor: SubsidiaryTheme.current.color,
                   iconBgColor: const Color(0xFFFFF7ED),
                   onTap: () {
                     if (_disbursementsAwaiting.isNotEmpty) {
@@ -3617,7 +3618,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       color: const Color(0xFFFFF7ED),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.grid_view_rounded, color: Color(0xFFEA580C), size: 22),
+                    child: Icon(Icons.grid_view_rounded, color: SubsidiaryTheme.current.color, size: 22),
                   ),
                   const SizedBox(width: 14),
                   const Expanded(
@@ -3659,7 +3660,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               const Text('Recent Requisitions', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
               GestureDetector(
                 onTap: () => _navigateToTab(1),
-                child: const Text('See More', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+                child: Text('See More', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: SubsidiaryTheme.current.color)),
               ),
             ],
           ),
@@ -3677,9 +3678,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     required String subtitle,
     required IconData icon,
     required VoidCallback onTap,
-    Color iconColor = const Color(0xFFEA580C),
+    Color? iconColor,
     Color iconBgColor = const Color(0xFFF1F5F9),
   }) {
+    final effectiveIconColor = iconColor ?? SubsidiaryTheme.current.color;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
@@ -3708,7 +3710,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
-              child: Icon(icon, color: iconColor, size: 20),
+              child: Icon(icon, color: effectiveIconColor, size: 20),
             ),
             const SizedBox(height: 12),
             Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
@@ -3752,7 +3754,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
-                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 20),
+                    child: Icon(Icons.receipt_long_rounded, color: SubsidiaryTheme.current.color, size: 20),
                   ),
                   const SizedBox(width: 10),
                   const Text(
@@ -3796,7 +3798,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   icon: const Icon(Icons.camera_alt_rounded, size: 15, color: Colors.white),
                   label: const Text('Camera', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Colors.white)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEA580C),
+                    backgroundColor: SubsidiaryTheme.current.color,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3883,7 +3885,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         color: const Color(0xFFFFF7ED),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 24),
+                      child: Icon(Icons.receipt_long_rounded, color: SubsidiaryTheme.current.color, size: 24),
                     ),
                     const SizedBox(width: 12),
                     const Expanded(
@@ -3944,9 +3946,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(color: const Color(0xFFFED7AA)),
                           ),
-                          child: const Column(
+                          child: Column(
                             children: [
-                              Icon(Icons.camera_alt_rounded, color: Color(0xFFEA580C), size: 24),
+                              Icon(Icons.camera_alt_rounded, color: SubsidiaryTheme.current.color, size: 24),
                               SizedBox(height: 6),
                               Text('Snap Camera', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5, color: Color(0xFF9A3412))),
                               SizedBox(height: 2),
@@ -4112,7 +4114,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     }
 
     final categoryColors = [
-      const Color(0xFFEA580C),
+      SubsidiaryTheme.current.color,
       const Color(0xFFF97316),
       const Color(0xFFFB923C),
       const Color(0xFFFDBA74),
@@ -4190,7 +4192,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           ? '₦${(r.amountNaira / 1000000).toStringAsFixed(1)}M'
                           : '₦${(r.amountNaira / 1000).toInt()}k',
                       style: TextStyle(
-                        color: isLast ? const Color(0xFFEA580C) : const Color(0xFF94A3B8),
+                        color: isLast ? SubsidiaryTheme.current.color : const Color(0xFF94A3B8),
                         fontSize: 9,
                         fontWeight: isLast ? FontWeight.w800 : FontWeight.w600,
                       ),
@@ -4202,7 +4204,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: isLast
-                              ? [const Color(0xFFEA580C), const Color(0xFFFB923C)]
+                              ? [SubsidiaryTheme.current.color, const Color(0xFFFB923C)]
                               : [const Color(0xFF94A3B8), const Color(0xFFCBD5E1)],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
@@ -4216,7 +4218,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: isLast ? FontWeight.w900 : FontWeight.w600,
-                        color: isLast ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                        color: isLast ? SubsidiaryTheme.current.color : const Color(0xFF64748B),
                       ),
                     ),
                   ],
@@ -4361,7 +4363,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               icon: const Icon(Icons.add_rounded, size: 16),
               label: const Text('New', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEA580C),
+                backgroundColor: SubsidiaryTheme.current.color,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -4448,9 +4450,9 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEA580C) : Colors.white,
+          color: isSelected ? SubsidiaryTheme.current.color : Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: isSelected ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0)),
+          border: Border.all(color: isSelected ? SubsidiaryTheme.current.color : const Color(0xFFE2E8F0)),
         ),
         child: Text(
           label,
@@ -4478,7 +4480,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         countMap[r.category] = (countMap[r.category] ?? 0) + 1;
       }
       final colorPalette = [
-        const Color(0xFFEA580C), // Orange
+        SubsidiaryTheme.current.color, // Orange
         const Color(0xFF3B82F6), // Blue
         const Color(0xFF10B981), // Emerald
         const Color(0xFF8B5CF6), // Purple
@@ -4541,7 +4543,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           label: 'In Review',
           value: inReviewVal > 0 ? inReviewVal : inReviewCount.toDouble(),
           count: inReviewCount,
-          color: const Color(0xFFEA580C),
+          color: SubsidiaryTheme.current.color,
         ));
       }
       if (approvedCount > 0) {
@@ -4617,11 +4619,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
     List<PieChartSegment> segments = [];
     if (clearedCount == 0 && inGraceCount == 0 && overdueCount == 0) {
-      segments.add(const PieChartSegment(
+      segments.add(PieChartSegment(
         label: 'Policy Compliant (Clean)',
         value: 100,
         count: 0,
-        color: Color(0xFFEA580C),
+        color: SubsidiaryTheme.current.color,
       ));
     } else {
       if (clearedCount > 0) {
@@ -4629,7 +4631,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           label: 'Cleared & Verified',
           value: clearedCount.toDouble(),
           count: clearedCount,
-          color: const Color(0xFFEA580C),
+          color: SubsidiaryTheme.current.color,
         ));
       }
       if (inGraceCount > 0) {
@@ -4637,7 +4639,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
           label: 'Active in 72h Grace',
           value: inGraceCount.toDouble(),
           count: inGraceCount,
-          color: const Color(0xFFEA580C),
+          color: SubsidiaryTheme.current.color,
         ));
       }
       if (overdueCount > 0) {
@@ -4691,7 +4693,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
       statusLabel = 'Declined';
     } else {
       statusBg = const Color(0xFFFFF7ED);
-      statusTextColor = const Color(0xFFEA580C);
+      statusTextColor = SubsidiaryTheme.current.color;
       statusLabel = 'In Review';
     }
 
@@ -4733,15 +4735,15 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           errorBuilder: (_, __, ___) => Container(
                             width: 44,
                             height: 44,
-                            color: const Color(0xFFEA580C).withOpacity(0.1),
-                            child: const Icon(Icons.person, color: Color(0xFFEA580C)),
+                            color: SubsidiaryTheme.current.color.withOpacity(0.1),
+                            child: Icon(Icons.person, color: SubsidiaryTheme.current.color),
                           ),
                         )
                       : Container(
                           width: 44,
                           height: 44,
-                          color: const Color(0xFFEA580C).withOpacity(0.1),
-                          child: const Icon(Icons.person, color: Color(0xFFEA580C)),
+                          color: SubsidiaryTheme.current.color.withOpacity(0.1),
+                          child: Icon(Icons.person, color: SubsidiaryTheme.current.color),
                         ),
                 ),
                 const SizedBox(width: 12),
@@ -4840,14 +4842,14 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: const Color(0xFFFED7AA)),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.chat_bubble_outline_rounded, size: 12, color: Color(0xFFEA580C)),
+                            Icon(Icons.chat_bubble_outline_rounded, size: 12, color: SubsidiaryTheme.current.color),
                             SizedBox(width: 4),
                             Text(
                               'Request Chat',
-                              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFFEA580C)),
+                              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: SubsidiaryTheme.current.color),
                             ),
                           ],
                         ),
@@ -4905,7 +4907,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEA580C),
+                        color: SubsidiaryTheme.current.color,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Row(
@@ -4981,7 +4983,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('ACTIVE SLA RADAR', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFFEA580C), letterSpacing: 0.8)),
+                  Text('ACTIVE SLA RADAR', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color, letterSpacing: 0.8)),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
@@ -4999,8 +5001,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
                         color: nearestCase != null && nearestCase.status == 'EVIDENCE_SUBMITTED'
-                            ? const Color(0xFFEA580C)
-                            : (nearestCase != null ? const Color(0xFFD97706) : const Color(0xFFEA580C)),
+                            ? SubsidiaryTheme.current.color
+                            : (nearestCase != null ? const Color(0xFFD97706) : SubsidiaryTheme.current.color),
                       ),
                     ),
                   ),
@@ -5022,8 +5024,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           backgroundColor: const Color(0xFFF1F5F9),
                           valueColor: AlwaysStoppedAnimation<Color>(
                             nearestCase != null
-                                ? (nearestCase.status == 'EVIDENCE_SUBMITTED' ? const Color(0xFFEA580C) : const Color(0xFFEA580C))
-                                : const Color(0xFFEA580C),
+                                ? (nearestCase.status == 'EVIDENCE_SUBMITTED' ? SubsidiaryTheme.current.color : SubsidiaryTheme.current.color)
+                                : SubsidiaryTheme.current.color,
                           ),
                         ),
                       ),
@@ -5079,10 +5081,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               borderRadius: BorderRadius.circular(22),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: const Center(
+            child: Center(
               child: Column(
                 children: [
-                  Icon(Icons.verified_user_rounded, color: Color(0xFFEA580C), size: 48),
+                  Icon(Icons.verified_user_rounded, color: SubsidiaryTheme.current.color, size: 48),
                   SizedBox(height: 12),
                   Text('Zero Advance Liabilities', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
                   SizedBox(height: 4),
@@ -5129,19 +5131,19 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                                     errorBuilder: (_, __, ___) => Container(
                                       width: 32,
                                       height: 32,
-                                      color: const Color(0xFFEA580C).withOpacity(0.1),
-                                      child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 18),
+                                      color: SubsidiaryTheme.current.color.withOpacity(0.1),
+                                      child: Icon(Icons.receipt_long_rounded, color: SubsidiaryTheme.current.color, size: 18),
                                     ),
                                   )
                                 : Container(
                                     width: 32,
                                     height: 32,
-                                    color: const Color(0xFFEA580C).withOpacity(0.1),
-                                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 18),
+                                    color: SubsidiaryTheme.current.color.withOpacity(0.1),
+                                    child: Icon(Icons.receipt_long_rounded, color: SubsidiaryTheme.current.color, size: 18),
                                   ),
                           ),
                           const SizedBox(width: 8),
-                          Text(c.requestNumber, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                          Text(c.requestNumber, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color)),
                         ],
                       ),
                       Container(
@@ -5161,7 +5163,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                             color: isSubmitted
-                                ? const Color(0xFFEA580C)
+                                ? SubsidiaryTheme.current.color
                                 : (c.isOverdue ? const Color(0xFFDC2626) : const Color(0xFFD97706)),
                           ),
                         ),
@@ -5182,7 +5184,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.receipt_long_rounded, color: Color(0xFFEA580C), size: 16),
+                        Icon(Icons.receipt_long_rounded, color: SubsidiaryTheme.current.color, size: 16),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -5202,7 +5204,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEA580C),
+                      backgroundColor: SubsidiaryTheme.current.color,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -5244,7 +5246,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           width: 36,
                           height: 36,
                           decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
-                          child: const Icon(Icons.check_circle_rounded, color: Color(0xFFEA580C), size: 20),
+                          child: Icon(Icons.check_circle_rounded, color: SubsidiaryTheme.current.color, size: 20),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -5259,7 +5261,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFFED7AA))),
-                          child: Text(r.accountabilityStatus.isNotEmpty ? r.accountabilityStatus : 'CLEARED', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                          child: Text(r.accountabilityStatus.isNotEmpty ? r.accountabilityStatus : 'CLEARED', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color)),
                         ),
                       ],
                     ),
@@ -5307,7 +5309,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               const Text('Update Passport Photograph', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
               const SizedBox(height: 16),
               ListTile(
-                leading: const CircleAvatar(backgroundColor: Color(0xFFFFF7ED), child: Icon(Icons.camera_alt_rounded, color: Color(0xFFEA580C))),
+                leading: CircleAvatar(backgroundColor: Color(0xFFFFF7ED), child: Icon(Icons.camera_alt_rounded, color: SubsidiaryTheme.current.color)),
                 title: const Text('Take New Photo with Camera', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                 subtitle: const Text('Capture direct passport face photograph', style: TextStyle(fontSize: 11)),
                 onTap: () async {
@@ -5426,21 +5428,21 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                               errorBuilder: (_, __, ___) => Container(
                                 width: 64,
                                 height: 64,
-                                color: const Color(0xFFEA580C).withOpacity(0.1),
-                                child: const Icon(Icons.person, color: Color(0xFFEA580C), size: 32),
+                                color: SubsidiaryTheme.current.color.withOpacity(0.1),
+                                child: Icon(Icons.person, color: SubsidiaryTheme.current.color, size: 32),
                               ),
                             )
                           : Container(
                               width: 64,
                               height: 64,
-                              color: const Color(0xFFEA580C).withOpacity(0.1),
-                              child: const Icon(Icons.person, color: Color(0xFFEA580C), size: 32),
+                              color: SubsidiaryTheme.current.color.withOpacity(0.1),
+                              child: Icon(Icons.person, color: SubsidiaryTheme.current.color, size: 32),
                             ),
                     ),
                     Container(
                       padding: const EdgeInsets.all(3),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFEA580C),
+                      decoration: BoxDecoration(
+                        color: SubsidiaryTheme.current.color,
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.camera_alt_rounded, size: 12, color: Colors.white),
@@ -5455,7 +5457,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   children: [
                     Text(_currentUser.fullName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
                     const SizedBox(height: 2),
-                    Text(_currentUser.jobTitle, style: const TextStyle(fontSize: 11.5, color: Color(0xFFEA580C), fontWeight: FontWeight.w700)),
+                    Text(_currentUser.jobTitle, style: TextStyle(fontSize: 11.5, color: SubsidiaryTheme.current.color, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 4),
                     Text('${_currentUser.subsidiary} · ${_currentUser.department}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                     const SizedBox(height: 6),
@@ -5569,11 +5571,11 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('OFFICIAL MONTHLY SALARY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFFEA580C), letterSpacing: 0.8)),
+                  Text('OFFICIAL MONTHLY SALARY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color, letterSpacing: 0.8)),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(6), border: Border.all(color: const Color(0xFFFED7AA))),
-                    child: const Text('PAYDAY: 3RD', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                    child: Text('PAYDAY: 3RD', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color)),
                   ),
                 ],
               ),
@@ -5588,7 +5590,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   icon: const Icon(Icons.wallet_outlined, size: 17, color: Colors.white),
                   label: const Text('View My Salary & Payslips', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEA580C),
+                    backgroundColor: SubsidiaryTheme.current.color,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     elevation: 0,
@@ -5618,7 +5620,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('PRIMARY DISBURSAL ACCOUNT (ADVANCES)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFFEA580C), letterSpacing: 0.8)),
+                  Text('PRIMARY DISBURSAL ACCOUNT (ADVANCES)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color, letterSpacing: 0.8)),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(6)),
@@ -5652,8 +5654,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: _showUpdateBankAccountsDialog,
-                  icon: const Icon(Icons.account_balance_wallet_outlined, size: 16, color: Color(0xFFEA580C)),
-                  label: const Text('Change / Update Bank Accounts', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+                  icon: Icon(Icons.account_balance_wallet_outlined, size: 16, color: SubsidiaryTheme.current.color),
+                  label: Text('Change / Update Bank Accounts', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: SubsidiaryTheme.current.color)),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Color(0xFFFED7AA)),
                     backgroundColor: const Color(0xFFFFF7ED),
@@ -5711,7 +5713,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   width: 38,
                   height: 38,
                   decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
-                  child: const Icon(Icons.fingerprint_rounded, color: Color(0xFFEA580C), size: 20),
+                  child: Icon(Icons.fingerprint_rounded, color: SubsidiaryTheme.current.color, size: 20),
                 ),
                 title: const Text('Fingerprint & Biometric Sign-In', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
                 subtitle: Text(
@@ -5722,7 +5724,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                           : 'Not configured · Tap switch to enroll'),
                   style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                 ),
-                activeColor: const Color(0xFFEA580C),
+                activeColor: SubsidiaryTheme.current.color,
                 value: _isBiometricEnabled,
                 onChanged: _toggleBiometric,
               ),
@@ -5733,7 +5735,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   width: 38,
                   height: 38,
                   decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
-                  child: const Icon(Icons.support_agent_rounded, color: Color(0xFFEA580C), size: 20),
+                  child: Icon(Icons.support_agent_rounded, color: SubsidiaryTheme.current.color, size: 20),
                 ),
                 title: const Text('Finance & Admin Helpdesk Chat', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
                 subtitle: const Text('Direct messaging with Executive Admin & GMD', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
@@ -5754,7 +5756,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   width: 38,
                   height: 38,
                   decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
-                  child: const Icon(Icons.lock_reset_rounded, color: Color(0xFFEA580C), size: 20),
+                  child: Icon(Icons.lock_reset_rounded, color: SubsidiaryTheme.current.color, size: 20),
                 ),
                 title: const Text('Change Password', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
                 subtitle: const Text('Update your corporate login credentials', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
@@ -5814,8 +5816,8 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
         if (kIsWeb) ...[
           OutlinedButton.icon(
             onPressed: _downloadAndroidApk,
-            icon: const Icon(Icons.download_rounded, size: 16, color: Color(0xFFEA580C)),
-            label: const Text('Download Android Mobile App (v1.3.8)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFFEA580C))),
+            icon: Icon(Icons.download_rounded, size: 16, color: SubsidiaryTheme.current.color),
+            label: Text('Download Android Mobile App (v1.3.8)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: SubsidiaryTheme.current.color)),
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: Color(0xFFFED7AA)),
               backgroundColor: const Color(0xFFFFF7ED),
@@ -5844,7 +5846,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   Widget _buildProfileSectionHeader(String text) {
     return Text(
       text,
-      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFFEA580C), letterSpacing: 0.8),
+      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color, letterSpacing: 0.8),
     );
   }
 
@@ -5880,7 +5882,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: const Color(0xFFFFEDD5)),
               ),
-              child: Text(actionLabel, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFFEA580C))),
+              child: Text(actionLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: SubsidiaryTheme.current.color)),
             ),
           ),
       ],
@@ -5904,11 +5906,15 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             controller: _priceCardController,
             onPageChanged: (idx) => setState(() => _priceCardPage = idx),
             children: [
-              // Slide 1: BEMS Digital Wallet & Operational Advance
+              // Slide 1: Subsidiary Digital Wallet & Operational Advance
               _buildHeroCardContainer(
-                gradientColors: const [Color(0xFFEA580C), Color(0xFFC2410C), Color(0xFF9A3412)],
-                shadowColor: const Color(0xFFEA580C).withOpacity(0.32),
-                title: 'BEMS DIGITAL WALLET & ADVANCES',
+                gradientColors: [
+                  SubsidiaryTheme.current.color,
+                  Color.lerp(SubsidiaryTheme.current.color, Colors.black, 0.25) ?? SubsidiaryTheme.current.color,
+                  Color.lerp(SubsidiaryTheme.current.color, Colors.black, 0.45) ?? SubsidiaryTheme.current.color,
+                ],
+                shadowColor: SubsidiaryTheme.current.color.withOpacity(0.32),
+                title: '${(_currentUser.subsidiary.isNotEmpty ? _currentUser.subsidiary : 'STAFF').toUpperCase()} WALLET & ADVANCES',
                 canHideBalance: true,
                 valueText: _hideBalance
                     ? '₦ ••••••••'
@@ -5925,7 +5931,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                             : 'Wallet Active · Company Pays Fees')),
                 primaryActionLabel: 'Withdraw to Bank',
                 primaryActionIcon: Icons.arrow_upward_rounded,
-                primaryActionColor: const Color(0xFFEA580C),
+                primaryActionColor: SubsidiaryTheme.current.color,
                 onPrimaryAction: () {
                   _navigateToTab(3);
                 },
@@ -6007,7 +6013,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               width: isActive ? 22 : 7,
               height: 7,
               decoration: BoxDecoration(
-                color: isActive ? const Color(0xFFEA580C) : const Color(0xFFCBD5E1),
+                color: isActive ? SubsidiaryTheme.current.color : const Color(0xFFCBD5E1),
                 borderRadius: BorderRadius.circular(4),
               ),
             );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/staff_models.dart';
+import '../theme/subsidiary_theme.dart';
 import 'staff_main_screen.dart';
 import 'staff_admin_chat_screen.dart';
 import 'modules/staff_module_workstation_screen.dart';
@@ -54,46 +55,22 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                       children: [
                         Row(
                           children: [
-                            Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.04),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Center(
-                                child: Image.asset(
-                                  'assets/images/bems-mark.png',
-                                  width: 24,
-                                  height: 24,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const Icon(Icons.business_rounded, color: Color(0xFFEA580C), size: 20),
-                                ),
-                              ),
-                            ),
+                            const SubsidiaryLogoBadge(size: 40, borderRadius: 12),
                             const SizedBox(width: 10),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'BEMS GROUP',
-                                  style: TextStyle(
-                                    fontSize: 14,
+                                Text(
+                                  (widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Staff Workspace').toUpperCase(),
+                                  style: const TextStyle(
+                                    fontSize: 13.5,
                                     fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.1,
+                                    letterSpacing: 0.6,
                                     color: Color(0xFF0F172A),
                                   ),
                                 ),
                                 Text(
-                                  widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Conglomerate Portal',
+                                  widget.user.department.isNotEmpty ? widget.user.department : 'Staff Portal',
                                   style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
                                 ),
                               ],
@@ -138,12 +115,12 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                         children: [
                           CircleAvatar(
                             radius: 24,
-                            backgroundColor: const Color(0xFFEA580C).withOpacity(0.12),
+                            backgroundColor: SubsidiaryTheme.current.color.withOpacity(0.12),
                             backgroundImage: widget.user.avatarUrl.isNotEmpty ? NetworkImage(widget.user.avatarUrl) : null,
                             child: widget.user.avatarUrl.isEmpty
                                 ? Text(
                                     widget.user.fullName.isNotEmpty ? widget.user.fullName[0].toUpperCase() : 'S',
-                                    style: const TextStyle(color: Color(0xFFEA580C), fontWeight: FontWeight.w900, fontSize: 18),
+                                    style: TextStyle(color: SubsidiaryTheme.current.color, fontWeight: FontWeight.w900, fontSize: 18),
                                   )
                                 : null,
                           ),
@@ -162,7 +139,7 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                                       ),
                                     ),
                                     const SizedBox(width: 4),
-                                    const Icon(Icons.verified_rounded, size: 14, color: Color(0xFFEA580C)),
+                                    Icon(Icons.verified_rounded, size: 14, color: SubsidiaryTheme.current.color),
                                   ],
                                 ),
                                 const SizedBox(height: 2),
@@ -176,11 +153,11 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFEA580C).withOpacity(0.1),
+                              color: SubsidiaryTheme.current.color.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: const Color(0xFFFED7AA)),
                             ),
-                            child: const Text('STAFF', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                            child: Text('STAFF', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color)),
                           ),
                         ],
                       ),
@@ -219,7 +196,7 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Color(0xFFEA580C), width: 1.5),
+                          borderSide: BorderSide(color: SubsidiaryTheme.current.color, width: 1.5),
                         ),
                       ),
                     ),
@@ -380,7 +357,7 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
         badgeText: 'ACTIVE',
         badgeColor: const Color(0xFF059669),
         icon: Icons.account_balance_wallet_rounded,
-        gradient: [const Color(0xFFEA580C), const Color(0xFFC2410C)],
+        gradient: [SubsidiaryTheme.current.color, const Color(0xFFC2410C)],
         onTap: (ctx) {
           Navigator.push(
             ctx,
@@ -405,16 +382,16 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
             MaterialPageRoute(
               builder: (_) => StaffModuleWorkstationScreen(
                 user: user,
-                config: const ModuleConfig(
+                config: ModuleConfig(
                   id: 'projects',
                   eyebrow: 'PROJECT EXECUTION',
                   title: 'Project Management System',
                   subtitle: 'Milestones, Deliverables & Capital Oversight',
-                  description: 'Project tracking, milestone execution, deliverables, and capital expenditure oversight across BEMS Group businesses.',
+                  description: 'Project tracking, milestone execution, deliverables, and capital expenditure oversight across ${widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'your organization'}.',
                   icon: Icons.assignment_turned_in_rounded,
-                  gradientColors: [Color(0xFF0284C7), Color(0xFF0369A1)],
+                  gradientColors: const [Color(0xFF0284C7), Color(0xFF0369A1)],
                   statusText: 'Pipeline (Phase 2)',
-                  quickActions: [
+                  quickActions: const [
                     {'title': 'Milestone Deliverables', 'desc': 'Track milestone progress and deliverables', 'icon': Icons.task_alt_rounded, 'color': Color(0xFF0284C7)},
                     {'title': 'Task Execution', 'desc': 'Monitor team work packages and deadlines', 'icon': Icons.checklist_rounded, 'color': Color(0xFF10B981)},
                   ],
@@ -448,16 +425,16 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
             MaterialPageRoute(
               builder: (_) => StaffModuleWorkstationScreen(
                 user: user,
-                config: const ModuleConfig(
+                config: ModuleConfig(
                   id: 'hr',
                   eyebrow: 'HUMAN CAPITAL',
                   title: 'Human Resource Management System',
                   subtitle: 'Staff Directory, Records & Administration',
-                  description: 'Staff directory, employee records, attendance monitoring, and workplace administration across BEMS Group businesses.',
+                  description: 'Staff directory, employee records, attendance monitoring, and workplace administration for ${widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'your organization'}.',
                   icon: Icons.people_alt_rounded,
-                  gradientColors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                  gradientColors: const [Color(0xFF6366F1), Color(0xFF4F46E5)],
                   statusText: 'Pipeline (Phase 2)',
-                  quickActions: [
+                  quickActions: const [
                     {'title': 'Staff Directory', 'desc': 'View corporate personnel across subsidiaries', 'icon': Icons.badge_rounded, 'color': Color(0xFF6366F1)},
                     {'title': 'Leave Administration', 'desc': 'Submit and track leave requests', 'icon': Icons.event_available_rounded, 'color': Color(0xFF059669)},
                   ],
@@ -491,16 +468,16 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
             MaterialPageRoute(
               builder: (_) => StaffModuleWorkstationScreen(
                 user: user,
-                config: const ModuleConfig(
+                config: ModuleConfig(
                   id: 'operations',
                   eyebrow: 'FIELD OPERATIONS',
                   title: 'Operations Management System',
                   subtitle: 'Fleet, Logistics & Field Oversight',
-                  description: 'Field operations coordination, fleet management, logistics tracking, and facility oversight across BEMS Group businesses.',
+                  description: 'Field operations coordination, fleet management, logistics tracking, and facility oversight for ${widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'your organization'}.',
                   icon: Icons.local_shipping_rounded,
-                  gradientColors: [Color(0xFF059669), Color(0xFF047857)],
+                  gradientColors: const [Color(0xFF059669), Color(0xFF047857)],
                   statusText: 'Pipeline (Phase 2)',
-                  quickActions: [
+                  quickActions: const [
                     {'title': 'Daily Operations Log', 'desc': 'Record field activities and shift handovers', 'icon': Icons.assignment_rounded, 'color': Color(0xFF059669)},
                     {'title': 'Fleet & Logistics', 'desc': 'Track vehicle transit and facility maintenance', 'icon': Icons.local_shipping_rounded, 'color': Color(0xFF0284C7)},
                   ],

@@ -2,6 +2,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/staff_models.dart';
+import '../theme/subsidiary_theme.dart';
 
 class StaffStorageService {
   static const _secure = FlutterSecureStorage(aOptions: AndroidOptions(encryptedSharedPreferences: true));
@@ -24,6 +25,7 @@ class StaffStorageService {
     final prefs = await SharedPreferences.getInstance();
     await _secure.write(key: _keyUser, value: jsonEncode(user.toJson()));
     await prefs.remove(_keyUser);
+    SubsidiaryTheme.applyUser(user);
   }
 
   static Future<StaffUser?> getUser() async {
@@ -36,7 +38,9 @@ class StaffStorageService {
     final data = await _secure.read(key: _keyUser);
     if (data == null) return null;
     try {
-      return StaffUser.fromJson(jsonDecode(data));
+      final user = StaffUser.fromJson(jsonDecode(data));
+      SubsidiaryTheme.applyUser(user);
+      return user;
     } catch (_) {
       return null;
     }
@@ -46,6 +50,7 @@ class StaffStorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyUser);
     await _secure.delete(key: _keyUser);
+    SubsidiaryTheme.applyUser(null);
   }
 
   static Future<bool> hasSeenOnboardingCarousel({String? version}) async {

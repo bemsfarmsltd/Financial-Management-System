@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
 import 'staff_login_screen.dart';
+import '../theme/subsidiary_theme.dart';
 
 class StaffRegisterScreen extends StatefulWidget {
   const StaffRegisterScreen({super.key});
@@ -49,7 +50,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                     width: 44,
                     height: 44,
                     decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
-                    child: const Icon(Icons.camera_alt_rounded, color: Color(0xFFEA580C)),
+                    child: Icon(Icons.camera_alt_rounded, color: SubsidiaryTheme.current.color),
                   ),
                   title: const Text('Take Live Photo with Camera', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                   subtitle: const Text('Snap front-facing passport photograph', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
@@ -709,7 +710,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                 ),
                 child: Column(
                   children: [
-                    const Text('OFFICIAL EMPLOYEE NUMBER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFFEA580C), letterSpacing: 0.5)),
+                    Text('OFFICIAL EMPLOYEE NUMBER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: SubsidiaryTheme.current.color, letterSpacing: 0.5)),
                     const SizedBox(height: 4),
                     Text(
                       generatedEmpNo,
@@ -773,7 +774,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEA580C),
+                    backgroundColor: SubsidiaryTheme.current.color,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -836,7 +837,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                                     height: 22,
                                     decoration: BoxDecoration(
                                       color: isCurrent
-                                          ? const Color(0xFFEA580C)
+                                          ? SubsidiaryTheme.current.color
                                           : isActive
                                               ? const Color(0xFFDCFCE7)
                                               : const Color(0xFFF1F5F9),
@@ -865,7 +866,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                               Container(
                                 height: 3,
                                 decoration: BoxDecoration(
-                                  color: isActive ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0),
+                                  color: isActive ? SubsidiaryTheme.current.color : const Color(0xFFE2E8F0),
                                   borderRadius: BorderRadius.circular(2),
                                 ),
                               ),
@@ -943,7 +944,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _nextStep,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEA580C),
+                        backgroundColor: SubsidiaryTheme.current.color,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -1042,11 +1043,11 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                       : Icon(
                           _avatarUrl != null ? Icons.cached_rounded : Icons.camera_alt_rounded,
                           size: 16,
-                          color: const Color(0xFFEA580C),
+                          color: SubsidiaryTheme.current.color,
                         ),
                   label: Text(
                     _avatarUrl != null ? 'Change Passport Photo' : '📷 Take or Upload Photo *',
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: Color(0xFFEA580C)),
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: SubsidiaryTheme.current.color),
                   ),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Color(0xFFFED7AA)),
@@ -1063,7 +1064,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         _buildInputCard([
           _buildTextField(label: 'LEGAL FULL NAME', controller: _fullNameController, hint: 'Surname Firstname Othername', icon: Icons.person_outline_rounded),
           const SizedBox(height: 14),
-          _buildTextField(label: 'OFFICIAL CORPORATE EMAIL', controller: _emailController, hint: 'name@bemsgroup.com', icon: Icons.mail_outline_rounded, keyboardType: TextInputType.emailAddress),
+          _buildTextField(label: 'OFFICIAL CORPORATE EMAIL', controller: _emailController, hint: 'name@company.com', icon: Icons.mail_outline_rounded, keyboardType: TextInputType.emailAddress),
           const SizedBox(height: 14),
           _buildTextField(label: 'MOBILE TELEPHONE', controller: _phoneController, hint: '+234 800 000 0000', icon: Icons.phone_outlined, keyboardType: TextInputType.phone),
           const SizedBox(height: 14),
@@ -1330,9 +1331,9 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFFED7AA)),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.account_balance_wallet_rounded, color: Color(0xFFEA580C), size: 20),
+                Icon(Icons.account_balance_wallet_rounded, color: SubsidiaryTheme.current.color, size: 20),
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -1375,12 +1376,12 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: const Color(0xFFFED7AA)),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   SizedBox(
                     width: 14,
                     height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFEA580C)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: SubsidiaryTheme.current.color),
                   ),
                   SizedBox(width: 8),
                   Text('Verifying account with Monnify & NIBSS...', style: TextStyle(fontSize: 11, color: Color(0xFFC2410C), fontWeight: FontWeight.w600)),
@@ -1452,7 +1453,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
               children: [
                 Checkbox(
                   value: _useSameAccountForSalary,
-                  activeColor: const Color(0xFFEA580C),
+                  activeColor: SubsidiaryTheme.current.color,
                   onChanged: (v) => setState(() => _useSameAccountForSalary = v ?? true),
                 ),
                 const Expanded(
@@ -1496,12 +1497,12 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: const Color(0xFFFED7AA)),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
                     SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFEA580C)),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: SubsidiaryTheme.current.color),
                     ),
                     SizedBox(width: 8),
                     Text('Verifying salary account with Monnify & NIBSS...', style: TextStyle(fontSize: 11, color: Color(0xFFC2410C), fontWeight: FontWeight.w600)),
@@ -1765,8 +1766,8 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
       builder: (BuildContext context, Widget? child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFEA580C),
+            colorScheme: ColorScheme.light(
+              primary: SubsidiaryTheme.current.color,
               onPrimary: Colors.white,
               surface: Colors.white,
               onSurface: Color(0xFF0F172A),
@@ -1774,7 +1775,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
             dialogBackgroundColor: Colors.white,
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFEA580C),
+                foregroundColor: SubsidiaryTheme.current.color,
                 textStyle: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ),
@@ -1826,7 +1827,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             child: Row(
               children: [
-                Icon(icon, color: const Color(0xFFEA580C), size: 18),
+                Icon(icon, color: SubsidiaryTheme.current.color, size: 18),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -1838,7 +1839,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                     ),
                   ),
                 ),
-                const Icon(Icons.calendar_month_rounded, color: Color(0xFFEA580C), size: 18),
+                Icon(Icons.calendar_month_rounded, color: SubsidiaryTheme.current.color, size: 18),
               ],
             ),
           ),

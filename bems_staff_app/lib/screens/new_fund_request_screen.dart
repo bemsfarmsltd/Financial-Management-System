@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/staff_models.dart';
 import '../services/staff_api_service.dart';
+import '../theme/subsidiary_theme.dart';
 
 class NewFundRequestScreen extends StatefulWidget {
   final StaffUser user;
@@ -234,8 +235,8 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFEA580C),
+            colorScheme: ColorScheme.light(
+              primary: SubsidiaryTheme.current.color,
               onPrimary: Colors.white,
               onSurface: Color(0xFF0F172A),
             ),
@@ -253,8 +254,8 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
         builder: (context, child) {
           return Theme(
             data: Theme.of(context).copyWith(
-              colorScheme: const ColorScheme.light(
-                primary: Color(0xFFEA580C),
+              colorScheme: ColorScheme.light(
+                primary: SubsidiaryTheme.current.color,
                 onPrimary: Colors.white,
                 onSurface: Color(0xFF0F172A),
               ),
@@ -379,10 +380,10 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.3)),
+                border: Border.all(color: SubsidiaryTheme.current.color.withOpacity(0.3)),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFEA580C).withOpacity(0.06),
+                    color: SubsidiaryTheme.current.color.withOpacity(0.06),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
@@ -391,16 +392,16 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'REQUISITION AMOUNT (NGN)',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFFEA580C), letterSpacing: 0.8),
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color, letterSpacing: 0.8),
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Text(
+                      Text(
                         '₦',
-                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFFEA580C)),
+                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: SubsidiaryTheme.current.color),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -460,7 +461,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.event_available_rounded, color: Color(0xFFEA580C), size: 20),
+                          Icon(Icons.event_available_rounded, color: SubsidiaryTheme.current.color, size: 20),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
@@ -478,7 +479,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFEA580C),
+                              color: SubsidiaryTheme.current.color,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Text('Change Date', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
@@ -599,19 +600,19 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                             decoration: BoxDecoration(
                               color: _payeeType == 'STAFF_ADVANCE' ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: _payeeType == 'STAFF_ADVANCE' ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0)),
+                              border: Border.all(color: _payeeType == 'STAFF_ADVANCE' ? SubsidiaryTheme.current.color : const Color(0xFFE2E8F0)),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.person_pin_rounded, size: 16, color: _payeeType == 'STAFF_ADVANCE' ? const Color(0xFFEA580C) : const Color(0xFF64748B)),
+                                Icon(Icons.person_pin_rounded, size: 16, color: _payeeType == 'STAFF_ADVANCE' ? SubsidiaryTheme.current.color : const Color(0xFF64748B)),
                                 const SizedBox(width: 6),
                                 Text(
                                   'My Advance Bank',
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w800,
-                                    color: _payeeType == 'STAFF_ADVANCE' ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                                    color: _payeeType == 'STAFF_ADVANCE' ? SubsidiaryTheme.current.color : const Color(0xFF64748B),
                                   ),
                                 ),
                               ],
@@ -707,7 +708,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                                   if (widget.user.subsidiary.isNotEmpty) widget.user.subsidiary,
                                   'Bems Logistics & Distribution Ltd',
                                   'BemsSoft Hub Ltd',
-                                  'BEMS Group',
+                                  widget.user.subsidiary.isNotEmpty ? widget.user.subsidiary : 'Primary Organization',
                                 }.toList();
 
                           final currentVal = availableSubsidiaries.contains(_selectedSubsidiary)
@@ -796,7 +797,7 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                     children: [
                       _buildUrgencyChip('NORMAL', 'Normal (48h)', const Color(0xFF10B981)),
                       const SizedBox(width: 8),
-                      _buildUrgencyChip('HIGH', 'High (24h)', const Color(0xFFEA580C)),
+                      _buildUrgencyChip('HIGH', 'High (24h)', SubsidiaryTheme.current.color),
                       const SizedBox(width: 8),
                       _buildUrgencyChip('CRITICAL', 'Emergency', const Color(0xFFEF4444)),
                     ],
@@ -818,8 +819,8 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: _isUploadingAttachment ? null : _pickAttachmentCamera,
-                          icon: const Icon(Icons.camera_alt_rounded, size: 15, color: Color(0xFFEA580C)),
-                          label: const Text('Camera', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFEA580C))),
+                          icon: Icon(Icons.camera_alt_rounded, size: 15, color: SubsidiaryTheme.current.color),
+                          label: Text('Camera', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: SubsidiaryTheme.current.color)),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Color(0xFFFED7AA)),
                             backgroundColor: const Color(0xFFFFF7ED),
@@ -867,10 +868,10 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
                         color: const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFEA580C))),
+                          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: SubsidiaryTheme.current.color)),
                           SizedBox(width: 10),
                           Text('Uploading quotation...', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
                         ],
@@ -924,12 +925,12 @@ class _NewFundRequestScreenState extends State<NewFundRequestScreen> {
             ElevatedButton(
               onPressed: _isSubmitting ? null : _submitRequest,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEA580C),
+                backgroundColor: SubsidiaryTheme.current.color,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                 elevation: 3,
-                shadowColor: const Color(0xFFEA580C).withOpacity(0.4),
+                shadowColor: SubsidiaryTheme.current.color.withOpacity(0.4),
               ),
               child: _isSubmitting
                   ? const SizedBox(

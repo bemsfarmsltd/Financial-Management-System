@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { createEmployeeSession, publicEmployee, verifyPassword } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { checkRateLimit, resetRateLimit } from '@/lib/rate-limiter';
+import { resolveOrganizationBranding } from '@/lib/subsidiary-branding';
 
 export async function POST(request: Request) {
   try {
@@ -35,7 +36,13 @@ export async function POST(request: Request) {
           where: { status: 'ACTIVE' },
           orderBy: [{ isPrimary: 'desc' }, { startsOn: 'desc' }],
           include: {
-            subsidiary: true,
+            subsidiary: {
+              include: {
+                settings: {
+                  where: { key: { in: ['BRAND_COLOR', 'BRAND_LOGO_URL'] } },
+                },
+              },
+            },
             department: true,
           },
         },
@@ -58,6 +65,7 @@ export async function POST(request: Request) {
     if (!['STAFF', 'GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(employee.role)) return NextResponse.json({ error: 'This account has an unsupported role. Contact a Super Admin.' }, { status: 403 });
     const session = await createEmployeeSession(employee.id);
     const primaryAssignment = employee.assignments?.[0];
+    const branding = resolveOrganizationBranding(primaryAssignment?.subsidiary);
 
     const fullUser = {
       ...publicEmployee(employee),
@@ -68,6 +76,7 @@ export async function POST(request: Request) {
       residentialAddress: employee.residentialAddress || '',
       cityState: employee.cityState || '',
       subsidiary: primaryAssignment?.subsidiary?.legalName || primaryAssignment?.subsidiary?.code || '',
+      ...branding,
       department: primaryAssignment?.department?.name || '',
       jobTitle: employee.jobTitle || primaryAssignment?.positionName || '',
       employmentType: employee.employmentType || '',

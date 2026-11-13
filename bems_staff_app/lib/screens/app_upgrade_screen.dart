@@ -109,7 +109,7 @@ class StaffAppUpgradeScreen extends StatelessWidget {
                   const SizedBox(height: 14),
 
                   const Text(
-                    'Update BEMS Staff App',
+                    'Update Staff App',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 22,

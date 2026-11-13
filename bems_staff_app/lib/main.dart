@@ -7,6 +7,7 @@ import 'screens/staff_login_screen.dart';
 import 'services/staff_api_service.dart';
 import 'services/staff_storage_service.dart';
 import 'services/staff_notification_service.dart';
+import 'theme/subsidiary_theme.dart';
 
 final GlobalKey<NavigatorState> staffNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -70,35 +71,45 @@ class BemsStaffApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: staffNavigatorKey,
-      title: 'BEMS Staff',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-        colorScheme: const ColorScheme.light(
-          primary: Color(0xFFEA580C),
-          secondary: Color(0xFFFB923C),
-          surface: Colors.white,
-          error: Color(0xFFEF4444),
-        ),
-        cardColor: Colors.white,
-        dividerColor: const Color(0xFFE2E8F0),
-        textTheme: GoogleFonts.plusJakartaSansTextTheme(ThemeData.light().textTheme),
-        appBarTheme: const AppBarTheme(
-            backgroundColor: Colors.white,
-          elevation: 0,
-          iconTheme: IconThemeData(color: Color(0xFF0F172A)),
-          titleTextStyle: TextStyle(
-            color: Color(0xFF0F172A),
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
+    return ValueListenableBuilder<SubsidiaryBrand>(
+      valueListenable: SubsidiaryTheme.notifier,
+      builder: (context, brand, _) {
+        final primaryColor = brand.color;
+        final secondaryColor = Color.lerp(primaryColor, Colors.white, 0.25) ?? primaryColor;
+        final appTitle = brand.name.isNotEmpty && brand.name != 'Staff Workspace'
+            ? '${brand.name} Staff'
+            : 'Staff Workspace';
+        return MaterialApp(
+          navigatorKey: staffNavigatorKey,
+          title: appTitle,
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.light,
+            scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+            colorScheme: ColorScheme.light(
+              primary: primaryColor,
+              secondary: secondaryColor,
+              surface: Colors.white,
+              error: const Color(0xFFEF4444),
+            ),
+            cardColor: Colors.white,
+            dividerColor: const Color(0xFFE2E8F0),
+            textTheme: GoogleFonts.plusJakartaSansTextTheme(ThemeData.light().textTheme),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              iconTheme: IconThemeData(color: Color(0xFF0F172A)),
+              titleTextStyle: TextStyle(
+                color: Color(0xFF0F172A),
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
-        ),
-      ),
-      home: const StaffSplashScreen(),
+          home: const StaffSplashScreen(),
+        );
+      },
     );
   }
 }
