@@ -21,26 +21,55 @@
 
   <title>BEMS Staff Portal</title>
   <link rel="manifest" href="manifest.json">
-
-  <script>
-    // Ensure all stale service workers and caches are purged so live scanner loads
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for (let registration of registrations) {
-          registration.unregister();
-        }
-      });
-    }
-    if ('caches' in window) {
-      caches.keys().then(function(names) {
-        for (let name of names) {
-          caches.delete(name);
-        }
-      });
-    }
-  </script>
 </head>
 <body>
+  <div id="bems-pwa-install" style="display:none;position:fixed;right:20px;bottom:20px;z-index:99999;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;box-shadow:0 12px 32px rgba(15,23,42,0.14);font-family:system-ui,-apple-system,sans-serif;max-width:340px;align-items:center;gap:12px;">
+    <img src="icons/Icon-192.png" alt="BEMS Staff" style="width:40px;height:40px;border-radius:10px;border:1px solid #e2e8f0;flex-shrink:0;" />
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:13px;font-weight:800;color:#0f172a;line-height:1.25;">Install BEMS Staff</div>
+      <div style="font-size:11.5px;color:#475569;margin-top:2px;">Add as standalone desktop software on your PC.</div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button id="bems-pwa-install-btn" style="background:#ea580c;color:#ffffff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;">Install on PC</button>
+        <button id="bems-pwa-dismiss-btn" style="background:#f8fafc;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;">Not now</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function() {
+      var deferredPrompt = null;
+      var banner = document.getElementById('bems-pwa-install');
+      var installBtn = document.getElementById('bems-pwa-install-btn');
+      var dismissBtn = document.getElementById('bems-pwa-dismiss-btn');
+      var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      if (isStandalone || sessionStorage.getItem('bems_pwa_dismissed') === '1') return;
+
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        deferredPrompt = e;
+        if (banner) banner.style.display = 'flex';
+      });
+      if (installBtn) {
+        installBtn.addEventListener('click', function() {
+          if (!deferredPrompt) return;
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.finally(function() {
+            deferredPrompt = null;
+            if (banner) banner.style.display = 'none';
+          });
+        });
+      }
+      if (dismissBtn) {
+        dismissBtn.addEventListener('click', function() {
+          sessionStorage.setItem('bems_pwa_dismissed', '1');
+          if (banner) banner.style.display = 'none';
+        });
+      }
+      window.addEventListener('appinstalled', function() {
+        deferredPrompt = null;
+        if (banner) banner.style.display = 'none';
+      });
+    })();
+  </script>
   <script src="flutter_bootstrap.js?v=20261030_1535" async></script>
 </body>
 </html>

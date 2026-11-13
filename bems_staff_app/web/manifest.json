@@ -1,12 +1,12 @@
 {
-    "name": "bems_staff_app",
-    "short_name": "bems_staff_app",
-    "start_url": ".",
+    "name": "BEMS Staff Workspace",
+    "short_name": "BEMS Staff",
+    "start_url": "./index.html",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#f8fafc",
+    "theme_color": "#ea580c",
+    "description": "BEMS Enterprise Staff Portal & Requisitions",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {
