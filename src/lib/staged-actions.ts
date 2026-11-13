@@ -2781,7 +2781,7 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
           const todayRecords = await tx.attendanceRecord.findMany({
             where: {
               workDate: todayWat,
-              approvedById: null,
+              isManualOverride: false,
               status: { in: ['PRESENT', 'LATE'] },
               checkInTime: { not: null },
               employee: {
@@ -2811,7 +2811,11 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
             if (rec.status !== nextStatus || Number(rec.deductionPercent) !== nextDeduction) {
               await tx.attendanceRecord.update({
                 where: { id: rec.id },
-                data: { status: nextStatus, deductionPercent: nextDeduction },
+                data: {
+                  status: nextStatus,
+                  deductionPercent: nextDeduction,
+                  isDeductionApplied: nextIsLate && nextDeduction > 0,
+                },
               });
             }
           }
