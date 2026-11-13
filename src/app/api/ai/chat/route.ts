@@ -2042,6 +2042,12 @@ title: "<Chart Title>"
       normalized.includes('not clocked') ||
       normalized.includes('attendance') ||
       normalized.includes('absent') ||
+      normalized.includes('absence') ||
+      normalized.includes('present') ||
+      normalized.includes('day off') ||
+      normalized.includes('off-day') ||
+      normalized.includes('off day') ||
+      normalized.includes('roster') ||
       normalized.includes('unexcused') ||
       normalized.includes('late')
     ) {
@@ -2051,6 +2057,7 @@ title: "<Chart Title>"
         month: '2-digit',
         day: '2-digit',
       }).format(new Date());
+      const todayDow = String(new Date(`${todayWat}T12:00:00Z`).getUTCDay());
       const orgFilter = scopedOrgId ? [scopedOrgId] : authorizedScope.organizationIds;
       const activeStaff = await prisma.employee.findMany({
         where: {
@@ -2064,6 +2071,7 @@ title: "<Chart Title>"
           id: true,
           legalName: true,
           employeeNumber: true,
+          workSchedule: { select: { weeklyOffDays: true } },
           assignments: {
             where: { status: 'ACTIVE', endsOn: null },
             orderBy: { isPrimary: 'desc' },
@@ -2090,37 +2098,53 @@ title: "<Chart Title>"
       const recordByEmp = new Map(todayRecords.map((r) => [r.employeeId, r]));
       const onTime: string[] = [];
       const late: string[] = [];
-      const notClockedIn: string[] = [];
+      const offDay: string[] = [];
+      const absent: string[] = [];
+
+      const fmtWat = (dt: Date) =>
+        new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Africa/Lagos',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        }).format(dt);
 
       for (const emp of activeStaff) {
         const rec = recordByEmp.get(emp.id);
         const label = `**${emp.legalName}** (${emp.assignments[0]?.subsidiary?.legalName || 'BEMS'})`;
-        if (!rec || !rec.checkInTime) {
-          notClockedIn.push(label);
+        const offDays = (emp.workSchedule?.weeklyOffDays || '0,6')
+          .split(',')
+          .map((d) => d.trim())
+          .filter(Boolean);
+        const isScheduledOff = offDays.includes(todayDow);
+
+        if (rec?.status === 'OFF_DAY' || (!rec?.checkInTime && isScheduledOff)) {
+          offDay.push(label);
+        } else if (!rec || !rec.checkInTime) {
+          absent.push(label);
         } else if (rec.status === 'LATE') {
-          const t = new Intl.DateTimeFormat('en-GB', {
-            timeZone: 'Africa/Lagos',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-          }).format(rec.checkInTime);
-          late.push(`${label} — ${t}`);
+          late.push(`${label} — ${fmtWat(rec.checkInTime)}`);
         } else {
-          onTime.push(label);
+          onTime.push(`${label} — ${fmtWat(rec.checkInTime)}`);
         }
       }
 
+      const formatList = (items: string[], max = 15) =>
+        items
+          .slice(0, max)
+          .map((s) => `• ${s}`)
+          .join('\n') + (items.length > max ? `\n• *...and ${items.length - max} more*` : '');
+
       reply =
         `**Live Attendance Summary for ${todayWat} (${scopedOrgName}):**\n\n` +
-        `• **On-Time:** ${onTime.length} staff\n` +
+        `• **Present (On-Time):** ${onTime.length} staff\n` +
         `• **Late:** ${late.length} staff\n` +
-        `• **Not Clocked In Yet:** ${notClockedIn.length} staff\n\n` +
-        (notClockedIn.length > 0
-          ? `**Not Clocked In (${notClockedIn.length}):**\n${notClockedIn.slice(0, 12).map((s) => `• ${s}`).join('\n')}${notClockedIn.length > 12 ? `\n• *...and ${notClockedIn.length - 12} more*` : ''}\n\n`
-          : '') +
-        (late.length > 0
-          ? `**Late Arrivals (${late.length}):**\n${late.slice(0, 10).map((s) => `• ${s}`).join('\n')}\n\n`
-          : '') +
+        `• **Scheduled Day Off:** ${offDay.length} staff\n` +
+        `• **Absent / Not Clocked In:** ${absent.length} staff\n\n` +
+        (onTime.length > 0 ? `**Present / On-Time (${onTime.length}):**\n${formatList(onTime)}\n\n` : '') +
+        (late.length > 0 ? `**Late Arrivals (${late.length}):**\n${formatList(late)}\n\n` : '') +
+        (offDay.length > 0 ? `**On Scheduled Day Off (${offDay.length}):**\n${formatList(offDay)}\n\n` : '') +
+        (absent.length > 0 ? `**Absent / Not Clocked In (${absent.length}):**\n${formatList(absent)}\n\n` : '') +
         `💬 *You can ask me to message any staff member (e.g., "Message <Name> to explain their absence").*`;
     } else {
       // General mode-aware intelligence fallback
