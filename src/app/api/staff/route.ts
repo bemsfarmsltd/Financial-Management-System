@@ -26,6 +26,8 @@ export async function GET(req: Request) {
       },
       include: {
         assignments: {
+          where: { status: 'ACTIVE' },
+          orderBy: [{ isPrimary: 'desc' }, { startsOn: 'desc' }],
           include: {
             subsidiary: {
               select: { id: true, legalName: true, code: true }

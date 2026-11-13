@@ -1935,7 +1935,15 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                   </div>
                   <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Building2 size={12} />
-                    <span>{primaryAssignment?.subsidiary?.legalName || 'BEMS Conglomerate'}</span>
+                    <span>
+                      {Array.from(
+                        new Set(
+                          (s.assignments || [])
+                            .map((a) => a.subsidiary?.legalName)
+                            .filter((n): n is string => Boolean(n && n.trim()))
+                        )
+                      ).join(' · ') || 'BEMS Conglomerate'}
+                    </span>
                   </div>
                 </div>
 
