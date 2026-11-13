@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/staff_api_service.dart';
 import '../services/staff_storage_service.dart';
 import 'staff_module_gallery_screen.dart';
+import 'subsidiary_welcome_screen.dart';
 import 'staff_register_screen.dart';
 import 'staff_forgot_password_screen.dart';
 
@@ -90,7 +91,12 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
   void _navigateToMain(StaffUser user) {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => StaffModuleGalleryScreen(user: user)),
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (_, __, ___) => SubsidiaryWelcomeScreen(user: user),
+        transitionsBuilder: (_, animation, __, child) =>
+            FadeTransition(opacity: animation, child: child),
+      ),
     );
   }
 
@@ -233,44 +239,43 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Brand Header
+                // Brand Header (BEMS Group)
                 Center(
-                  child: SubsidiaryTheme.current.id.isNotEmpty
-                      ? const SubsidiaryLogoBadge(size: 72, borderRadius: 22)
-                      : Container(
-                          width: 72,
-                          height: 72,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                SubsidiaryTheme.current.color,
-                                Color.lerp(SubsidiaryTheme.current.color, Colors.white, 0.25) ?? SubsidiaryTheme.current.color,
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(22),
-                            boxShadow: [
-                              BoxShadow(
-                                color: SubsidiaryTheme.current.color.withOpacity(0.3),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 36),
+                  child: Container(
+                    width: 82,
+                    height: 82,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFEA580C).withOpacity(0.14),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
                         ),
+                      ],
+                    ),
+                    child: Image.asset(
+                      'assets/images/bems-logo.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.account_balance_wallet_rounded,
+                        color: Color(0xFFEA580C),
+                        size: 36,
+                      ),
+                    ),
+                  ),
                 ),
 
                 const SizedBox(height: 20),
 
-                Text(
-                  SubsidiaryTheme.current.id.isNotEmpty
-                      ? '${SubsidiaryTheme.current.name} Workspace'
-                      : 'Staff Workspace',
+                const Text(
+                  'BEMS Group',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 24,
+                  style: TextStyle(
+                    fontSize: 26,
                     fontWeight: FontWeight.w900,
                     color: Color(0xFF0F172A),
                     letterSpacing: -0.6,
@@ -280,7 +285,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                 const SizedBox(height: 6),
 
                 const Text(
-                  'Operational Fund Requisitions · 72h SLA Clearance',
+                  'Staff Workspace · Operational Fund Requisitions',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                 ),
@@ -346,7 +351,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                           style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600),
                           decoration: const InputDecoration(
                             prefixIcon: Icon(Icons.mail_outline_rounded, color: Color(0xFF94A3B8), size: 18),
-                            hintText: 'name@company.com',
+                            hintText: 'name@bemsgroup.com',
                             hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),

@@ -5,6 +5,7 @@ import '../models/staff_models.dart';
 import '../services/staff_biometric_service.dart';
 import 'staff_module_gallery_screen.dart';
 import 'staff_login_screen.dart';
+import 'subsidiary_welcome_screen.dart';
 import '../theme/subsidiary_theme.dart';
 
 class StaffBiometricAuthScreen extends StatefulWidget {
@@ -97,7 +98,7 @@ class _StaffBiometricAuthScreenState extends State<StaffBiometricAuthScreen>
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 500),
-        pageBuilder: (_, __, ___) => StaffModuleGalleryScreen(user: widget.user),
+        pageBuilder: (_, __, ___) => SubsidiaryWelcomeScreen(user: widget.user),
         transitionsBuilder: (_, animation, __, child) =>
             FadeTransition(opacity: animation, child: child),
       ),
