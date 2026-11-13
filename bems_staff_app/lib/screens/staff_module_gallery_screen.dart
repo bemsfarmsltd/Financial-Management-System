@@ -113,16 +113,11 @@ class _StaffModuleGalleryScreenState extends State<StaffModuleGalleryScreen> {
                       ),
                       child: Row(
                         children: [
-                          CircleAvatar(
+                          StaffAvatar(
+                            avatarUrl: widget.user.avatarUrl,
+                            fullName: widget.user.fullName,
                             radius: 24,
-                            backgroundColor: SubsidiaryTheme.current.color.withOpacity(0.12),
-                            backgroundImage: widget.user.avatarUrl.isNotEmpty ? NetworkImage(widget.user.avatarUrl) : null,
-                            child: widget.user.avatarUrl.isEmpty
-                                ? Text(
-                                    widget.user.fullName.isNotEmpty ? widget.user.fullName[0].toUpperCase() : 'S',
-                                    style: TextStyle(color: SubsidiaryTheme.current.color, fontWeight: FontWeight.w900, fontSize: 18),
-                                  )
-                                : null,
+                            accentColor: SubsidiaryTheme.current.color,
                           ),
                           const SizedBox(width: 14),
                           Expanded(

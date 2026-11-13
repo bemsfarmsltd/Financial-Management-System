@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../models/staff_models.dart';
 
 class SubsidiaryBrand {
@@ -76,21 +78,54 @@ class SubsidiaryTheme {
     );
   }
 
-  static String? resolveNetworkLogoUrl(String? rawUrl) {
+  static String? resolveMediaUrl(String? rawUrl) {
     if (rawUrl == null || rawUrl.trim().isEmpty) return null;
     final trimmed = rawUrl.trim();
-    // Flutter Image.network cannot decode SVGs directly without an SVG decoder.
-    if (trimmed.toLowerCase().split('?').first.endsWith('.svg')) {
-      return null;
+    if (trimmed.startsWith('data:image/')) {
+      return trimmed;
     }
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return trimmed;
     }
-    if (kIsWeb) {
-      return trimmed.startsWith('/') ? trimmed : '/$trimmed';
-    }
     const prodHost = 'https://bemserp.work';
-    return trimmed.startsWith('/') ? '$prodHost$trimmed' : '$prodHost/$trimmed';
+    final cleanPath = trimmed.startsWith('/') ? trimmed : '/$trimmed';
+    if (kIsWeb) {
+      try {
+        final base = Uri.base;
+        final host = base.host.toLowerCase();
+        final isErpOrigin =
+            host.contains('bemserp.work') ||
+            host.contains('hostingersite.com') ||
+            ((host == 'localhost' || host == '127.0.0.1') && base.port == 3000);
+        if (isErpOrigin) {
+          return '${base.origin}$cleanPath';
+        }
+      } catch (_) {}
+    }
+    return '$prodHost$cleanPath';
+  }
+
+  static String? resolveNetworkLogoUrl(String? rawUrl) => resolveMediaUrl(rawUrl);
+
+  static bool isSvgUrl(String url) {
+    final lower = url.toLowerCase();
+    if (lower.startsWith('data:image/svg+xml')) return true;
+    return lower.split('?').first.endsWith('.svg');
+  }
+
+  static Uint8List? decodeDataUriBytes(String dataUri) {
+    final commaIdx = dataUri.indexOf(',');
+    if (commaIdx < 0 || commaIdx + 1 >= dataUri.length) return null;
+    final meta = dataUri.substring(0, commaIdx).toLowerCase();
+    final payload = dataUri.substring(commaIdx + 1);
+    try {
+      if (meta.contains(';base64')) {
+        return base64Decode(payload);
+      }
+      return Uint8List.fromList(utf8.encode(Uri.decodeComponent(payload)));
+    } catch (_) {
+      return null;
+    }
   }
 }
 
@@ -106,10 +141,57 @@ class SubsidiaryLogoBadge extends StatelessWidget {
     this.brand,
   });
 
+  Widget _buildLogoContent(SubsidiaryBrand activeBrand, String resolvedUrl) {
+    if (resolvedUrl.startsWith('data:image/')) {
+      final bytes = SubsidiaryTheme.decodeDataUriBytes(resolvedUrl);
+      if (bytes == null || bytes.isEmpty) {
+        return _MonogramFallback(brand: activeBrand, size: size);
+      }
+      if (SubsidiaryTheme.isSvgUrl(resolvedUrl)) {
+        return Padding(
+          padding: EdgeInsets.all(size * 0.12),
+          child: SvgPicture.memory(
+            bytes,
+            fit: BoxFit.contain,
+            placeholderBuilder: (_) => _MonogramFallback(brand: activeBrand, size: size),
+          ),
+        );
+      }
+      return Padding(
+        padding: EdgeInsets.all(size * 0.1),
+        child: Image.memory(
+          bytes,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => _MonogramFallback(brand: activeBrand, size: size),
+        ),
+      );
+    }
+
+    if (SubsidiaryTheme.isSvgUrl(resolvedUrl)) {
+      return Padding(
+        padding: EdgeInsets.all(size * 0.12),
+        child: SvgPicture.network(
+          resolvedUrl,
+          fit: BoxFit.contain,
+          placeholderBuilder: (_) => _MonogramFallback(brand: activeBrand, size: size),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: EdgeInsets.all(size * 0.1),
+      child: Image.network(
+        resolvedUrl,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => _MonogramFallback(brand: activeBrand, size: size),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeBrand = brand ?? SubsidiaryTheme.current;
-    final resolvedUrl = SubsidiaryTheme.resolveNetworkLogoUrl(activeBrand.logoUrl);
+    final resolvedUrl = SubsidiaryTheme.resolveMediaUrl(activeBrand.logoUrl);
 
     return Container(
       width: size,
@@ -128,15 +210,84 @@ class SubsidiaryLogoBadge extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: resolvedUrl != null
-          ? Padding(
-              padding: EdgeInsets.all(size * 0.12),
-              child: Image.network(
-                resolvedUrl,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => _MonogramFallback(brand: activeBrand, size: size),
-              ),
-            )
+          ? _buildLogoContent(activeBrand, resolvedUrl)
           : _MonogramFallback(brand: activeBrand, size: size),
+    );
+  }
+}
+
+class StaffAvatar extends StatelessWidget {
+  final String? avatarUrl;
+  final String fullName;
+  final double radius;
+  final Color? accentColor;
+
+  const StaffAvatar({
+    super.key,
+    required this.avatarUrl,
+    required this.fullName,
+    this.radius = 24,
+    this.accentColor,
+  });
+
+  String get _initials {
+    final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    if (parts.isNotEmpty && parts[0].isNotEmpty) return parts[0][0].toUpperCase();
+    return 'S';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = accentColor ?? SubsidiaryTheme.current.color;
+    final resolvedUrl = SubsidiaryTheme.resolveMediaUrl(avatarUrl);
+    final diameter = radius * 2;
+
+    Widget fallback() => Container(
+          width: diameter,
+          height: diameter,
+          color: color.withOpacity(0.12),
+          alignment: Alignment.center,
+          child: Text(
+            _initials,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w900,
+              fontSize: radius * 0.72,
+            ),
+          ),
+        );
+
+    Widget content;
+    if (resolvedUrl == null) {
+      content = fallback();
+    } else if (resolvedUrl.startsWith('data:image/')) {
+      final bytes = SubsidiaryTheme.decodeDataUriBytes(resolvedUrl);
+      content = (bytes != null && bytes.isNotEmpty)
+          ? Image.memory(
+              bytes,
+              width: diameter,
+              height: diameter,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => fallback(),
+            )
+          : fallback();
+    } else {
+      content = Image.network(
+        resolvedUrl,
+        width: diameter,
+        height: diameter,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback(),
+      );
+    }
+
+    return ClipOval(
+      child: SizedBox(
+        width: diameter,
+        height: diameter,
+        child: content,
+      ),
     );
   }
 }

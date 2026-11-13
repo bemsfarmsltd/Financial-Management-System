@@ -228,15 +228,44 @@ class _SubsidiaryWelcomeScreenState extends State<SubsidiaryWelcomeScreen>
                       },
                       child: Column(
                         children: [
-                          Text(
-                            widget.user.fullName.isNotEmpty
-                                ? 'Signed in as ${widget.user.fullName}'
-                                : 'Workspace Ready',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF475569),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.03),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                StaffAvatar(
+                                  avatarUrl: widget.user.avatarUrl,
+                                  fullName: widget.user.fullName,
+                                  radius: 14,
+                                  accentColor: accent,
+                                ),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    widget.user.fullName.isNotEmpty
+                                        ? 'Signed in as ${widget.user.fullName}'
+                                        : 'Workspace Ready',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF334155),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 24),

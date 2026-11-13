@@ -422,7 +422,16 @@ title: "<Chart Title>"
             n8nData = await n8nRes.json();
           }
           const rawReply = n8nData.reply || n8nData.message || 'Workflow executed.';
-          let reply = normalizeMarkdownStructure(rawReply);
+          const isN8nGenericFailure =
+            !n8nData.staged_action &&
+            !n8nData.actionCard &&
+            /i could not complete that just now|nothing was changed in bems/i.test(String(rawReply));
+          if (isN8nGenericFailure) {
+            console.warn(
+              `[AI Chat] n8n webhook (${activeAgentMode}) returned generic failure reply; falling back to built-in BEMS AI engine.`
+            );
+          } else {
+            let reply = normalizeMarkdownStructure(rawReply);
 
           // Verify any staged_action or STAGED_ACTION card against backend database records before rendering
           let verifiedStagedAction: Record<string, any> | null = null;
@@ -833,12 +842,14 @@ title: "<Chart Title>"
             quick_replies: n8nData.quick_replies || n8nData.quickReplies || [],
             timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
           });
+          }
         } else if (n8nRes) {
           const errData = await n8nRes.json().catch(() => ({}));
           console.warn(`n8n webhook responded with status ${n8nRes.status}:`, errData);
-          if (errData.reply || errData.message) {
+          const errReply = String(errData.reply || errData.message || '');
+          if (errReply && !/i could not complete that just now|nothing was changed in bems/i.test(errReply)) {
             return NextResponse.json({
-              message: errData.reply || errData.message,
+              message: errReply,
               actionCard: null,
               timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
             });

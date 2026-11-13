@@ -349,7 +349,16 @@ export function UniversalStagedActionCard({
             {recordId && <span style={{ fontWeight: 700, color: '#14532d' }}>Record: {recordId}</span>}
             {resultUrl && (
               <a
-                href={resultUrl}
+                href={
+                  ({
+                    '/treasury': '/finance',
+                    '/tasks': '/hr',
+                    '/helpdesk': '/hr',
+                    '/subsidiary': '/admin',
+                    '/policies': '/admin',
+                    '/settings': '/admin',
+                  } as Record<string, string>)[resultUrl] || resultUrl
+                }
                 style={{
                   color: '#15803d',
                   fontWeight: 800,

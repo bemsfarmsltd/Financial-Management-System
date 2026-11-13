@@ -768,7 +768,16 @@ export async function executeStagedAction(params: {
 
       const committed = await executeBusinessCommand(tx, { action, actor, materialPayload, actionId, effectiveIdempotencyKey, auditEventId, source: 'AI_STAGED', confirmationPassword: password });
       resultRecord = committed.resultRecord; recordType = committed.recordType; recordId = committed.recordId;
-      url = committed.url; resolvedSubsidiaryId = committed.resolvedSubsidiaryId;
+      const STAGED_ROUTE_MAP: Record<string, string> = {
+        '/treasury': '/finance',
+        '/tasks': '/hr',
+        '/helpdesk': '/hr',
+        '/subsidiary': '/admin',
+        '/policies': '/admin',
+        '/settings': '/admin',
+      };
+      url = STAGED_ROUTE_MAP[committed.url] || committed.url || '/';
+      resolvedSubsidiaryId = committed.resolvedSubsidiaryId;
       notificationIntentIds.push(...committed.notificationIntentIds);
       notificationsDeliveredIds.push(...committed.notificationsDeliveredIds);
       const deliveryStatus = committed.deliveryStatus;
