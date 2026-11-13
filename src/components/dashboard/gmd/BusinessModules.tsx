@@ -822,7 +822,7 @@ type Staff = {
   isOfflineStaff?: boolean;
   isAttendanceExempt?: boolean;
   kioskPin?: string | null;
-  assignments: { subsidiary: { legalName: string }; department?: { name: string } | null; positionName: string }[];
+  assignments: { subsidiary: { id?: string; legalName: string; code?: string }; department?: { name: string } | null; positionName: string }[];
   employmentAgreements: { compensations: { grossMinor: number; currency: string; recurrence: string; version: number; changeType?: string | null; changeReason?: string | null; effectiveFrom: string }[] }[];
   salaryChangeProposals?: {
     id: string;
@@ -2529,7 +2529,81 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
                         <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155' }}>
                           <div><b>Position / Title:</b> {selected.employee.assignment?.positionName || selected.employee.jobTitle || '—'}</div>
                           <div><b>Department:</b> {selected.employee.assignment?.departmentName || '—'}</div>
-                          <div><b>Operating Subsidiary:</b> {selected.employee.assignment?.subsidiaryName || '—'}</div>
+                          <div>
+                            <b>Primary Subsidiary (App Branding):</b> {selected.employee.assignment?.subsidiaryName || '—'}
+                            {(() => {
+                              const rowAssignments = rows.find((r) => r.id === selected.employee.id)?.assignments || [];
+                              if (rowAssignments.length <= 1) return null;
+                              return (
+                                <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                  {rowAssignments.map((a, idx) => {
+                                    const subId = a.subsidiary?.id;
+                                    const subName = a.subsidiary?.legalName || 'Subsidiary';
+                                    const isPrim = idx === 0;
+                                    return (
+                                      <span
+                                        key={`${subId || subName}-${idx}`}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 6,
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          padding: '3px 8px',
+                                          borderRadius: 999,
+                                          background: isPrim ? '#fff7ed' : '#f1f5f9',
+                                          border: isPrim ? '1px solid #fdba74' : '1px solid #cbd5e1',
+                                          color: isPrim ? '#c2410c' : '#334155',
+                                        }}
+                                      >
+                                        <span>{subName}</span>
+                                        {isPrim ? (
+                                          <span style={{ fontSize: 10, color: '#ea580c' }}>· Primary</span>
+                                        ) : subId ? (
+                                          <button
+                                            type="button"
+                                            disabled={corporateSaving}
+                                            onClick={async () => {
+                                              setCorporateSaving(true);
+                                              setError('');
+                                              try {
+                                                const res = await fetch(`/api/admin/employees/${selected.employee.id}/corporate`, {
+                                                  method: 'PATCH',
+                                                  headers: { 'Content-Type': 'application/json' },
+                                                  credentials: 'include',
+                                                  body: JSON.stringify({ subsidiaryId: subId, setPrimaryOnly: true }),
+                                                });
+                                                const data = await res.json();
+                                                if (!res.ok) throw new Error(data.error || 'Failed to set primary subsidiary.');
+                                                setNotice(`${subName} set as primary subsidiary (controls app branding).`);
+                                                await Promise.all([open(selected.employee.id), load()]);
+                                              } catch (err: any) {
+                                                setError(err.message || 'Failed to set primary subsidiary.');
+                                              } finally {
+                                                setCorporateSaving(false);
+                                              }
+                                            }}
+                                            style={{
+                                              border: 'none',
+                                              background: '#0f172a',
+                                              color: '#ffffff',
+                                              fontSize: 10,
+                                              fontWeight: 700,
+                                              padding: '2px 6px',
+                                              borderRadius: 999,
+                                              cursor: 'pointer',
+                                            }}
+                                          >
+                                            Set Primary
+                                          </button>
+                                        ) : null}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+                          </div>
                           <div><b>Agreement Type:</b> {selected.employee.employmentType || selected.employee.employment?.agreementType || 'Full-time'} ({selected.employee.staffGrade || 'General Staff'})</div>
                           <div><b>Work Location:</b> {selected.employee.workLocation || 'BEMS Group'}</div>
                           <div><b>Resumption Date:</b> {selected.employee.resumptionDate ? date(selected.employee.resumptionDate) : '—'}</div>
@@ -2550,7 +2624,7 @@ export function StaffProfilesModule({ setNotice, onNavigate, scope }: { setNotic
 
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                             <div>
-                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 3 }}>Operating Subsidiary *</label>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 3 }}>Primary Subsidiary (App Branding) *</label>
                               <select
                                 value={corpForm.subsidiaryId}
                                 onChange={(e) => {
