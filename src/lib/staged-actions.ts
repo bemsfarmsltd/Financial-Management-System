@@ -4159,9 +4159,9 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
       url = `/subsidiary`;
       resultRecord = updatedOrg;
     } else if (action.actionType === 'staff_management') {
-      if(walletEnabled() && actor.id!==process.env.BEMS_FINANCIAL_GMD_ID && [materialPayload.employeeId, materialPayload.employee_id, materialPayload.target_employee_id].includes(process.env.BEMS_FINANCIAL_GMD_ID)) throw new Error('The designated GMD account cannot be changed by another administrator.');
       const subAction = String(materialPayload.sub_action || materialPayload.action_type || 'EDIT_PROFILE').toUpperCase();
       if (!['REGISTER_OFFLINE', 'EDIT_PROFILE', 'TOGGLE_ATTENDANCE_EXEMPT', 'CHANGE_STATUS', 'REQUEST_UPDATE', 'SEND_PASSWORD_RESET_INVITE', 'RESET_PASSWORD_INVITE', 'DELETE_OR_DEACTIVATE'].includes(subAction)) throw new Error('Unsupported staff operation.');
+      if (subAction !== 'TOGGLE_ATTENDANCE_EXEMPT' && walletEnabled() && actor.id!==process.env.BEMS_FINANCIAL_GMD_ID && [materialPayload.employeeId, materialPayload.employee_id, materialPayload.target_employee_id].includes(process.env.BEMS_FINANCIAL_GMD_ID)) throw new Error('The designated GMD account cannot be changed by another administrator.');
 
       if (subAction === 'REGISTER_OFFLINE') {
         const legalName = String(materialPayload.legalName || '').trim();
@@ -4293,7 +4293,7 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
 
         if (normalizeCanonicalRole(targetEmployee.role) === 'SUPER_ADMIN' && normalizeCanonicalRole(actor.role) !== 'SUPER_ADMIN') throw new StagedPermissionError('Only a Super Admin can modify a Super Admin account.');
 
-        if (targetEmployee.role === 'GMD' && actor.role !== 'GMD') {
+        if (subAction !== 'TOGGLE_ATTENDANCE_EXEMPT' && targetEmployee.role === 'GMD' && actor.role !== 'GMD') {
           throw new StagedValidationError(
             'GMD_IMMUTABLE',
             'Only the active Group Managing Director can modify the GMD account.'
@@ -4301,6 +4301,9 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
         }
 
         if (subAction === 'TOGGLE_ATTENDANCE_EXEMPT') {
+          if (!['GMD', 'SUPER_ADMIN', 'SYSTEM_ADMIN'].includes(actor.role)) {
+            throw new StagedPermissionError('Only GMD or Super Admin can update attendance exemptions.');
+          }
           const isExempt =
             materialPayload.isAttendanceExempt !== undefined
               ? Boolean(materialPayload.isAttendanceExempt)
