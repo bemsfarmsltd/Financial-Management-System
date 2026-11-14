@@ -56,7 +56,7 @@ export async function getMobileAppGate(appId: string) {
           latestVersionAvailable: '1.0.0',
           forceUpdate: false,
           directDownloadUrl: 'https://bemserp.work/download/gmd-app.apk?v=1.0.0',
-          upgradePromptNotes: 'Initial production release v1.0.0 for Executive Command Desk & BEMI AI Copilot.',
+          upgradePromptNotes: 'Initial production release v1.0.0 for Executive Command Desk & BEMi AI Copilot.',
         }
       : {
           appId: 'STAFF_APP',

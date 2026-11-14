@@ -47,7 +47,7 @@ export const AI_ACCESS_SCOPES: AiScopeDefinition[] = [
     category: 'Master Control',
     label: 'Global AI Master Switch',
     description:
-      'Master kill-switch governing all BEMI Copilot and n8n automation read queries and staged action writes across the entire ERP.',
+      'Master kill-switch governing all BEMi Copilot and n8n automation read queries and staged action writes across the entire ERP.',
     endpoint: '/api/ai/*',
     readLabel: 'Allow All AI Read Queries',
     writeLabel: 'Allow All AI Staged Writes',

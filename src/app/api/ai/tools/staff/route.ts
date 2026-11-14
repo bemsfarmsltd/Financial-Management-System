@@ -332,7 +332,7 @@ export async function POST(request: NextRequest) {
         );
       }
       const canonicalRole = requestedRole === 'SYSTEM_ADMIN' ? 'SUPER_ADMIN' : requestedRole;
-      const reason = String(body.reason || 'Executive role reassignment via BEMI').trim();
+      const reason = String(body.reason || 'Executive role reassignment via BEMi').trim();
 
       const staged = await stageAction({
           actorContext: actor,

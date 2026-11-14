@@ -277,7 +277,7 @@ export async function POST(req: NextRequest) {
         request_id: targetReq.id,
         request_number: targetReq.requestNumber,
         assignee_user_id: targetAssignee.id,
-        note: String(body.note || body.reason || body.comment || 'Assigned via BEMI').trim(),
+        note: String(body.note || body.reason || body.comment || 'Assigned via BEMi').trim(),
       },
       preview: {
         operation: 'Assign Disbursement Owner',

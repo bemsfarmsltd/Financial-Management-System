@@ -136,7 +136,7 @@ class _ExecutiveModuleGalleryScreenState
                                 color: Color(0xFFEA580C),
                                 size: 22,
                               ),
-                              tooltip: 'BEMI AI Copilot',
+                              tooltip: 'BEMi AI Copilot',
                               onPressed: () {
                                 Navigator.push(
                                   context,
@@ -385,7 +385,7 @@ class _ExecutiveModuleGalleryScreenState
       ),
       _ExecutiveModuleItem(
         eyebrow: 'ARTIFICIAL INTELLIGENCE',
-        title: 'BEMI AI Executive Copilot',
+        title: 'BEMi AI Executive Copilot',
         description:
             'Natural-language Finance, Treasury & HR Operations assistant with staged executive confirmations.',
         badge: 'GMD AI',

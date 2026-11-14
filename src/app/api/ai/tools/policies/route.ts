@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
           fileName: body.fileName || `${appId.toLowerCase()}-v${version}.apk`,
           fileSize: body.fileSize || '58.0 MB',
           downloadUrl: body.downloadUrl || (appId === 'GMD_APP' ? '/download/gmd-app.apk' : '/download/staff-app.apk'),
-          notes: body.notes || `Activated v${version} via BEMI`,
+          notes: body.notes || `Activated v${version} via BEMi`,
           attachmentIds,
         },
         preview: {

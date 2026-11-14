@@ -926,7 +926,7 @@ export async function POST(req: NextRequest) {
         action: 'CONFIRM_RECEIPT',
         disbursementId,
         decision,
-        note: body.note || 'Confirmed via BEMI',
+        note: body.note || 'Confirmed via BEMi',
       },
     });
 

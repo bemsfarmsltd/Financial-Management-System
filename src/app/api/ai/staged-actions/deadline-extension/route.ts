@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const lookup = String(body.case_id || body.caseId || body.request_id || body.requestId || body.requestNumber || '').trim();
   const extensionHours = Number(body.extension_hours ?? body.extensionHours ?? 72);
-  const reason = String(body.reason || `Extended by ${extensionHours}h via BEMI`).trim();
+  const reason = String(body.reason || `Extended by ${extensionHours}h via BEMi`).trim();
 
   if (!lookup) {
     return NextResponse.json(

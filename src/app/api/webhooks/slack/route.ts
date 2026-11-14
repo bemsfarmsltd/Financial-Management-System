@@ -43,7 +43,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid Slack HMAC signature." }, { status: 401 });
     }
 
-    return NextResponse.json({ status: 'HUMAN_CONFIRMATION_REQUIRED', text: 'Open BEMI in the executive workspace to review the request and click its approval button.', url: (process.env.NEXT_PUBLIC_APP_URL || 'https://bemserp.work') + '/finance' });
+    return NextResponse.json({ status: 'HUMAN_CONFIRMATION_REQUIRED', text: 'Open BEMi in the executive workspace to review the request and click its approval button.', url: (process.env.NEXT_PUBLIC_APP_URL || 'https://bemserp.work') + '/finance' });
   } catch (error: any) {
     console.error("Slack webhook handler error:", error);
     return NextResponse.json({ error: error.message || "Failed to process Slack action" }, { status: 500 });

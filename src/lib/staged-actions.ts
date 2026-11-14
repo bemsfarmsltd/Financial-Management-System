@@ -1816,7 +1816,7 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
 
         if (subAction === 'SUBMIT_EVIDENCE' || subAction === 'UPLOAD_EVIDENCE') {
           const attIds: string[] = Array.isArray(materialPayload.attachment_ids) ? materialPayload.attachment_ids : [];
-          const notes = String(materialPayload.notes || clearance_notes || 'Post-payment evidence submitted via BEMI');
+          const notes = String(materialPayload.notes || clearance_notes || 'Post-payment evidence submitted via BEMi');
           const files = await tx.attachment.findMany({ where: { id: { in: attIds } } });
           if (!files.length || files.length !== attIds.length || files.some(file => !file.fileData?.length || (file.requestId && file.requestId !== accCase.requestId) || !['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.contentType))) throw new Error('Upload actual supporting evidence for this request.');
           const funding=await walletRequestFunding(tx,accCase.requestId);
@@ -3926,7 +3926,7 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
         if(walletEnabled()){const item=await tx.payrollItem.findUnique({where:{id:String(materialPayload.itemId||materialPayload.item_id||materialPayload.payrollItemId||'')}});if(item?.status==='WALLET_CREDITED')throw new Error('A wallet-funded payroll item cannot be removed.');}
         const itemId = materialPayload.itemId || materialPayload.payrollItemId;
         const mode = materialPayload.mode === 'PERMANENT' ? 'PERMANENT' : 'BATCH_ONLY';
-        const reason = String(materialPayload.reason || 'Removed from payroll run via BEMI');
+        const reason = String(materialPayload.reason || 'Removed from payroll run via BEMi');
         const item = await tx.payrollItem.findUnique({
           where: { id: itemId },
           include: { employee: true, disbursement: true },
@@ -4834,7 +4834,7 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
                     authorName: actor.legalName,
                     authorRole: actor.role,
                     messageType: 'AUDIT_EVENT',
-                    body: `Fund request ${requestNumber} created and submitted via BEMI (${currency} ${(Number(amountMinor) / 100).toLocaleString()})${isOnBehalf ? ` by ${actor.legalName} on behalf of requester` : ''}.`,
+                    body: `Fund request ${requestNumber} created and submitted via BEMi (${currency} ${(Number(amountMinor) / 100).toLocaleString()})${isOnBehalf ? ` by ${actor.legalName} on behalf of requester` : ''}.`,
                   },
                 },
               },
@@ -4886,7 +4886,7 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
           receivedById: actor.id,
           grnNumber,
           waybillNumber: materialPayload.waybillNumber || null,
-          inspectionNotes: materialPayload.inspectionNotes || materialPayload.conditionNotes || 'Verified and staged via BEMI',
+          inspectionNotes: materialPayload.inspectionNotes || materialPayload.conditionNotes || 'Verified and staged via BEMi',
           status,
         },
       });
@@ -4963,7 +4963,7 @@ export async function executeBusinessCommand(tx: Prisma.TransactionClient, input
             leaveType: materialPayload.leaveType || 'ANNUAL',
             startDate,
             endDate,
-            reason: String(materialPayload.reason || 'Staged via BEMI'),
+            reason: String(materialPayload.reason || 'Staged via BEMi'),
             handoverNotes: materialPayload.handoverNotes || materialPayload.reliefOfficerName || null,
             status: 'PENDING',
           },

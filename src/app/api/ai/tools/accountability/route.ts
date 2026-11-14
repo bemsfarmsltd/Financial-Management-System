@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
         : body.attachmentId
         ? [String(body.attachmentId)]
         : [];
-      const notes = String(body.notes || body.description || 'Post-payment evidence submitted via BEMI').trim();
+      const notes = String(body.notes || body.description || 'Post-payment evidence submitted via BEMi').trim();
 
       const staged = await stageAction({
           actorContext: actor,
@@ -259,7 +259,7 @@ export async function POST(req: NextRequest) {
           extension_hours: extensionHours,
           new_due_at: newDueAt.toISOString(),
           expected_due_at: targetCase.dueAt.toISOString(),
-          reason: body.reason || `Extended by ${extensionHours}h via BEMI`,
+          reason: body.reason || `Extended by ${extensionHours}h via BEMi`,
         },
         preview: {
           operation: 'Extend Accountability Deadline',
@@ -289,7 +289,7 @@ export async function POST(req: NextRequest) {
       materialPayload: {
         case_id: targetCase.id,
         request_number: targetCase.request.requestNumber,
-        clearance_notes: body.notes || body.reason || 'Receipts verified and cleared via BEMI',
+        clearance_notes: body.notes || body.reason || 'Receipts verified and cleared via BEMi',
       },
       preview: {
         operation: 'Grant 72h Retiral Clearance',

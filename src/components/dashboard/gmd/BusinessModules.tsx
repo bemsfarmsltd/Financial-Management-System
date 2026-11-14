@@ -4820,7 +4820,7 @@ export function WorkspaceSettingsModule({ businessName, setNotice, initialSectio
             <span style={{display:'inline-block',background:'#ea580c',color:'#fff',fontSize:10.5,fontWeight:800,padding:'2px 9px',borderRadius:99,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>
               Granular AI Governance Matrix · 24 Scopes
             </span>
-            <h3 style={{margin:0,fontSize:16.5,color:'#ffffff'}}>BEMI Copilot &amp; n8n Automation Read / Write Access Controls</h3>
+            <h3 style={{margin:0,fontSize:16.5,color:'#ffffff'}}>BEMi Copilot &amp; n8n Automation Read / Write Access Controls</h3>
             <p style={{margin:'4px 0 0',fontSize:12.5,color:'#cbd5e1',lineHeight:1.45}}>
               Control every single ERP capability the AI can <strong>Read (GET / Query)</strong> or <strong>Write (POST / Stage Action)</strong> individually. Even when Write is enabled, all AI writes strictly stage proposals requiring a human confirmation button click.
             </p>

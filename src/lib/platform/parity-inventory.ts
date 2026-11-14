@@ -360,7 +360,7 @@ export const PARITY_INVENTORY: ReadonlyArray<ParityInventoryEntry> = [
     dashboardRoute: '/api/staff/[employeeId]/password',
     methods: ['POST', 'PATCH'],
     status: 'DASHBOARD_ONLY_INTENTIONAL',
-    justification: 'Identity secret entry is strictly human-bound on the dedicated UI; BEMI stages SEND_PASSWORD_RESET_INVITE via staff_management.',
+    justification: 'Identity secret entry is strictly human-bound on the dedicated UI; BEMi stages SEND_PASSWORD_RESET_INVITE via staff_management.',
   },
 
   // 12. Accountability, Leave, Tasks, Messages & Policies
