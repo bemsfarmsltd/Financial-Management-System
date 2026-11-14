@@ -97,6 +97,7 @@ export async function GET(req: Request) {
         bvn: true,
         highestEducation: true,
         isOfflineStaff: true,
+        isAttendanceExempt: true,
         bankName: true,
         accountNumber: true,
         accountName: true,
@@ -174,6 +175,7 @@ export async function GET(req: Request) {
         bvn: s.bvn,
         highestEducation: s.highestEducation,
         isOfflineStaff: s.isOfflineStaff,
+        isAttendanceExempt: s.isAttendanceExempt,
         // Least-field projection: never expose kioskPin or passwordHash
         bankName: s.bankName,
         accountNumber: s.accountNumber,

@@ -207,7 +207,6 @@ const staffNavGroups = [
   {
     label: 'SUPPORT & ACCESS',
     items: [
-      ['Attendance & Timekeeping', '⏱'],
       ['Settings & Profile', '⚙'],
     ]
   },
@@ -238,8 +237,6 @@ const gmdNavGroups = [
   {
     label: 'ADMINISTRATION & GOVERNANCE',
     items: [
-      ['Attendance & Timekeeping', '⏱'],
-      ['Staff profiles', '♙'],
       ['Admin onboarding', '🛡️'],
       ['Audit logs', '≡'],
       ['Admin Settings', '⚙'],

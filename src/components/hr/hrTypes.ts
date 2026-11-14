@@ -37,6 +37,9 @@ export interface HrSubsidiarySummary {
   id: string;
   name: string;
   code: string;
+  type?: string | null;
+  industry?: string | null;
+  logoUrl?: string | null;
   brandColor?: string | null;
   staffCount: number;
 }
@@ -54,8 +57,17 @@ export interface HrLatestPayroll {
 
 export interface HrOverviewData {
   todayStr: string;
+  actor?: {
+    id: string;
+    legalName: string;
+    role: string;
+  };
   metrics: HrMetrics;
   attendance7DayTrend: AttendanceTrendDay[];
+  attendance14DayTrend?: AttendanceTrendDay[];
+  employmentBreakdown?: Array<{ type: string; count: number }>;
+  departmentBreakdown?: Array<{ department: string; count: number }>;
+  leaveBreakdown?: Array<{ type: string; count: number }>;
   latestPayrollBatch: HrLatestPayroll | null;
   subsidiaries: HrSubsidiarySummary[];
 }
@@ -154,3 +166,4 @@ export function formatNairaMinor(minorStr?: string | number | null): string {
   const num = Number(minorStr || 0) / 100;
   return `₦${num.toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
+

@@ -582,3 +582,4 @@ export function HrLeavePanel({
     </div>
   );
 }
+

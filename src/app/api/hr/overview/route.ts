@@ -59,9 +59,9 @@ export async function GET(req: Request) {
         }
       : {};
 
-    // Build last 7 dates (oldest -> today) in Africa/Lagos
-    const last7Dates: { dateStr: string; dayLabel: string }[] = [];
-    for (let i = 6; i >= 0; i--) {
+    // Build last 14 dates (oldest -> today) in Africa/Lagos
+    const last14Dates: { dateStr: string; dayLabel: string }[] = [];
+    for (let i = 13; i >= 0; i--) {
       const d = new Date(now.getTime() - i * 86400000);
       const dateStr = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Africa/Lagos',
@@ -73,9 +73,9 @@ export async function GET(req: Request) {
         timeZone: 'Africa/Lagos',
         weekday: 'short',
       }).format(d);
-      last7Dates.push({ dateStr, dayLabel });
+      last14Dates.push({ dateStr, dayLabel });
     }
-    const oldestDateStr = last7Dates[0].dateStr;
+    const oldestDateStr = last14Dates[0].dateStr;
 
     const [
       totalStaff,
@@ -85,9 +85,11 @@ export async function GET(req: Request) {
       pendingExcuseRequests,
       onLeaveToday,
       todayRecords,
-      last7Records,
+      last14Records,
       latestPayrollBatch,
       subsidiaries,
+      activeStaffList,
+      leaveTypeGroups,
     ] = await Promise.all([
       prisma.employee.count({
         where: {
@@ -187,11 +189,40 @@ export async function GET(req: Request) {
           id: true,
           legalName: true,
           code: true,
+          type: true,
+          logoUrl: true,
           brandColor: true,
           _count: {
             select: { employeeAssignments: true },
           },
         },
+      }),
+
+      prisma.employee.findMany({
+        where: {
+          role: 'STAFF',
+          status: 'ACTIVE',
+          ...staffSubFilter,
+        },
+        select: {
+          employmentType: true,
+          assignments: {
+            where: { status: 'ACTIVE' },
+            select: {
+              department: { select: { name: true } },
+            },
+            take: 1,
+          },
+        },
+      }),
+
+      prisma.leaveRequest.groupBy({
+        by: ['leaveType'],
+        where: {
+          status: { in: ['PENDING', 'APPROVED'] },
+          ...employeeRelationSubFilter,
+        },
+        _count: { _all: true },
       }),
     ]);
 
@@ -208,17 +239,17 @@ export async function GET(req: Request) {
     const absentToday = Math.max(0, totalStaff - (presentToday + lateToday + excusedToday + onLeaveToday));
 
     const trendMap = new Map<string, { present: number; late: number }>();
-    for (const d of last7Dates) {
+    for (const d of last14Dates) {
       trendMap.set(d.dateStr, { present: 0, late: 0 });
     }
-    for (const rec of last7Records) {
+    for (const rec of last14Records) {
       const bucket = trendMap.get(rec.workDate);
       if (!bucket) continue;
       if (rec.status === 'PRESENT' || rec.status === 'EXCUSED') bucket.present++;
       else if (rec.status === 'LATE') bucket.late++;
     }
 
-    const attendance7DayTrend = last7Dates.map((d) => {
+    const attendance14DayTrend = last14Dates.map((d) => {
       const b = trendMap.get(d.dateStr) || { present: 0, late: 0 };
       const presentTotal = b.present + b.late;
       const absent = Math.max(0, totalStaff - presentTotal);
@@ -230,10 +261,39 @@ export async function GET(req: Request) {
         absent,
       };
     });
+    const attendance7DayTrend = attendance14DayTrend.slice(-7);
+
+    // Employment Type & Department analytics
+    const empTypeCounts = new Map<string, number>();
+    const deptCounts = new Map<string, number>();
+    for (const emp of activeStaffList) {
+      const empType = (emp.employmentType || 'FULL_TIME').toUpperCase();
+      empTypeCounts.set(empType, (empTypeCounts.get(empType) || 0) + 1);
+      const deptName = emp.assignments[0]?.department?.name || 'General Operations';
+      deptCounts.set(deptName, (deptCounts.get(deptName) || 0) + 1);
+    }
+
+    const employmentBreakdown = Array.from(empTypeCounts.entries())
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const departmentBreakdown = Array.from(deptCounts.entries())
+      .map(([department, count]) => ({ department, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+
+    const leaveBreakdown = leaveTypeGroups
+      .map((g) => ({ type: g.leaveType, count: g._count._all }))
+      .sort((a, b) => b.count - a.count);
 
     return NextResponse.json({
       success: true,
       todayStr,
+      actor: {
+        id: actor.id,
+        legalName: actor.legalName,
+        role: actor.role,
+      },
       metrics: {
         totalStaff,
         presentToday,
@@ -247,6 +307,10 @@ export async function GET(req: Request) {
         pendingExcuseRequests,
       },
       attendance7DayTrend,
+      attendance14DayTrend,
+      employmentBreakdown,
+      departmentBreakdown,
+      leaveBreakdown,
       latestPayrollBatch: latestPayrollBatch
         ? {
             id: latestPayrollBatch.id,
@@ -263,6 +327,8 @@ export async function GET(req: Request) {
         id: sub.id,
         name: sub.legalName,
         code: sub.code,
+        type: sub.type,
+        logoUrl: sub.logoUrl,
         brandColor: sub.brandColor,
         staffCount: sub._count.employeeAssignments,
       })),

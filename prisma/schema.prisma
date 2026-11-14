@@ -38,6 +38,18 @@ model Organization {
   notifications        SystemNotification[]
   staffDisputes        StaffDispute[]
   announcements        CompanyAnnouncement[]
+  payrollDeductions    PayrollDeductionAdjustment[]
+  employeeLoans        EmployeeLoan[]
+  hrRequestTickets     HrRequestTicket[]
+  hrDocumentTemplates  HrDocumentTemplate[]
+  employeeDocuments    EmployeeDocument[]
+  kpiDefinitions       KpiDefinition[]
+  performanceCycles    PerformanceReviewCycle[]
+  performancePlans     PerformanceImprovementPlan[]
+  disciplinaryCases    DisciplinaryCase[]
+  grievanceCases       EmployeeGrievanceCase[]
+  jobVacancies         JobVacancy[]
+  trainingCourses      TrainingCourse[]
 }
 
 model CompanyBankAccount {
@@ -80,6 +92,8 @@ model Department {
   code           String
 
   employeeAssignments EmployeeAssignment[]
+  kpiDefinitions      KpiDefinition[]
+  jobVacancies        JobVacancy[]
 }
 
 model Employee {
@@ -169,6 +183,19 @@ model Employee {
   salaryChangeProposals SalaryChangeProposal[]
   leaveRequests         LeaveRequest[]
   deviceTokens          DevicePushToken[]
+  payrollDeductions     PayrollDeductionAdjustment[]
+  employeeLoans         EmployeeLoan[]
+  hrRequestTickets      HrRequestTicket[]
+  employeeDocuments     EmployeeDocument[]
+  kpiDefinitions        KpiDefinition[]
+  evaluationsReceived   PerformanceEvaluation[] @relation("EvaluationSubject")
+  evaluationsGiven      PerformanceEvaluation[] @relation("EvaluationReviewer")
+  pipsReceived          PerformanceImprovementPlan[] @relation("PipSubject")
+  pipsSupervised        PerformanceImprovementPlan[] @relation("PipSupervisor")
+  disciplinaryCases     DisciplinaryCase[]
+  grievancesReported    EmployeeGrievanceCase[] @relation("GrievanceReporter")
+  grievancesAgainst     EmployeeGrievanceCase[] @relation("GrievanceAgainst")
+  trainingAssignments   EmployeeTrainingAssignment[]
 }
 
 model SalaryChangeProposal {
@@ -599,6 +626,7 @@ model PayrollPeriod {
 
   batches    PayrollBatch[]
   notes      IntercompanyNote[]
+  deductionAdjustments PayrollDeductionAdjustment[]
 }
 
 model PayrollBatch {
@@ -1312,4 +1340,291 @@ model WalletProjectReturn {
  intentHash String
  createdAt DateTime @default(now()) @db.Timestamptz(6)
  @@unique([employeeId,idempotencyKey])
+}
+
+// ---------------------------------------------------------------------------
+// BEMS HR MODULE (Phases 2, 3 & 4)
+// ---------------------------------------------------------------------------
+
+model PayrollDeductionAdjustment {
+  id              String         @id @default(uuid())
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id])
+  employeeId      String
+  employee        Employee       @relation(fields: [employeeId], references: [id])
+  payrollPeriodId String?
+  payrollPeriod   PayrollPeriod? @relation(fields: [payrollPeriodId], references: [id])
+  category        String         // LATENESS | ABSENCE | DAMAGE | LOAN_REPAYMENT | TAX_ADJUSTMENT | BONUS | ALLOWANCE | OTHER
+  direction       String         @default("DEDUCTION") // DEDUCTION | EARNING
+  amountMinor     BigInt
+  reason          String
+  evidenceUrl     String?
+  status          String         @default("PROPOSED") // PROPOSED | DISPUTED | APPROVED | REJECTED | APPLIED
+  disputeNote     String?
+  proposedById    String
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([organizationId, status])
+  @@index([employeeId, status])
+}
+
+model EmployeeLoan {
+  id                      String       @id @default(uuid())
+  organizationId          String
+  organization            Organization @relation(fields: [organizationId], references: [id])
+  employeeId              String
+  employee                Employee     @relation(fields: [employeeId], references: [id])
+  loanType                String       // SALARY_ADVANCE | STAFF_LOAN | EMERGENCY
+  principalMinor          BigInt
+  monthlyInstallmentMinor BigInt
+  remainingBalanceMinor   BigInt
+  tenureMonths            Int          @default(1)
+  reason                  String
+  status                  String       @default("PENDING") // PENDING | APPROVED | ACTIVE | COMPLETED | REJECTED
+  approvedById            String?
+  disbursedAt             DateTime?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  @@index([organizationId, status])
+  @@index([employeeId, status])
+}
+
+model HrRequestTicket {
+  id                String       @id @default(uuid())
+  referenceCode     String       @unique
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  employeeId        String
+  employee          Employee     @relation(fields: [employeeId], references: [id])
+  category          String       // LEAVE | ATTENDANCE_CORRECTION | SALARY_ADVANCE | REIMBURSEMENT | EQUIPMENT | WFH | SCHEDULE | TRAINING | INFO_CORRECTION | TRANSFER | SALARY_REVIEW | TRAVEL | EMPLOYMENT_LETTER
+  subject           String
+  description       String
+  payloadJson       String?
+  priority          String       @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+  status            String       @default("PENDING") // PENDING | IN_REVIEW | APPROVED | REJECTED | CANCELLED
+  currentApproverId String?
+  resolvedById      String?
+  resolutionNote    String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([organizationId, status])
+  @@index([employeeId, status])
+}
+
+model HrDocumentTemplate {
+  id             String             @id @default(uuid())
+  organizationId String?
+  organization   Organization?      @relation(fields: [organizationId], references: [id])
+  docType        String             // OFFER_LETTER | EMPLOYMENT_CONTRACT | CONFIRMATION_LETTER | PROMOTION_LETTER | SALARY_ADJUSTMENT | TRANSFER_LETTER | WARNING_LETTER | LEAVE_APPROVAL | NDA | EXIT_CLEARANCE | EXPERIENCE_LETTER | POLICY | CERTIFICATE | OTHER
+  title          String
+  bodyTemplate   String
+  isActive       Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  documents      EmployeeDocument[]
+}
+
+model EmployeeDocument {
+  id                String              @id @default(uuid())
+  organizationId    String
+  organization      Organization        @relation(fields: [organizationId], references: [id])
+  employeeId        String
+  employee          Employee            @relation(fields: [employeeId], references: [id])
+  templateId        String?
+  template          HrDocumentTemplate? @relation(fields: [templateId], references: [id])
+  docType           String
+  title             String
+  fileUrl           String?
+  renderedHtml      String?
+  version           Int                 @default(1)
+  expiryDate        String?
+  requiresSignature Boolean             @default(false)
+  signedAt          DateTime?
+  signatureNote     String?
+  issuedById        String
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([organizationId, docType])
+  @@index([employeeId])
+}
+
+model KpiDefinition {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  departmentId   String?
+  department     Department?  @relation(fields: [departmentId], references: [id])
+  employeeId     String?
+  employee       Employee?    @relation(fields: [employeeId], references: [id])
+  title          String
+  description    String?
+  weightPercent  Int
+  targetMetric   String
+  reviewPeriod   String       @default("QUARTERLY") // WEEKLY | MONTHLY | QUARTERLY | ANNUAL | PROBATION
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model PerformanceReviewCycle {
+  id             String                  @id @default(uuid())
+  organizationId String
+  organization   Organization            @relation(fields: [organizationId], references: [id])
+  title          String
+  cycleType      String                  @default("QUARTERLY")
+  startDate      String
+  endDate        String
+  status         String                  @default("ACTIVE") // DRAFT | ACTIVE | CLOSED
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  evaluations    PerformanceEvaluation[]
+}
+
+model PerformanceEvaluation {
+  id              String                 @id @default(uuid())
+  cycleId         String
+  cycle           PerformanceReviewCycle @relation(fields: [cycleId], references: [id])
+  employeeId      String
+  employee        Employee               @relation("EvaluationSubject", fields: [employeeId], references: [id])
+  reviewerId      String
+  reviewer        Employee               @relation("EvaluationReviewer", fields: [reviewerId], references: [id])
+  overallScore    Float
+  kpiScoresJson   String
+  reviewerSummary String?
+  employeeComment String?
+  pipRequired     Boolean                @default(false)
+  status          String                 @default("SUBMITTED") // DRAFT | SUBMITTED | ACKNOWLEDGED
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+}
+
+model PerformanceImprovementPlan {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  employeeId     String
+  employee       Employee     @relation("PipSubject", fields: [employeeId], references: [id])
+  supervisorId   String
+  supervisor     Employee     @relation("PipSupervisor", fields: [supervisorId], references: [id])
+  startDate      String
+  endDate        String
+  goalsSummary   String
+  status         String       @default("ACTIVE") // ACTIVE | COMPLETED_PASS | EXTENDED | FAILED
+  outcomeNote    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model DisciplinaryCase {
+  id               String       @id @default(uuid())
+  caseNumber       String       @unique
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  employeeId       String
+  employee         Employee     @relation(fields: [employeeId], references: [id])
+  severity         String       @default("MINOR") // MINOR | MAJOR | GROSS_MISCONDUCT
+  allegation       String
+  step             String       @default("INCIDENT") // INCIDENT | HR_REVIEW | QUERY_ISSUED | EMPLOYEE_RESPONSE | DECISION | APPEAL | CLOSED
+  queryText        String?
+  employeeResponse String?
+  decisionOutcome  String?      // EXONERATED | VERBAL_WARNING | WRITTEN_WARNING | FINAL_WARNING | SUSPENSION | TERMINATION
+  issuedById       String
+  decidedById      String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([organizationId, step])
+}
+
+model EmployeeGrievanceCase {
+  id                   String       @id @default(uuid())
+  ticketCode           String       @unique
+  organizationId       String
+  organization         Organization @relation(fields: [organizationId], references: [id])
+  reporterId           String
+  reporter             Employee     @relation("GrievanceReporter", fields: [reporterId], references: [id])
+  againstEmployeeId    String?
+  againstEmployee      Employee?    @relation("GrievanceAgainst", fields: [againstEmployeeId], references: [id])
+  category             String       // HARASSMENT | DISCRIMINATION | PAY_DISPUTE | SAFETY | MANAGEMENT_CONDUCT | OTHER
+  summary              String
+  isConfidential       Boolean      @default(true)
+  restrictedReviewerId String?
+  status               String       @default("OPEN") // OPEN | INVESTIGATING | RESOLVED | ESCALATED
+  resolutionNote       String?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+}
+
+model JobVacancy {
+  id             String         @id @default(uuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  departmentId   String?
+  department     Department?    @relation(fields: [departmentId], references: [id])
+  title          String
+  employmentType String         @default("FULL_TIME")
+  location       String         @default("Lagos HQ")
+  description    String
+  salaryBand     String?
+  headcount      Int            @default(1)
+  status         String         @default("OPEN") // OPEN | PAUSED | CLOSED | FILLED
+  createdById    String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  applicants     JobApplicant[]
+}
+
+model JobApplicant {
+  id              String     @id @default(uuid())
+  vacancyId       String
+  vacancy         JobVacancy @relation(fields: [vacancyId], references: [id])
+  fullName        String
+  email           String
+  phone           String?
+  resumeUrl       String?
+  stage           String     @default("APPLIED") // APPLIED | SCREENING | INTERVIEW | OFFER | HIRED | REJECTED
+  interviewNotes  String?
+  rating          Int?
+  hiredEmployeeId String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model TrainingCourse {
+  id             String                       @id @default(uuid())
+  organizationId String?
+  organization   Organization?                @relation(fields: [organizationId], references: [id])
+  title          String
+  category       String                       @default("COMPLIANCE")
+  provider       String?
+  durationHours  Int                          @default(2)
+  isMandatory    Boolean                      @default(false)
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+
+  assignments    EmployeeTrainingAssignment[]
+}
+
+model EmployeeTrainingAssignment {
+  id             String         @id @default(uuid())
+  courseId       String
+  course         TrainingCourse @relation(fields: [courseId], references: [id])
+  employeeId     String
+  employee       Employee       @relation(fields: [employeeId], references: [id])
+  status         String         @default("ASSIGNED") // ASSIGNED | IN_PROGRESS | COMPLETED | EXPIRED
+  dueDate        String?
+  completedAt    DateTime?
+  certificateUrl String?
+  expiryDate     String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }

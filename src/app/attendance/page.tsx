@@ -94,7 +94,8 @@ const ALLOWED_ADMIN_ROLES = ['GMD', 'SYSTEM_ADMIN', 'SUPER_ADMIN'];
 
 export default function AttendanceDeskPage() {
   const router = useRouter();
-  const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
+  const isEmbedded = typeof window !== 'undefined' && window.location.pathname.startsWith('/hr');
+  const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>(isEmbedded ? 'authorized' : 'checking');
   const [authenticatedUser, setAuthenticatedUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'daily' | 'calendar' | 'live' | 'roster' | 'policy' | 'payroll'>('daily');
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -517,6 +518,14 @@ export default function AttendanceDeskPage() {
   };
 
   useEffect(() => {
+    if (isEmbedded) {
+      loadDailyRoster();
+      loadTimesheet();
+      loadRoster();
+      loadPolicy();
+      loadStation();
+      return;
+    }
     let active = true;
     fetch('/api/auth/session?_t=' + Date.now(), { credentials: 'include', cache: 'no-store' })
       .then(res => res.json())
@@ -727,12 +736,13 @@ export default function AttendanceDeskPage() {
   return (
     <div
       style={{
-        minHeight: '100vh',
-        background: '#f8fafc',
+        minHeight: isEmbedded ? 'auto' : '100vh',
+        background: isEmbedded ? 'transparent' : '#f8fafc',
         color: '#0f172a',
         fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
         display: 'flex',
         flexDirection: 'column',
+        width: '100%',
       }}
     >
       {/* Top Banner / Toast Notice */}
@@ -763,7 +773,14 @@ export default function AttendanceDeskPage() {
 
 
       {/* Main Content Container */}
-      <main data-ai-domain="hr" style={{ maxWidth: '1280px', width: '100%', margin: '0 auto', padding: '24px 32px', flex: 1 }}>
+      <main
+        data-ai-domain="hr"
+        style={
+          isEmbedded
+            ? { width: '100%', maxWidth: 'none', margin: 0, padding: 0, flex: 1 }
+            : { maxWidth: '1280px', width: '100%', margin: '0 auto', padding: '24px 32px', flex: 1 }
+        }
+      >
         {/* Starlink Wi-Fi & Power Outage Emergency Control Strip */}
         <div
           style={{

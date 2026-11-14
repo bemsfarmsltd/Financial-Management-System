@@ -149,6 +149,61 @@ const PAGE_TELEMETRY: Record<string, TelemetryItem[]> = {
       actionPrompt: 'Generate full cryptographic compliance digest for the Board.',
     },
   ],
+  'HR · Overview': [
+    {
+      id: 'hr-ov-1',
+      badge: 'BEMi HR & WORKFORCE',
+      topic: 'WORKFORCE PULSE',
+      fullText: 'Workforce telemetry live for {businessName}. Monitoring daily attendance, onboarding approvals, leave coverage, and payroll readiness.',
+      severity: 'info',
+      actionLabel: 'Workforce Briefing ➔',
+      actionPrompt: 'Give me an executive HR briefing on headcount, today attendance, pending onboarding, and leave coverage for {businessName}.',
+    },
+  ],
+  'HR · Employees': [
+    {
+      id: 'hr-emp-1',
+      badge: 'STAFF DIRECTORY',
+      topic: 'ROSTER & ONBOARDING',
+      fullText: 'Employee directory synced for {businessName}. Self-service staff registrations queue here for Super Admin / GMD onboarding verification.',
+      severity: 'info',
+      actionLabel: 'Onboarding Audit ➔',
+      actionPrompt: 'Review all staff pending onboarding approval and summarize headcount distribution across {businessName}.',
+    },
+  ],
+  'HR · Attendance & Scheduling': [
+    {
+      id: 'hr-att-1',
+      badge: 'ATTENDANCE RADAR',
+      topic: 'DAILY CHECK-IN TELEMETRY',
+      fullText: 'Live attendance register active for {businessName} (Africa/Lagos). Tracking clock-ins, lateness, and excuse requests.',
+      severity: 'info',
+      actionLabel: 'Attendance Audit ➔',
+      actionPrompt: 'Analyze the last 7 days attendance trend and flag any unrecorded or late patterns in {businessName}.',
+    },
+  ],
+  'HR · Leave Management': [
+    {
+      id: 'hr-lv-1',
+      badge: 'LEAVE GOVERNANCE',
+      topic: 'ABSENCE COVERAGE',
+      fullText: 'Leave balances and approval queues active for {businessName}. Ensure operational continuity before approving overlapping absences.',
+      severity: 'info',
+      actionLabel: 'Leave Summary ➔',
+      actionPrompt: 'Summarize pending leave requests and current staff on leave across {businessName}.',
+    },
+  ],
+  'HR · Payroll & Benefits': [
+    {
+      id: 'hr-pay-1',
+      badge: 'PAYROLL SYNC',
+      topic: 'COMPENSATION & TREASURY',
+      fullText: 'Payroll compensation and attendance adjustments synced for {businessName}. Authoritative disbursement routes through GMD-approved Finance treasury.',
+      severity: 'info',
+      actionLabel: 'Payroll Digest ➔',
+      actionPrompt: 'Review the latest payroll cycle totals, deductions, and headcount coverage for {businessName}.',
+    },
+  ],
 };
 
 const DEFAULT_ITEM: TelemetryItem = {
@@ -159,6 +214,16 @@ const DEFAULT_ITEM: TelemetryItem = {
   severity: 'info',
   actionLabel: 'Open Copilot ➔',
   actionPrompt: 'Give me an executive summary of current group financial health.',
+};
+
+const DEFAULT_HR_ITEM: TelemetryItem = {
+  id: 'def-hr-1',
+  badge: 'BEMi HR MANAGER',
+  topic: 'WORKFORCE MONITOR',
+  fullText: 'Autonomous HR & Workforce intelligence active for {businessName}. Monitoring staff directory, attendance, leave, and lifecycle governance.',
+  severity: 'info',
+  actionLabel: 'HR Briefing ➔',
+  actionPrompt: 'Give me an executive HR & workforce briefing for {businessName}.',
 };
 
 export function useAmbientTelemetry({
@@ -173,8 +238,9 @@ export function useAmbientTelemetry({
   const [isTyping, setIsTyping] = useState(false);
   const [overrideItem, setOverrideItem] = useState<TelemetryItem | null>(null);
 
-  const items = PAGE_TELEMETRY[currentPage] || [DEFAULT_ITEM];
-  const activeItem = overrideItem || items[activeItemIndex % items.length] || DEFAULT_ITEM;
+  const fallbackItem = currentPage.startsWith('HR') ? DEFAULT_HR_ITEM : DEFAULT_ITEM;
+  const items = PAGE_TELEMETRY[currentPage] || [fallbackItem];
+  const activeItem = overrideItem || items[activeItemIndex % items.length] || fallbackItem;
 
   // Custom text with current business name injected if applicable
   const resolvedText = activeItem.fullText.replace('{businessName}', businessName);
